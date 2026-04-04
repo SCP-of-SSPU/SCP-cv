@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package scp_cv.v1;
+
+service PlaybackControlService {
+  rpc GetRuntimeStatus(RuntimeStatusRequest) returns (RuntimeStatusReply);
+  rpc ListDisplayTargets(EmptyRequest) returns (DisplayTargetsReply);
+  rpc OpenResource(OpenResourceRequest) returns (OperationReply);
+  rpc ControlPptPage(ControlPptPageRequest) returns (OperationReply);
+  rpc ControlCurrentMedia(ControlMediaRequest) returns (OperationReply);
+  rpc OpenStream(OpenStreamRequest) returns (OperationReply);
+  rpc StopCurrentContent(EmptyRequest) returns (OperationReply);
+  rpc SelectDisplayTarget(SelectDisplayTargetRequest) returns (OperationReply);
+}
+
+message EmptyRequest {}
+
+message RuntimeStatusRequest {}
+
+message RuntimeStatusReply {
+  string content_kind = 1;
+  string playback_state = 2;
+  string display_mode = 3;
+  string grpc_endpoint = 4;
+  bool debug_mode = 5;
+}
+
+message DisplayTargetItem {
+  int32 index = 1;
+  string name = 2;
+  int32 width = 3;
+  int32 height = 4;
+  int32 x = 5;
+  int32 y = 6;
+  bool is_primary = 7;
+}
+
+message DisplayTargetsReply {
+  repeated DisplayTargetItem targets = 1;
+  string splice_label = 2;
+}
+
+message OpenResourceRequest {
+  string resource_id = 1;
+}
+
+message ControlPptPageRequest {
+  string resource_id = 1;
+  string action = 2;
+  int32 page_number = 3;
+}
+
+message ControlMediaRequest {
+  string media_id = 1;
+  string action = 2;
+}
+
+message OpenStreamRequest {
+  string stream_identifier = 1;
+}
+
+message SelectDisplayTargetRequest {
+  string display_mode = 1;
+  string target_label = 2;
+}
+
+message OperationReply {
+  bool success = 1;
+  string message = 2;
+  string detail = 3;
+}

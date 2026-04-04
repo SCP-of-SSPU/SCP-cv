@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+
+{% block page_title %}播放控制台 · SCP-cv{% endblock %}
+
+{% block title %}播放控制台{% endblock %}
+
+{% block content %}
+<section class="hero-grid">
+  <article class="panel panel--hero">
+    <p class="eyebrow">阶段一初始化</p>
+    <h2>单窗口、显示器拼接、PPT 与 SRT 控制面的起点</h2>
+    <p class="panel__description">
+      页面由 Django 服务端渲染，浏览器只走 HTTP；gRPC、播放器进程和媒体服务都留在本地控制边界内。
+    </p>
+    <div class="hero-stats">
+      <div>
+        <span class="hero-stats__label">当前内容</span>
+        <strong>{{ current_content_title }}</strong>
+      </div>
+      <div>
+        <span class="hero-stats__label">当前状态</span>
+        <strong>{{ current_playback_state }}</strong>
+      </div>
+      <div>
+        <span class="hero-stats__label">播放模式</span>
+        <strong>{{ current_display_mode }}</strong>
+      </div>
+    </div>
+  </article>
+
+  <article class="panel panel--summary">
+    <div class="panel__header">
+      <h3>外部组件</h3>
+      <span class="panel__badge">路径探测</span>
+    </div>
+    <dl class="summary-list">
+      <div>
+        <dt>MediaMTX</dt>
+        <dd>{{ mediamtx_path }}</dd>
+      </div>
+      <div>
+        <dt>LibreOffice CLI</dt>
+        <dd>{{ libreoffice_path }}</dd>
+      </div>
+      <div>
+        <dt>gRPC 端点</dt>
+        <dd>{{ grpc_endpoint }}</dd>
+      </div>
+      <div>
+        <dt>刷新时间</dt>
+        <dd>{{ refresh_timestamp }}</dd>
+      </div>
+    </dl>
+  </article>
+</section>
+
+<section class="dashboard-grid">
+  <article class="panel">
+    <div class="panel__header">
+      <h3>主状态区</h3>
+      <span class="panel__badge">统一播放区域</span>
+    </div>
+    <dl class="metrics">
+      <div>
+        <dt>当前内容</dt>
+        <dd>{{ current_content_title }}</dd>
+      </div>
+      <div>
+        <dt>内容类型</dt>
+        <dd>{{ current_content_kind }}</dd>
+      </div>
+      <div>
+        <dt>页码</dt>
+        <dd>{{ ppt_page_progress }}</dd>
+      </div>
+      <div>
+        <dt>流状态</dt>
+        <dd>{{ current_stream_state }}</dd>
+      </div>
+    </dl>
+  </article>
+
+  <article class="panel">
+    <div class="panel__header">
+      <h3>显示器与拼接</h3>
+      <span class="panel__badge">{{ display_targets|length }} 台显示器</span>
+    </div>
+    {% if display_targets %}
+      <ul class="display-list">
+        {% for display in display_targets %}
+          <li>
+            <div>
+              <strong>显示器 {{ display.index }}</strong>
+              <p>{{ display.name }}</p>
+            </div>
+            <div class="display-list__meta">
+              <span>{{ display.geometry_label }}</span>
+              <span>{{ display.position_label }}</span>
+              {% if display.is_primary %}
+                <span class="chip chip--success">主屏</span>
+              {% endif %}
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+      {% if spliced_display %}
+        <div class="splice-summary">
+          <strong>左右拼接</strong>
+          <span>{{ spliced_display.left.name }} + {{ spliced_display.right.name }} · {{ spliced_display.geometry_label }}</span>
+        </div>
+      {% else %}
+        <p class="empty-state">当前仅识别到单个显示器，DEBUG 模式下可继续使用单屏播放。</p>
+      {% endif %}
+    {% else %}
+      <p class="empty-state">暂未识别到显示器信息，可能正在离线运行或当前环境未开放桌面枚举。</p>
+    {% endif %}
+  </article>
+
+  <article class="panel">
+    <div class="panel__header">
+      <h3>PPT 控制卡</h3>
+      <span class="panel__badge">页内媒体</span>
+    </div>
+    <div class="button-row">
+      <button class="action-button" type="button" data-command="ppt-prev">上一页</button>
+      <button class="action-button" type="button" data-command="ppt-next">下一页</button>
+      <button class="action-button action-button--ghost" type="button" data-command="ppt-jump">跳页</button>
+    </div>
+    <div class="media-panel">
+      <p class="empty-state">当前页媒体列表将在后续接入 PPT 解析器后显示。</p>
+    </div>
+  </article>
+
+  <article class="panel">
+    <div class="panel__header">
+      <h3>SRT 控制卡</h3>
+      <span class="panel__badge">单流接入</span>
+    </div>
+    <div class="button-row">
+      <button class="action-button" type="button" data-command="stream-open">打开流</button>
+      <button class="action-button action-button--ghost" type="button" data-command="stream-stop">停止流</button>
+    </div>
+    <div class="media-panel">
+      <p class="empty-state">SRT 在线状态、最近连接时间和当前播放状态会在流服务接入后展示。</p>
+    </div>
+  </article>
+
+  <article class="panel panel--full">
+    <div class="panel__header">
+      <h3>文件管理</h3>
+      <span class="panel__badge">资源列表</span>
+    </div>
+    {% if resource_rows %}
+      <div class="table-wrap">
+        <table class="resource-table">
+          <thead>
+            <tr>
+              <th>名称</th>
+              <th>类型</th>
+              <th>大小</th>
+              <th>页数</th>
+              <th>上传时间</th>
+              <th>最近使用</th>
+              <th>当前状态</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for resource in resource_rows %}
+              <tr>
+                <td>{{ resource.name }}</td>
+                <td>{{ resource.kind }}</td>
+                <td>{{ resource.size_label }}</td>
+                <td>{{ resource.page_count }}</td>
+                <td>{{ resource.uploaded_at }}</td>
+                <td>{{ resource.last_used_at }}</td>
+                <td>{{ resource.state }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="empty-state">资源列表暂为空，等文件上传和本地导入流程接入后，这里会自动展示 PPT / SRT 资源。</p>
+    {% endif %}
+  </article>
+</section>
+{% endblock %}

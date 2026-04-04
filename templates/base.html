@@ -1,0 +1,44 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block page_title %}SCP-cv 大屏内容播放系统{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <script defer src="{% static 'js/app.js' %}"></script>
+</head>
+<body class="app-shell">
+  <header class="topbar">
+    <div class="topbar__brand">
+      <div class="brand-mark" aria-hidden="true">S</div>
+      <div>
+        <p class="eyebrow">{{ project_name }}</p>
+        <h1>{% block title %}播放控制台{% endblock %}</h1>
+      </div>
+    </div>
+    <div class="topbar__meta">
+      <span class="chip chip--neutral">{{ runtime_mode }}</span>
+      <span class="chip chip--accent">gRPC {{ grpc_endpoint }}</span>
+    </div>
+  </header>
+
+  <nav class="toolbar" aria-label="快捷操作">
+    <button class="toolbar__button toolbar__button--primary" type="button" data-command="open-resource">打开资源</button>
+    <button class="toolbar__button" type="button" data-command="open-stream">打开流</button>
+    <button class="toolbar__button" type="button" data-command="upload-file">上传文件</button>
+    <button class="toolbar__button" type="button" data-command="stop-current">停止当前内容</button>
+    <button class="toolbar__button" type="button" data-command="refresh-status">刷新状态</button>
+  </nav>
+
+  <main class="content">
+    <div class="banner" data-banner>初始化骨架已就绪，HTTP 页面、gRPC 接口、播放器与外部组件路径都已预留。</div>
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="footer">
+    <span>HTTP 仅处理本地操作，gRPC 保留给外部程序接入。</span>
+    <span data-clock>--</span>
+  </footer>
+</body>
+</html>
