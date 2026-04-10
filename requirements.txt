@@ -11,3 +11,4 @@ Pillow==12.2.0
 PyMuPDF==1.27.2.2
 screeninfo==0.8.1
 psutil==7.2.2
+requests==2.32.3

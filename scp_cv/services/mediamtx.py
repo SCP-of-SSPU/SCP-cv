@@ -1,0 +1,200 @@
+#!/user/bin/env python
+# -*- coding: UTF-8 -*-
+'''
+MediaMTX 集成服务：管理 MediaMTX 进程、检测流状态、为播放器提供读取入口。
+与 Django 应用解耦，仅通过服务层调用。
+@Project : SCP-cv
+@File : mediamtx.py
+@Author : Qintsg
+@Date : 2026-04-10
+'''
+from __future__ import annotations
+
+import logging
+import subprocess
+from pathlib import Path
+from typing import Optional
+
+import requests
+from django.conf import settings
+from django.utils import timezone
+
+from scp_cv.apps.streams.models import StreamSource, StreamState
+from scp_cv.services.executables import get_mediamtx_executable
+
+logger = logging.getLogger(__name__)
+
+# MediaMTX API 默认地址（与 mediamtx.yml 中 api 配置一致）
+_MEDIAMTX_API_BASE = "http://127.0.0.1:9997"
+
+# SRT 监听端口（与 mediamtx.yml srtAddress 一致）
+_SRT_LISTEN_PORT = 8890
+
+# RTSP 读取端口（用于播放器读取流）
+_RTSP_READ_PORT = 8554
+
+# MediaMTX 进程引用
+_mediamtx_process: Optional[subprocess.Popen[bytes]] = None
+
+
+def get_srt_publish_url(stream_identifier: str) -> str:
+    """
+    获取 SRT 推流地址（供外部设备推送使用）。
+    :param stream_identifier: 流标识符（路径名）
+    :return: SRT 推流 URL
+    """
+    return f"srt://127.0.0.1:{_SRT_LISTEN_PORT}?streamid=publish:/{stream_identifier}"
+
+
+def get_rtsp_read_url(stream_identifier: str) -> str:
+    """
+    获取 RTSP 读取地址（供播放器读取使用）。
+    :param stream_identifier: 流标识符（路径名）
+    :return: RTSP 读取 URL
+    """
+    return f"rtsp://127.0.0.1:{_RTSP_READ_PORT}/{stream_identifier}"
+
+
+def start_mediamtx() -> bool:
+    """
+    启动 MediaMTX 进程。若已在运行则跳过。
+    :return: 是否成功启动
+    """
+    global _mediamtx_process
+
+    if _mediamtx_process is not None and _mediamtx_process.poll() is None:
+        logger.info("MediaMTX 进程已存在（pid=%d）", _mediamtx_process.pid)
+        return True
+
+    mediamtx_bin = get_mediamtx_executable()
+    if mediamtx_bin is None:
+        logger.error("未找到 MediaMTX 可执行文件")
+        return False
+
+    # 查找配置文件（与可执行文件同目录）
+    config_path = mediamtx_bin.parent / "mediamtx.yml"
+    if not config_path.exists():
+        logger.warning("MediaMTX 配置文件不存在：%s", config_path)
+        config_path = None
+
+    command_args = [str(mediamtx_bin)]
+    if config_path is not None:
+        command_args.append(str(config_path))
+
+    try:
+        _mediamtx_process = subprocess.Popen(
+            command_args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd=str(mediamtx_bin.parent),
+        )
+        logger.info("MediaMTX 已启动（pid=%d）", _mediamtx_process.pid)
+        return True
+    except OSError as start_error:
+        logger.error("启动 MediaMTX 失败：%s", start_error)
+        return False
+
+
+def stop_mediamtx() -> None:
+    """停止 MediaMTX 进程。"""
+    global _mediamtx_process
+
+    if _mediamtx_process is None:
+        return
+
+    if _mediamtx_process.poll() is None:
+        _mediamtx_process.terminate()
+        try:
+            _mediamtx_process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            _mediamtx_process.kill()
+            _mediamtx_process.wait(timeout=3)
+        logger.info("MediaMTX 已停止")
+
+    _mediamtx_process = None
+
+
+def is_mediamtx_running() -> bool:
+    """
+    检测 MediaMTX 进程是否在运行。
+    :return: True 表示进程活跃
+    """
+    if _mediamtx_process is not None and _mediamtx_process.poll() is None:
+        return True
+
+    # 备用检测：尝试访问 API
+    try:
+        api_response = requests.get(f"{_MEDIAMTX_API_BASE}/v3/paths/list", timeout=2)
+        return api_response.status_code == 200
+    except requests.RequestException:
+        return False
+
+
+def query_stream_paths() -> list[dict[str, object]]:
+    """
+    从 MediaMTX API 查询当前所有活跃路径（流）。
+    :return: 路径信息列表
+    """
+    try:
+        api_response = requests.get(
+            f"{_MEDIAMTX_API_BASE}/v3/paths/list",
+            timeout=3,
+        )
+        if api_response.status_code != 200:
+            logger.warning("MediaMTX API 返回状态 %d", api_response.status_code)
+            return []
+        response_data = api_response.json()
+        return response_data.get("items", [])
+    except requests.RequestException as api_error:
+        logger.warning("查询 MediaMTX 路径失败：%s", api_error)
+        return []
+
+
+def sync_stream_states() -> int:
+    """
+    从 MediaMTX API 同步所有已注册流的在线状态到数据库。
+    :return: 更新的流数量
+    """
+    active_paths = query_stream_paths()
+
+    # 构建活跃路径名称集合
+    online_identifiers: set[str] = set()
+    for path_info in active_paths:
+        path_name = path_info.get("name", "")
+        if path_name:
+            online_identifiers.add(path_name)
+
+    updated_count = 0
+
+    # 更新数据库中所有流的状态
+    for stream in StreamSource.objects.all():
+        now_timestamp = timezone.now()
+
+        if stream.stream_identifier in online_identifiers:
+            # 流在线
+            if not stream.is_online:
+                stream.is_online = True
+                stream.current_state = StreamState.ONLINE
+                stream.last_connected_at = now_timestamp
+                stream.last_seen_at = now_timestamp
+                stream.save(update_fields=[
+                    "is_online", "current_state",
+                    "last_connected_at", "last_seen_at",
+                ])
+                updated_count += 1
+            else:
+                # 已在线，仅更新 last_seen_at
+                stream.last_seen_at = now_timestamp
+                stream.save(update_fields=["last_seen_at"])
+        else:
+            # 流离线
+            if stream.is_online:
+                stream.is_online = False
+                stream.current_state = StreamState.OFFLINE
+                stream.save(update_fields=["is_online", "current_state"])
+                updated_count += 1
+
+    if updated_count > 0:
+        logger.info("同步流状态完成，更新 %d 条", updated_count)
+
+    return updated_count
