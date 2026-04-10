@@ -40,10 +40,11 @@ _mediamtx_process: Optional[subprocess.Popen[bytes]] = None
 def get_srt_publish_url(stream_identifier: str) -> str:
     """
     获取 SRT 推流地址（供外部设备推送使用）。
-    :param stream_identifier: 流标识符（路径名）
+    MediaMTX v1.17+ 要求路径名不含前导斜杠。
+    :param stream_identifier: 流标识符（路径名，不含前导斜杠）
     :return: SRT 推流 URL
     """
-    return f"srt://127.0.0.1:{_SRT_LISTEN_PORT}?streamid=publish:/{stream_identifier}"
+    return f"srt://127.0.0.1:{_SRT_LISTEN_PORT}?streamid=publish:{stream_identifier}&pkt_size=1316"
 
 
 def get_rtsp_read_url(stream_identifier: str) -> str:
@@ -150,27 +151,54 @@ def query_stream_paths() -> list[dict[str, object]]:
         return []
 
 
-def sync_stream_states() -> int:
+def sync_stream_states() -> dict[str, int]:
     """
-    从 MediaMTX API 同步所有已注册流的在线状态到数据库。
-    :return: 更新的流数量
+    从 MediaMTX API 同步所有流状态到数据库，并自动注册新发现的流。
+    - 新发现的路径 → 创建 StreamSource 记录，标记为在线
+    - 已注册且在线 → 更新 last_seen_at
+    - 已注册但消失 → 标记为离线
+    :return: 包含 registered / updated / went_offline 计数的字典
     """
     active_paths = query_stream_paths()
 
-    # 构建活跃路径名称集合
-    online_identifiers: set[str] = set()
+    # 构建活跃路径名称集合及详情映射
+    online_path_details: dict[str, dict[str, object]] = {}
     for path_info in active_paths:
         path_name = path_info.get("name", "")
         if path_name:
-            online_identifiers.add(path_name)
+            online_path_details[path_name] = path_info
 
-    updated_count = 0
+    now_timestamp = timezone.now()
+    result_counts = {"registered": 0, "updated": 0, "went_offline": 0}
 
-    # 更新数据库中所有流的状态
+    # 获取已注册的所有流标识符
+    existing_identifiers: set[str] = set(
+        StreamSource.objects.values_list("stream_identifier", flat=True)
+    )
+
+    # 自动注册新发现的流
+    new_identifiers = set(online_path_details.keys()) - existing_identifiers
+    for new_identifier in new_identifiers:
+        # 自动生成流名称：使用路径名作为显示名
+        auto_name = f"[自动] {new_identifier}"
+        # 生成 RTSP 读取地址供播放器使用
+        rtsp_url = get_rtsp_read_url(new_identifier)
+        StreamSource.objects.create(
+            name=auto_name,
+            stream_identifier=new_identifier,
+            stream_url=rtsp_url,
+            is_active=True,
+            is_online=True,
+            current_state=StreamState.ONLINE,
+            last_connected_at=now_timestamp,
+            last_seen_at=now_timestamp,
+        )
+        logger.info("自动注册新流：%s（%s）", auto_name, new_identifier)
+        result_counts["registered"] += 1
+
+    # 更新已注册流的在线/离线状态
     for stream in StreamSource.objects.all():
-        now_timestamp = timezone.now()
-
-        if stream.stream_identifier in online_identifiers:
+        if stream.stream_identifier in online_path_details:
             # 流在线
             if not stream.is_online:
                 stream.is_online = True
@@ -181,7 +209,7 @@ def sync_stream_states() -> int:
                     "is_online", "current_state",
                     "last_connected_at", "last_seen_at",
                 ])
-                updated_count += 1
+                result_counts["updated"] += 1
             else:
                 # 已在线，仅更新 last_seen_at
                 stream.last_seen_at = now_timestamp
@@ -192,9 +220,15 @@ def sync_stream_states() -> int:
                 stream.is_online = False
                 stream.current_state = StreamState.OFFLINE
                 stream.save(update_fields=["is_online", "current_state"])
-                updated_count += 1
+                result_counts["went_offline"] += 1
 
-    if updated_count > 0:
-        logger.info("同步流状态完成，更新 %d 条", updated_count)
+    total_changes = sum(result_counts.values())
+    if total_changes > 0:
+        logger.info(
+            "流同步完成：新注册 %d，状态更新 %d，离线 %d",
+            result_counts["registered"],
+            result_counts["updated"],
+            result_counts["went_offline"],
+        )
 
-    return updated_count
+    return result_counts

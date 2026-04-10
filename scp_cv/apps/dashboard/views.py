@@ -35,6 +35,7 @@ from scp_cv.services.playback import (
     select_display_target,
     stop_current_content,
 )
+from scp_cv.services.mediamtx import sync_stream_states
 from scp_cv.services.ppt_processor import (
     PptProcessorError,
     get_page_media_list,
@@ -347,3 +348,33 @@ def sse_events(request: HttpRequest) -> StreamingHttpResponse:
     response["Cache-Control"] = "no-cache"
     response["X-Accel-Buffering"] = "no"
     return response
+
+
+@require_GET
+def api_streams(request: HttpRequest) -> JsonResponse:
+    """
+    同步 MediaMTX 流状态并返回最新流列表（含自动注册新发现的流）。
+    前端定时轮询此端点以实现流自动发现与状态更新。
+    :param request: HTTP 请求
+    :return: JSON 格式的流列表与同步结果
+    """
+    sync_result = sync_stream_states()
+
+    from scp_cv.apps.streams.models import StreamSource
+    stream_rows = list(StreamSource.objects.values(
+        "id", "name", "stream_identifier", "is_online", "current_state",
+        "last_connected_at",
+    ))
+
+    # 新流注册后通过 SSE 通知其他客户端刷新
+    if sync_result["registered"] > 0:
+        publish_event("stream_updated", {
+            "action": "auto_register",
+            "registered_count": sync_result["registered"],
+        })
+
+    return JsonResponse({
+        "success": True,
+        "streams": stream_rows,
+        "sync_result": sync_result,
+    }, json_dumps_params={"default": str})

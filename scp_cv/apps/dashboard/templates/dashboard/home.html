@@ -124,8 +124,11 @@
   <article class="panel">
     <div class="panel__header">
       <h3>SRT 流控制</h3>
-      <span class="panel__badge">单流接入</span>
+      <span class="panel__badge" id="stream-count-badge">{% if stream_rows %}{{ stream_rows|length }} 条流{% else %}自动发现{% endif %}</span>
+      <button class="action-button action-button--ghost" type="button"
+              onclick="refreshStreams()" title="立即刷新流列表">⟳ 刷新</button>
     </div>
+    <div id="stream-list-container">
     {% if stream_rows %}
       <ul class="stream-list">
         {% for stream in stream_rows %}
@@ -142,8 +145,9 @@
         {% endfor %}
       </ul>
     {% else %}
-      <p class="empty-state">暂无 SRT 流配置</p>
+      <p class="empty-state">暂无 SRT 流（等待推流接入中…）</p>
     {% endif %}
+    </div>
   </article>
 
   {# ═══ 文件管理 ═══ #}

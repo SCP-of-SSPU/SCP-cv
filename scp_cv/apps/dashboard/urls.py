@@ -23,6 +23,7 @@ urlpatterns = [
     path("api/session/", views.api_session_state, name="api_session_state"),
     path("api/resources/", views.api_resources, name="api_resources"),
     path("api/page-media/", views.api_page_media, name="api_page_media"),
+    path("api/streams/", views.api_streams, name="api_streams"),
 
     # SSE 事件流
     path("events/", views.sse_events, name="sse_events"),

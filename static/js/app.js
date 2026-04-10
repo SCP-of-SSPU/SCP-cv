@@ -186,6 +186,73 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
+  /** 手动刷新 SRT 流列表（触发同步并更新 UI） */
+  window.refreshStreams = async function refreshStreams() {
+    try {
+      const syncResponse = await fetch("/api/streams/");
+      const syncResult = await syncResponse.json();
+      if (syncResult.success) {
+        renderStreamList(syncResult.streams);
+        const registered = syncResult.sync_result.registered || 0;
+        if (registered > 0) {
+          showBanner(`发现 ${registered} 条新流，已自动注册`);
+        }
+      }
+    } catch (networkError) {
+      /* 网络异常静默处理，下次轮询会重试 */
+    }
+  };
+
+  /**
+   * 动态渲染 SRT 流列表到 DOM
+   * @param {Array<object>} streamList - 流数据数组
+   */
+  function renderStreamList(streamList) {
+    const streamContainer = document.getElementById("stream-list-container");
+    if (!streamContainer) return;
+
+    if (!streamList || streamList.length === 0) {
+      streamContainer.innerHTML = '<p class="empty-state">暂无 SRT 流（等待推流接入中…）</p>';
+      return;
+    }
+
+    const listHtml = streamList.map((stream) => {
+      const chipClass = stream.is_online ? "chip--success" : "chip--neutral";
+      const stateLabel = stream.current_state;
+      return `<li class="stream-item">
+        <div>
+          <strong>${escapeHtml(stream.name)}</strong>
+          <span class="chip ${chipClass}">${escapeHtml(stateLabel)}</span>
+        </div>
+        <button class="action-button action-button--ghost" type="button"
+                onclick="openStream(${stream.id})">打开</button>
+      </li>`;
+    }).join("");
+    streamContainer.innerHTML = `<ul class="stream-list">${listHtml}</ul>`;
+
+    /* 更新面板 badge */
+    const streamBadge = document.getElementById("stream-count-badge");
+    if (streamBadge) {
+      streamBadge.textContent = `${streamList.length} 条流`;
+    }
+  }
+
+  /**
+   * 转义 HTML 特殊字符，防止 XSS
+   * @param {string} unsafeText - 需要转义的文本
+   * @returns {string} 转义后的安全文本
+   */
+  function escapeHtml(unsafeText) {
+    const escapeDiv = document.createElement("div");
+    escapeDiv.textContent = unsafeText;
+    return escapeDiv.innerHTML;
+  }
+
+  /* ═══ 流列表自动轮询（每 5 秒同步一次 MediaMTX 状态） ═══ */
+  setInterval(() => {
+    window.refreshStreams();
+  }, 5000);
+
   /** 刷新页面 */
   window.refreshPage = function refreshPage() {
     location.reload();
@@ -259,6 +326,11 @@ document.addEventListener("DOMContentLoaded", () => {
     /* 资源列表变更 → 整页刷新（资源表格结构较复杂，直接刷新） */
     eventSource.addEventListener("resource_updated", () => {
       location.reload();
+    });
+
+    /* 流列表变更 → 动态刷新流面板 */
+    eventSource.addEventListener("stream_updated", () => {
+      window.refreshStreams();
     });
 
     /* 心跳事件（无操作，仅保持连接） */
