@@ -39,7 +39,6 @@ INSTALLED_APPS = [
     "rest_framework",
     "django_socio_grpc",
     "scp_cv.apps.dashboard.apps.DashboardConfig",
-    "scp_cv.apps.resources.apps.ResourcesConfig",
     "scp_cv.apps.playback.apps.PlaybackConfig",
     "scp_cv.apps.streams.apps.StreamsConfig",
 ]
@@ -118,7 +117,6 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 GRPC_HOST = env("GRPC_HOST", default="127.0.0.1")
 GRPC_PORT = env.int("GRPC_PORT")
 MEDIAMTX_BIN_PATH = env("MEDIAMTX_BIN_PATH", default="")
-LIBREOFFICE_BIN_PATH = env("LIBREOFFICE_BIN_PATH", default="")
 
 GRPC_FRAMEWORK = {
     "ROOT_HANDLERS_HOOK": "scp_cv.grpc_handlers.grpc_handlers",

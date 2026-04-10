@@ -2,7 +2,7 @@
 # -*- coding: UTF-8 -*-
 '''
 播放器显示窗口：唯一窗口，支持全屏/无边框/置顶/跨屏拼接。
-负责渲染 PPT 页面图片、叠加媒体播放、SRT 流显示。
+负责 SRT 低延迟流显示。
 @Project : SCP-cv
 @File : window.py
 @Author : Qintsg
@@ -24,12 +24,8 @@ if _MPV_DLL_DIR.is_dir():
 
 import mpv  # noqa: E402  — 必须在 DLL 路径配置之后导入
 
-from PySide6.QtCore import QRect, Qt, QUrl, Signal, Slot
-from PySide6.QtGui import QPixmap
-from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
-from PySide6.QtMultimediaWidgets import QVideoWidget
+from PySide6.QtCore import QRect, Qt, Signal, Slot
 from PySide6.QtWidgets import (
-    QGraphicsOpacityEffect,
     QLabel,
     QStackedLayout,
     QVBoxLayout,
@@ -45,9 +41,7 @@ class PlayerWindow(QWidget):
     职责：
     - 全屏/无边框/置顶（正常模式）或可调窗口（DEBUG 模式）
     - 跨显示器定位（单屏或左右拼接）
-    - PPT 页面图片底图渲染
-    - 页面内嵌媒体叠加播放（视频/音频）
-    - SRT 流画面（通过 QMediaPlayer + QVideoWidget）
+    - SRT 流低延迟播放（通过 mpv/libmpv）
     """
 
     # 信号：外部可监听窗口关闭
@@ -80,21 +74,15 @@ class PlayerWindow(QWidget):
             # DEBUG 模式：普通窗口，可移动/缩放
             self.setWindowFlags(Qt.WindowType.Window)
 
-        # ═══ 布局：使用 stacked layout 叠加图片层和媒体层 ═══
+        # ═══ 布局：使用 stacked layout ═══
         self._stacked_layout = QStackedLayout()
         self._stacked_layout.setStackingMode(QStackedLayout.StackingMode.StackAll)
 
-        # 底层：PPT 页面图片 / 黑屏背景
+        # 底层：黑屏背景
         self._background_label = QLabel()
         self._background_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._background_label.setStyleSheet("background-color: #000000;")
-        self._background_label.setScaledContents(False)
         self._stacked_layout.addWidget(self._background_label)
-
-        # 上层：视频叠加 widget（本地媒体/PPT 内嵌视频使用）
-        self._video_widget = QVideoWidget()
-        self._video_widget.setStyleSheet("background: transparent;")
-        self._stacked_layout.addWidget(self._video_widget)
 
         # 顶层：mpv 流播放容器（SRT 直连低延迟播放）
         self._mpv_container = QWidget()
@@ -109,15 +97,6 @@ class PlayerWindow(QWidget):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addLayout(self._stacked_layout)
-
-        # ═══ 媒体播放器 ═══
-        self._media_player = QMediaPlayer(self)
-        self._audio_output = QAudioOutput(self)
-        self._media_player.setAudioOutput(self._audio_output)
-        self._media_player.setVideoOutput(self._video_widget)
-
-        # 当前状态追踪
-        self._current_page_pixmap: Optional[QPixmap] = None
 
         # mpv 播放器实例（延迟初始化，确保窗口句柄有效）
         self._mpv_player: Optional[mpv.MPV] = None
@@ -176,93 +155,11 @@ class PlayerWindow(QWidget):
         rect = QRect(left_x, left_y, total_width, total_height)
         self.position_on_display(rect)
 
-    # ═══════════════════ PPT 页面图片渲染 ═══════════════════
-
-    @Slot(str)
-    def show_page_image(self, image_path: str) -> None:
-        """
-        在底层显示 PPT 页面的 PNG 图片。
-        :param image_path: 图片文件绝对路径
-        """
-        # 停止前一个媒体（如果有）
-        self._stop_media()
-
-        path = Path(image_path)
-        if not path.exists():
-            logger.warning("页面图片不存在：%s", image_path)
-            self._show_black_screen()
-            return
-
-        pixmap = QPixmap(str(path))
-        if pixmap.isNull():
-            logger.warning("无法加载页面图片：%s", image_path)
-            self._show_black_screen()
-            return
-
-        self._current_page_pixmap = pixmap
-        self._render_current_pixmap()
-
-        # 确保背景层可见，视频层透明
-        self._stacked_layout.setCurrentWidget(self._background_label)
-        self._video_widget.hide()
-        self._background_label.show()
-
-        logger.info("显示页面图片：%s", path.name)
-
-    def _render_current_pixmap(self) -> None:
-        """按窗口尺寸缩放并居中显示当前 pixmap。"""
-        if self._current_page_pixmap is None:
-            return
-        scaled_pixmap = self._current_page_pixmap.scaled(
-            self.size(),
-            Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
-        )
-        self._background_label.setPixmap(scaled_pixmap)
+    # ═══════════════════ 黑屏控制 ═══════════════════
 
     def _show_black_screen(self) -> None:
-        """清空底层显示为纯黑背景。"""
+        """清空显示为纯黑背景。"""
         self._background_label.clear()
-        self._current_page_pixmap = None
-
-    # ═══════════════════ 媒体播放（视频/音频叠加） ═══════════════════
-
-    @Slot(str)
-    def play_media(self, media_path: str) -> None:
-        """
-        播放指定媒体文件（叠加在 PPT 页面图片上层）。
-        :param media_path: 媒体文件绝对路径
-        """
-        path = Path(media_path)
-        if not path.exists():
-            logger.warning("媒体文件不存在：%s", media_path)
-            return
-
-        self._media_player.setSource(QUrl.fromLocalFile(str(path)))
-        self._video_widget.show()
-        self._media_player.play()
-        logger.info("开始播放媒体：%s", path.name)
-
-    @Slot()
-    def pause_media(self) -> None:
-        """暂停当前媒体播放。"""
-        if self._media_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
-            self._media_player.pause()
-            logger.info("媒体已暂停")
-
-    @Slot()
-    def resume_media(self) -> None:
-        """恢复当前媒体播放。"""
-        if self._media_player.playbackState() == QMediaPlayer.PlaybackState.PausedState:
-            self._media_player.play()
-            logger.info("媒体已恢复")
-
-    @Slot()
-    def _stop_media(self) -> None:
-        """停止当前媒体播放并隐藏视频层。"""
-        self._media_player.stop()
-        self._media_player.setSource(QUrl())
-        self._video_widget.hide()
 
     # ═══════════════════ SRT 流播放（mpv 低延迟） ═══════════════════
 
@@ -318,13 +215,10 @@ class PlayerWindow(QWidget):
         典型延迟从 2-5s 降低到 200-500ms。
         :param stream_url: SRT 流地址（如 srt://host:port?streamid=read:xxx）
         """
-        # 停止本地媒体（若有）
-        self._stop_media()
         self._show_black_screen()
 
         # 切换到 mpv 容器
         self._background_label.hide()
-        self._video_widget.hide()
         self._mpv_container.show()
         self._stacked_layout.setCurrentWidget(self._mpv_container)
 
@@ -353,8 +247,7 @@ class PlayerWindow(QWidget):
 
     @Slot()
     def stop_all(self) -> None:
-        """停止所有内容（本地媒体 + mpv 流）并显示黑屏。"""
-        self._stop_media()
+        """停止所有内容（mpv 流）并显示黑屏。"""
         self._stop_mpv()
         self._show_black_screen()
         self._background_label.show()
@@ -368,9 +261,8 @@ class PlayerWindow(QWidget):
     # ═══════════════════ 事件处理 ═══════════════════
 
     def resizeEvent(self, event: object) -> None:
-        """窗口尺寸变化时重新缩放底层图片。"""
+        """窗口尺寸变化时处理布局更新。"""
         super().resizeEvent(event)
-        self._render_current_pixmap()
 
     def closeEvent(self, event: object) -> None:
         """窗口关闭时停止所有媒体并释放 mpv 资源。"""

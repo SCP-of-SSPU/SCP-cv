@@ -11,8 +11,6 @@ class PlaybackSessionAdmin(admin.ModelAdmin):
 		"content_kind",
 		"playback_state",
 		"display_mode",
-		"current_page_number",
-		"total_pages",
 		"target_display_label",
 		"last_updated_at",
 	)

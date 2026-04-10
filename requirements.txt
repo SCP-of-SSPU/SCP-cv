@@ -6,9 +6,6 @@ grpcio-tools==1.80.0
 protobuf==6.33.6
 django-environ==0.13.0
 PySide6==6.11.0
-python-pptx==1.0.2
-Pillow==12.2.0
-PyMuPDF==1.27.2.2
 screeninfo==0.8.1
 psutil==7.2.2
 requests==2.32.3

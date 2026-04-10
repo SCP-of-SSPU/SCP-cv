@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## 2026-04-11
+
+### 移除全部 PPT 相关代码
+
+- 删除 `scp_cv/services/ppt_processor.py`、`scp_cv/services/resource_manager.py`
+- 删除 `scp_cv/apps/resources/` 整个 Django app（models、admin、migrations）
+- 删除 `tools/testdata/` 测试数据目录
+- `PlaybackSession` 模型移除 `content_resource` FK、`current_page_number`、`total_pages` 字段
+- `PlaybackContentKind` 移除 `PPT` 枚举值
+- `settings.py` 移除 `resources` app 注册和 `LIBREOFFICE_BIN_PATH` 配置
+- `grpc_servicers.py` 移除 `OpenResource`、`ControlPptPage`、`ControlCurrentMedia` 三个 RPC
+- `controller.py` 移除 `sig_show_page`、`sig_play_media`、`sig_pause_media` 信号和 `_apply_ppt_state()` 方法
+- `window.py` 移除 QMediaPlayer 媒体叠加层、PPT 页面图片渲染、`show_page_image()`、`play_media()` 等方法
+- 前端移除文件上传面板、PPT 控件卡片、资源表格及相关 JS/CSS
+- `requirements.txt` 移除 `python-pptx`、`PyMuPDF`、`Pillow`
+- `download_third_party.ps1` 移除 LibreOffice 安装段落
+- 数据库已重新迁移（SQLite 数据库已重建）
+
 ## 2026-04-10
 
 ### mpv 低延迟流播放
@@ -8,7 +26,7 @@
 - `window.py`：新增 mpv 容器层，延迟初始化 mpv 实例，配置 `low-latency` profile + `no-cache` + `untimed`
 - `controller.py`：流播放 URL 从 RTSP 中转切换为 SRT 直连读取（`srt://...?streamid=read:<path>&latency=100000`）
 - 新增依赖：`python-mpv==1.0.8`，`libmpv-2.dll` 置于 `tools/third_party/mpv/`
-- QMediaPlayer 仍保留用于 PPT 内嵌本地媒体播放
+- ~~QMediaPlayer 仍保留用于 PPT 内嵌本地媒体播放~~ （已在 2026-04-11 移除）
 
 ### 前端流面板稳定性修复
 

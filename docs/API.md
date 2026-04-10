@@ -29,17 +29,11 @@
 |-----|------|------|------|
 | `GetRuntimeStatus` | `RuntimeStatusRequest` | `RuntimeStatusReply` | 获取运行时状态（内容类型、播放状态、显示模式、端点、调试模式） |
 | `ListDisplayTargets` | `EmptyRequest` | `DisplayTargetsReply` | 列出可用显示器和拼接标签 |
-| `OpenResource` | `OpenResourceRequest` | `OperationReply` | 按 resource_id 打开 PPT 资源 |
-| `ControlPptPage` | `ControlPptPageRequest` | `OperationReply` | PPT 翻页（prev/next/goto） |
-| `ControlCurrentMedia` | `ControlMediaRequest` | `OperationReply` | 控制页内媒体（play/pause/stop） |
 | `OpenStream` | `OpenStreamRequest` | `OperationReply` | 按 stream_identifier 打开 SRT 流 |
 | `StopCurrentContent` | `EmptyRequest` | `OperationReply` | 停止当前播放内容 |
 | `SelectDisplayTarget` | `SelectDisplayTargetRequest` | `OperationReply` | 切换显示目标（single/left_right_splice） |
 
 ## 关键数据对象
 
-- `ResourceFile`：统一资源记录
-- `PresentationDocument`：PPT 文档解析结果
-- `PresentationPageMedia`：页内媒体对象
 - `StreamSource`：SRT 流记录
 - `PlaybackSession`：当前播放会话

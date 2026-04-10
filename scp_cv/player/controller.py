@@ -27,9 +27,6 @@ class PlayerController(QObject):
     """
 
     # 信号定义：在非 Qt 线程触发，Qt 主线程的 slot 接收
-    sig_show_page = Signal(str)          # 页面图片路径
-    sig_play_media = Signal(str)         # 媒体文件路径
-    sig_pause_media = Signal()
     sig_play_stream = Signal(str)        # SRT 流 URL
     sig_stop_all = Signal()
     sig_reposition = Signal(QRect)       # 窗口定位矩形
@@ -55,9 +52,6 @@ class PlayerController(QObject):
         self._player_window = player_window
 
         # 连接信号到窗口 slot
-        self.sig_show_page.connect(player_window.show_page_image)
-        self.sig_play_media.connect(player_window.play_media)
-        self.sig_pause_media.connect(player_window.pause_media)
         self.sig_play_stream.connect(player_window.play_srt_stream)
         self.sig_stop_all.connect(player_window.stop_all)
         self.sig_reposition.connect(player_window.position_on_display)
@@ -136,40 +130,10 @@ class PlayerController(QObject):
             self.sig_stop_all.emit()
             return
 
-        # PPT 模式 → 显示页面图片
-        if content_kind == "ppt":
-            self._apply_ppt_state(snapshot)
-            return
-
         # SRT 流模式 → 流播放
         if content_kind == "stream":
             self._apply_stream_state(snapshot)
             return
-
-    def _apply_ppt_state(self, snapshot: dict[str, object]) -> None:
-        """
-        根据 PPT 快照驱动窗口显示页面图片。
-        :param snapshot: 会话快照字典
-        """
-        from scp_cv.services.ppt_processor import get_page_image_path
-        from scp_cv.services.playback import get_or_create_session
-
-        session = get_or_create_session()
-        if session.content_resource is None:
-            self.sig_stop_all.emit()
-            return
-
-        resource_id = session.content_resource.pk
-        page_number = session.current_page_number
-        image_path = get_page_image_path(resource_id, page_number)
-
-        if image_path is not None:
-            self.sig_show_page.emit(str(image_path))
-        else:
-            logger.warning(
-                "PPT 页面图片缺失：resource_id=%d, page=%d",
-                resource_id, page_number,
-            )
 
     def _apply_stream_state(self, snapshot: dict[str, object]) -> None:
         """

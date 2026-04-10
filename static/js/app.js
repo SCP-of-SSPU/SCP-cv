@@ -71,92 +71,6 @@ document.addEventListener("DOMContentLoaded", () => {
   refreshClock();
   setInterval(refreshClock, 1000);
 
-  /* ═══ 文件上传 ═══ */
-  const uploadForm = document.getElementById("upload-form");
-  if (uploadForm) {
-    uploadForm.addEventListener("submit", async (submitEvent) => {
-      submitEvent.preventDefault();
-      const fileInput = document.getElementById("ppt-file-input");
-      if (!fileInput || !fileInput.files.length) {
-        showBanner("请先选择 PPT/PPTX 文件", true);
-        return;
-      }
-
-      const formData = new FormData();
-      formData.append("ppt_file", fileInput.files[0]);
-
-      showBanner("正在上传并解析文件，请稍候…");
-      try {
-        const uploadResponse = await fetch("/upload/", {
-          method: "POST",
-          headers: {
-            "X-CSRFToken": getCSRFToken(),
-            "X-Requested-With": "XMLHttpRequest",
-          },
-          body: formData,
-        });
-        const uploadResult = await uploadResponse.json();
-        if (uploadResult.success) {
-          showBanner(`上传成功：${uploadResult.display_name}`);
-          fileInput.value = "";
-          /* SSE 会推送 resource_updated 事件，触发页面刷新 */
-        } else {
-          showBanner(`上传失败：${uploadResult.error}`, true);
-        }
-      } catch (networkError) {
-        showBanner("网络错误，上传失败", true);
-      }
-    });
-  }
-
-  /* ═══ PPT 操作 ═══ */
-
-  /** 翻页（上一页/下一页） */
-  window.pptNavigate = async function pptNavigate(direction) {
-    const navigateResult = await postAction("/ppt-navigate/", { direction });
-    if (!navigateResult.success) {
-      showBanner(navigateResult.error, true);
-    }
-  };
-
-  /** 跳转到指定页 */
-  window.pptJump = async function pptJump() {
-    const jumpInput = document.getElementById("jump-page-input");
-    const targetPage = jumpInput ? jumpInput.value.trim() : "";
-    if (!targetPage) {
-      showBanner("请输入目标页码", true);
-      return;
-    }
-    const jumpResult = await postAction("/ppt-navigate/", {
-      direction: "goto",
-      target_page: targetPage,
-    });
-    if (jumpResult.success && jumpInput) {
-      jumpInput.value = "";
-    } else if (!jumpResult.success) {
-      showBanner(jumpResult.error, true);
-    }
-  };
-
-  /** 打开指定 PPT 资源 */
-  window.openResource = async function openResource(resourceId) {
-    const openResult = await postAction("/open-resource/", { resource_id: resourceId });
-    if (!openResult.success) {
-      showBanner(openResult.error, true);
-    }
-  };
-
-  /** 删除指定资源（带确认） */
-  window.deleteResource = async function deleteResource(resourceId, displayName) {
-    if (!confirm(`确认删除「${displayName}」？此操作不可撤销。`)) return;
-    const deleteResult = await postAction("/delete/", { resource_id: resourceId });
-    if (deleteResult.success) {
-      showBanner(`已删除「${displayName}」`);
-    } else {
-      showBanner(deleteResult.error, true);
-    }
-  };
-
   /* ═══ 播放控制 ═══ */
 
   /** 停止当前播放 */
@@ -299,7 +213,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   /**
-   * 处理 SSE 收到的状态事件，更新 Hero 面板和 PPT 控件
+   * 处理 SSE 收到的状态事件，更新 Hero 面板
    * @param {object} sessionData - 来自 playback_state 事件的会话快照
    */
   function applySessionState(sessionData) {
@@ -308,25 +222,17 @@ document.addEventListener("DOMContentLoaded", () => {
     const heroKind = document.getElementById("hero-kind");
     const heroState = document.getElementById("hero-state");
     const heroDisplay = document.getElementById("hero-display");
-    const heroPage = document.getElementById("hero-page");
 
     if (heroTitle) {
-      if (sessionData.content_kind === "ppt") {
-        heroTitle.textContent = sessionData.resource_title || "PPT 资源";
-      } else if (sessionData.content_kind === "stream") {
+      if (sessionData.content_kind === "stream") {
         heroTitle.textContent = sessionData.stream_name || "SRT 流";
       } else {
-        heroTitle.textContent = "尚未打开资源";
+        heroTitle.textContent = "尚未打开流";
       }
     }
     if (heroKind) heroKind.textContent = sessionData.content_kind_label || "—";
     if (heroState) heroState.textContent = sessionData.playback_state_label || "—";
     if (heroDisplay) heroDisplay.textContent = sessionData.display_mode_label || "—";
-    if (heroPage) heroPage.textContent = sessionData.page_progress || "—";
-
-    /* 翻页 badge */
-    const pageBadge = document.getElementById("ppt-page-badge");
-    if (pageBadge) pageBadge.textContent = sessionData.page_progress || "—";
   }
 
   /**
@@ -348,11 +254,6 @@ document.addEventListener("DOMContentLoaded", () => {
       } catch (parseError) {
         /* 忽略格式异常的事件 */
       }
-    });
-
-    /* 资源列表变更 → 整页刷新（资源表格结构较复杂，直接刷新） */
-    eventSource.addEventListener("resource_updated", () => {
-      location.reload();
     });
 
     /* 心跳事件（无操作，仅保持连接） */

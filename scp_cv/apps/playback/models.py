@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from django.db import models
 
-from scp_cv.apps.resources.models import ResourceFile
 from scp_cv.apps.streams.models import StreamSource
 
 
@@ -10,7 +9,6 @@ class PlaybackContentKind(models.TextChoices):
 	"""当前播放内容类型。"""
 
 	NONE = "none", "无"
-	PPT = "ppt", "PPT"
 	STREAM = "stream", "SRT 流"
 
 
@@ -36,13 +34,6 @@ class PlaybackSession(models.Model):
 	"""统一播放会话，只维护一个当前内容源。"""
 
 	content_kind = models.CharField(max_length=16, choices=PlaybackContentKind.choices, default=PlaybackContentKind.NONE)
-	content_resource = models.ForeignKey(
-		ResourceFile,
-		null=True,
-		blank=True,
-		on_delete=models.SET_NULL,
-		related_name="playback_sessions",
-	)
 	stream_source = models.ForeignKey(
 		StreamSource,
 		null=True,
@@ -50,8 +41,6 @@ class PlaybackSession(models.Model):
 		on_delete=models.SET_NULL,
 		related_name="playback_sessions",
 	)
-	current_page_number = models.PositiveIntegerField(default=1)
-	total_pages = models.PositiveIntegerField(default=0)
 	playback_state = models.CharField(max_length=16, choices=PlaybackState.choices, default=PlaybackState.IDLE)
 	display_mode = models.CharField(max_length=24, choices=PlaybackMode.choices, default=PlaybackMode.SINGLE)
 	target_display_label = models.CharField(max_length=255, blank=True)

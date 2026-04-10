@@ -29,9 +29,3 @@ def get_mediamtx_executable() -> Path | None:
     """查找 MediaMTX 可执行文件。"""
 
     return _resolve_executable_path(settings.MEDIAMTX_BIN_PATH, ("mediamtx.exe", "mediamtx"))
-
-
-def get_libreoffice_executable() -> Path | None:
-    """查找 LibreOffice CLI 可执行文件。"""
-
-    return _resolve_executable_path(settings.LIBREOFFICE_BIN_PATH, ("soffice.exe", "soffice"))

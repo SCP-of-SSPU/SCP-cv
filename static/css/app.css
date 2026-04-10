@@ -374,33 +374,6 @@ textarea {
   border: 1px solid rgba(15, 23, 42, 0.08);
 }
 
-.resource-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: rgba(255, 255, 255, 0.9);
-}
-
-.resource-table th,
-.resource-table td {
-  padding: 14px 16px;
-  text-align: left;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
-  white-space: nowrap;
-}
-
-.resource-table th {
-  background: rgba(15, 23, 42, 0.02);
-  color: var(--text-muted);
-  font-size: 0.86rem;
-  font-weight: 700;
-}
-
-.media-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
 /* ═══ 新增组件样式 ═══ */
 
 /* 小尺寸按钮 */
@@ -457,17 +430,6 @@ textarea {
   font-size: 0.86rem;
 }
 
-/* 上传区域 */
-.upload-area {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  border: 2px dashed var(--border-strong);
-  border-radius: var(--radius-md);
-  background: rgba(0, 120, 212, 0.03);
-}
-
 /* 流控制列表 */
 .stream-list {
   display: grid;
@@ -486,26 +448,6 @@ textarea {
   border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.82);
-}
-
-/* 媒体列表 */
-.media-list {
-  display: grid;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.media-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.7);
-  font-size: 0.92rem;
 }
 
 /* 工具栏状态指示器 */
