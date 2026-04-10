@@ -2,6 +2,14 @@
 
 ## 2026-04-10
 
+### SRT 流自动发现与注册
+
+- 增强 `sync_stream_states()` 自动注册 MediaMTX 新发现的流路径为 `StreamSource` 记录
+- 新增 `GET /api/streams/` 端点，触发同步并返回最新流列表
+- 前端 5 秒轮询自动刷新流面板，新增手动刷新按钮
+- SSE `stream_updated` 事件跨客户端同步流列表
+- 修复 SRT 推流 URL 格式（MediaMTX v1.17+ 路径不含前导斜杠）
+
 ### 需求I 全模块实现
 
 - **Module F（服务层）**：新建 `playback.py`、`resource_manager.py`、`ppt_processor.py`、`sse.py`，实现播放会话管理、资源上传解析、PPT 转换渲染、SSE 实时推送

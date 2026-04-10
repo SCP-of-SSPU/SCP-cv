@@ -15,7 +15,8 @@
 | GET | `/api/session/` | 获取当前会话状态快照（JSON） |
 | GET | `/api/resources/` | 获取资源列表（JSON） |
 | GET | `/api/page-media/` | 获取当前页媒体列表（JSON，参数 `resource_id`, `page`） |
-| GET | `/events/` | SSE 事件流（`playback_state`、`resource_updated`、`heartbeat`） |
+| GET | `/api/streams/` | 同步 MediaMTX 并返回流列表（JSON，含自动注册） |
+| GET | `/events/` | SSE 事件流（`playback_state`、`resource_updated`、`stream_updated`、`heartbeat`） |
 | GET | `/admin/` | Django admin 管理入口 |
 
 ## gRPC 接口
