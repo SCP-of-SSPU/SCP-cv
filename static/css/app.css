@@ -401,6 +401,134 @@ textarea {
   gap: 12px;
 }
 
+/* ═══ 新增组件样式 ═══ */
+
+/* 小尺寸按钮 */
+.action-button--small {
+  padding: 8px 12px;
+  font-size: 0.86rem;
+  border-radius: var(--radius-sm);
+}
+
+/* 危险操作按钮 */
+.action-button--danger {
+  border-color: rgba(216, 59, 1, 0.2);
+  background: rgba(216, 59, 1, 0.06);
+  color: var(--warning);
+}
+
+.action-button--danger:hover {
+  background: rgba(216, 59, 1, 0.14);
+  border-color: rgba(216, 59, 1, 0.36);
+}
+
+/* 错误状态 chip */
+.chip--error {
+  border-color: rgba(216, 59, 1, 0.18);
+  background: rgba(216, 59, 1, 0.08);
+  color: var(--warning);
+}
+
+/* 紧凑按钮行 */
+.button-row--compact {
+  gap: 8px;
+}
+
+/* 输入框 */
+.input-field {
+  padding: 10px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-strong);
+  color: var(--text);
+  font-size: 0.94rem;
+  transition: border-color 120ms ease;
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.12);
+}
+
+.input-field--small {
+  padding: 8px 12px;
+  width: 100px;
+  font-size: 0.86rem;
+}
+
+/* 上传区域 */
+.upload-area {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  background: rgba(0, 120, 212, 0.03);
+}
+
+/* 流控制列表 */
+.stream-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stream-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 16px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+/* 媒体列表 */
+.media-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.media-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.7);
+  font-size: 0.92rem;
+}
+
+/* 工具栏状态指示器 */
+.toolbar__status {
+  margin-left: auto;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.04);
+  color: var(--text-muted);
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.toolbar__status--connected {
+  background: rgba(16, 124, 16, 0.08);
+  color: var(--success);
+}
+
+.toolbar__status--error {
+  background: rgba(216, 59, 1, 0.08);
+  color: var(--warning);
+}
+
 .footer {
   display: flex;
   align-items: center;

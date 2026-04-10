@@ -24,15 +24,13 @@
   </header>
 
   <nav class="toolbar" aria-label="快捷操作">
-    <button class="toolbar__button toolbar__button--primary" type="button" data-command="open-resource">打开资源</button>
-    <button class="toolbar__button" type="button" data-command="open-stream">打开流</button>
-    <button class="toolbar__button" type="button" data-command="upload-file">上传文件</button>
-    <button class="toolbar__button" type="button" data-command="stop-current">停止当前内容</button>
-    <button class="toolbar__button" type="button" data-command="refresh-status">刷新状态</button>
+    <button class="toolbar__button toolbar__button--primary" type="button" onclick="stopPlayback()">停止播放</button>
+    <button class="toolbar__button" type="button" onclick="refreshPage()">刷新页面</button>
+    <span class="toolbar__status" id="sse-status">SSE: 连接中…</span>
   </nav>
 
   <main class="content">
-    <div class="banner" data-banner>初始化骨架已就绪，HTTP 页面、gRPC 接口、播放器与外部组件路径都已预留。</div>
+    <div class="banner" data-banner id="global-banner" style="display: none;"></div>
     {% block content %}{% endblock %}
   </main>
 

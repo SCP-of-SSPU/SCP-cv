@@ -1,29 +1,31 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block page_title %}播放控制台 · SCP-cv{% endblock %}
-
 {% block title %}播放控制台{% endblock %}
 
 {% block content %}
+{# ═══ 顶部 Hero 面板 ═══ #}
 <section class="hero-grid">
   <article class="panel panel--hero">
-    <p class="eyebrow">阶段一初始化</p>
-    <h2>单窗口、显示器拼接、PPT 与 SRT 控制面的起点</h2>
-    <p class="panel__description">
-      页面由 Django 服务端渲染，浏览器只走 HTTP；gRPC、播放器进程和媒体服务都留在本地控制边界内。
-    </p>
+    <p class="eyebrow">统一播放区域</p>
+    <h2 id="hero-title">{{ current_content_title }}</h2>
     <div class="hero-stats">
       <div>
-        <span class="hero-stats__label">当前内容</span>
-        <strong>{{ current_content_title }}</strong>
+        <span class="hero-stats__label">内容类型</span>
+        <strong id="hero-kind">{{ current_content_kind }}</strong>
       </div>
       <div>
-        <span class="hero-stats__label">当前状态</span>
-        <strong>{{ current_playback_state }}</strong>
+        <span class="hero-stats__label">播放状态</span>
+        <strong id="hero-state">{{ current_playback_state }}</strong>
       </div>
       <div>
-        <span class="hero-stats__label">播放模式</span>
-        <strong>{{ current_display_mode }}</strong>
+        <span class="hero-stats__label">显示模式</span>
+        <strong id="hero-display">{{ current_display_mode }}</strong>
+      </div>
+      <div>
+        <span class="hero-stats__label">页码</span>
+        <strong id="hero-page">{{ ppt_page_progress }}</strong>
       </div>
     </div>
   </article>
@@ -34,52 +36,16 @@
       <span class="panel__badge">路径探测</span>
     </div>
     <dl class="summary-list">
-      <div>
-        <dt>MediaMTX</dt>
-        <dd>{{ mediamtx_path }}</dd>
-      </div>
-      <div>
-        <dt>LibreOffice CLI</dt>
-        <dd>{{ libreoffice_path }}</dd>
-      </div>
-      <div>
-        <dt>gRPC 端点</dt>
-        <dd>{{ grpc_endpoint }}</dd>
-      </div>
-      <div>
-        <dt>刷新时间</dt>
-        <dd>{{ refresh_timestamp }}</dd>
-      </div>
+      <div><dt>MediaMTX</dt><dd>{{ mediamtx_path }}</dd></div>
+      <div><dt>LibreOffice CLI</dt><dd>{{ libreoffice_path }}</dd></div>
+      <div><dt>gRPC 端点</dt><dd>{{ grpc_endpoint }}</dd></div>
+      <div><dt>刷新时间</dt><dd>{{ refresh_timestamp }}</dd></div>
     </dl>
   </article>
 </section>
 
 <section class="dashboard-grid">
-  <article class="panel">
-    <div class="panel__header">
-      <h3>主状态区</h3>
-      <span class="panel__badge">统一播放区域</span>
-    </div>
-    <dl class="metrics">
-      <div>
-        <dt>当前内容</dt>
-        <dd>{{ current_content_title }}</dd>
-      </div>
-      <div>
-        <dt>内容类型</dt>
-        <dd>{{ current_content_kind }}</dd>
-      </div>
-      <div>
-        <dt>页码</dt>
-        <dd>{{ ppt_page_progress }}</dd>
-      </div>
-      <div>
-        <dt>流状态</dt>
-        <dd>{{ current_stream_state }}</dd>
-      </div>
-    </dl>
-  </article>
-
+  {# ═══ 显示器与拼接 ═══ #}
   <article class="panel">
     <div class="panel__header">
       <h3>显示器与拼接</h3>
@@ -96,63 +62,108 @@
             <div class="display-list__meta">
               <span>{{ display.geometry_label }}</span>
               <span>{{ display.position_label }}</span>
-              {% if display.is_primary %}
-                <span class="chip chip--success">主屏</span>
-              {% endif %}
+              {% if display.is_primary %}<span class="chip chip--success">主屏</span>{% endif %}
             </div>
           </li>
         {% endfor %}
       </ul>
-      {% if spliced_display %}
-        <div class="splice-summary">
-          <strong>左右拼接</strong>
-          <span>{{ spliced_display.left.name }} + {{ spliced_display.right.name }} · {{ spliced_display.geometry_label }}</span>
-        </div>
-      {% else %}
-        <p class="empty-state">当前仅识别到单个显示器，DEBUG 模式下可继续使用单屏播放。</p>
-      {% endif %}
+      <div class="button-row" style="margin-top: var(--space-3);">
+        {% for display in display_targets %}
+          <button class="action-button action-button--ghost" type="button"
+                  onclick="switchDisplay('single', '{{ display.name }}')">
+            选择「{{ display.name }}」
+          </button>
+        {% endfor %}
+        {% if spliced_display %}
+          <button class="action-button" type="button"
+                  onclick="switchDisplay('left_right_splice', '')">
+            左右拼接 ({{ spliced_display.geometry_label }})
+          </button>
+        {% endif %}
+      </div>
     {% else %}
-      <p class="empty-state">暂未识别到显示器信息，可能正在离线运行或当前环境未开放桌面枚举。</p>
+      <p class="empty-state">暂未识别到显示器信息。</p>
     {% endif %}
   </article>
 
+  {# ═══ PPT 控制卡 ═══ #}
   <article class="panel">
     <div class="panel__header">
-      <h3>PPT 控制卡</h3>
-      <span class="panel__badge">页内媒体</span>
+      <h3>PPT 控制</h3>
+      <span class="panel__badge" id="ppt-page-badge">{{ ppt_page_progress }}</span>
     </div>
     <div class="button-row">
-      <button class="action-button" type="button" data-command="ppt-prev">上一页</button>
-      <button class="action-button" type="button" data-command="ppt-next">下一页</button>
-      <button class="action-button action-button--ghost" type="button" data-command="ppt-jump">跳页</button>
+      <button class="action-button" type="button" onclick="pptNavigate('prev')">⯇ 上一页</button>
+      <button class="action-button" type="button" onclick="pptNavigate('next')">下一页 ⯈</button>
     </div>
-    <div class="media-panel">
-      <p class="empty-state">当前页媒体列表将在后续接入 PPT 解析器后显示。</p>
+    <div class="button-row" style="margin-top: var(--space-2);">
+      <input type="number" id="jump-page-input" min="1" placeholder="页码" class="input-field input-field--small">
+      <button class="action-button action-button--ghost" type="button" onclick="pptJump()">跳页</button>
+    </div>
+
+    {# 当前页媒体列表 #}
+    <div class="media-panel" id="media-panel">
+      {% if ppt_media_rows %}
+        <h4 style="margin-top: var(--space-3);">当前页媒体</h4>
+        <ul class="media-list">
+          {% for media in ppt_media_rows %}
+            <li class="media-item">
+              <span class="chip chip--neutral">{{ media.media_kind_label }}</span>
+              <span>{{ media.media_name }}</span>
+              <span class="chip chip--accent">{{ media.playback_state_label }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="empty-state">当前页无媒体对象</p>
+      {% endif %}
     </div>
   </article>
 
+  {# ═══ SRT 控制卡 ═══ #}
   <article class="panel">
     <div class="panel__header">
-      <h3>SRT 控制卡</h3>
+      <h3>SRT 流控制</h3>
       <span class="panel__badge">单流接入</span>
     </div>
-    <div class="button-row">
-      <button class="action-button" type="button" data-command="stream-open">打开流</button>
-      <button class="action-button action-button--ghost" type="button" data-command="stream-stop">停止流</button>
-    </div>
-    <div class="media-panel">
-      <p class="empty-state">SRT 在线状态、最近连接时间和当前播放状态会在流服务接入后展示。</p>
-    </div>
+    {% if stream_rows %}
+      <ul class="stream-list">
+        {% for stream in stream_rows %}
+          <li class="stream-item">
+            <div>
+              <strong>{{ stream.name }}</strong>
+              <span class="chip {% if stream.is_online %}chip--success{% else %}chip--neutral{% endif %}">
+                {{ stream.current_state }}
+              </span>
+            </div>
+            <button class="action-button action-button--ghost" type="button"
+                    onclick="openStream({{ stream.id }})">打开</button>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="empty-state">暂无 SRT 流配置</p>
+    {% endif %}
   </article>
 
+  {# ═══ 文件管理 ═══ #}
   <article class="panel panel--full">
     <div class="panel__header">
       <h3>文件管理</h3>
-      <span class="panel__badge">资源列表</span>
+      <span class="panel__badge">{{ resource_rows|length }} 个资源</span>
     </div>
+
+    {# 上传区域 #}
+    <form id="upload-form" enctype="multipart/form-data" class="upload-area" style="margin-bottom: var(--space-3);">
+      {% csrf_token %}
+      <input type="file" name="ppt_file" id="ppt-file-input" accept=".ppt,.pptx"
+             class="input-field" style="flex: 1;">
+      <button type="submit" class="action-button action-button--primary">上传文件</button>
+    </form>
+
     {% if resource_rows %}
       <div class="table-wrap">
-        <table class="resource-table">
+        <table class="resource-table" id="resource-table">
           <thead>
             <tr>
               <th>名称</th>
@@ -160,27 +171,40 @@
               <th>大小</th>
               <th>页数</th>
               <th>上传时间</th>
-              <th>最近使用</th>
-              <th>当前状态</th>
+              <th>解析状态</th>
+              <th>操作</th>
             </tr>
           </thead>
           <tbody>
             {% for resource in resource_rows %}
-              <tr>
-                <td>{{ resource.name }}</td>
-                <td>{{ resource.kind }}</td>
-                <td>{{ resource.size_label }}</td>
+              <tr data-resource-id="{{ resource.id }}">
+                <td>{{ resource.display_name }}</td>
+                <td><span class="chip chip--neutral">{{ resource.file_kind_label }}</span></td>
+                <td>{{ resource.file_size_display }}</td>
                 <td>{{ resource.page_count }}</td>
-                <td>{{ resource.uploaded_at }}</td>
-                <td>{{ resource.last_used_at }}</td>
-                <td>{{ resource.state }}</td>
+                <td>{{ resource.uploaded_at|date:"Y-m-d H:i" }}</td>
+                <td>
+                  <span class="chip {% if resource.parse_state == 'ready' %}chip--success{% elif resource.parse_state == 'failed' %}chip--error{% else %}chip--neutral{% endif %}">
+                    {{ resource.parse_state_label }}
+                  </span>
+                </td>
+                <td>
+                  <div class="button-row button-row--compact">
+                    {% if resource.parse_state == "ready" %}
+                      <button class="action-button action-button--small" type="button"
+                              onclick="openResource({{ resource.id }})">打开</button>
+                    {% endif %}
+                    <button class="action-button action-button--small action-button--danger" type="button"
+                            onclick="deleteResource({{ resource.id }}, '{{ resource.display_name }}')">删除</button>
+                  </div>
+                </td>
               </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
     {% else %}
-      <p class="empty-state">资源列表暂为空，等文件上传和本地导入流程接入后，这里会自动展示 PPT / SRT 资源。</p>
+      <p class="empty-state">资源列表为空，请上传 PPT/PPTX 文件。</p>
     {% endif %}
   </article>
 </section>
