@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-from scp_cv.v1 import control_pb2 as scp__cv_dot_v1_dot_control__pb2
+from scp_cv.grpc_generated.scp_cv.v1 import control_pb2 as scp__cv_dot_v1_dot_control__pb2
 
 GRPC_GENERATED_VERSION = '1.80.0'
 GRPC_VERSION = grpc.__version__
