@@ -2,6 +2,20 @@
 
 ## 2026-04-10
 
+### mpv 低延迟流播放
+
+- 播放器从 QMediaPlayer（2-5s 延迟）切换到 mpv/libmpv 嵌入式低延迟播放（200-500ms）
+- `window.py`：新增 mpv 容器层，延迟初始化 mpv 实例，配置 `low-latency` profile + `no-cache` + `untimed`
+- `controller.py`：流播放 URL 从 RTSP 中转切换为 SRT 直连读取（`srt://...?streamid=read:<path>&latency=100000`）
+- 新增依赖：`python-mpv==1.0.8`，`libmpv-2.dll` 置于 `tools/third_party/mpv/`
+- QMediaPlayer 仍保留用于 PPT 内嵌本地媒体播放
+
+### 前端流面板稳定性修复
+
+- 移除 SSE `stream_updated` 事件监听，消除无限刷新循环
+- 新增指纹变更检测 + 防抖锁，避免 DOM 无效重建
+- 轮询间隔从 5s 调整到 10s
+
 ### SRT 流自动发现与注册
 
 - 增强 `sync_stream_states()` 自动注册 MediaMTX 新发现的流路径为 `StreamSource` 记录

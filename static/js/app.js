@@ -186,13 +186,26 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  /** 手动刷新 SRT 流列表（触发同步并更新 UI） */
+  /* ═══ SRT 流列表同步 ═══ */
+
+  /** 上一次渲染的流列表指纹，用于跳过无变化的 DOM 更新 */
+  let _lastStreamFingerprint = "";
+  /** 防止并发请求的锁标志 */
+  let _streamSyncInFlight = false;
+
+  /** 刷新 SRT 流列表（触发同步并按需更新 UI） */
   window.refreshStreams = async function refreshStreams() {
+    if (_streamSyncInFlight) return;
+    _streamSyncInFlight = true;
     try {
       const syncResponse = await fetch("/api/streams/");
       const syncResult = await syncResponse.json();
       if (syncResult.success) {
-        renderStreamList(syncResult.streams);
+        const newFingerprint = buildStreamFingerprint(syncResult.streams);
+        if (newFingerprint !== _lastStreamFingerprint) {
+          renderStreamList(syncResult.streams);
+          _lastStreamFingerprint = newFingerprint;
+        }
         const registered = syncResult.sync_result.registered || 0;
         if (registered > 0) {
           showBanner(`发现 ${registered} 条新流，已自动注册`);
@@ -200,8 +213,22 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } catch (networkError) {
       /* 网络异常静默处理，下次轮询会重试 */
+    } finally {
+      _streamSyncInFlight = false;
     }
   };
+
+  /**
+   * 根据流列表数据构建指纹字符串，用于判断数据是否变化
+   * @param {Array<object>} streamList - 流数据数组
+   * @returns {string} 描述列表内容的摘要字符串
+   */
+  function buildStreamFingerprint(streamList) {
+    if (!streamList || streamList.length === 0) return "empty";
+    return streamList.map(
+      (s) => `${s.id}:${s.is_online}:${s.current_state}`
+    ).join("|");
+  }
 
   /**
    * 动态渲染 SRT 流列表到 DOM
@@ -248,10 +275,10 @@ document.addEventListener("DOMContentLoaded", () => {
     return escapeDiv.innerHTML;
   }
 
-  /* ═══ 流列表自动轮询（每 5 秒同步一次 MediaMTX 状态） ═══ */
+  /* 流列表自动轮询（每 10 秒同步一次 MediaMTX 状态） */
   setInterval(() => {
     window.refreshStreams();
-  }, 5000);
+  }, 10000);
 
   /** 刷新页面 */
   window.refreshPage = function refreshPage() {
@@ -326,11 +353,6 @@ document.addEventListener("DOMContentLoaded", () => {
     /* 资源列表变更 → 整页刷新（资源表格结构较复杂，直接刷新） */
     eventSource.addEventListener("resource_updated", () => {
       location.reload();
-    });
-
-    /* 流列表变更 → 动态刷新流面板 */
-    eventSource.addEventListener("stream_updated", () => {
-      window.refreshStreams();
     });
 
     /* 心跳事件（无操作，仅保持连接） */

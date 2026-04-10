@@ -174,6 +174,7 @@ class PlayerController(QObject):
     def _apply_stream_state(self, snapshot: dict[str, object]) -> None:
         """
         根据 SRT 流快照驱动窗口播放流。
+        使用 SRT 直连 URL 跳过 RTSP 中转环节，降低延迟。
         :param snapshot: 会话快照字典
         """
         from scp_cv.services.playback import get_or_create_session
@@ -184,10 +185,16 @@ class PlayerController(QObject):
             return
 
         stream = session.stream_source
-        # 构造 SRT 读取 URL（MediaMTX 提供 RTSP 或直接 SRT listener）
-        # 默认使用 RTSP 读取方式，与 MediaMTX 兼容
-        stream_read_url = f"rtsp://127.0.0.1:8554/{stream.stream_identifier}"
-        self.sig_play_stream.emit(stream_read_url)
+        # SRT 直连读取：跳过 RTSP 中转，mpv 通过 FFmpeg 直读 MediaMTX SRT
+        # latency=100000 → 100ms SRT 级最小延迟
+        stream_identifier = stream.stream_identifier
+        srt_read_url = (
+            f"srt://127.0.0.1:8890"
+            f"?streamid=read:{stream_identifier}"
+            f"&latency=100000"
+            f"&pkt_size=1316"
+        )
+        self.sig_play_stream.emit(srt_read_url)
 
     @Slot()
     def apply_display_position(self) -> None:

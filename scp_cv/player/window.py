@@ -11,8 +11,18 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import Optional
+
+# ═══ 配置 libmpv DLL 搜索路径（必须在 import mpv 之前） ═══
+_MPV_DLL_DIR = Path(__file__).resolve().parents[2] / 'tools' / 'third_party' / 'mpv'
+if _MPV_DLL_DIR.is_dir():
+    os.environ['PATH'] = str(_MPV_DLL_DIR) + os.pathsep + os.environ.get('PATH', '')
+    # Python 3.8+ 需要显式添加 DLL 搜索目录
+    os.add_dll_directory(str(_MPV_DLL_DIR))
+
+import mpv  # noqa: E402  — 必须在 DLL 路径配置之后导入
 
 from PySide6.QtCore import QRect, Qt, QUrl, Signal, Slot
 from PySide6.QtGui import QPixmap
@@ -81,10 +91,19 @@ class PlayerWindow(QWidget):
         self._background_label.setScaledContents(False)
         self._stacked_layout.addWidget(self._background_label)
 
-        # 上层：视频叠加 widget（媒体/SRT 流使用）
+        # 上层：视频叠加 widget（本地媒体/PPT 内嵌视频使用）
         self._video_widget = QVideoWidget()
         self._video_widget.setStyleSheet("background: transparent;")
         self._stacked_layout.addWidget(self._video_widget)
+
+        # 顶层：mpv 流播放容器（SRT 直连低延迟播放）
+        self._mpv_container = QWidget()
+        self._mpv_container.setAttribute(
+            Qt.WidgetAttribute.WA_NativeWindow, True,
+        )
+        self._mpv_container.setStyleSheet("background-color: #000000;")
+        self._mpv_container.hide()
+        self._stacked_layout.addWidget(self._mpv_container)
 
         # 主 layout
         main_layout = QVBoxLayout(self)
@@ -99,6 +118,9 @@ class PlayerWindow(QWidget):
 
         # 当前状态追踪
         self._current_page_pixmap: Optional[QPixmap] = None
+
+        # mpv 播放器实例（延迟初始化，确保窗口句柄有效）
+        self._mpv_player: Optional[mpv.MPV] = None
 
         logger.info(
             "播放器窗口已初始化（debug=%s）",
@@ -242,27 +264,87 @@ class PlayerWindow(QWidget):
         self._media_player.setSource(QUrl())
         self._video_widget.hide()
 
-    # ═══════════════════ SRT 流播放 ═══════════════════
+    # ═══════════════════ SRT 流播放（mpv 低延迟） ═══════════════════
+
+    def _ensure_mpv_player(self) -> mpv.MPV:
+        """
+        确保 mpv 播放器实例存在并返回。
+        延迟初始化以保证原生窗口句柄已分配。
+        :return: mpv.MPV 实例
+        """
+        if self._mpv_player is not None:
+            return self._mpv_player
+
+        window_id = str(int(self._mpv_container.winId()))
+        self._mpv_player = mpv.MPV(
+            wid=window_id,
+            vo='gpu',
+            # 低延迟 profile：禁用缓冲、插值，最小化延迟
+            profile='low-latency',
+            untimed=True,
+            cache='no',
+            # FFmpeg demuxer 低延迟参数
+            demuxer_lavf_o='fflags=+nobuffer+fastseek',
+            log_handler=self._on_mpv_log,
+            loglevel='warn',
+        )
+        logger.info("mpv 播放器已初始化（wid=%s）", window_id)
+        return self._mpv_player
+
+    def _on_mpv_log(self, loglevel: str, component: str, message: str) -> None:
+        """
+        mpv 日志回调，转发到 Python logging。
+        :param loglevel: mpv 日志级别（fatal/error/warn/info/v/debug/trace）
+        :param component: mpv 组件名
+        :param message: 日志消息
+        """
+        _MPV_LEVEL_MAP = {
+            'fatal': logging.CRITICAL,
+            'error': logging.ERROR,
+            'warn': logging.WARNING,
+            'info': logging.INFO,
+            'v': logging.DEBUG,
+            'debug': logging.DEBUG,
+            'trace': logging.DEBUG,
+        }
+        py_level = _MPV_LEVEL_MAP.get(loglevel, logging.INFO)
+        logger.log(py_level, "[mpv/%s] %s", component, message.strip())
 
     @Slot(str)
     def play_srt_stream(self, stream_url: str) -> None:
         """
-        播放 SRT 流。使用 QMediaPlayer 通过 URL 读取流。
-        :param stream_url: SRT 流地址（如 srt://host:port?streamid=xxx）
+        使用 mpv 低延迟播放 SRT 流。
+        跳过 QMediaPlayer 的不可控缓冲层，直接 SRT 读取，
+        典型延迟从 2-5s 降低到 200-500ms。
+        :param stream_url: SRT 流地址（如 srt://host:port?streamid=read:xxx）
         """
-        # SRT 流使用全屏视频，隐藏 PPT 图片层
+        # 停止本地媒体（若有）
+        self._stop_media()
         self._show_black_screen()
-        self._background_label.hide()
-        self._video_widget.show()
 
-        self._media_player.setSource(QUrl(stream_url))
-        self._media_player.play()
-        logger.info("开始播放 SRT 流：%s", stream_url)
+        # 切换到 mpv 容器
+        self._background_label.hide()
+        self._video_widget.hide()
+        self._mpv_container.show()
+        self._stacked_layout.setCurrentWidget(self._mpv_container)
+
+        player = self._ensure_mpv_player()
+        player.play(stream_url)
+        logger.info("开始播放 SRT 流（mpv 低延迟）：%s", stream_url)
+
+    def _stop_mpv(self) -> None:
+        """停止 mpv 流播放并隐藏容器。"""
+        if self._mpv_player is not None:
+            try:
+                self._mpv_player.command('stop')
+            except Exception as mpv_stop_error:
+                logger.warning("mpv stop 异常：%s", mpv_stop_error)
+        self._mpv_container.hide()
 
     @Slot()
     def stop_stream(self) -> None:
         """停止 SRT 流播放。"""
-        self._stop_media()
+        self._stop_mpv()
         self._background_label.show()
         self._show_black_screen()
         logger.info("SRT 流已停止")
@@ -271,8 +353,9 @@ class PlayerWindow(QWidget):
 
     @Slot()
     def stop_all(self) -> None:
-        """停止所有内容并显示黑屏。"""
+        """停止所有内容（本地媒体 + mpv 流）并显示黑屏。"""
         self._stop_media()
+        self._stop_mpv()
         self._show_black_screen()
         self._background_label.show()
         logger.info("播放器已全部停止")
@@ -290,8 +373,15 @@ class PlayerWindow(QWidget):
         self._render_current_pixmap()
 
     def closeEvent(self, event: object) -> None:
-        """窗口关闭时停止所有媒体。"""
+        """窗口关闭时停止所有媒体并释放 mpv 资源。"""
         self.stop_all()
+        # 销毁 mpv 实例，释放 GPU 资源
+        if self._mpv_player is not None:
+            try:
+                self._mpv_player.terminate()
+            except Exception as mpv_term_error:
+                logger.warning("mpv terminate 异常：%s", mpv_term_error)
+            self._mpv_player = None
         self.window_closed.emit()
         super().closeEvent(event)
 

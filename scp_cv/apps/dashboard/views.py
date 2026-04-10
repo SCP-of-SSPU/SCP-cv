@@ -366,13 +366,6 @@ def api_streams(request: HttpRequest) -> JsonResponse:
         "last_connected_at",
     ))
 
-    # 新流注册后通过 SSE 通知其他客户端刷新
-    if sync_result["registered"] > 0:
-        publish_event("stream_updated", {
-            "action": "auto_register",
-            "registered_count": sync_result["registered"],
-        })
-
     return JsonResponse({
         "success": True,
         "streams": stream_rows,
