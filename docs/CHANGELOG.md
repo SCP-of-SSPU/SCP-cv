@@ -2,6 +2,13 @@
 
 ## 2026-04-14
 
+### GStreamer 切回 MSVC x86_64
+
+- 环境变量从 `GSTREAMER_1_0_ROOT_MINGW_X86_64` 改回 `GSTREAMER_1_0_ROOT_MSVC_X86_64`
+- 默认安装路径从 `mingw_x86_64` 改回 `msvc_x86_64`
+- MSVC 版本 Complete 安装包含完整的 gobject-introspection 开发文件和 typelib
+- 更新全部代码、安装脚本、文档、错误提示中的 MinGW 引用
+
 ### PyGObject Windows 安装修复
 
 - 新增 `tools/install_pygobject.py` 辅助脚本，解决 Windows 上 Meson 找到 Git 的 `link.exe` 而非 MSVC `link.exe` 导致编译失败的问题
@@ -34,12 +41,9 @@
 - 补充消息注释：各字段单位、默认值、字段使用场景、无数据时的值
 - 同步更新使用文档 gRPC 章节（5.2、5.3）：修正旧方法名（OpenStream→OpenSource 等）、更新调用示例
 
-### GStreamer 从 MSVC 迁移至 MinGW x86_64
+### GStreamer 从 MSVC 迁移至 MinGW x86_64（已回退）
 
-- 环境变量优先检测从 `GSTREAMER_1_0_ROOT_MSVC_X86_64` 改为 `GSTREAMER_1_0_ROOT_MINGW_X86_64`
-- 默认安装路径从 `C:\gstreamer\1.0\msvc_x86_64` 改为 `C:\Program Files\gstreamer\1.0\mingw_x86_64`
-- 安装方式简化：使用默认安装选项即可（无需选择 Complete）
-- 更新 `player/__init__.py`、`run_player.py`、文档安装说明
+- 已在同日基于用户反馈回退至 MSVC 版本
 
 ### 统一媒体源架构与 PPT 控制支持
 

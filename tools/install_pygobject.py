@@ -5,7 +5,7 @@ PyGObject Windows 安装辅助脚本。
 解决 Windows 上 pip install PyGObject 因 Meson 找到错误的 link.exe 而失败的问题。
 
 使用方法：
-  1. 确保已安装 GStreamer MinGW x86_64（选择 Complete 安装选项）
+  1. 确保已安装 GStreamer MSVC x86_64（选择 Complete 安装选项）
   2. 确保已安装 Visual Studio（含 C++ 桌面开发组件）
   3. 在项目虚拟环境激活后运行：
      python tools/install_pygobject.py
@@ -70,11 +70,11 @@ def find_msvc_link_dir() -> Path | None:
 
 def find_gstreamer_pkgconfig() -> Path | None:
     """
-    查找 GStreamer MinGW x86_64 的 pkgconfig 目录。
+    查找 GStreamer MSVC x86_64 的 pkgconfig 目录。
     :return: pkgconfig 目录路径，未找到时返回 None
     """
     # 优先使用环境变量
-    gst_root_env = os.environ.get("GSTREAMER_1_0_ROOT_MINGW_X86_64", "")
+    gst_root_env = os.environ.get("GSTREAMER_1_0_ROOT_MSVC_X86_64", "")
     if gst_root_env:
         pkgconfig_dir = Path(gst_root_env) / "lib" / "pkgconfig"
         if pkgconfig_dir.exists():
@@ -82,9 +82,9 @@ def find_gstreamer_pkgconfig() -> Path | None:
 
     # 常见安装路径
     candidate_paths = [
-        Path(r"C:\Program Files\gstreamer\1.0\mingw_x86_64\lib\pkgconfig"),
-        Path(r"C:\gstreamer\1.0\mingw_x86_64\lib\pkgconfig"),
-        Path(r"D:\gstreamer\1.0\mingw_x86_64\lib\pkgconfig"),
+        Path(r"C:\Program Files\gstreamer\1.0\msvc_x86_64\lib\pkgconfig"),
+        Path(r"C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig"),
+        Path(r"D:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig"),
     ]
     for candidate in candidate_paths:
         if candidate.exists():
@@ -103,7 +103,7 @@ def check_prerequisites() -> bool:
     # 检查 GStreamer
     gst_pkgconfig = find_gstreamer_pkgconfig()
     if gst_pkgconfig is None:
-        print("错误：未找到 GStreamer MinGW x86_64 安装。")
+        print("错误：未找到 GStreamer MSVC x86_64 安装。")
         print("请从 https://gstreamer.freedesktop.org/download/ 下载并安装。")
         print("安装时选择 Complete 选项以包含开发文件。")
         prerequisites_met = False

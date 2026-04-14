@@ -62,7 +62,7 @@
 ### 环境要求
 
 - **Python** 3.12+
-- **GStreamer MinGW x86_64**（[下载页](https://gstreamer.freedesktop.org/download/)，安装时选择 **Complete** 选项以包含开发文件）
+- **GStreamer MSVC x86_64**（[下载页](https://gstreamer.freedesktop.org/download/)，安装时选择 **Complete** 选项以包含开发文件）
 - **Visual Studio**（含 C++ 桌面开发组件，构建 PyGObject 时需要 MSVC link.exe）
 - **Microsoft PowerPoint**（PPT 播放功能需要，通过 COM 自动化调用）
 
