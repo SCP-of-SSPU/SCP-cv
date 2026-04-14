@@ -24,35 +24,41 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x17scp_cv/v1/control.proto\x12\tscp_cv.v1\"\x0e\n\x0c\x45mptyRequest\"\x16\n\x14RuntimeStatusRequest\"\x83\x01\n\x12RuntimeStatusReply\x12\x14\n\x0c\x63ontent_kind\x18\x01 \x01(\t\x12\x16\n\x0eplayback_state\x18\x02 \x01(\t\x12\x14\n\x0c\x64isplay_mode\x18\x03 \x01(\t\x12\x15\n\rgrpc_endpoint\x18\x04 \x01(\t\x12\x12\n\ndebug_mode\x18\x05 \x01(\x08\"y\n\x11\x44isplayTargetItem\x12\r\n\x05index\x18\x01 \x01(\x05\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\r\n\x05width\x18\x03 \x01(\x05\x12\x0e\n\x06height\x18\x04 \x01(\x05\x12\t\n\x01x\x18\x05 \x01(\x05\x12\t\n\x01y\x18\x06 \x01(\x05\x12\x12\n\nis_primary\x18\x07 \x01(\x08\"Z\n\x13\x44isplayTargetsReply\x12-\n\x07targets\x18\x01 \x03(\x0b\x32\x1c.scp_cv.v1.DisplayTargetItem\x12\x14\n\x0csplice_label\x18\x02 \x01(\t\"*\n\x13OpenResourceRequest\x12\x13\n\x0bresource_id\x18\x01 \x01(\t\"Q\n\x15\x43ontrolPptPageRequest\x12\x13\n\x0bresource_id\x18\x01 \x01(\t\x12\x0e\n\x06\x61\x63tion\x18\x02 \x01(\t\x12\x13\n\x0bpage_number\x18\x03 \x01(\x05\"7\n\x13\x43ontrolMediaRequest\x12\x10\n\x08media_id\x18\x01 \x01(\t\x12\x0e\n\x06\x61\x63tion\x18\x02 \x01(\t\".\n\x11OpenStreamRequest\x12\x19\n\x11stream_identifier\x18\x01 \x01(\t\"H\n\x1aSelectDisplayTargetRequest\x12\x14\n\x0c\x64isplay_mode\x18\x01 \x01(\t\x12\x14\n\x0ctarget_label\x18\x02 \x01(\t\"B\n\x0eOperationReply\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\x0e\n\x06\x64\x65tail\x18\x03 \x01(\t2\x91\x05\n\x16PlaybackControlService\x12R\n\x10GetRuntimeStatus\x12\x1f.scp_cv.v1.RuntimeStatusRequest\x1a\x1d.scp_cv.v1.RuntimeStatusReply\x12M\n\x12ListDisplayTargets\x12\x17.scp_cv.v1.EmptyRequest\x1a\x1e.scp_cv.v1.DisplayTargetsReply\x12I\n\x0cOpenResource\x12\x1e.scp_cv.v1.OpenResourceRequest\x1a\x19.scp_cv.v1.OperationReply\x12M\n\x0e\x43ontrolPptPage\x12 .scp_cv.v1.ControlPptPageRequest\x1a\x19.scp_cv.v1.OperationReply\x12P\n\x13\x43ontrolCurrentMedia\x12\x1e.scp_cv.v1.ControlMediaRequest\x1a\x19.scp_cv.v1.OperationReply\x12\x45\n\nOpenStream\x12\x1c.scp_cv.v1.OpenStreamRequest\x1a\x19.scp_cv.v1.OperationReply\x12H\n\x12StopCurrentContent\x12\x17.scp_cv.v1.EmptyRequest\x1a\x19.scp_cv.v1.OperationReply\x12W\n\x13SelectDisplayTarget\x12%.scp_cv.v1.SelectDisplayTargetRequest\x1a\x19.scp_cv.v1.OperationReplyb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x17scp_cv/v1/control.proto\x12\tscp_cv.v1\"\x0e\n\x0c\x45mptyRequest\">\n\x11OpenSourceRequest\x12\x17\n\x0fmedia_source_id\x18\x01 \x01(\x03\x12\x10\n\x08\x61utoplay\x18\x02 \x01(\x08\"\x14\n\x12\x43loseSourceRequest\"C\n\x16\x43ontrolPlaybackRequest\x12)\n\x06\x61\x63tion\x18\x01 \x01(\x0e\x32\x19.scp_cv.v1.PlaybackAction\"n\n\x16NavigateContentRequest\x12)\n\x06\x61\x63tion\x18\x01 \x01(\x0e\x32\x19.scp_cv.v1.NavigateAction\x12\x14\n\x0ctarget_index\x18\x02 \x01(\x05\x12\x13\n\x0bposition_ms\x18\x03 \x01(\x03\"H\n\x1aSelectDisplayTargetRequest\x12\x14\n\x0c\x64isplay_mode\x18\x01 \x01(\t\x12\x14\n\x0ctarget_label\x18\x02 \x01(\t\"B\n\x0eOperationReply\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\x0e\n\x06\x64\x65tail\x18\x03 \x01(\t\"\x97\x01\n\x12RuntimeStatusReply\x12\x13\n\x0bsource_type\x18\x01 \x01(\t\x12\x13\n\x0bsource_name\x18\x02 \x01(\t\x12\x16\n\x0eplayback_state\x18\x03 \x01(\t\x12\x14\n\x0c\x64isplay_mode\x18\x04 \x01(\t\x12\x15\n\rgrpc_endpoint\x18\x05 \x01(\t\x12\x12\n\ndebug_mode\x18\x06 \x01(\x08\"\x83\x02\n\x12PlaybackStateReply\x12\x16\n\x0eplayback_state\x18\x01 \x01(\t\x12\x13\n\x0bsource_type\x18\x02 \x01(\t\x12\x13\n\x0bsource_name\x18\x03 \x01(\t\x12\x12\n\nsource_uri\x18\x04 \x01(\t\x12\x15\n\rcurrent_slide\x18\x05 \x01(\x05\x12\x14\n\x0ctotal_slides\x18\x06 \x01(\x05\x12\x13\n\x0bposition_ms\x18\x07 \x01(\x03\x12\x13\n\x0b\x64uration_ms\x18\x08 \x01(\x03\x12\x14\n\x0c\x64isplay_mode\x18\t \x01(\t\x12\x16\n\x0etarget_display\x18\n \x01(\t\x12\x12\n\nis_spliced\x18\x0b \x01(\x08\"y\n\x11\x44isplayTargetItem\x12\r\n\x05index\x18\x01 \x01(\x05\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\r\n\x05width\x18\x03 \x01(\x05\x12\x0e\n\x06height\x18\x04 \x01(\x05\x12\t\n\x01x\x18\x05 \x01(\x05\x12\t\n\x01y\x18\x06 \x01(\x05\x12\x12\n\nis_primary\x18\x07 \x01(\x08\"Z\n\x13\x44isplayTargetsReply\x12-\n\x07targets\x18\x01 \x03(\x0b\x32\x1c.scp_cv.v1.DisplayTargetItem\x12\x14\n\x0csplice_label\x18\x02 \x01(\t*\xaa\x01\n\nSourceType\x12\x12\n\x0eSOURCE_UNKNOWN\x10\x00\x12\x0e\n\nSOURCE_PPT\x10\x01\x12\x10\n\x0cSOURCE_VIDEO\x10\x02\x12\x10\n\x0cSOURCE_AUDIO\x10\x03\x12\x10\n\x0cSOURCE_IMAGE\x10\x04\x12\x0e\n\nSOURCE_WEB\x10\x05\x12\x18\n\x14SOURCE_CUSTOM_STREAM\x10\x06\x12\x18\n\x14SOURCE_WEBRTC_STREAM\x10\x07*X\n\x0ePlaybackAction\x12\x12\n\x0e\x41\x43TION_UNKNOWN\x10\x00\x12\x0f\n\x0b\x41\x43TION_PLAY\x10\x01\x12\x10\n\x0c\x41\x43TION_PAUSE\x10\x02\x12\x0f\n\x0b\x41\x43TION_STOP\x10\x03*Y\n\x0eNavigateAction\x12\x0f\n\x0bNAV_UNKNOWN\x10\x00\x12\x0c\n\x08NAV_NEXT\x10\x01\x12\x0c\n\x08NAV_PREV\x10\x02\x12\x0c\n\x08NAV_GOTO\x10\x03\x12\x0c\n\x08NAV_SEEK\x10\x04\x32\xd4\x05\n\x16PlaybackControlService\x12\x45\n\nOpenSource\x12\x1c.scp_cv.v1.OpenSourceRequest\x1a\x19.scp_cv.v1.OperationReply\x12G\n\x0b\x43loseSource\x12\x1d.scp_cv.v1.CloseSourceRequest\x1a\x19.scp_cv.v1.OperationReply\x12O\n\x0f\x43ontrolPlayback\x12!.scp_cv.v1.ControlPlaybackRequest\x1a\x19.scp_cv.v1.OperationReply\x12O\n\x0fNavigateContent\x12!.scp_cv.v1.NavigateContentRequest\x1a\x19.scp_cv.v1.OperationReply\x12J\n\x10GetRuntimeStatus\x12\x17.scp_cv.v1.EmptyRequest\x1a\x1d.scp_cv.v1.RuntimeStatusReply\x12J\n\x10GetPlaybackState\x12\x17.scp_cv.v1.EmptyRequest\x1a\x1d.scp_cv.v1.PlaybackStateReply\x12M\n\x12ListDisplayTargets\x12\x17.scp_cv.v1.EmptyRequest\x1a\x1e.scp_cv.v1.DisplayTargetsReply\x12W\n\x13SelectDisplayTarget\x12%.scp_cv.v1.SelectDisplayTargetRequest\x1a\x19.scp_cv.v1.OperationReply\x12H\n\x12StopCurrentContent\x12\x17.scp_cv.v1.EmptyRequest\x1a\x19.scp_cv.v1.OperationReplyb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'scp_cv.v1.control_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
+  _globals['_SOURCETYPE']._serialized_start=1095
+  _globals['_SOURCETYPE']._serialized_end=1265
+  _globals['_PLAYBACKACTION']._serialized_start=1267
+  _globals['_PLAYBACKACTION']._serialized_end=1355
+  _globals['_NAVIGATEACTION']._serialized_start=1357
+  _globals['_NAVIGATEACTION']._serialized_end=1446
   _globals['_EMPTYREQUEST']._serialized_start=38
   _globals['_EMPTYREQUEST']._serialized_end=52
-  _globals['_RUNTIMESTATUSREQUEST']._serialized_start=54
-  _globals['_RUNTIMESTATUSREQUEST']._serialized_end=76
-  _globals['_RUNTIMESTATUSREPLY']._serialized_start=79
-  _globals['_RUNTIMESTATUSREPLY']._serialized_end=210
-  _globals['_DISPLAYTARGETITEM']._serialized_start=212
-  _globals['_DISPLAYTARGETITEM']._serialized_end=333
-  _globals['_DISPLAYTARGETSREPLY']._serialized_start=335
-  _globals['_DISPLAYTARGETSREPLY']._serialized_end=425
-  _globals['_OPENRESOURCEREQUEST']._serialized_start=427
-  _globals['_OPENRESOURCEREQUEST']._serialized_end=469
-  _globals['_CONTROLPPTPAGEREQUEST']._serialized_start=471
-  _globals['_CONTROLPPTPAGEREQUEST']._serialized_end=552
-  _globals['_CONTROLMEDIAREQUEST']._serialized_start=554
-  _globals['_CONTROLMEDIAREQUEST']._serialized_end=609
-  _globals['_OPENSTREAMREQUEST']._serialized_start=611
-  _globals['_OPENSTREAMREQUEST']._serialized_end=657
-  _globals['_SELECTDISPLAYTARGETREQUEST']._serialized_start=659
-  _globals['_SELECTDISPLAYTARGETREQUEST']._serialized_end=731
-  _globals['_OPERATIONREPLY']._serialized_start=733
-  _globals['_OPERATIONREPLY']._serialized_end=799
-  _globals['_PLAYBACKCONTROLSERVICE']._serialized_start=802
-  _globals['_PLAYBACKCONTROLSERVICE']._serialized_end=1459
+  _globals['_OPENSOURCEREQUEST']._serialized_start=54
+  _globals['_OPENSOURCEREQUEST']._serialized_end=116
+  _globals['_CLOSESOURCEREQUEST']._serialized_start=118
+  _globals['_CLOSESOURCEREQUEST']._serialized_end=138
+  _globals['_CONTROLPLAYBACKREQUEST']._serialized_start=140
+  _globals['_CONTROLPLAYBACKREQUEST']._serialized_end=207
+  _globals['_NAVIGATECONTENTREQUEST']._serialized_start=209
+  _globals['_NAVIGATECONTENTREQUEST']._serialized_end=319
+  _globals['_SELECTDISPLAYTARGETREQUEST']._serialized_start=321
+  _globals['_SELECTDISPLAYTARGETREQUEST']._serialized_end=393
+  _globals['_OPERATIONREPLY']._serialized_start=395
+  _globals['_OPERATIONREPLY']._serialized_end=461
+  _globals['_RUNTIMESTATUSREPLY']._serialized_start=464
+  _globals['_RUNTIMESTATUSREPLY']._serialized_end=615
+  _globals['_PLAYBACKSTATEREPLY']._serialized_start=618
+  _globals['_PLAYBACKSTATEREPLY']._serialized_end=877
+  _globals['_DISPLAYTARGETITEM']._serialized_start=879
+  _globals['_DISPLAYTARGETITEM']._serialized_end=1000
+  _globals['_DISPLAYTARGETSREPLY']._serialized_start=1002
+  _globals['_DISPLAYTARGETSREPLY']._serialized_end=1092
+  _globals['_PLAYBACKCONTROLSERVICE']._serialized_start=1449
+  _globals['_PLAYBACKCONTROLSERVICE']._serialized_end=2173
 # @@protoc_insertion_point(module_scope)

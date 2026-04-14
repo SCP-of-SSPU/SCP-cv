@@ -1,24 +1,37 @@
-from __future__ import annotations
-
+#!/user/bin/env python
+# -*- coding: UTF-8 -*-
+'''
+播放控制台 URL 路由配置。
+@Project : SCP-cv
+@File : urls.py
+@Author : Qintsg
+@Date : 2026-04-14
+'''
 from django.urls import path
 
 from . import views
 
 app_name = "dashboard"
-
 urlpatterns = [
-    # 主页面
+    # 页面
     path("", views.home, name="home"),
 
-    # 操作端点
-    path("stop/", views.stop_playback, name="stop_playback"),
-    path("switch-display/", views.switch_display, name="switch_display"),
-    path("open-stream/", views.open_stream, name="open_stream"),
+    # ── 源管理 ──
+    path("sources/upload/", views.upload_source, name="upload_source"),
+    path("sources/add-local/", views.add_local_source, name="add_local_source"),
+    path("sources/remove/", views.remove_source, name="remove_source"),
+    path("api/sources/", views.api_sources, name="api_sources"),
 
-    # JSON API
+    # ── 播放控制 ──
+    path("playback/open/", views.open_media_source, name="open_source"),
+    path("playback/control/", views.playback_control, name="playback_control"),
+    path("playback/navigate/", views.navigate, name="navigate"),
+    path("playback/close/", views.close_current, name="close_current"),
+
+    # ── 显示配置 ──
+    path("display/switch/", views.switch_display, name="switch_display"),
+
+    # ── 状态查询 & SSE ──
     path("api/session/", views.api_session_state, name="api_session_state"),
-    path("api/streams/", views.api_streams, name="api_streams"),
-
-    # SSE 事件流
     path("events/", views.sse_events, name="sse_events"),
 ]

@@ -5,13 +5,27 @@ from .display import (
 	list_display_targets,
 )
 from .executables import get_mediamtx_executable
+from .media import (
+	MediaError,
+	add_local_path,
+	add_uploaded_file,
+	delete_media_source,
+	detect_source_type,
+	list_media_sources,
+	sync_streams_to_media_sources,
+)
 from .playback import (
 	PlaybackError,
+	clear_pending_command,
+	close_source,
+	control_playback,
 	get_or_create_session,
 	get_session_snapshot,
-	open_stream_source,
+	navigate_content,
+	open_source,
 	select_display_target,
 	stop_current_content,
+	update_playback_progress,
 )
 from .sse import (
 	event_stream,

@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-from scp_cv.grpc_generated.scp_cv.v1 import control_pb2 as scp__cv_dot_v1_dot_control__pb2
+from scp_cv.v1 import control_pb2 as scp__cv_dot_v1_dot_control__pb2
 
 GRPC_GENERATED_VERSION = '1.80.0'
 GRPC_VERSION = grpc.__version__
@@ -26,7 +26,12 @@ if _version_not_supported:
 
 
 class PlaybackControlServiceStub(object):
-    """Missing associated documentation comment in .proto file."""
+    """──────────────────────────────────────────────────────────────
+    PlaybackControlService
+    统一播放控制 gRPC 服务，Django 进程内运行。
+    包含源管理、播放控制、内容导航、显示配置、状态查询。
+    ──────────────────────────────────────────────────────────────
+    """
 
     def __init__(self, channel):
         """Constructor.
@@ -34,34 +39,44 @@ class PlaybackControlServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
+        self.OpenSource = channel.unary_unary(
+                '/scp_cv.v1.PlaybackControlService/OpenSource',
+                request_serializer=scp__cv_dot_v1_dot_control__pb2.OpenSourceRequest.SerializeToString,
+                response_deserializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
+                _registered_method=True)
+        self.CloseSource = channel.unary_unary(
+                '/scp_cv.v1.PlaybackControlService/CloseSource',
+                request_serializer=scp__cv_dot_v1_dot_control__pb2.CloseSourceRequest.SerializeToString,
+                response_deserializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
+                _registered_method=True)
+        self.ControlPlayback = channel.unary_unary(
+                '/scp_cv.v1.PlaybackControlService/ControlPlayback',
+                request_serializer=scp__cv_dot_v1_dot_control__pb2.ControlPlaybackRequest.SerializeToString,
+                response_deserializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
+                _registered_method=True)
+        self.NavigateContent = channel.unary_unary(
+                '/scp_cv.v1.PlaybackControlService/NavigateContent',
+                request_serializer=scp__cv_dot_v1_dot_control__pb2.NavigateContentRequest.SerializeToString,
+                response_deserializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
+                _registered_method=True)
         self.GetRuntimeStatus = channel.unary_unary(
                 '/scp_cv.v1.PlaybackControlService/GetRuntimeStatus',
-                request_serializer=scp__cv_dot_v1_dot_control__pb2.RuntimeStatusRequest.SerializeToString,
+                request_serializer=scp__cv_dot_v1_dot_control__pb2.EmptyRequest.SerializeToString,
                 response_deserializer=scp__cv_dot_v1_dot_control__pb2.RuntimeStatusReply.FromString,
+                _registered_method=True)
+        self.GetPlaybackState = channel.unary_unary(
+                '/scp_cv.v1.PlaybackControlService/GetPlaybackState',
+                request_serializer=scp__cv_dot_v1_dot_control__pb2.EmptyRequest.SerializeToString,
+                response_deserializer=scp__cv_dot_v1_dot_control__pb2.PlaybackStateReply.FromString,
                 _registered_method=True)
         self.ListDisplayTargets = channel.unary_unary(
                 '/scp_cv.v1.PlaybackControlService/ListDisplayTargets',
                 request_serializer=scp__cv_dot_v1_dot_control__pb2.EmptyRequest.SerializeToString,
                 response_deserializer=scp__cv_dot_v1_dot_control__pb2.DisplayTargetsReply.FromString,
                 _registered_method=True)
-        self.OpenResource = channel.unary_unary(
-                '/scp_cv.v1.PlaybackControlService/OpenResource',
-                request_serializer=scp__cv_dot_v1_dot_control__pb2.OpenResourceRequest.SerializeToString,
-                response_deserializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
-                _registered_method=True)
-        self.ControlPptPage = channel.unary_unary(
-                '/scp_cv.v1.PlaybackControlService/ControlPptPage',
-                request_serializer=scp__cv_dot_v1_dot_control__pb2.ControlPptPageRequest.SerializeToString,
-                response_deserializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
-                _registered_method=True)
-        self.ControlCurrentMedia = channel.unary_unary(
-                '/scp_cv.v1.PlaybackControlService/ControlCurrentMedia',
-                request_serializer=scp__cv_dot_v1_dot_control__pb2.ControlMediaRequest.SerializeToString,
-                response_deserializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
-                _registered_method=True)
-        self.OpenStream = channel.unary_unary(
-                '/scp_cv.v1.PlaybackControlService/OpenStream',
-                request_serializer=scp__cv_dot_v1_dot_control__pb2.OpenStreamRequest.SerializeToString,
+        self.SelectDisplayTarget = channel.unary_unary(
+                '/scp_cv.v1.PlaybackControlService/SelectDisplayTarget',
+                request_serializer=scp__cv_dot_v1_dot_control__pb2.SelectDisplayTargetRequest.SerializeToString,
                 response_deserializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
                 _registered_method=True)
         self.StopCurrentContent = channel.unary_unary(
@@ -69,54 +84,59 @@ class PlaybackControlServiceStub(object):
                 request_serializer=scp__cv_dot_v1_dot_control__pb2.EmptyRequest.SerializeToString,
                 response_deserializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
                 _registered_method=True)
-        self.SelectDisplayTarget = channel.unary_unary(
-                '/scp_cv.v1.PlaybackControlService/SelectDisplayTarget',
-                request_serializer=scp__cv_dot_v1_dot_control__pb2.SelectDisplayTargetRequest.SerializeToString,
-                response_deserializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
-                _registered_method=True)
 
 
 class PlaybackControlServiceServicer(object):
-    """Missing associated documentation comment in .proto file."""
+    """──────────────────────────────────────────────────────────────
+    PlaybackControlService
+    统一播放控制 gRPC 服务，Django 进程内运行。
+    包含源管理、播放控制、内容导航、显示配置、状态查询。
+    ──────────────────────────────────────────────────────────────
+    """
+
+    def OpenSource(self, request, context):
+        """── 源管理 ──
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CloseSource(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ControlPlayback(self, request, context):
+        """── 播放控制 ──
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def NavigateContent(self, request, context):
+        """── 内容导航（PPT 翻页 / 视频跳转） ──
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def GetRuntimeStatus(self, request, context):
+        """── 状态查询 ──
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetPlaybackState(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def ListDisplayTargets(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def OpenResource(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def ControlPptPage(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def ControlCurrentMedia(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def OpenStream(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def StopCurrentContent(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """── 显示器管理 ──
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -127,47 +147,59 @@ class PlaybackControlServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def StopCurrentContent(self, request, context):
+        """── 旧接口（兼容） ──
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_PlaybackControlServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
+            'OpenSource': grpc.unary_unary_rpc_method_handler(
+                    servicer.OpenSource,
+                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.OpenSourceRequest.FromString,
+                    response_serializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.SerializeToString,
+            ),
+            'CloseSource': grpc.unary_unary_rpc_method_handler(
+                    servicer.CloseSource,
+                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.CloseSourceRequest.FromString,
+                    response_serializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.SerializeToString,
+            ),
+            'ControlPlayback': grpc.unary_unary_rpc_method_handler(
+                    servicer.ControlPlayback,
+                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.ControlPlaybackRequest.FromString,
+                    response_serializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.SerializeToString,
+            ),
+            'NavigateContent': grpc.unary_unary_rpc_method_handler(
+                    servicer.NavigateContent,
+                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.NavigateContentRequest.FromString,
+                    response_serializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.SerializeToString,
+            ),
             'GetRuntimeStatus': grpc.unary_unary_rpc_method_handler(
                     servicer.GetRuntimeStatus,
-                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.RuntimeStatusRequest.FromString,
+                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.EmptyRequest.FromString,
                     response_serializer=scp__cv_dot_v1_dot_control__pb2.RuntimeStatusReply.SerializeToString,
+            ),
+            'GetPlaybackState': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetPlaybackState,
+                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.EmptyRequest.FromString,
+                    response_serializer=scp__cv_dot_v1_dot_control__pb2.PlaybackStateReply.SerializeToString,
             ),
             'ListDisplayTargets': grpc.unary_unary_rpc_method_handler(
                     servicer.ListDisplayTargets,
                     request_deserializer=scp__cv_dot_v1_dot_control__pb2.EmptyRequest.FromString,
                     response_serializer=scp__cv_dot_v1_dot_control__pb2.DisplayTargetsReply.SerializeToString,
             ),
-            'OpenResource': grpc.unary_unary_rpc_method_handler(
-                    servicer.OpenResource,
-                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.OpenResourceRequest.FromString,
-                    response_serializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.SerializeToString,
-            ),
-            'ControlPptPage': grpc.unary_unary_rpc_method_handler(
-                    servicer.ControlPptPage,
-                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.ControlPptPageRequest.FromString,
-                    response_serializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.SerializeToString,
-            ),
-            'ControlCurrentMedia': grpc.unary_unary_rpc_method_handler(
-                    servicer.ControlCurrentMedia,
-                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.ControlMediaRequest.FromString,
-                    response_serializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.SerializeToString,
-            ),
-            'OpenStream': grpc.unary_unary_rpc_method_handler(
-                    servicer.OpenStream,
-                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.OpenStreamRequest.FromString,
+            'SelectDisplayTarget': grpc.unary_unary_rpc_method_handler(
+                    servicer.SelectDisplayTarget,
+                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.SelectDisplayTargetRequest.FromString,
                     response_serializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.SerializeToString,
             ),
             'StopCurrentContent': grpc.unary_unary_rpc_method_handler(
                     servicer.StopCurrentContent,
                     request_deserializer=scp__cv_dot_v1_dot_control__pb2.EmptyRequest.FromString,
-                    response_serializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.SerializeToString,
-            ),
-            'SelectDisplayTarget': grpc.unary_unary_rpc_method_handler(
-                    servicer.SelectDisplayTarget,
-                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.SelectDisplayTargetRequest.FromString,
                     response_serializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.SerializeToString,
             ),
     }
@@ -179,7 +211,120 @@ def add_PlaybackControlServiceServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class PlaybackControlService(object):
-    """Missing associated documentation comment in .proto file."""
+    """──────────────────────────────────────────────────────────────
+    PlaybackControlService
+    统一播放控制 gRPC 服务，Django 进程内运行。
+    包含源管理、播放控制、内容导航、显示配置、状态查询。
+    ──────────────────────────────────────────────────────────────
+    """
+
+    @staticmethod
+    def OpenSource(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/scp_cv.v1.PlaybackControlService/OpenSource',
+            scp__cv_dot_v1_dot_control__pb2.OpenSourceRequest.SerializeToString,
+            scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CloseSource(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/scp_cv.v1.PlaybackControlService/CloseSource',
+            scp__cv_dot_v1_dot_control__pb2.CloseSourceRequest.SerializeToString,
+            scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ControlPlayback(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/scp_cv.v1.PlaybackControlService/ControlPlayback',
+            scp__cv_dot_v1_dot_control__pb2.ControlPlaybackRequest.SerializeToString,
+            scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def NavigateContent(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/scp_cv.v1.PlaybackControlService/NavigateContent',
+            scp__cv_dot_v1_dot_control__pb2.NavigateContentRequest.SerializeToString,
+            scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
 
     @staticmethod
     def GetRuntimeStatus(request,
@@ -196,8 +341,35 @@ class PlaybackControlService(object):
             request,
             target,
             '/scp_cv.v1.PlaybackControlService/GetRuntimeStatus',
-            scp__cv_dot_v1_dot_control__pb2.RuntimeStatusRequest.SerializeToString,
+            scp__cv_dot_v1_dot_control__pb2.EmptyRequest.SerializeToString,
             scp__cv_dot_v1_dot_control__pb2.RuntimeStatusReply.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetPlaybackState(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/scp_cv.v1.PlaybackControlService/GetPlaybackState',
+            scp__cv_dot_v1_dot_control__pb2.EmptyRequest.SerializeToString,
+            scp__cv_dot_v1_dot_control__pb2.PlaybackStateReply.FromString,
             options,
             channel_credentials,
             insecure,
@@ -236,7 +408,7 @@ class PlaybackControlService(object):
             _registered_method=True)
 
     @staticmethod
-    def OpenResource(request,
+    def SelectDisplayTarget(request,
             target,
             options=(),
             channel_credentials=None,
@@ -249,89 +421,8 @@ class PlaybackControlService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/scp_cv.v1.PlaybackControlService/OpenResource',
-            scp__cv_dot_v1_dot_control__pb2.OpenResourceRequest.SerializeToString,
-            scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def ControlPptPage(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/scp_cv.v1.PlaybackControlService/ControlPptPage',
-            scp__cv_dot_v1_dot_control__pb2.ControlPptPageRequest.SerializeToString,
-            scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def ControlCurrentMedia(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/scp_cv.v1.PlaybackControlService/ControlCurrentMedia',
-            scp__cv_dot_v1_dot_control__pb2.ControlMediaRequest.SerializeToString,
-            scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def OpenStream(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/scp_cv.v1.PlaybackControlService/OpenStream',
-            scp__cv_dot_v1_dot_control__pb2.OpenStreamRequest.SerializeToString,
+            '/scp_cv.v1.PlaybackControlService/SelectDisplayTarget',
+            scp__cv_dot_v1_dot_control__pb2.SelectDisplayTargetRequest.SerializeToString,
             scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
             options,
             channel_credentials,
@@ -359,33 +450,6 @@ class PlaybackControlService(object):
             target,
             '/scp_cv.v1.PlaybackControlService/StopCurrentContent',
             scp__cv_dot_v1_dot_control__pb2.EmptyRequest.SerializeToString,
-            scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def SelectDisplayTarget(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/scp_cv.v1.PlaybackControlService/SelectDisplayTarget',
-            scp__cv_dot_v1_dot_control__pb2.SelectDisplayTargetRequest.SerializeToString,
             scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
             options,
             channel_credentials,

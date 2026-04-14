@@ -539,6 +539,7 @@ class PlayerServiceServicer(player_pb2_grpc.PlayerServiceServicer):
 ```
 使用MCP询问用户
 - 将GStreamer改为mingw x86_64的版本，并注意默认安装路径（C:\Program Files\gtreamer），并使用默认的安装选项，环境变量也要修改，具体参考我本机的软件
+- 修改为在启动django的时候一并启动mediamtx、pysideGUI等，只需要使用一个终端
 - 使用Interactive MCP对*用户*发出提问询问下一步需求(**不要结束会话，不要修改本任务，不要使用askQuestion**，此处可能需要多轮互动或持续等待，直到*用户*明确提出需求为止)
 
 ## 已完成任务

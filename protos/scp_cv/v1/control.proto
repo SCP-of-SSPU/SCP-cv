@@ -2,27 +2,129 @@ syntax = "proto3";
 
 package scp_cv.v1;
 
+// ──────────────────────────────────────────────────────────────
+// PlaybackControlService
+// 统一播放控制 gRPC 服务，Django 进程内运行。
+// 包含源管理、播放控制、内容导航、显示配置、状态查询。
+// ──────────────────────────────────────────────────────────────
 service PlaybackControlService {
-  rpc GetRuntimeStatus(RuntimeStatusRequest) returns (RuntimeStatusReply);
+
+  // ── 源管理 ──
+  rpc OpenSource(OpenSourceRequest) returns (OperationReply);
+  rpc CloseSource(CloseSourceRequest) returns (OperationReply);
+
+  // ── 播放控制 ──
+  rpc ControlPlayback(ControlPlaybackRequest) returns (OperationReply);
+
+  // ── 内容导航（PPT 翻页 / 视频跳转） ──
+  rpc NavigateContent(NavigateContentRequest) returns (OperationReply);
+
+  // ── 状态查询 ──
+  rpc GetRuntimeStatus(EmptyRequest) returns (RuntimeStatusReply);
+  rpc GetPlaybackState(EmptyRequest) returns (PlaybackStateReply);
+
+  // ── 显示器管理 ──
   rpc ListDisplayTargets(EmptyRequest) returns (DisplayTargetsReply);
-  rpc OpenResource(OpenResourceRequest) returns (OperationReply);
-  rpc ControlPptPage(ControlPptPageRequest) returns (OperationReply);
-  rpc ControlCurrentMedia(ControlMediaRequest) returns (OperationReply);
-  rpc OpenStream(OpenStreamRequest) returns (OperationReply);
-  rpc StopCurrentContent(EmptyRequest) returns (OperationReply);
   rpc SelectDisplayTarget(SelectDisplayTargetRequest) returns (OperationReply);
+
+  // ── 旧接口（兼容） ──
+  rpc StopCurrentContent(EmptyRequest) returns (OperationReply);
 }
+
+
+// ══════════════════════════════════════════════════════════════
+// 枚举
+// ══════════════════════════════════════════════════════════════
+
+enum SourceType {
+  SOURCE_UNKNOWN = 0;
+  SOURCE_PPT = 1;
+  SOURCE_VIDEO = 2;
+  SOURCE_AUDIO = 3;
+  SOURCE_IMAGE = 4;
+  SOURCE_WEB = 5;
+  SOURCE_CUSTOM_STREAM = 6;
+  SOURCE_WEBRTC_STREAM = 7;
+}
+
+enum PlaybackAction {
+  ACTION_UNKNOWN = 0;
+  ACTION_PLAY = 1;
+  ACTION_PAUSE = 2;
+  ACTION_STOP = 3;
+}
+
+enum NavigateAction {
+  NAV_UNKNOWN = 0;
+  NAV_NEXT = 1;
+  NAV_PREV = 2;
+  NAV_GOTO = 3;
+  NAV_SEEK = 4;
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// 请求消息
+// ══════════════════════════════════════════════════════════════
 
 message EmptyRequest {}
 
-message RuntimeStatusRequest {}
+message OpenSourceRequest {
+  int64 media_source_id = 1;    // MediaSource 主键
+  bool autoplay = 2;            // 打开后自动播放
+}
+
+message CloseSourceRequest {
+  // 关闭当前正在播放的源（无需指定 ID）
+}
+
+message ControlPlaybackRequest {
+  PlaybackAction action = 1;
+}
+
+message NavigateContentRequest {
+  NavigateAction action = 1;
+  int32 target_index = 2;       // NAV_GOTO: 目标页码（从 1 开始）
+  int64 position_ms = 3;        // NAV_SEEK: 目标位置（毫秒）
+}
+
+message SelectDisplayTargetRequest {
+  string display_mode = 1;
+  string target_label = 2;
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// 响应消息
+// ══════════════════════════════════════════════════════════════
+
+message OperationReply {
+  bool success = 1;
+  string message = 2;
+  string detail = 3;
+}
 
 message RuntimeStatusReply {
-  string content_kind = 1;
-  string playback_state = 2;
-  string display_mode = 3;
-  string grpc_endpoint = 4;
-  bool debug_mode = 5;
+  string source_type = 1;
+  string source_name = 2;
+  string playback_state = 3;
+  string display_mode = 4;
+  string grpc_endpoint = 5;
+  bool debug_mode = 6;
+}
+
+message PlaybackStateReply {
+  string playback_state = 1;
+  string source_type = 2;
+  string source_name = 3;
+  string source_uri = 4;
+  int32 current_slide = 5;      // PPT 专用
+  int32 total_slides = 6;       // PPT 专用
+  int64 position_ms = 7;        // 视频/音频专用
+  int64 duration_ms = 8;        // 视频/音频专用
+  string display_mode = 9;
+  string target_display = 10;
+  bool is_spliced = 11;
 }
 
 message DisplayTargetItem {
@@ -38,34 +140,4 @@ message DisplayTargetItem {
 message DisplayTargetsReply {
   repeated DisplayTargetItem targets = 1;
   string splice_label = 2;
-}
-
-message OpenResourceRequest {
-  string resource_id = 1;
-}
-
-message ControlPptPageRequest {
-  string resource_id = 1;
-  string action = 2;
-  int32 page_number = 3;
-}
-
-message ControlMediaRequest {
-  string media_id = 1;
-  string action = 2;
-}
-
-message OpenStreamRequest {
-  string stream_identifier = 1;
-}
-
-message SelectDisplayTargetRequest {
-  string display_mode = 1;
-  string target_label = 2;
-}
-
-message OperationReply {
-  bool success = 1;
-  string message = 2;
-  string detail = 3;
 }
