@@ -3,63 +3,105 @@ syntax = "proto3";
 package scp_cv.v1;
 
 // ──────────────────────────────────────────────────────────────
-// PlaybackControlService
-// 统一播放控制 gRPC 服务，Django 进程内运行。
-// 包含源管理、播放控制、内容导航、显示配置、状态查询。
+// PlaybackControlService — SCP-cv 统一播放控制 gRPC 服务
+//
+// 该服务随 Django 进程启动（django-socio-grpc 共宿主），默认端口 50051。
+// 外部系统（中控、自动化脚本等）通过本服务远程操控大屏播放内容。
+//
+// 功能分组：
+//   源管理     — 打开 / 关闭媒体源（PPT、视频、WebRTC 流等）
+//   播放控制   — 播放、暂停、停止
+//   内容导航   — PPT 翻页、视频/音频时间跳转
+//   状态查询   — 运行时概览、详细播放状态
+//   显示器管理 — 查询可用屏幕、切换单屏/拼接模式
 // ──────────────────────────────────────────────────────────────
 service PlaybackControlService {
 
   // ── 源管理 ──
+
+  // 打开指定媒体源并开始播放。
+  // 通过 media_source_id 指定要打开的 MediaSource 记录。
+  // 若当前已有播放中的源，会先自动关闭再打开新源。
   rpc OpenSource(OpenSourceRequest) returns (OperationReply);
+
+  // 关闭当前正在播放的媒体源。
+  // 将播放状态归零，播放器窗口回到待命状态。
+  // 无需指定 ID，始终作用于当前活跃的源。
   rpc CloseSource(CloseSourceRequest) returns (OperationReply);
 
   // ── 播放控制 ──
+
+  // 对当前源执行播放/暂停/停止操作。
+  // 已有源打开时有效；无活跃源时返回错误。
   rpc ControlPlayback(ControlPlaybackRequest) returns (OperationReply);
 
-  // ── 内容导航（PPT 翻页 / 视频跳转） ──
+  // ── 内容导航 ──
+
+  // PPT 翻页（上/下/跳转指定页）或 视频/音频时间跳转。
+  // 仅在相应源类型激活时生效：PPT 支持 NEXT/PREV/GOTO，
+  // 视频/音频支持 SEEK；源类型不匹配的动作会被忽略。
   rpc NavigateContent(NavigateContentRequest) returns (OperationReply);
 
   // ── 状态查询 ──
+
+  // 获取系统运行时概览（当前源类型、播放状态、显示模式、gRPC 地址等）。
+  // 适合中控面板轮询或健康检查使用。
   rpc GetRuntimeStatus(EmptyRequest) returns (RuntimeStatusReply);
+
+  // 获取详细播放状态，包含 PPT 页码、视频进度等子类型特有信息。
+  // 比 GetRuntimeStatus 更完整，适合需要渲染进度条/页码的客户端。
   rpc GetPlaybackState(EmptyRequest) returns (PlaybackStateReply);
 
   // ── 显示器管理 ──
+
+  // 列出当前主机上所有可用显示器及其分辨率、坐标信息。
+  // 同时返回自动拼接标签（如 "Display 1 + Display 2"）。
   rpc ListDisplayTargets(EmptyRequest) returns (DisplayTargetsReply);
+
+  // 切换显示目标：可选 single（单屏）或 left_right_splice（左右拼接）。
+  // 切换后播放器窗口会自动重新定位到目标屏幕。
   rpc SelectDisplayTarget(SelectDisplayTargetRequest) returns (OperationReply);
 
-  // ── 旧接口（兼容） ──
+  // ── 兼容接口 ──
+
+  // 停止当前播放内容（等价于 CloseSource，保留供旧版客户端调用）。
   rpc StopCurrentContent(EmptyRequest) returns (OperationReply);
 }
 
 
 // ══════════════════════════════════════════════════════════════
-// 枚举
+// 枚举定义
 // ══════════════════════════════════════════════════════════════
 
+// 媒体源类型，与 Django 侧 MediaSource.source_type 字段对应。
+// 客户端可根据此类型决定可用的导航动作和 UI 控件。
 enum SourceType {
-  SOURCE_UNKNOWN = 0;
-  SOURCE_PPT = 1;
-  SOURCE_VIDEO = 2;
-  SOURCE_AUDIO = 3;
-  SOURCE_IMAGE = 4;
-  SOURCE_WEB = 5;
-  SOURCE_CUSTOM_STREAM = 6;
-  SOURCE_WEBRTC_STREAM = 7;
+  SOURCE_UNKNOWN = 0;        // 未知 / 默认值
+  SOURCE_PPT = 1;            // PowerPoint 演示文稿（.pptx / .ppt / .ppsx）
+  SOURCE_VIDEO = 2;          // 视频文件（.mp4 / .mkv / .avi 等）
+  SOURCE_AUDIO = 3;          // 音频文件（.mp3 / .flac / .wav 等）
+  SOURCE_IMAGE = 4;          // 图片文件（.png / .jpg / .svg 等）
+  SOURCE_WEB = 5;            // 网页内容（预留，待实现）
+  SOURCE_CUSTOM_STREAM = 6;  // 自定义流（预留，待实现）
+  SOURCE_WEBRTC_STREAM = 7;  // WebRTC 实时流（通过 MediaMTX WHEP 拉流）
 }
 
+// 播放控制动作，传入 ControlPlaybackRequest.action 字段。
 enum PlaybackAction {
-  ACTION_UNKNOWN = 0;
-  ACTION_PLAY = 1;
-  ACTION_PAUSE = 2;
-  ACTION_STOP = 3;
+  ACTION_UNKNOWN = 0;  // 未知 / 默认值
+  ACTION_PLAY = 1;     // 开始或恢复播放
+  ACTION_PAUSE = 2;    // 暂停播放（可恢复）
+  ACTION_STOP = 3;     // 停止播放（回到起始位置）
 }
 
+// 内容导航动作，传入 NavigateContentRequest.action 字段。
+// PPT 源使用 NEXT / PREV / GOTO；视频/音频源使用 SEEK。
 enum NavigateAction {
-  NAV_UNKNOWN = 0;
-  NAV_NEXT = 1;
-  NAV_PREV = 2;
-  NAV_GOTO = 3;
-  NAV_SEEK = 4;
+  NAV_UNKNOWN = 0;  // 未知 / 默认值
+  NAV_NEXT = 1;     // 下一页 / 下一项
+  NAV_PREV = 2;     // 上一页 / 上一项
+  NAV_GOTO = 3;     // 跳转到指定页（配合 target_index 使用）
+  NAV_SEEK = 4;     // 跳转到指定时间位置（配合 position_ms 使用）
 }
 
 
@@ -67,29 +109,44 @@ enum NavigateAction {
 // 请求消息
 // ══════════════════════════════════════════════════════════════
 
+// 空请求，用于无参数的 RPC（GetRuntimeStatus、GetPlaybackState、
+// ListDisplayTargets、StopCurrentContent）。
 message EmptyRequest {}
 
+// 打开媒体源请求。
+// media_source_id 对应数据库中 MediaSource 表的主键，
+// 可通过 HTTP GET /api/sources/ 接口查询可用的源列表。
 message OpenSourceRequest {
-  int64 media_source_id = 1;    // MediaSource 主键
-  bool autoplay = 2;            // 打开后自动播放
+  int64 media_source_id = 1;    // MediaSource 主键（必填）
+  bool autoplay = 2;            // 是否打开后立即播放（默认 false，建议传 true）
 }
 
-message CloseSourceRequest {
-  // 关闭当前正在播放的源（无需指定 ID）
-}
+// 关闭当前媒体源请求。
+// 始终作用于当前活跃源，无需指定任何 ID。
+message CloseSourceRequest {}
 
+// 播放控制请求。
 message ControlPlaybackRequest {
-  PlaybackAction action = 1;
+  PlaybackAction action = 1;    // 要执行的动作（PLAY / PAUSE / STOP）
 }
 
+// 内容导航请求。
+// 根据 action 类型填写对应字段：
+//   NAV_NEXT / NAV_PREV — 无需额外参数
+//   NAV_GOTO          — 填写 target_index（页码从 1 开始）
+//   NAV_SEEK           — 填写 position_ms（毫秒）
 message NavigateContentRequest {
-  NavigateAction action = 1;
-  int32 target_index = 2;       // NAV_GOTO: 目标页码（从 1 开始）
-  int64 position_ms = 3;        // NAV_SEEK: 目标位置（毫秒）
+  NavigateAction action = 1;    // 导航动作类型
+  int32 target_index = 2;       // NAV_GOTO: 目标页码（从 1 开始，其他动作忽略此字段）
+  int64 position_ms = 3;        // NAV_SEEK: 目标播放位置（毫秒，其他动作忽略此字段）
 }
 
+// 切换显示目标请求。
 message SelectDisplayTargetRequest {
+  // 显示模式："single"（单屏）或 "left_right_splice"（左右拼接）
   string display_mode = 1;
+  // 目标显示器名称（单屏模式）或拼接标签（拼接模式）。
+  // 可通过 ListDisplayTargets 获取可用名称。
   string target_label = 2;
 }
 
@@ -98,46 +155,53 @@ message SelectDisplayTargetRequest {
 // 响应消息
 // ══════════════════════════════════════════════════════════════
 
+// 通用操作结果响应，用于所有返回 OperationReply 的 RPC。
 message OperationReply {
-  bool success = 1;
-  string message = 2;
-  string detail = 3;
+  bool success = 1;     // 操作是否成功
+  string message = 2;   // 人类可读的概要信息（如 "播放已开始"）
+  string detail = 3;    // 异常时的详细信息（正常时为空串）
 }
 
+// 运行时状态概览响应（GetRuntimeStatus）。
+// 提供系统当前的核心状态快照，适合中控面板轮询。
 message RuntimeStatusReply {
-  string source_type = 1;
-  string source_name = 2;
-  string playback_state = 3;
-  string display_mode = 4;
-  string grpc_endpoint = 5;
-  bool debug_mode = 6;
+  string source_type = 1;       // 当前源类型（如 "PPT" / "VIDEO" / "WEBRTC_STREAM"，无源时为空串）
+  string source_name = 2;       // 当前源名称（如文件名或流标识）
+  string playback_state = 3;    // 播放状态（"IDLE" / "PLAYING" / "PAUSED" / "STOPPED"）
+  string display_mode = 4;      // 显示模式（"single" / "left_right_splice"）
+  string grpc_endpoint = 5;     // 当前 gRPC 服务地址（如 "127.0.0.1:50051"）
+  bool debug_mode = 6;          // 是否为调试模式（对应 DJANGO_DEBUG 配置）
 }
 
+// 详细播放状态响应（GetPlaybackState）。
+// 包含所有源类型特有的进度字段，客户端根据 source_type 选择性读取。
 message PlaybackStateReply {
-  string playback_state = 1;
-  string source_type = 2;
-  string source_name = 3;
-  string source_uri = 4;
-  int32 current_slide = 5;      // PPT 专用
-  int32 total_slides = 6;       // PPT 专用
-  int64 position_ms = 7;        // 视频/音频专用
-  int64 duration_ms = 8;        // 视频/音频专用
-  string display_mode = 9;
-  string target_display = 10;
-  bool is_spliced = 11;
+  string playback_state = 1;    // 播放状态（"IDLE" / "PLAYING" / "PAUSED" / "STOPPED"）
+  string source_type = 2;       // 源类型代码
+  string source_name = 3;       // 源名称
+  string source_uri = 4;        // 源 URI（文件路径或 WHEP URL）
+  int32 current_slide = 5;      // PPT 当前页码（从 1 开始；非 PPT 源时为 0）
+  int32 total_slides = 6;       // PPT 总页数（非 PPT 源时为 0）
+  int64 position_ms = 7;        // 视频/音频当前播放位置（毫秒；无进度时为 0）
+  int64 duration_ms = 8;        // 视频/音频总时长（毫秒；无时长时为 0）
+  string display_mode = 9;      // 显示模式（"single" / "left_right_splice"）
+  string target_display = 10;   // 当前目标显示器名称
+  bool is_spliced = 11;         // 是否处于拼接模式
 }
 
+// 单个显示器信息（ListDisplayTargets 响应中的重复元素）。
 message DisplayTargetItem {
-  int32 index = 1;
-  string name = 2;
-  int32 width = 3;
-  int32 height = 4;
-  int32 x = 5;
-  int32 y = 6;
-  bool is_primary = 7;
+  int32 index = 1;       // 显示器索引（从 0 开始）
+  string name = 2;       // 显示器名称（如 "Display 1"、"\\.\DISPLAY2"）
+  int32 width = 3;       // 水平分辨率（像素）
+  int32 height = 4;      // 垂直分辨率（像素）
+  int32 x = 5;           // 左上角 X 坐标（虚拟桌面坐标系）
+  int32 y = 6;           // 左上角 Y 坐标（虚拟桌面坐标系）
+  bool is_primary = 7;   // 是否为主显示器
 }
 
+// 显示器列表响应（ListDisplayTargets）。
 message DisplayTargetsReply {
-  repeated DisplayTargetItem targets = 1;
-  string splice_label = 2;
+  repeated DisplayTargetItem targets = 1;  // 所有可用显示器
+  string splice_label = 2;                 // 自动生成的拼接标签（如 "Display 1 + Display 2"）
 }

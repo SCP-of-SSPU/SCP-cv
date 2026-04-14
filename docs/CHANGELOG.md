@@ -12,6 +12,14 @@
 - 更新使用文档：新增一键启动说明，原分进程启动方式移至「调试用」章节
 - 修复使用文档 FAQ 中 GStreamer MSVC 残留引用
 
+### control.proto 详细中文注释
+
+- 为所有 service、enum、message、字段添加详细中文注释，说明用途、参数语义、值区间、类型约束
+- 补充 service 注释：服务定位、端口、功能分组、各 RPC 行为说明
+- 补充枚举注释：各值含义、对应文件格式、与 Django 侧模型字段对应关系
+- 补充消息注释：各字段单位、默认值、字段使用场景、无数据时的值
+- 同步更新使用文档 gRPC 章节（5.2、5.3）：修正旧方法名（OpenStream→OpenSource 等）、更新调用示例
+
 ### GStreamer 从 MSVC 迁移至 MinGW x86_64
 
 - 环境变量优先检测从 `GSTREAMER_1_0_ROOT_MSVC_X86_64` 改为 `GSTREAMER_1_0_ROOT_MINGW_X86_64`
