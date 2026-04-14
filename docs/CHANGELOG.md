@@ -2,6 +2,14 @@
 
 ## 2026-04-14
 
+### PyGObject Windows 安装修复
+
+- 新增 `tools/install_pygobject.py` 辅助脚本，解决 Windows 上 Meson 找到 Git 的 `link.exe` 而非 MSVC `link.exe` 导致编译失败的问题
+- GStreamer 安装要求从 Typical（Runtime Only）调整为 Complete（包含 gobject-introspection 开发文件）
+- 更新所有 GStreamer 相关错误提示：https://gstreamer.freedesktop.org/download/ → Complete 选项 + install_pygobject.py
+- 更新 README.md 环境要求：新增 Visual Studio 依赖说明、GStreamer Complete 选项
+- 更新使用文档：重写 2.5 章节 GStreamer 安装步骤、新增 PyGObject 安装说明、新增 FAQ 条目
+
 ### README.md 重写
 
 - 参考开源项目规范全面重写 README.md

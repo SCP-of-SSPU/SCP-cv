@@ -42,8 +42,8 @@ def _setup_gstreamer_paths_windows() -> None:
 
     if not gst_root or not os.path.isdir(gst_root):
         logger.warning(
-            "未找到 GStreamer 安装目录。请安装 GStreamer MinGW x86_64 Runtime 或设置 "
-            "GSTREAMER_1_0_ROOT_MINGW_X86_64 环境变量。"
+            "未找到 GStreamer 安装目录。请安装 GStreamer MinGW x86_64（选择 Complete 安装选项）"
+            "并设置 GSTREAMER_1_0_ROOT_MINGW_X86_64 环境变量。"
         )
         return
 
@@ -117,14 +117,15 @@ def init_gstreamer() -> bool:
     except ImportError as import_error:
         logger.error(
             "无法导入 GStreamer Python 绑定（gi）：%s。"
-            "请安装 GStreamer MinGW x86_64 Runtime 并确保 PyGObject 可用。",
+            "请安装 GStreamer MinGW x86_64（Complete 选项）并运行 "
+            "python tools/install_pygobject.py 安装 PyGObject。",
             import_error,
         )
         return False
     except ValueError as version_error:
         logger.error(
             "GStreamer 组件版本不匹配：%s。"
-            "请检查 GStreamer 开发包是否完整安装。",
+            "请检查 GStreamer 是否以 Complete 选项安装。",
             version_error,
         )
         return False
