@@ -176,7 +176,7 @@ def init_gstreamer() -> bool:
         gi.require_version("GstVideo", "1.0")
 
         from gi.repository import Gst
-        initialized, _argv = Gst.init_check(None)
+        initialized, _argv = Gst.init_check([])
 
         if not initialized:
             logger.error("Gst.init_check() 返回 False")
@@ -209,10 +209,16 @@ def init_gstreamer() -> bool:
 def check_gstreamer_available() -> bool:
     """
     检查 GStreamer 是否已安装且可用（不执行初始化）。
+    Windows 上会先配置 DLL 搜索路径，确保 _gi.pyd 可加载。
     :return: True 表示 GStreamer 可用
     """
     if _gstreamer_initialized:
         return True
+
+    # Windows 上必须先配置 DLL 搜索路径，否则 import gi 会因
+    # 找不到 GStreamer DLL 而抛出 ImportError
+    if sys.platform == "win32":
+        _setup_gstreamer_paths_windows()
 
     try:
         import gi
