@@ -75,7 +75,7 @@ def get_session_snapshot() -> dict[str, object]:
 
 def open_stream_source(stream_id: int) -> PlaybackSession:
     """
-    打开指定 SRT 流到播放区域。
+    打开指定 WebRTC 流到播放区域。
     :param stream_id: StreamSource 主键
     :return: 更新后的播放会话
     """
@@ -92,7 +92,7 @@ def open_stream_source(stream_id: int) -> PlaybackSession:
     session.playback_state = PlaybackState.PLAYING
     session.save()
 
-    logger.info("打开 SRT 流「%s」（%s）", stream.name, stream.stream_identifier)
+    logger.info("打开 WebRTC 流「%s」（%s）", stream.name, stream.stream_identifier)
     return session
 
 

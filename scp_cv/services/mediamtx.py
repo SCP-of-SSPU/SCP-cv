@@ -1,22 +1,20 @@
 #!/user/bin/env python
 # -*- coding: UTF-8 -*-
 '''
-MediaMTX 集成服务：管理 MediaMTX 进程、检测流状态、为播放器提供读取入口。
+MediaMTX 集成服务：管理 MediaMTX 进程、检测流状态、提供 WebRTC 连接入口。
 与 Django 应用解耦，仅通过服务层调用。
 @Project : SCP-cv
 @File : mediamtx.py
 @Author : Qintsg
-@Date : 2026-04-10
+@Date : 2026-04-14
 '''
 from __future__ import annotations
 
 import logging
 import subprocess
-from pathlib import Path
 from typing import Optional
 
 import requests
-from django.conf import settings
 from django.utils import timezone
 
 from scp_cv.apps.streams.models import StreamSource, StreamState
@@ -27,33 +25,30 @@ logger = logging.getLogger(__name__)
 # MediaMTX API 默认地址（与 mediamtx.yml 中 api 配置一致）
 _MEDIAMTX_API_BASE = "http://127.0.0.1:9997"
 
-# SRT 监听端口（与 mediamtx.yml srtAddress 一致）
-_SRT_LISTEN_PORT = 8890
-
-# RTSP 读取端口（用于播放器读取流）
-_RTSP_READ_PORT = 8554
+# WebRTC 服务端口（与 mediamtx.yml 中 webrtcAddress 一致）
+_WEBRTC_PORT = 8889
 
 # MediaMTX 进程引用
 _mediamtx_process: Optional[subprocess.Popen[bytes]] = None
 
 
-def get_srt_publish_url(stream_identifier: str) -> str:
+def get_whip_publish_url(stream_identifier: str) -> str:
     """
-    获取 SRT 推流地址（供外部设备推送使用）。
-    MediaMTX v1.17+ 要求路径名不含前导斜杠。
-    :param stream_identifier: 流标识符（路径名，不含前导斜杠）
-    :return: SRT 推流 URL
-    """
-    return f"srt://127.0.0.1:{_SRT_LISTEN_PORT}?streamid=publish:{stream_identifier}&pkt_size=1316"
-
-
-def get_rtsp_read_url(stream_identifier: str) -> str:
-    """
-    获取 RTSP 读取地址（供播放器读取使用）。
+    获取 WHIP 推流地址（供 OBS 等外部设备通过 WebRTC 推送使用）。
+    OBS 30+ 原生支持 WHIP 输出。
     :param stream_identifier: 流标识符（路径名）
-    :return: RTSP 读取 URL
+    :return: WHIP 推流 URL
     """
-    return f"rtsp://127.0.0.1:{_RTSP_READ_PORT}/{stream_identifier}"
+    return f"http://127.0.0.1:{_WEBRTC_PORT}/{stream_identifier}/whip"
+
+
+def get_whep_read_url(stream_identifier: str) -> str:
+    """
+    获取 WHEP 拉流地址（供播放器通过 WebRTC 读取使用）。
+    :param stream_identifier: 流标识符（路径名）
+    :return: WHEP 拉流 URL
+    """
+    return f"http://127.0.0.1:{_WEBRTC_PORT}/{stream_identifier}/whep"
 
 
 def start_mediamtx() -> bool:
@@ -181,12 +176,12 @@ def sync_stream_states() -> dict[str, int]:
     for new_identifier in new_identifiers:
         # 自动生成流名称：使用路径名作为显示名
         auto_name = f"[自动] {new_identifier}"
-        # 生成 RTSP 读取地址供播放器使用
-        rtsp_url = get_rtsp_read_url(new_identifier)
+        # 生成 WHEP 读取地址供播放器使用
+        whep_url = get_whep_read_url(new_identifier)
         StreamSource.objects.create(
             name=auto_name,
             stream_identifier=new_identifier,
-            stream_url=rtsp_url,
+            stream_url=whep_url,
             is_active=True,
             is_online=True,
             current_state=StreamState.ONLINE,

@@ -19,8 +19,8 @@ from .sse import (
 	publish_event,
 )
 from .mediamtx import (
-	get_rtsp_read_url,
-	get_srt_publish_url,
+	get_whep_read_url,
+	get_whip_publish_url,
 	is_mediamtx_running,
 	query_stream_paths,
 	start_mediamtx,

@@ -258,7 +258,7 @@ playbackTrustedProxies: []
 # Global settings -> RTSP server
 
 # Allow clients to publish and read streams with the RTSP protocol.
-rtsp: true
+rtsp: false
 # Enabled RTSP transport protocols. The handshake is always performed with TCP.
 rtspTransports: [udp, multicast, tcp]
 # Use secure protocol variants (RTSPS, SRTP, SRTCP).
@@ -301,7 +301,7 @@ rtspAuthMethods: [basic]
 # Global settings -> RTMP server
 
 # Allow clients to publish and read streams with the RTMP protocol.
-rtmp: true
+rtmp: false
 # Use the secure protocol variant (RTMPS).
 # Available values are "no", "strict", "optional".
 rtmpEncryption: "no"
@@ -321,7 +321,7 @@ rtmpServerCert: server.crt
 # Global settings -> HLS server
 
 # Allow clients to read streams with the HLS protocol.
-hls: true
+hls: false
 # Address of the HLS listener.
 hlsAddress: :8888
 # Enable HTTPS on the HLS server.
@@ -437,7 +437,7 @@ webrtcTrackGatherTimeout: 2s
 # Global settings -> SRT server
 
 # Allow clients to publish and read streams with the SRT protocol.
-srt: true
+srt: false
 # Address of the SRT listener.
 srtAddress: :8890
 

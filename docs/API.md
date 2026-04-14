@@ -11,7 +11,7 @@
 | POST | `/ppt-navigate/` | PPT 翻页（参数 `direction`, `target_page`） |
 | POST | `/stop/` | 停止当前播放内容 |
 | POST | `/switch-display/` | 切换显示目标（参数 `mode`, `target_name`） |
-| POST | `/open-stream/` | 打开 SRT 流（参数 `stream_id`） |
+| POST | `/open-stream/` | 打开 WebRTC 流（参数 `stream_id`） |
 | GET | `/api/session/` | 获取当前会话状态快照（JSON） |
 | GET | `/api/resources/` | 获取资源列表（JSON） |
 | GET | `/api/page-media/` | 获取当前页媒体列表（JSON，参数 `resource_id`, `page`） |
@@ -29,11 +29,11 @@
 |-----|------|------|------|
 | `GetRuntimeStatus` | `RuntimeStatusRequest` | `RuntimeStatusReply` | 获取运行时状态（内容类型、播放状态、显示模式、端点、调试模式） |
 | `ListDisplayTargets` | `EmptyRequest` | `DisplayTargetsReply` | 列出可用显示器和拼接标签 |
-| `OpenStream` | `OpenStreamRequest` | `OperationReply` | 按 stream_identifier 打开 SRT 流 |
+| `OpenStream` | `OpenStreamRequest` | `OperationReply` | 按 stream_identifier 打开 WebRTC 流 |
 | `StopCurrentContent` | `EmptyRequest` | `OperationReply` | 停止当前播放内容 |
 | `SelectDisplayTarget` | `SelectDisplayTargetRequest` | `OperationReply` | 切换显示目标（single/left_right_splice） |
 
 ## 关键数据对象
 
-- `StreamSource`：SRT 流记录
+- `StreamSource`：WebRTC 流记录
 - `PlaybackSession`：当前播放会话

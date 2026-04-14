@@ -9,7 +9,7 @@ class PlaybackContentKind(models.TextChoices):
 	"""当前播放内容类型。"""
 
 	NONE = "none", "无"
-	STREAM = "stream", "SRT 流"
+	STREAM = "stream", "WebRTC 流"
 
 
 class PlaybackMode(models.TextChoices):

@@ -130,7 +130,7 @@ class PlaybackControlServicer(control_pb2_grpc.PlaybackControlServiceServicer):
         context: grpc.ServicerContext,
     ) -> control_pb2.OperationReply:
         """
-        按 stream_identifier 查找并打开 SRT 流到播放区域。
+        按 stream_identifier 查找并打开 WebRTC 流到播放区域。
         :param request: OpenStreamRequest（stream_identifier）
         :param context: gRPC 服务上下文
         :return: OperationReply

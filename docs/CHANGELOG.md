@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## 2026-04-14
+
+### 全协议迁移至 WebRTC + GStreamer 播放引擎
+
+- **协议层**：全部流传输协议从 SRT/RTSP 迁移至 WebRTC（WHIP 推流 / WHEP 拉流）
+- **播放引擎**：从 mpv/libmpv 切换为 GStreamer + webrtcbin，支持 WebRTC 原生接收和硬件加速渲染
+- **多窗口架构**：每个物理屏幕对应独立 PlayerWindow + GStreamer 管线实例
+- **帧同步**：新增 `FrameSyncCoordinator`，通过 GstClock 共享 + 漂移监控实现多屏帧级同步（33ms 阈值）
+- **WHEP 客户端**：新增 `WhepClient`，实现 RFC 9002 WHEP 信令协商（SDP Offer/Answer + ICE）
+- **MediaMTX 配置**：关闭 RTSP/RTMP/HLS/SRT 协议，仅保留 WebRTC（端口 8889）
+- **依赖变更**：移除 `python-mpv`，新增 `PyGObject>=3.50.0`、`requests==2.32.3`；需安装 GStreamer MSVC Runtime
+- **数据模型**：`PlaybackContentKind.STREAM` 标签从 "SRT 流" 更新为 "WebRTC 流"
+- **服务层**：`get_srt_publish_url()` → `get_whip_publish_url()`，`get_rtsp_read_url()` → `get_whep_read_url()`
+- 全部代码注释和文档中的 SRT 引用已更新为 WebRTC
+
 ## 2026-04-11
 
 ### 移除全部 PPT 相关代码

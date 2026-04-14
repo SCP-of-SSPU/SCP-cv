@@ -49,7 +49,7 @@ def home(request: HttpRequest) -> HttpResponse:
     splice_target = build_left_right_splice_target(display_targets)
     session_snapshot = get_session_snapshot()
 
-    # 获取 SRT 流列表
+    # 获取 WebRTC 流列表
     from scp_cv.apps.streams.models import StreamSource
     stream_rows = list(StreamSource.objects.values(
         "id", "name", "stream_identifier", "is_online", "current_state",
@@ -116,7 +116,7 @@ def switch_display(request: HttpRequest) -> HttpResponse:
 @require_POST
 def open_stream(request: HttpRequest) -> HttpResponse:
     """
-    打开指定 SRT 流到播放区域。
+    打开指定 WebRTC 流到播放区域。
     :param request: HTTP 请求
     :return: JSON 响应
     """

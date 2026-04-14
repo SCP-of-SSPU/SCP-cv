@@ -81,10 +81,10 @@
     {% endif %}
   </article>
 
-  {# ═══ SRT 控制卡 ═══ #}
+  {# ═══ WebRTC 控制卡 ═══ #}
   <article class="panel">
     <div class="panel__header">
-      <h3>SRT 流控制</h3>
+      <h3>WebRTC 流控制</h3>
       <span class="panel__badge" id="stream-count-badge">{% if stream_rows %}{{ stream_rows|length }} 条流{% else %}自动发现{% endif %}</span>
       <button class="action-button action-button--ghost" type="button"
               onclick="refreshStreams()" title="立即刷新流列表">⟳ 刷新</button>
@@ -106,7 +106,7 @@
         {% endfor %}
       </ul>
     {% else %}
-      <p class="empty-state">暂无 SRT 流（等待推流接入中…）</p>
+      <p class="empty-state">暂无 WebRTC 流（等待推流接入中…）</p>
     {% endif %}
     </div>
   </article>

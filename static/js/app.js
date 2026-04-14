@@ -92,7 +92,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  /** 打开 SRT 流 */
+  /** 打开 WebRTC 流 */
   window.openStream = async function openStream(streamId) {
     const streamResult = await postAction("/open-stream/", { stream_id: streamId });
     if (!streamResult.success) {
@@ -100,14 +100,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  /* ═══ SRT 流列表同步 ═══ */
+  /* ═══ WebRTC 流列表同步 ═══ */
 
   /** 上一次渲染的流列表指纹，用于跳过无变化的 DOM 更新 */
   let _lastStreamFingerprint = "";
   /** 防止并发请求的锁标志 */
   let _streamSyncInFlight = false;
 
-  /** 刷新 SRT 流列表（触发同步并按需更新 UI） */
+  /** 刷新 WebRTC 流列表（触发同步并按需更新 UI） */
   window.refreshStreams = async function refreshStreams() {
     if (_streamSyncInFlight) return;
     _streamSyncInFlight = true;
@@ -145,7 +145,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   /**
-   * 动态渲染 SRT 流列表到 DOM
+   * 动态渲染 WebRTC 流列表到 DOM
    * @param {Array<object>} streamList - 流数据数组
    */
   function renderStreamList(streamList) {
@@ -153,7 +153,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!streamContainer) return;
 
     if (!streamList || streamList.length === 0) {
-      streamContainer.innerHTML = '<p class="empty-state">暂无 SRT 流（等待推流接入中…）</p>';
+      streamContainer.innerHTML = '<p class="empty-state">暂无 WebRTC 流（等待推流接入中…）</p>';
       return;
     }
 
@@ -225,7 +225,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (heroTitle) {
       if (sessionData.content_kind === "stream") {
-        heroTitle.textContent = sessionData.stream_name || "SRT 流";
+        heroTitle.textContent = sessionData.stream_name || "WebRTC 流";
       } else {
         heroTitle.textContent = "尚未打开流";
       }

@@ -1,6 +1,6 @@
 # SCP-cv
 
-SCP-cv 是一个面向单机大屏播放场景的 Django + gRPC 工程，通过 **HTTP 控制台、gRPC 接口、本地 mpv 播放器** 实现 SRT 流的低延迟播放与多显示器拼接。
+SCP-cv 是一个面向单机大屏播放场景的 Django + gRPC 工程，通过 **HTTP 控制台、gRPC 接口、GStreamer WebRTC 播放器** 实现 WebRTC 流的低延迟播放与多显示器拼接。
 
 ## 当前状态
 
@@ -8,7 +8,7 @@ SCP-cv 是一个面向单机大屏播放场景的 Django + gRPC 工程，通过 
 - Fluent 2 风格的基础样式已接入
 - 显示器枚举、MediaMTX 路径探测和统一播放会话模型已就绪
 - gRPC 接入点与 proto 合同已就绪
-- mpv（libmpv）低延迟 SRT 流播放已集成
+- GStreamer + WebRTC 低延迟流播放已集成
 - SQLite 作为默认本地数据库
 
 ## 技术栈
@@ -17,7 +17,7 @@ SCP-cv 是一个面向单机大屏播放场景的 Django + gRPC 工程，通过 
 - Django 6
 - django-socio-grpc
 - PySide6
-- python-mpv / libmpv
+- PyGObject / GStreamer
 - MediaMTX
 - SQLite
 
@@ -53,8 +53,8 @@ SCP-cv 是一个面向单机大屏播放场景的 Django + gRPC 工程，通过 
 
 项目需要本地可执行文件来支撑媒体与流接入：
 
-- MediaMTX：用于 SRT 流接入与转发
-- libmpv-2.dll：用于低延迟流播放（放置在 `tools/third_party/mpv/`）
+- MediaMTX：用于 WebRTC 流接入与转发（WHIP/WHEP）
+- GStreamer MSVC Runtime：用于 WebRTC 流解码与渲染
 
 推荐使用 `tools/download_third_party.ps1` 进行 MediaMTX 下载。
 
