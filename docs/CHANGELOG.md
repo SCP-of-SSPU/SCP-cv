@@ -2,6 +2,15 @@
 
 ## 2026-04-14
 
+### Fluent 2 启动器 GUI：屏幕选择界面
+
+- 新增 `player/launcher_gui.py`：Fluent 2 风格两步启动器（模式选择 → 屏幕分配）
+- 单屏模式：从检测到的显示器列表点选目标
+- 双屏拼接模式：为每台显示器手动指定左/右角色，同角色互斥自动清除
+- `run_player` 命令：先运行启动器 GUI 后创建播放窗口，`--debug-window` 改为 `--dev`
+- `--dev` 模式启动器和播放窗口均显示标题栏；非 `--dev` 启动器无边框+播放窗口全屏置顶
+- GUI 关闭后自动写入会话的 display_mode / target_display_label / spliced_display_label
+
 ### 全协议迁移至 WebRTC + GStreamer 播放引擎
 
 - **协议层**：全部流传输协议从 SRT/RTSP 迁移至 WebRTC（WHIP 推流 / WHEP 拉流）
