@@ -22,18 +22,18 @@ _gstreamer_initialized: bool = False
 def _setup_gstreamer_paths_windows() -> None:
     """
     在 Windows 上配置 GStreamer 运行时路径。
-    GStreamer MSVC 安装器设置的环境变量和标准安装路径。
+    GStreamer MinGW x86_64 安装器设置的环境变量和标准安装路径。
     """
-    gst_root: str = os.environ.get("GSTREAMER_1_0_ROOT_MSVC_X86_64", "")
+    gst_root: str = os.environ.get("GSTREAMER_1_0_ROOT_MINGW_X86_64", "")
     if not gst_root:
         gst_root = os.environ.get("GSTREAMER_1_0_ROOT_X86_64", "")
 
     # 若环境变量未设置，尝试常见安装路径
     if not gst_root:
         candidate_paths = [
-            r"C:\gstreamer\1.0\msvc_x86_64",
-            r"D:\gstreamer\1.0\msvc_x86_64",
-            os.path.expandvars(r"%LOCALAPPDATA%\gstreamer\1.0\msvc_x86_64"),
+            r"C:\Program Files\gstreamer\1.0\mingw_x86_64",
+            r"C:\gstreamer\1.0\mingw_x86_64",
+            r"D:\gstreamer\1.0\mingw_x86_64",
         ]
         for candidate in candidate_paths:
             if os.path.isdir(candidate):
@@ -42,8 +42,8 @@ def _setup_gstreamer_paths_windows() -> None:
 
     if not gst_root or not os.path.isdir(gst_root):
         logger.warning(
-            "未找到 GStreamer 安装目录。请安装 GStreamer MSVC Runtime 或设置 "
-            "GSTREAMER_1_0_ROOT_MSVC_X86_64 环境变量。"
+            "未找到 GStreamer 安装目录。请安装 GStreamer MinGW x86_64 Runtime 或设置 "
+            "GSTREAMER_1_0_ROOT_MINGW_X86_64 环境变量。"
         )
         return
 
@@ -83,7 +83,7 @@ def _setup_gstreamer_paths_windows() -> None:
 def init_gstreamer() -> bool:
     """
     初始化 GStreamer 运行时。在首次使用 GStreamer 前必须调用。
-    Windows 上会自动检测并配置 GStreamer MSVC 安装路径。
+    Windows 上会自动检测并配置 GStreamer MinGW x86_64 安装路径。
     :return: True 表示初始化成功
     """
     global _gstreamer_initialized
@@ -117,7 +117,7 @@ def init_gstreamer() -> bool:
     except ImportError as import_error:
         logger.error(
             "无法导入 GStreamer Python 绑定（gi）：%s。"
-            "请安装 GStreamer MSVC Runtime 并确保 PyGObject 可用。",
+            "请安装 GStreamer MinGW x86_64 Runtime 并确保 PyGObject 可用。",
             import_error,
         )
         return False

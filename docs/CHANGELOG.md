@@ -2,6 +2,13 @@
 
 ## 2026-04-14
 
+### GStreamer 从 MSVC 迁移至 MinGW x86_64
+
+- 环境变量优先检测从 `GSTREAMER_1_0_ROOT_MSVC_X86_64` 改为 `GSTREAMER_1_0_ROOT_MINGW_X86_64`
+- 默认安装路径从 `C:\gstreamer\1.0\msvc_x86_64` 改为 `C:\Program Files\gstreamer\1.0\mingw_x86_64`
+- 安装方式简化：使用默认安装选项即可（无需选择 Complete）
+- 更新 `player/__init__.py`、`run_player.py`、文档安装说明
+
 ### 统一媒体源架构与 PPT 控制支持
 
 - **数据模型**：新建 `MediaSource` 统一媒体源模型（PPT / VIDEO / AUDIO / IMAGE / WEBRTC_STREAM），`PlaybackSession` 关联 `MediaSource` 并新增 PPT 页码、视频进度等字段

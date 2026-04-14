@@ -54,7 +54,7 @@ SCP-cv 是一个面向单机大屏播放场景的 Django + gRPC 工程，通过 
 项目需要本地可执行文件来支撑媒体与流接入：
 
 - MediaMTX：用于 WebRTC 流接入与转发（WHIP/WHEP）
-- GStreamer MSVC Runtime：用于 WebRTC 流解码与渲染
+- GStreamer MinGW x86_64 Runtime：用于 WebRTC 流解码与渲染
 
 推荐使用 `tools/download_third_party.ps1` 进行 MediaMTX 下载。
 
