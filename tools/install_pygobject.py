@@ -227,9 +227,19 @@ def check_prerequisites() -> tuple[bool, dict[str, str], str]:
             print("  3. MSYS2 MinGW-w64（https://www.msys2.org/）")
             all_ok = False
 
-    # 将 pkgconfig 写入环境
+    # 将 pkgconfig 写入环境，并把 GStreamer bin 目录加入 PATH 以便 Meson 找到 pkg-config.exe
     if gst_pkgconfig is not None and build_env:
         build_env["PKG_CONFIG_PATH"] = str(gst_pkgconfig)
+        # pkgconfig 目录结构: <gst_root>/lib/pkgconfig → 回退两级得到 gst_root
+        gst_root_bin = str(gst_pkgconfig.parent.parent / "bin")
+        # Windows 环境变量不区分大小写，但 Python dict 区分；
+        # vcvarsall 捕获的环境可能用 Path 而非 PATH
+        path_key = "PATH" if "PATH" in build_env else "Path"
+        existing_path = build_env.get(path_key, "")
+        if gst_root_bin.lower() not in existing_path.lower():
+            # 将 GStreamer bin 置于 PATH 前部，确保 Meson 能找到 pkg-config.exe
+            build_env[path_key] = f"{gst_root_bin};{existing_path}"
+            print(f"✓ 已将 GStreamer bin 目录加入 PATH: {gst_root_bin}")
 
     return all_ok, build_env, compiler_label
 
@@ -263,8 +273,11 @@ def install_pygobject() -> int:
     print("-" * 60)
 
     # 执行 pip install（在捕获的编译环境中）
+    # PyGObject 3.52+ 要求 girepository-2.0（GLib ≥ 2.80），
+    # GStreamer MSVC 安装仅提供 gobject-introspection-1.0，
+    # 因此固定 PyGObject < 3.52 使用旧 API
     pip_result = subprocess.run(
-        [sys.executable, "-m", "pip", "install", "PyGObject>=3.50.0"],
+        [sys.executable, "-m", "pip", "install", "PyGObject>=3.50.0,<3.52"],
         env=build_env,
     )
 
