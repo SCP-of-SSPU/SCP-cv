@@ -2,6 +2,19 @@
 
 ## 2026-04-14
 
+### 统一媒体源架构与 PPT 控制支持
+
+- **数据模型**：新建 `MediaSource` 统一媒体源模型（PPT / VIDEO / AUDIO / IMAGE / WEBRTC_STREAM），`PlaybackSession` 关联 `MediaSource` 并新增 PPT 页码、视频进度等字段
+- **Proto 更新**：`control.proto` 新增 `OpenSource`、`CloseSource`、`ControlPlayback`、`NavigateContent`、`GetPlaybackState` RPC 方法，增加 `SourceType`、`PlaybackAction`、`NavigateAction` 枚举
+- **服务层**：新建 `services/media.py` 媒体源管理服务（上传、本地路径、流同步、删除、类型自动检测）；重构 `services/playback.py`（统一播放控制、导航、显示切换、快照）
+- **适配器层**：新建 `player/adapters/` 统一媒体源适配器架构（`SourceAdapter` ABC + 工厂函数），实现 `PptSourceAdapter`（PowerPoint COM 放映）、`VideoSourceAdapter`（QMediaPlayer）、`WebRTCStreamAdapter`（GStreamer WHEP）
+- **控制器重构**：`controller.py` 采用适配器模式，统一 `pending_command` 分发逻辑，移除旧硬编码信号
+- **HTTP API**：新增 `/sources/upload/`、`/sources/add-local/`、`/sources/remove/`、`/api/sources/`、`/playback/open/`、`/playback/control/`、`/playback/navigate/`、`/playback/close/`、`/display/switch/`；移除旧接口 `/stop/`、`/open-stream/`、`/api/streams/`
+- **前端重做**：`home.html` 重写为三 Tab 布局（源列表 / 播放控制 / 设置）；`app.css` 新增 PPT 翻页、视频进度条、上传区域等组件样式；`app.js` 完全重写（Tab 切换、源 CRUD、播放控制、导航/Seek、SSE 状态同步、拖拽上传）
+- **测试套件**：新增 65 个单元测试，覆盖媒体源管理服务（17 项）和播放会话服务（48 项），配置 pytest + pytest-django
+- **死代码清理**：移除 `views.py` 无用导入（`get_or_create_session`、`stop_current_content`）
+- **文档更新**：重写 `docs/API.md` 与新 HTTP / gRPC 接口对齐；更新 `docs/使用文档.md` 的 Web 控制台、HTTP API、端口等章节
+
 ### Fluent 2 启动器 GUI：屏幕选择界面
 
 - 新增 `player/launcher_gui.py`：Fluent 2 风格两步启动器（模式选择 → 屏幕分配）

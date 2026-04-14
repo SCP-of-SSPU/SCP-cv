@@ -39,12 +39,10 @@ from scp_cv.services.playback import (
     PlaybackError,
     close_source,
     control_playback,
-    get_or_create_session,
     get_session_snapshot,
     navigate_content,
     open_source,
     select_display_target,
-    stop_current_content,
 )
 from scp_cv.services.sse import event_stream, publish_event
 
