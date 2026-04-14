@@ -19,8 +19,7 @@
 ## 任务
 
 - 探索本仓库(若本次是新会话)(**不要修改此行，若非新会话，忽略本任务**)
-- > 为pyside6初始启动添加GUI页面，用于选择单屏幕/双屏幕拼接功能，--dev模式使用带标题的窗口，无--dev则使用无边框窗口/全屏，在这个GUI中，选择屏幕阶段则在各个屏幕上显示按钮，双屏幕模式需要选择左/右
-- 根据如下内容进行PPT控制设计，注意还需要设计文件保存和打开的逻辑，并重新完善django的前端页面
+- > 根据如下内容进行PPT控制设计，注意还需要设计文件保存和打开的逻辑，并重新完善django的前端页面
 ```markdown
 可以，把它改成一套**“gRPC 控制面 + PySide 播放面 + 媒体源适配层”**的结构就行。
 
@@ -538,11 +537,13 @@ class PlayerServiceServicer(player_pb2_grpc.PlayerServiceServicer):
 [4]: https://doc.qt.io/qt-6/qmediaplayer.html?utm_source=chatgpt.com "QMediaPlayer Class | Qt Multimedia | Qt 6.11.0"
 [5]: https://learn.microsoft.com/en-us/office/vba/api/powerpoint.slideshowview?utm_source=chatgpt.com "SlideShowView object (PowerPoint)"
 ```
-
+使用MCP询问用户
+- 将GStreamer改为mingw x86_64的版本，并注意默认安装路径（C:\Program Files\gtreamer），并使用默认的安装选项，环境变量也要修改，具体参考我本机的软件
 - 使用Interactive MCP对*用户*发出提问询问下一步需求(**不要结束会话，不要修改本任务，不要使用askQuestion**，此处可能需要多轮互动或持续等待，直到*用户*明确提出需求为止)
 
 ## 已完成任务
 
+- 为pyside6初始启动添加GUI页面，用于选择单屏幕/双屏幕拼接功能，--dev模式使用带标题的窗口，无--dev则使用无边框窗口/全屏，在这个GUI中，选择屏幕阶段则在各个屏幕上显示按钮，双屏幕模式需要选择左/右
 - 将mediamtx的协议修改为WebRTC，同时在mediamtx和pyside中加入同步帧功能，需要做到亚秒级的延迟，且不会因为时间变长延迟变高
 - 根据需求I进行工作
 - 在docs中新建使用文档
