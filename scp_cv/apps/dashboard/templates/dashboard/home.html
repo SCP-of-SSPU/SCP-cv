@@ -5,42 +5,200 @@
 {% block title %}播放控制台{% endblock %}
 
 {% block content %}
-{# ═══ 顶部 Hero 面板 ═══ #}
-<section class="hero-grid">
-  <article class="panel panel--hero">
-    <p class="eyebrow">统一播放区域</p>
-    <h2 id="hero-title">{{ current_content_title }}</h2>
-    <div class="hero-stats">
-      <div>
-        <span class="hero-stats__label">内容类型</span>
-        <strong id="hero-kind">{{ current_content_kind }}</strong>
-      </div>
-      <div>
-        <span class="hero-stats__label">播放状态</span>
-        <strong id="hero-state">{{ current_playback_state }}</strong>
-      </div>
-      <div>
-        <span class="hero-stats__label">显示模式</span>
-        <strong id="hero-display">{{ current_display_mode }}</strong>
-      </div>
-    </div>
-  </article>
+{# ═══ Tab 导航栏 ═══ #}
+<nav class="tab-bar" role="tablist" aria-label="控制台功能区">
+  <button class="tab-bar__item tab-bar__item--active"
+          role="tab" aria-selected="true" aria-controls="tab-sources"
+          data-tab="sources">
+    <span class="tab-bar__icon">📂</span>
+    媒体源
+  </button>
+  <button class="tab-bar__item"
+          role="tab" aria-selected="false" aria-controls="tab-playback"
+          data-tab="playback">
+    <span class="tab-bar__icon">▶</span>
+    播放控制
+  </button>
+  <button class="tab-bar__item"
+          role="tab" aria-selected="false" aria-controls="tab-settings"
+          data-tab="settings">
+    <span class="tab-bar__icon">⚙</span>
+    系统设置
+  </button>
+</nav>
 
-  <article class="panel panel--summary">
+{# ═══════════════════ Tab 1: 媒体源管理 ═══════════════════ #}
+<section class="tab-panel tab-panel--active" id="tab-sources" role="tabpanel">
+  {# 添加源区域 #}
+  <div class="source-actions">
+    <article class="panel">
+      <div class="panel__header">
+        <h3>上传文件</h3>
+      </div>
+      <form id="upload-form" class="upload-form" enctype="multipart/form-data">
+        {% csrf_token %}
+        <label class="upload-dropzone" for="upload-file-input">
+          <span class="upload-dropzone__text">点击选择或拖拽文件到此处</span>
+          <span class="upload-dropzone__hint">支持 PPT/PPTX/视频/音频/图片</span>
+          <input type="file" id="upload-file-input" name="file"
+                 accept=".pptx,.ppt,.ppsx,.pps,.mp4,.mkv,.avi,.mov,.wmv,.flv,.webm,.mp3,.wav,.flac,.aac,.ogg,.png,.jpg,.jpeg,.gif,.bmp,.webp"
+                 hidden>
+        </label>
+        <div class="upload-form__row" id="upload-name-row" style="display:none;">
+          <input type="text" name="name" class="input-field" placeholder="显示名称（可选）">
+          <button type="submit" class="action-button action-button--primary">上传</button>
+        </div>
+      </form>
+    </article>
+
+    <article class="panel">
+      <div class="panel__header">
+        <h3>添加本地路径</h3>
+      </div>
+      <form id="local-path-form" class="local-path-form">
+        {% csrf_token %}
+        <div class="upload-form__row">
+          <input type="text" name="path" class="input-field input-field--grow"
+                 placeholder="输入本地文件绝对路径" required>
+          <input type="text" name="name" class="input-field" placeholder="显示名称（可选）">
+          <button type="submit" class="action-button action-button--primary">添加</button>
+        </div>
+      </form>
+    </article>
+  </div>
+
+  {# 源列表 #}
+  <article class="panel">
     <div class="panel__header">
-      <h3>外部组件</h3>
-      <span class="panel__badge">路径探测</span>
+      <h3>所有媒体源</h3>
+      <span class="panel__badge" id="source-count-badge">{{ media_sources|length }} 个</span>
+      <button class="action-button action-button--ghost action-button--small"
+              type="button" onclick="refreshSources()">刷新</button>
     </div>
-    <dl class="summary-list">
-      <div><dt>MediaMTX</dt><dd>{{ mediamtx_path }}</dd></div>
-      <div><dt>gRPC 端点</dt><dd>{{ grpc_endpoint }}</dd></div>
-      <div><dt>刷新时间</dt><dd>{{ refresh_timestamp }}</dd></div>
-    </dl>
+    <div id="source-list-container">
+      {% if media_sources %}
+        <ul class="source-list">
+          {% for source in media_sources %}
+            <li class="source-item" data-source-id="{{ source.id }}">
+              <div class="source-item__info">
+                <span class="source-item__type chip chip--accent">{{ source.source_type }}</span>
+                <strong class="source-item__name">{{ source.name }}</strong>
+                <span class="source-item__uri" title="{{ source.uri }}">{{ source.uri|truncatechars:60 }}</span>
+              </div>
+              <div class="source-item__actions">
+                {% if source.is_available %}
+                  <button class="action-button action-button--primary action-button--small"
+                          type="button" onclick="openSource({{ source.id }})">播放</button>
+                {% else %}
+                  <span class="chip chip--neutral">不可用</span>
+                {% endif %}
+                <button class="action-button action-button--danger action-button--small"
+                        type="button" onclick="removeSource({{ source.id }})">删除</button>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="empty-state">暂无媒体源，请上传文件或添加本地路径。</p>
+      {% endif %}
+    </div>
   </article>
 </section>
 
-<section class="dashboard-grid">
-  {# ═══ 显示器与拼接 ═══ #}
+{# ═══════════════════ Tab 2: 播放控制 ═══════════════════ #}
+<section class="tab-panel" id="tab-playback" role="tabpanel" hidden>
+  {# 当前播放状态 Hero #}
+  <article class="panel panel--hero">
+    <div class="playback-hero">
+      <div class="playback-hero__info">
+        <p class="eyebrow">正在播放</p>
+        <h2 id="hero-source-name">{{ current_source_name }}</h2>
+        <div class="hero-stats">
+          <div>
+            <span class="hero-stats__label">源类型</span>
+            <strong id="hero-source-type">{{ current_source_type }}</strong>
+          </div>
+          <div>
+            <span class="hero-stats__label">播放状态</span>
+            <strong id="hero-playback-state">{{ current_playback_state }}</strong>
+          </div>
+          <div>
+            <span class="hero-stats__label">显示模式</span>
+            <strong id="hero-display-mode">{{ current_display_mode }}</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  </article>
+
+  {# 播放控制按钮 #}
+  <article class="panel">
+    <div class="panel__header">
+      <h3>播放控制</h3>
+    </div>
+    <div class="control-grid">
+      <div class="control-group">
+        <h4 class="control-group__title">基本操作</h4>
+        <div class="button-row">
+          <button class="action-button action-button--primary" type="button"
+                  onclick="controlPlayback('play')">▶ 播放</button>
+          <button class="action-button" type="button"
+                  onclick="controlPlayback('pause')">⏸ 暂停</button>
+          <button class="action-button" type="button"
+                  onclick="controlPlayback('stop')">⏹ 停止</button>
+          <button class="action-button action-button--danger" type="button"
+                  onclick="closePlayback()">✕ 关闭</button>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <h4 class="control-group__title">导航（PPT / 翻页型）</h4>
+        <div class="playback-nav">
+          <div class="button-row">
+            <button class="action-button" type="button"
+                    onclick="navigateContent('prev')">◀ 上一页</button>
+            <button class="action-button" type="button"
+                    onclick="navigateContent('next')">▶ 下一页</button>
+          </div>
+          <div class="button-row">
+            <label class="input-label">跳转到第</label>
+            <input type="number" id="goto-page-input" class="input-field input-field--small"
+                   min="1" value="1">
+            <label class="input-label">页</label>
+            <button class="action-button action-button--ghost action-button--small"
+                    type="button" onclick="gotoPage()">跳转</button>
+          </div>
+          <div class="slide-status">
+            <span>当前：</span>
+            <strong id="slide-current">{{ session.current_slide }}</strong>
+            <span>/</span>
+            <strong id="slide-total">{{ session.total_slides }}</strong>
+            <span>页</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <h4 class="control-group__title">时间线（视频 / 音频）</h4>
+        <div class="timeline-control">
+          <div class="timeline-bar">
+            <input type="range" id="seek-slider" class="timeline-slider"
+                   min="0" max="100" value="0" step="1">
+          </div>
+          <div class="timeline-info">
+            <span id="position-label">00:00</span>
+            <span>/</span>
+            <span id="duration-label">00:00</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </article>
+</section>
+
+{# ═══════════════════ Tab 3: 系统设置 ═══════════════════ #}
+<section class="tab-panel" id="tab-settings" role="tabpanel" hidden>
+  {# 显示器配置 #}
   <article class="panel">
     <div class="panel__header">
       <h3>显示器与拼接</h3>
@@ -62,7 +220,7 @@
           </li>
         {% endfor %}
       </ul>
-      <div class="button-row" style="margin-top: var(--space-3);">
+      <div class="button-row" style="margin-top: var(--space-3, 12px);">
         {% for display in display_targets %}
           <button class="action-button action-button--ghost" type="button"
                   onclick="switchDisplay('single', '{{ display.name }}')">
@@ -81,34 +239,18 @@
     {% endif %}
   </article>
 
-  {# ═══ WebRTC 控制卡 ═══ #}
+  {# 外部组件信息 #}
   <article class="panel">
     <div class="panel__header">
-      <h3>WebRTC 流控制</h3>
-      <span class="panel__badge" id="stream-count-badge">{% if stream_rows %}{{ stream_rows|length }} 条流{% else %}自动发现{% endif %}</span>
-      <button class="action-button action-button--ghost" type="button"
-              onclick="refreshStreams()" title="立即刷新流列表">⟳ 刷新</button>
+      <h3>外部组件</h3>
+      <span class="panel__badge">路径探测</span>
     </div>
-    <div id="stream-list-container">
-    {% if stream_rows %}
-      <ul class="stream-list">
-        {% for stream in stream_rows %}
-          <li class="stream-item">
-            <div>
-              <strong>{{ stream.name }}</strong>
-              <span class="chip {% if stream.is_online %}chip--success{% else %}chip--neutral{% endif %}">
-                {{ stream.current_state }}
-              </span>
-            </div>
-            <button class="action-button action-button--ghost" type="button"
-                    onclick="openStream({{ stream.id }})">打开</button>
-          </li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <p class="empty-state">暂无 WebRTC 流（等待推流接入中…）</p>
-    {% endif %}
-    </div>
+    <dl class="summary-list">
+      <div><dt>MediaMTX</dt><dd>{{ mediamtx_path }}</dd></div>
+      <div><dt>gRPC 端点</dt><dd>{{ grpc_endpoint }}</dd></div>
+      <div><dt>运行模式</dt><dd>{{ debug_mode_label }}</dd></div>
+      <div><dt>刷新时间</dt><dd>{{ refresh_timestamp }}</dd></div>
+    </dl>
   </article>
 </section>
 {% endblock %}
