@@ -2,12 +2,13 @@
 
 ## 2026-04-14
 
-### GStreamer 切回 MSVC x86_64
+### GStreamer 多变体支持
 
-- 环境变量从 `GSTREAMER_1_0_ROOT_MINGW_X86_64` 改回 `GSTREAMER_1_0_ROOT_MSVC_X86_64`
-- 默认安装路径从 `mingw_x86_64` 改回 `msvc_x86_64`
-- MSVC 版本 Complete 安装包含完整的 gobject-introspection 开发文件和 typelib
-- 更新全部代码、安装脚本、文档、错误提示中的 MinGW 引用
+- `player/__init__.py` 重构为多后端自动检测，按优先级：MSVC x86_64 → MinGW x86_64 → MSYS2 MinGW64 → 通用 x86_64
+- `install_pygobject.py` 支持多编译器：优先 MSVC（通过 vcvarsall.bat 注入完整环境），回退到 GCC
+- `install_pygobject.py` 支持多 GStreamer 变体的 pkgconfig 自动检测
+- 所有错误提示从 MSVC 专用改为列出所有支持的变体
+- 不再强制依赖 Visual Studio，可使用 GCC（Scoop / MSYS2）作为替代
 
 ### PyGObject Windows 安装修复
 

@@ -48,9 +48,9 @@ class Command(BaseCommand):
         gst_ok = init_gstreamer()
         if not gst_ok:
             self.stderr.write(self.style.ERROR(
-                "GStreamer 初始化失败。请确认已安装 GStreamer MSVC x86_64（Complete 选项）。\n"
+                "GStreamer 初始化失败。请安装 GStreamer（Complete 选项）。\n"
+                "支持变体（按优先级）：MSVC x86_64 → MinGW x86_64 → MSYS2 MinGW64\n"
                 "下载地址：https://gstreamer.freedesktop.org/download/\n"
-                "安装时必须选择 Complete 选项（包含开发文件和 gobject-introspection）。\n"
                 "PyGObject 安装请运行：python tools/install_pygobject.py"
             ))
             sys.exit(1)

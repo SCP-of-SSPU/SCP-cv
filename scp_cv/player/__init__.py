@@ -1,7 +1,12 @@
-#!/user/bin/env python
+﻿#!/user/bin/env python
 # -*- coding: UTF-8 -*-
 '''
 播放器包初始化：配置 GStreamer 运行时环境。
+支持多种 GStreamer 安装变体，按优先级自动检测：
+  1. MSVC x86_64（推荐，Complete 安装含 gobject-introspection）
+  2. MinGW x86_64
+  3. MSYS2 MinGW64
+  4. MinGW（通用环境变量）
 @Project : SCP-cv
 @File : __init__.py
 @Author : Qintsg
@@ -12,38 +17,106 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from typing import NamedTuple
 
 logger = logging.getLogger(__name__)
 
 # 模块级标记，避免重复初始化
 _gstreamer_initialized: bool = False
 
+# 支持的 GStreamer 安装变体（NamedTuple，便于打印与检索）
+_SUPPORTED_VARIANTS_HELP: str = (
+    "支持以下 GStreamer Windows 安装变体（按优先级排列）：\n"
+    "  1. MSVC x86_64（推荐）— 环境变量 GSTREAMER_1_0_ROOT_MSVC_X86_64\n"
+    "  2. MinGW x86_64 — 环境变量 GSTREAMER_1_0_ROOT_MINGW_X86_64\n"
+    "  3. MSYS2 MinGW64 — 路径 C:\\msys64\\mingw64\n"
+    "  4. 通用 x86_64 — 环境变量 GSTREAMER_1_0_ROOT_X86_64\n"
+    "任一变体均需 Complete 安装选项（包含开发文件和 gobject-introspection）。"
+)
 
-def _setup_gstreamer_paths_windows() -> None:
-    """
-    在 Windows 上配置 GStreamer 运行时路径。
-    GStreamer MSVC x86_64 安装器设置的环境变量和标准安装路径。
-    """
-    gst_root: str = os.environ.get("GSTREAMER_1_0_ROOT_MSVC_X86_64", "")
-    if not gst_root:
-        gst_root = os.environ.get("GSTREAMER_1_0_ROOT_X86_64", "")
 
-    # 若环境变量未设置，尝试常见安装路径
-    if not gst_root:
-        candidate_paths = [
+class _GstVariant(NamedTuple):
+    """GStreamer 安装变体描述。"""
+    label: str
+    env_var: str
+    fallback_paths: list[str]
+
+
+# 按优先级排列的变体列表
+_GST_VARIANTS: list[_GstVariant] = [
+    _GstVariant(
+        label="MSVC x86_64",
+        env_var="GSTREAMER_1_0_ROOT_MSVC_X86_64",
+        fallback_paths=[
             r"C:\Program Files\gstreamer\1.0\msvc_x86_64",
             r"C:\gstreamer\1.0\msvc_x86_64",
             r"D:\gstreamer\1.0\msvc_x86_64",
-        ]
-        for candidate in candidate_paths:
-            if os.path.isdir(candidate):
-                gst_root = candidate
-                break
+        ],
+    ),
+    _GstVariant(
+        label="MinGW x86_64",
+        env_var="GSTREAMER_1_0_ROOT_MINGW_X86_64",
+        fallback_paths=[
+            r"C:\Program Files\gstreamer\1.0\mingw_x86_64",
+            r"C:\gstreamer\1.0\mingw_x86_64",
+            r"D:\gstreamer\1.0\mingw_x86_64",
+        ],
+    ),
+    _GstVariant(
+        label="MSYS2 MinGW64",
+        env_var="",
+        fallback_paths=[
+            r"C:\msys64\mingw64",
+        ],
+    ),
+    _GstVariant(
+        label="通用 x86_64",
+        env_var="GSTREAMER_1_0_ROOT_X86_64",
+        fallback_paths=[],
+    ),
+]
 
-    if not gst_root or not os.path.isdir(gst_root):
+
+def _resolve_gst_root(variant: _GstVariant) -> str:
+    """
+    尝试从环境变量或回退路径解析 GStreamer 根目录。
+    :param variant: 安装变体描述
+    :return: 有效的根目录路径，未找到返回空字符串
+    """
+    # 优先使用环境变量
+    if variant.env_var:
+        env_value: str = os.environ.get(variant.env_var, "")
+        if env_value and os.path.isdir(env_value):
+            return env_value
+
+    # 回退到常见安装路径
+    for candidate in variant.fallback_paths:
+        if os.path.isdir(candidate):
+            return candidate
+
+    return ""
+
+
+def _setup_gstreamer_paths_windows() -> None:
+    """
+    在 Windows 上按优先级检测并配置 GStreamer 运行时路径。
+    按 MSVC → MinGW x86_64 → MSYS2 MinGW64 → 通用 x86_64 顺序探测，
+    使用第一个找到的可用安装。
+    """
+    gst_root: str = ""
+    matched_label: str = ""
+
+    for variant in _GST_VARIANTS:
+        gst_root = _resolve_gst_root(variant)
+        if gst_root:
+            matched_label = variant.label
+            break
+
+    if not gst_root:
         logger.warning(
-            "未找到 GStreamer 安装目录。请安装 GStreamer MSVC x86_64（选择 Complete 安装选项）"
-            "并设置 GSTREAMER_1_0_ROOT_MSVC_X86_64 环境变量。"
+            "未找到 GStreamer 安装目录。%s\n"
+            "下载地址：https://gstreamer.freedesktop.org/download/",
+            _SUPPORTED_VARIANTS_HELP,
         )
         return
 
@@ -77,13 +150,13 @@ def _setup_gstreamer_paths_windows() -> None:
     if os.path.isdir(gst_python_site) and gst_python_site not in sys.path:
         sys.path.insert(0, gst_python_site)
 
-    logger.info("GStreamer 路径已配置（root=%s）", gst_root)
+    logger.info("GStreamer 路径已配置（variant=%s, root=%s）", matched_label, gst_root)
 
 
 def init_gstreamer() -> bool:
     """
     初始化 GStreamer 运行时。在首次使用 GStreamer 前必须调用。
-    Windows 上会自动检测并配置 GStreamer MSVC x86_64 安装路径。
+    Windows 上自动按优先级检测 GStreamer 安装（MSVC → MinGW → MSYS2）。
     :return: True 表示初始化成功
     """
     global _gstreamer_initialized
@@ -116,10 +189,12 @@ def init_gstreamer() -> bool:
 
     except ImportError as import_error:
         logger.error(
-            "无法导入 GStreamer Python 绑定（gi）：%s。"
-            "请安装 GStreamer MSVC x86_64（Complete 选项）并运行 "
-            "python tools/install_pygobject.py 安装 PyGObject。",
+            "无法导入 GStreamer Python 绑定（gi）：%s。\n"
+            "请安装 GStreamer（Complete 选项）并运行 "
+            "python tools/install_pygobject.py 安装 PyGObject。\n"
+            "%s",
             import_error,
+            _SUPPORTED_VARIANTS_HELP,
         )
         return False
     except ValueError as version_error:
