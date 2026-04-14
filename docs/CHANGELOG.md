@@ -2,6 +2,16 @@
 
 ## 2026-04-14
 
+### 一键启动命令 `runall`
+
+- 新增 `manage.py runall` 管理命令，单个终端同时启动 MediaMTX、Django 开发服务器和 PySide6 播放器
+- MediaMTX 和 Django 以子进程运行，PySide6 Qt 事件循环占据主线程
+- 关闭播放窗口时通过 atexit/signal 自动终止所有子进程
+- 支持 `--host`、`--port`、`--skip-mediamtx`、`--poll-interval` 参数
+- 播放器全屏行为由 `.env` 中 `DJANGO_DEBUG` 控制，单屏/双屏由启动器 GUI 选择
+- 更新使用文档：新增一键启动说明，原分进程启动方式移至「调试用」章节
+- 修复使用文档 FAQ 中 GStreamer MSVC 残留引用
+
 ### GStreamer 从 MSVC 迁移至 MinGW x86_64
 
 - 环境变量优先检测从 `GSTREAMER_1_0_ROOT_MSVC_X86_64` 改为 `GSTREAMER_1_0_ROOT_MINGW_X86_64`
