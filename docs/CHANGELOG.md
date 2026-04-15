@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 2026-04-15
+
+### 前端页面全面改进
+
+- **CSS 增强**：新增加载 spinner 动画、按钮禁用态样式、确认弹窗样式、`focus-visible` 焦点可见性、通知横幅动画、改进空状态视觉
+- **JS 增强**：新增 `withLoading()` 防重复提交机制、`confirmAction()` 删除确认弹窗、改进通知系统（错误消息不自动隐藏）、Tab 键盘左右箭头导航
+- **HTML 增强**：替换 emoji 图标为内联 SVG 图标、全面添加 ARIA 属性（`role`、`aria-label`、`aria-live`）、添加全局加载遮罩与确认弹窗容器
+
+### 静态文件 404 修复
+
+- 修复 `DEBUG=False` 时静态文件不可访问的问题：在 `urls.py` 中无条件注册 `/static/` 和 `/media/` 路由
+- 修复 `STATIC_URL` 为绝对路径 `/static/` 以避免相对路径解析问题
+
 ## 2026-04-14
 
 ### GStreamer 运行时修复（集成测试通过）
