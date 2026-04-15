@@ -8,7 +8,7 @@
 线程模型：
 - Qt 主线程：所有窗口操作、适配器创建和控制（通过信号分发）
 - 轮询线程：定期读取 DB 中的 pending_command，发射信号到主线程
-- GLib 事件泵：QTimer 驱动 GLib.MainContext 迭代，处理 GStreamer 内部回调
+- GLib MainLoop 线程：运行 GLib.MainLoop，驱动 libnice（webrtcbin ICE 层）的网络 I/O
 
 所有适配器操作（open / play / pause / stop / close / 导航）
 均通过 Qt 信号从轮询线程调度到主线程执行，避免跨线程 GUI 操作。
@@ -26,14 +26,11 @@ import threading
 import time
 from typing import Optional
 
-from PySide6.QtCore import QObject, QRect, QTimer, Signal, Slot
+from PySide6.QtCore import QObject, QRect, Signal, Slot
 
 from scp_cv.player.adapters import AdapterState, SourceAdapter, create_adapter
 
 logger = logging.getLogger(__name__)
-
-# GLib 事件泵间隔（毫秒），驱动 GStreamer 信号分发
-_GLIB_PUMP_INTERVAL_MS: int = 10
 
 
 class PlayerController(QObject):
@@ -45,7 +42,7 @@ class PlayerController(QObject):
     - 轮询 DB 中的 pending_command 并通过信号分发到 Qt 主线程
     - 将适配器状态回写 DB
     - 窗口定位与显示模式切换
-    - GLib 事件泵驱动 GStreamer 内部回调
+    - GLib MainLoop 线程驱动 GStreamer 内部回调和 libnice ICE 网络 I/O
 
     线程安全：
     - 适配器操作全部在 Qt 主线程执行（through sig_dispatch_command）
@@ -78,8 +75,9 @@ class PlayerController(QObject):
         # 上一次处理的指令 hash（避免重复处理同一指令）
         self._last_command_hash = ""
 
-        # GLib 事件泵定时器（驱动 GStreamer webrtcbin 信号分发）
-        self._glib_pump_timer: Optional[QTimer] = None
+        # GLib MainLoop 线程（驱动 libnice ICE 网络 I/O）
+        self._glib_main_loop: Optional[object] = None
+        self._glib_loop_thread: Optional[threading.Thread] = None
 
         # 连接指令分发信号到主线程处理槽
         self.sig_dispatch_command.connect(self._execute_command_on_main_thread)
@@ -122,47 +120,47 @@ class PlayerController(QObject):
 
     def _start_glib_pump(self) -> None:
         """
-        启动 GLib 事件泵。通过 QTimer 周期性迭代 GLib.MainContext，
-        使 GStreamer webrtcbin 的异步信号（ICE 候选收集、协商回调等）
-        能在 Qt 事件循环中被处理。
+        启动 GLib MainLoop 线程。
+        libnice（webrtcbin 的 ICE 层）需要 GLib MainLoop 持续运行，
+        才能正确调度 socket I/O（STUN 绑定、ICE 连接检查等）。
+        仅靠 QTimer + context.iteration(False) 无法驱动 I/O 源。
         """
-        if self._glib_pump_timer is not None:
+        if self._glib_loop_thread is not None:
             return
 
-        self._glib_pump_timer = QTimer(self)
-        self._glib_pump_timer.setInterval(_GLIB_PUMP_INTERVAL_MS)
-        self._glib_pump_timer.timeout.connect(self._pump_glib_events)
-        self._glib_pump_timer.start()
-        logger.info("GLib 事件泵已启动（间隔 %dms）", _GLIB_PUMP_INTERVAL_MS)
+        from gi.repository import GLib
+        self._glib_main_loop = GLib.MainLoop.new(GLib.MainContext.default(), False)
+        self._glib_loop_thread = threading.Thread(
+            target=self._run_glib_main_loop,
+            daemon=True,
+            name="glib-mainloop",
+        )
+        self._glib_loop_thread.start()
+        logger.info("GLib MainLoop 线程已启动")
 
     def _stop_glib_pump(self) -> None:
-        """停止 GLib 事件泵。"""
-        if self._glib_pump_timer is not None:
-            self._glib_pump_timer.stop()
-            self._glib_pump_timer.deleteLater()
-            self._glib_pump_timer = None
-            logger.info("GLib 事件泵已停止")
+        """停止 GLib MainLoop 线程。"""
+        if self._glib_main_loop is not None:
+            self._glib_main_loop.quit()
+        if self._glib_loop_thread is not None:
+            self._glib_loop_thread.join(timeout=3.0)
+            self._glib_loop_thread = None
+        self._glib_main_loop = None
+        logger.info("GLib MainLoop 线程已停止")
 
-    @Slot()
-    def _pump_glib_events(self) -> None:
+    def _run_glib_main_loop(self) -> None:
         """
-        迭代 GLib 默认 MainContext 中的待处理事件。
-        每次最多处理所有排队事件，避免阻塞 Qt 事件循环。
+        在独立线程中运行 GLib MainLoop。
+        libnice 会在此线程中执行 ICE 候选收集的 STUN/TURN 网络 I/O，
+        GStreamer webrtcbin 的信号（on-ice-candidate、notify::ice-gathering-state）
+        也在此线程中触发。上层回调已设计为线程安全（通过 threading.Thread 执行 WHEP 交换）。
         """
+        logger.debug("GLib MainLoop 开始运行")
         try:
-            from gi.repository import GLib
-            context = GLib.MainContext.default()
-            # 非阻塞迭代：处理所有已就绪事件
-            processed_count = 0
-            while context.iteration(False):
-                processed_count += 1
-            if processed_count > 0:
-                logger.debug("GLib 事件泵处理了 %d 个事件", processed_count)
-        except ImportError:
-            # GStreamer 未安装时忽略
-            pass
-        except Exception as pump_error:
-            logger.debug("GLib 事件泵异常（忽略）：%s", pump_error)
+            self._glib_main_loop.run()
+        except Exception as loop_error:
+            logger.error("GLib MainLoop 异常退出：%s", loop_error)
+        logger.debug("GLib MainLoop 已退出")
 
     # ═══════════════════ 轮询生命周期 ═══════════════════
 
