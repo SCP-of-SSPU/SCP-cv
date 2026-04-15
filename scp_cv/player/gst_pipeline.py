@@ -224,6 +224,11 @@ class GstWebRTCPipeline:
                 "无法创建 webrtcbin 元素。请确认 GStreamer bad plugins 已安装。"
             )
 
+        # 配置 STUN 服务器以确保 ICE 候选生成
+        self._webrtcbin.set_property(
+            "stun-server", "stun://stun.l.google.com:19302",
+        )
+
         # 设置 bundle policy（合并音视频到单个传输通道）
         self._webrtcbin.set_property(
             "bundle-policy",
@@ -297,11 +302,34 @@ class GstWebRTCPipeline:
             self._notify_error("创建 SDP Offer 失败：offer 为空")
             return
 
-        # 设置本地描述 → 触发 ICE 候选收集
-        set_promise = Gst.Promise.new()
+        logger.info(
+            "SDP Offer 已创建，SDP 类型=%s",
+            type(offer).__name__,
+        )
+
+        # 设置本地描述（使用回调 Promise 确保描述完全设置后才继续）
+        set_promise = Gst.Promise.new_with_change_func(
+            self._on_local_description_set, webrtcbin, None,
+        )
         webrtcbin.emit("set-local-description", offer, set_promise)
-        set_promise.interrupt()
-        logger.debug("本地 SDP 描述已设置，等待 ICE 候选收集")
+
+    def _on_local_description_set(
+        self,
+        promise: Gst.Promise,
+        _webrtcbin: Gst.Element,
+        _user_data: object,
+    ) -> None:
+        """
+        本地 SDP 描述设置完成回调。
+        确认描述已生效，ICE 候选收集应当已开始。
+        """
+        promise.wait()
+        logger.info("本地 SDP 描述已设置完成，ICE 候选收集应已启动")
+
+        # 诊断：记录当前 ICE 收集状态
+        if self._webrtcbin is not None:
+            state = self._webrtcbin.get_property("ice-gathering-state")
+            logger.info("当前 ICE 收集状态：%s", state.value_nick if state else "unknown")
 
     def _on_ice_gathering_state_changed(
         self,
