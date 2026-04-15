@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## 2026-04-16
+
+### 新增图片/网页适配器与视频循环播放
+
+- **ImageSourceAdapter**：新增静态图片显示适配器，使用 `QLabel` + `QPixmap` 实现等比缩放显示
+- **WebSourceAdapter**：新增网页显示适配器，使用 `QWebEngineView` 嵌入 Chromium 引擎渲染网页
+- **视频循环播放**：
+  - `PlaybackSession` 新增 `loop_enabled` 字段
+  - `VideoSourceAdapter` 监听 `mediaStatusChanged` 信号，`EndOfMedia` 时自动重头播放
+  - 前端新增循环播放切换按钮（`action-button--active` 样式）
+- **Web URL 添加表单**：前端新增网页源 URL 输入表单与 `add_web_url` 服务
+- **pywin32 依赖**：`requirements.txt` 添加 `pywin32>=310`，修复 PPT COM 自动化 `No module named 'pythoncom'` 错误
+- **WebRTC 代码审查**：确认 GStreamer 管线、bus sync message、WHEP SDP 交换逻辑正确，显示问题为运行环境问题（MediaMTX 未启动或无源推流）
+
 ## 2026-04-15
 
 ### 播放器线程模型修复

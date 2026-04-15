@@ -24,6 +24,14 @@
 
 ## 已完成任务
 
+- 新增图片/网页适配器、视频循环播放、pywin32依赖修复（commit eccf735）
+  - 新增 ImageSourceAdapter：静态图片显示（QLabel+QPixmap）
+  - 新增 WebSourceAdapter：网页显示（QWebEngineView）
+  - 新增 Web URL 添加表单与 add_web_url 服务
+  - 新增视频循环播放全链路：model 字段 + 适配器 + 控制器 + 服务 + 前端按钮
+  - requirements.txt 添加 pywin32>=310，修复 PPT COM 自动化报错
+  - WebRTC 代码审查确认逻辑正确，显示问题为运行环境问题
+  - 65 项单元测试全部通过
 - 修复当前无法在pyside窗口上显示推流的问题（commit 9ff2ed1）
   - 根因：GLib MainContext 未被迭代导致 ICE 候选收集超时；适配器在轮询线程创建 Qt widget 导致 QObject 跨线程错误
   - 修复：新增 `sig_dispatch_command` Qt 信号将指令从轮询线程调度到主线程；新增 GLib 事件泵（QTimer 10ms）驱动 GStreamer 信号分发；GStreamer 管线重构为非阻塞设计
