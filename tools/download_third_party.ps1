@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     下载 SCP-cv 项目所需的第三方依赖（mpv/libmpv）。
 
