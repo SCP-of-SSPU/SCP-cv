@@ -14,6 +14,12 @@
 - **依赖**：`requirements.txt` 添加 `python-mpv>=1.0.7`
 - **MediaMTX**：关闭 WebRTC 服务（`webrtc: false`）
 
+### MediaMTX 低延迟参数优化
+
+- **writeQueueSize**：512 → 8，大幅缩减内部缓冲队列深度，减少排队延迟
+- **readTimeout**：10s → 3s，更快检测断流
+- **writeTimeout**：10s → 3s，更快检测写超时
+
 ## 2026-04-16
 
 ### GStreamer 移除与 RTSP 播放重构

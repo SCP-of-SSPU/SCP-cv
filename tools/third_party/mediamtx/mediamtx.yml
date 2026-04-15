@@ -20,12 +20,15 @@ sysLogPrefix: mediamtx
 dumpPackets: false
 
 # Timeout of read operations.
-readTimeout: 10s
+# 低延迟优化：从 10s 降至 3s，更快检测断流
+readTimeout: 3s
 # Timeout of write operations.
-writeTimeout: 10s
+# 低延迟优化：从 10s 降至 3s，更快检测写超时
+writeTimeout: 3s
 # Size of the queue of outgoing packets.
 # A higher value allows to increase throughput, a lower value allows to save RAM.
-writeQueueSize: 512
+# 低延迟优化：从默认 512 降至 8，减少内部缓冲，适合实时播放场景
+writeQueueSize: 8
 # Maximum size of outgoing UDP payloads.
 # It defaults to the maximum packet size on ethernet (1500) minus IPv6 and UDP headers (48).
 # This can be decreased to avoid fragmentation on networks with a low MTU.
