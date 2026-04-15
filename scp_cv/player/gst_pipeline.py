@@ -2,7 +2,16 @@
 # -*- coding: UTF-8 -*-
 '''
 GStreamer WebRTC 播放管线：通过 webrtcbin + WHEP 接收 WebRTC 流并渲染到指定窗口。
-支持时钟共享实现多管线帧同步，支持延迟检测和自动重连。
+支持时钟共享实现多管线帧同步。
+
+非阻塞设计：
+- build_pipeline() 构建管线元素
+- start_playing() 将管线设为 PLAYING 状态，触发协商
+- ICE 收集完成后通过 on_ice_complete 回调通知上层
+- 上层执行 WHEP SDP 交换后调用 set_remote_answer() 设置 Answer
+
+所有 GStreamer 信号通过 GLib MainContext 处理，
+由 PlayerController 的 GLib 事件泵在 Qt 主线程中驱动。
 @Project : SCP-cv
 @File : gst_pipeline.py
 @Author : Qintsg
@@ -26,8 +35,6 @@ gi.require_version('GstSdp', '1.0')
 gi.require_version('GstVideo', '1.0')
 from gi.repository import Gst, GstSdp, GstVideo, GstWebRTC  # noqa: E402
 
-from scp_cv.player.whep_client import WhepClient  # noqa: E402
-
 logger = logging.getLogger(__name__)
 
 
@@ -38,13 +45,13 @@ class GstWebRTCPipeline:
     通过 WHEP 协议从 MediaMTX 接收 WebRTC 流，
     decodebin 动态解码后渲染到指定窗口句柄。
 
-    生命周期：
+    非阻塞生命周期：
     1. 创建实例，传入 WHEP URL 和目标窗口句柄
-    2. connect_and_play() 阻塞执行 WHEP 协商并启动管线
-    3. stop() 停止管线并释放所有资源
-
-    帧同步：
-    通过 use_clock() 设置外部共享时钟，多管线渲染将对齐到同一时基。
+    2. build_pipeline() 构建管线
+    3. start_playing() 启动管线，触发协商
+    4. ICE 收集完成 → on_ice_complete 回调
+    5. 外部执行 WHEP 交换 → set_remote_answer() 设置 Answer
+    6. stop() 停止管线并释放资源
     """
 
     def __init__(
@@ -53,6 +60,7 @@ class GstWebRTCPipeline:
         window_handle: int,
         shared_clock: Optional[Gst.Clock] = None,
         on_playing: Optional[Callable[[], None]] = None,
+        on_ice_complete: Optional[Callable[[str], None]] = None,
         on_error: Optional[Callable[[str], None]] = None,
     ) -> None:
         """
@@ -61,21 +69,18 @@ class GstWebRTCPipeline:
         :param window_handle: 视频渲染目标窗口的原生句柄 (int(QWidget.winId()))
         :param shared_clock: 多管线帧同步共享时钟（可选）
         :param on_playing: 开始播放时的回调
+        :param on_ice_complete: ICE 收集完成回调，参数为完整 SDP Offer 文本
         :param on_error: 错误发生时的回调
         """
         self._whep_url = whep_url
         self._window_handle = window_handle
         self._shared_clock = shared_clock
         self._on_playing = on_playing
+        self._on_ice_complete = on_ice_complete
         self._on_error = on_error
 
         self._pipeline: Optional[Gst.Pipeline] = None
         self._webrtcbin: Optional[Gst.Element] = None
-        self._whep_client: Optional[WhepClient] = None
-
-        # ICE 候选收集同步
-        self._ice_gathering_done = threading.Event()
-        self._complete_offer_sdp: Optional[str] = None
 
         self._is_connected = False
         self._lock = threading.Lock()
@@ -95,43 +100,45 @@ class GstWebRTCPipeline:
         """底层 GStreamer Pipeline 对象（用于时钟共享等操作）。"""
         return self._pipeline
 
-    def connect_and_play(self) -> None:
+    # ═══════════════════ 非阻塞生命周期 ═══════════════════
+
+    def build_pipeline(self) -> None:
         """
-        创建 GStreamer 管线，执行 WHEP SDP 协商，建立 WebRTC 连接并开始播放。
-        此方法阻塞直到连接建立或失败，应在工作线程中调用。
-        :raises RuntimeError: 管线创建失败
-        :raises TimeoutError: ICE 候选收集超时
-        :raises ConnectionError: WHEP 协商失败
+        构建 GStreamer 管线：webrtcbin → decodebin → videoconvert → videosink。
+        应在 Qt 主线程中调用。管线构建后处于 NULL 状态。
+        :raises RuntimeError: 无法创建 webrtcbin 元素
         """
         with self._lock:
-            self._build_pipeline()
+            self._build_pipeline_internal()
 
-        # 启动管线 → 触发 on-negotiation-needed → 创建 offer → ICE 收集
+    def start_playing(self) -> None:
+        """
+        将管线设为 PLAYING 状态。
+        触发 webrtcbin 的 on-negotiation-needed → 创建 offer → ICE 收集。
+        ICE 收集由 GLib MainContext 事件泵驱动，完成后触发 on_ice_complete 回调。
+        """
+        if self._pipeline is None:
+            logger.error("管线未构建，无法启动")
+            return
         self._pipeline.set_state(Gst.State.PLAYING)
+        logger.info("管线已设为 PLAYING，等待 ICE 收集")
 
-        # 等待 ICE 候选收集完成（本地网络通常 <1 秒）
-        ice_gathered = self._ice_gathering_done.wait(timeout=10.0)
-        if not ice_gathered or self._complete_offer_sdp is None:
-            error_msg = "ICE 候选收集超时（10 秒）"
-            self._notify_error(error_msg)
-            self.stop()
-            raise TimeoutError(error_msg)
+    def set_remote_answer(self, answer_sdp: str) -> None:
+        """
+        设置远端 SDP Answer（WHEP 交换后调用）。
+        可从任何线程安全调用（GStreamer 内部会处理线程安全）。
+        :param answer_sdp: 远端返回的 SDP Answer 文本
+        :raises RuntimeError: SDP 解析失败
+        """
+        if self._webrtcbin is None:
+            logger.error("webrtcbin 不存在，无法设置 Answer")
+            return
 
-        # WHEP SDP 交换
-        self._whep_client = WhepClient(self._whep_url)
-        try:
-            answer_sdp = self._whep_client.exchange_sdp(self._complete_offer_sdp)
-        except ConnectionError as whep_error:
-            self._notify_error(str(whep_error))
-            self.stop()
-            raise
-
-        # 解析并设置远端 SDP Answer
+        # 解析 SDP Answer
         parse_result, sdp_message = GstSdp.SDPMessage.new_from_text(answer_sdp)
         if parse_result != GstSdp.SDPResult.OK:
             error_msg = "解析 SDP Answer 失败"
             self._notify_error(error_msg)
-            self.stop()
             raise RuntimeError(error_msg)
 
         answer_desc = GstWebRTC.WebRTCSessionDescription.new(
@@ -142,7 +149,7 @@ class GstWebRTCPipeline:
         promise.interrupt()
 
         self._is_connected = True
-        logger.info("WebRTC 连接已建立，开始播放：%s", self._whep_url)
+        logger.info("远端 SDP Answer 已设置，WebRTC 连接建立完成")
 
         if self._on_playing is not None:
             try:
@@ -163,13 +170,6 @@ class GstWebRTCPipeline:
                 self._pipeline = None
                 self._webrtcbin = None
 
-            if self._whep_client is not None:
-                self._whep_client.close()
-                self._whep_client = None
-
-            self._ice_gathering_done.clear()
-            self._complete_offer_sdp = None
-
         logger.info("GStreamer 管线已停止")
 
     def get_clock(self) -> Optional[Gst.Clock]:
@@ -184,7 +184,7 @@ class GstWebRTCPipeline:
     def use_clock(self, clock: Gst.Clock) -> None:
         """
         设置外部共享时钟，用于多管线帧同步。
-        必须在 connect_and_play() 之前调用。
+        必须在 start_playing() 之前调用。
         :param clock: 共享 GStreamer 时钟
         """
         self._shared_clock = clock
@@ -195,7 +195,6 @@ class GstWebRTCPipeline:
     def query_position_ns(self) -> Optional[int]:
         """
         查询管线当前播放位置（纳秒）。
-        用于帧同步漂移检测。
         :return: 播放位置纳秒数，查询失败返回 None
         """
         if self._pipeline is None:
@@ -207,10 +206,10 @@ class GstWebRTCPipeline:
 
     # ═══════════════════ 内部方法 ═══════════════════
 
-    def _build_pipeline(self) -> None:
+    def _build_pipeline_internal(self) -> None:
         """
-        构建 GStreamer 管线：webrtcbin → decodebin → videoconvert → videosink。
-        管线在 PLAYING 状态下由 webrtcbin 回调驱动动态链接。
+        构建 GStreamer 管线元素和信号连接。
+        管线结构：webrtcbin → decodebin → videoconvert → videosink
         """
         self._pipeline = Gst.Pipeline.new("whep-pipeline")
 
@@ -241,7 +240,7 @@ class GstWebRTCPipeline:
             video_caps,
         )
 
-        # 添加音频 transceiver（仅接收，但不输出 — 大屏场景通常不需要音频）
+        # 添加音频 transceiver（仅接收，大屏场景通常不输出音频）
         audio_caps = Gst.caps_from_string(
             "application/x-rtp,media=audio,encoding-name=OPUS,clock-rate=48000"
         )
@@ -308,7 +307,10 @@ class GstWebRTCPipeline:
         webrtcbin: Gst.Element,
         _pspec: object,
     ) -> None:
-        """ICE 候选收集状态变更 → 收集完成时提取完整 Offer SDP。"""
+        """
+        ICE 候选收集状态变更。
+        收集完成时提取完整 Offer SDP 并通过回调通知上层。
+        """
         state = webrtcbin.get_property("ice-gathering-state")
         logger.debug("ICE 收集状态变更：%s", state.value_nick)
 
@@ -316,9 +318,17 @@ class GstWebRTCPipeline:
             # 获取包含所有 ICE 候选的完整本地描述
             local_desc = webrtcbin.get_property("local-description")
             if local_desc is not None:
-                self._complete_offer_sdp = local_desc.sdp.as_text()
-                logger.debug("ICE 收集完成，完整 Offer SDP 已就绪")
-            self._ice_gathering_done.set()
+                complete_offer_sdp = local_desc.sdp.as_text()
+                logger.info("ICE 收集完成，完整 Offer SDP 已就绪")
+
+                # 通过回调通知上层执行 WHEP 交换
+                if self._on_ice_complete is not None:
+                    try:
+                        self._on_ice_complete(complete_offer_sdp)
+                    except Exception as callback_error:
+                        logger.error("ICE 完成回调异常：%s", callback_error)
+            else:
+                self._notify_error("ICE 收集完成但无法获取本地 SDP 描述")
 
     def _on_pad_added(self, webrtcbin: Gst.Element, pad: Gst.Pad) -> None:
         """webrtcbin 新增 src pad → 连接 decodebin 动态解码。"""
@@ -387,7 +397,7 @@ class GstWebRTCPipeline:
             logger.error("无法创建视频渲染元素（videoconvert 或 videosink）")
             return
 
-        # 启用时钟同步确保帧级对齐（帧同步的基础）
+        # 启用时钟同步确保帧级对齐
         videosink.set_property("sync", True)
 
         self._pipeline.add(videoconvert)
@@ -409,9 +419,6 @@ class GstWebRTCPipeline:
         """
         Bus 同步消息处理：在 streaming 线程中响应 prepare-window-handle。
         将视频 sink 的渲染输出绑定到 Qt 窗口句柄。
-        :param bus: GStreamer 消息总线
-        :param message: 同步消息
-        :return: DROP 表示消息已处理，PASS 表示继续传递
         """
         structure = message.get_structure()
         if structure is None:

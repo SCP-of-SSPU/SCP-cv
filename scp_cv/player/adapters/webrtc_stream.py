@@ -1,8 +1,17 @@
 #!/user/bin/env python
 # -*- coding: UTF-8 -*-
 '''
-WebRTC 流适配器，封装现有 GStreamer WebRTC 管线。
+WebRTC 流适配器，封装 GStreamer WebRTC 管线。
 通过 WHEP 协议接收 MediaMTX 的 WebRTC 流并渲染到窗口。
+
+线程模型：
+- open() 在 Qt 主线程中调用（由 PlayerController 保证）
+- GStreamer 管线创建和启动在主线程执行
+- GStreamer 信号（ICE 候选收集、pad 链接）通过 GLib MainContext 在主线程处理
+  （由 PlayerController 的 GLib 事件泵驱动）
+- WHEP SDP 交换在工作线程中执行（HTTP 请求，避免阻塞主线程）
+
+ICE 候选收集完成后，工作线程执行 WHEP 交换并设置远端 SDP Answer。
 @Project : SCP-cv
 @File : webrtc_stream.py
 @Author : Qintsg
@@ -26,9 +35,11 @@ class WebRTCStreamAdapter(SourceAdapter):
     通过 WHEP 协议从 MediaMTX 接收 WebRTC 流，
     使用 GStreamer webrtcbin 解码后渲染到 d3d11videosink。
 
-    帧同步：
-    - 多窗口场景下使用 FrameSyncCoordinator 共享 GStreamer 时钟
-    - 漂移超过阈值时自动重同步
+    非阻塞设计：
+    - open() 启动管线后立即返回（不等待 ICE 完成）
+    - ICE 收集由 GLib 事件泵异步驱动
+    - ICE 完成后在工作线程中执行 WHEP SDP 交换
+    - 连接成功后标记为已打开
     """
 
     def __init__(self) -> None:
@@ -39,13 +50,14 @@ class WebRTCStreamAdapter(SourceAdapter):
         self._whep_url: str = ""
         self._window_handle: int = 0
         self._is_connected: bool = False
-        # WebRTC 连接在工作线程中执行（阻塞操作）
-        self._connect_thread: Optional[threading.Thread] = None
-        self._connect_lock = threading.Lock()
+        # WHEP 交换线程
+        self._whep_thread: Optional[threading.Thread] = None
 
     def open(self, uri: str, window_handle: int, autoplay: bool = True) -> None:
         """
-        连接 WebRTC 流。URI 为 WHEP 端点 URL。
+        启动 WebRTC 流连接。在 Qt 主线程中调用。
+        管线创建和启动在主线程进行，ICE 收集通过 GLib 事件泵异步处理。
+        open() 不阻塞等待连接完成。
         :param uri: WHEP 端点 URL（如 http://127.0.0.1:8889/stream_id/whep）
         :param window_handle: 渲染目标窗口的原生句柄
         :param autoplay: 是否自动开始播放（WebRTC 流总是自动播放）
@@ -54,64 +66,90 @@ class WebRTCStreamAdapter(SourceAdapter):
         self._window_handle = window_handle
         self._is_connected = False
 
-        # 在工作线程中执行 WHEP 连接（阻塞操作）
-        with self._connect_lock:
-            if self._connect_thread is not None and self._connect_thread.is_alive():
-                self._logger.warning("上一次连接仍在进行中，等待完成")
-                self._connect_thread.join(timeout=5.0)
+        self._start_pipeline()
 
-            self._connect_thread = threading.Thread(
-                target=self._connect_stream,
-                daemon=True,
-                name="webrtc-adapter-connect",
-            )
-            self._connect_thread.start()
-            # 等待连接完成（最多 15 秒）
-            self._connect_thread.join(timeout=15.0)
+        # 立即标记为已打开（实际连接在异步回调中完成）
+        self._mark_open()
+        self._logger.info("WebRTC 管线已启动，等待 ICE 收集完成：%s", uri)
 
-        if self._is_connected:
-            self._mark_open()
-            self._logger.info("WebRTC 流已连接：%s", uri)
-        else:
-            raise ConnectionError(f"WebRTC 流连接超时或失败：{uri}")
-
-    def _connect_stream(self) -> None:
+    def _start_pipeline(self) -> None:
         """
-        工作线程：创建 GStreamer 管线、执行 WHEP 协商、启动播放。
+        在 Qt 主线程中创建并启动 GStreamer 管线。
+        管线的 on-negotiation-needed → create-offer → ICE 收集
+        由 GLib MainContext 事件泵驱动。
         """
         from scp_cv.player.gst_pipeline import GstWebRTCPipeline
         from scp_cv.player.frame_sync import FrameSyncCoordinator
 
+        # 停止旧管线
+        self._stop_pipeline()
+
+        # 创建帧同步器
+        self._frame_sync = FrameSyncCoordinator()
+        shared_clock = self._frame_sync.get_shared_clock()
+
+        # 创建 GStreamer 管线（ICE 完成后回调 _on_ice_complete）
+        pipeline = GstWebRTCPipeline(
+            whep_url=self._whep_url,
+            window_handle=self._window_handle,
+            shared_clock=shared_clock,
+            on_ice_complete=self._on_ice_gathering_complete,
+            on_error=self._on_pipeline_error,
+        )
+
+        # 注册到帧同步器
+        self._frame_sync.register_pipeline(pipeline)
+
+        # 构建管线元素
+        pipeline.build_pipeline()
+
+        # 启动管线 → 触发 on-negotiation-needed → create-offer → ICE 收集
+        pipeline.start_playing()
+
+        self._pipeline = pipeline
+
+    def _on_ice_gathering_complete(self, offer_sdp: str) -> None:
+        """
+        ICE 候选收集完成回调（在 GLib 事件上下文中触发）。
+        在工作线程中执行 WHEP SDP 交换，避免阻塞事件循环。
+        :param offer_sdp: 包含所有 ICE 候选的完整 SDP Offer
+        """
+        self._logger.info("ICE 收集完成，启动 WHEP SDP 交换")
+
+        self._whep_thread = threading.Thread(
+            target=self._exchange_sdp_and_connect,
+            args=(offer_sdp,),
+            daemon=True,
+            name="webrtc-whep-exchange",
+        )
+        self._whep_thread.start()
+
+    def _exchange_sdp_and_connect(self, offer_sdp: str) -> None:
+        """
+        工作线程：执行 WHEP SDP 交换并设置远端 Answer。
+        :param offer_sdp: 本地 SDP Offer
+        """
+        if self._pipeline is None:
+            return
+
         try:
-            # 停止旧管线
-            self._stop_pipeline()
+            from scp_cv.player.whep_client import WhepClient
 
-            # 创建帧同步器（单管线也使用，保持接口一致）
-            self._frame_sync = FrameSyncCoordinator()
-            shared_clock = self._frame_sync.get_shared_clock()
+            whep_client = WhepClient(self._whep_url)
+            answer_sdp = whep_client.exchange_sdp(offer_sdp)
 
-            # 创建 GStreamer 管线
-            pipeline = GstWebRTCPipeline(
-                whep_url=self._whep_url,
-                window_handle=self._window_handle,
-                shared_clock=shared_clock,
-                on_error=self._on_pipeline_error,
-            )
-
-            # 注册到帧同步器
-            self._frame_sync.register_pipeline(pipeline)
-
-            # 执行 WHEP 连接（阻塞）
-            pipeline.connect_and_play()
+            # 设置远端 SDP Answer（GStreamer 线程安全操作）
+            self._pipeline.set_remote_answer(answer_sdp)
 
             # 更新主时钟
-            self._frame_sync.update_master_clock(pipeline)
+            if self._frame_sync is not None:
+                self._frame_sync.update_master_clock(self._pipeline)
 
-            self._pipeline = pipeline
             self._is_connected = True
+            self._logger.info("WebRTC 连接已建立：%s", self._whep_url)
 
-        except (TimeoutError, ConnectionError, RuntimeError) as connect_error:
-            self._logger.error("WebRTC 流连接失败：%s", connect_error)
+        except (ConnectionError, RuntimeError) as connect_error:
+            self._logger.error("WHEP SDP 交换失败：%s", connect_error)
             self._is_connected = False
 
     def _on_pipeline_error(self, error_message: str) -> None:
@@ -167,7 +205,7 @@ class WebRTCStreamAdapter(SourceAdapter):
         :return: 流连接状态快照
         """
         if self._pipeline is not None and self._is_connected:
-            # 查询播放位置（如果管线支持）
+            # 查询播放位置
             position_ns = 0
             try:
                 position_ns = self._pipeline.query_position_ns()
@@ -178,5 +216,9 @@ class WebRTCStreamAdapter(SourceAdapter):
                 playback_state="playing",
                 position_ms=position_ns // 1_000_000 if position_ns > 0 else 0,
             )
+
+        # 管线存在但未连接 → 正在连接中
+        if self._pipeline is not None and not self._is_connected:
+            return AdapterState(playback_state="loading")
 
         return AdapterState(playback_state="idle")
