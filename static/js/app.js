@@ -1,6 +1,7 @@
 /**
  * SCP-cv 播放控制台前端逻辑
  * 职责：Tab 切换、媒体源 CRUD、播放控制、导航/Seek、SSE 实时状态推送
+ * 增强：加载状态管理、防重复提交、删除确认弹窗、改进通知系统
  */
 document.addEventListener("DOMContentLoaded", () => {
 
@@ -60,21 +61,34 @@ document.addEventListener("DOMContentLoaded", () => {
     return response.json();
   }
 
+  /* ═══════════════════════════════════════════════════════════
+   * 通知横幅：成功消息自动隐藏，错误消息需手动关闭
+   * ═══════════════════════════════════════════════════════════ */
+
   /**
-   * 在全局横幅中展示消息（自动淡出）
+   * 在全局横幅中展示消息
+   * 成功消息 4 秒后自动淡出，错误消息保持不消失直到下次操作
    * @param {string} message - 消息文本
    * @param {boolean} isError - 是否为错误消息
    */
   function showBanner(message, isError = false) {
     const bannerElement = document.getElementById("global-banner");
     if (!bannerElement) return;
+
     bannerElement.textContent = message;
     bannerElement.style.display = "";
-    bannerElement.style.color = isError ? "var(--warning)" : "var(--accent-strong)";
+
+    /* 移除旧状态类，添加新状态类 */
+    bannerElement.classList.remove("banner--error", "banner--success");
+    bannerElement.classList.add(isError ? "banner--error" : "banner--success");
+
     clearTimeout(bannerElement._hideTimer);
-    bannerElement._hideTimer = setTimeout(() => {
-      bannerElement.style.display = "none";
-    }, 4000);
+    /* 错误消息不自动隐藏，成功消息 4 秒后淡出 */
+    if (!isError) {
+      bannerElement._hideTimer = setTimeout(() => {
+        bannerElement.style.display = "none";
+      }, 4000);
+    }
   }
 
   /**
@@ -101,8 +115,108 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   /* ═══════════════════════════════════════════════════════════
+   * 按钮加载状态管理：防止重复提交
+   * ═══════════════════════════════════════════════════════════ */
+
+  /**
+   * 将按钮置为加载中状态，禁止交互
+   * @param {HTMLButtonElement} buttonElement - 目标按钮
+   */
+  function setButtonLoading(buttonElement) {
+    if (!buttonElement) return;
+    buttonElement.disabled = true;
+    buttonElement.classList.add("action-button--loading");
+  }
+
+  /**
+   * 恢复按钮为可交互状态
+   * @param {HTMLButtonElement} buttonElement - 目标按钮
+   */
+  function clearButtonLoading(buttonElement) {
+    if (!buttonElement) return;
+    buttonElement.disabled = false;
+    buttonElement.classList.remove("action-button--loading");
+  }
+
+  /**
+   * 包装异步操作，自动管理触发按钮的加载态
+   * @param {Event|null} triggerEvent - 触发事件（用于定位按钮）
+   * @param {Function} asyncCallback - 要执行的异步函数
+   */
+  async function withLoading(triggerEvent, asyncCallback) {
+    /* 从事件或直接传入的元素中获取按钮 */
+    const buttonElement = triggerEvent instanceof HTMLElement
+      ? triggerEvent
+      : (triggerEvent && triggerEvent.currentTarget) || null;
+
+    setButtonLoading(buttonElement);
+    try {
+      await asyncCallback();
+    } catch (error) {
+      showBanner(error.message || "操作异常", true);
+    } finally {
+      clearButtonLoading(buttonElement);
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+   * 确认弹窗：用于删除等危险操作
+   * ═══════════════════════════════════════════════════════════ */
+
+  /**
+   * 显示确认弹窗，返回 Promise<boolean>
+   * @param {string} title - 弹窗标题
+   * @param {string} message - 弹窗正文
+   * @returns {Promise<boolean>} 用户是否确认
+   */
+  function confirmAction(title, message) {
+    return new Promise((resolve) => {
+      const backdrop = document.getElementById("confirm-dialog-backdrop");
+      const titleElement = document.getElementById("confirm-dialog-title");
+      const messageElement = document.getElementById("confirm-dialog-message");
+      const confirmButton = document.getElementById("confirm-dialog-ok");
+      const cancelButton = document.getElementById("confirm-dialog-cancel");
+
+      /* 弹窗元素不存在时降级为 window.confirm */
+      if (!backdrop || !confirmButton || !cancelButton) {
+        resolve(window.confirm(message));
+        return;
+      }
+
+      if (titleElement) titleElement.textContent = title;
+      if (messageElement) messageElement.textContent = message;
+      backdrop.classList.add("confirm-dialog-backdrop--visible");
+
+      /** 清理侦听器并关闭弹窗 */
+      function cleanup(userConfirmed) {
+        backdrop.classList.remove("confirm-dialog-backdrop--visible");
+        confirmButton.removeEventListener("click", onConfirm);
+        cancelButton.removeEventListener("click", onCancel);
+        backdrop.removeEventListener("keydown", onKeydown);
+        resolve(userConfirmed);
+      }
+
+      function onConfirm() { cleanup(true); }
+      function onCancel() { cleanup(false); }
+
+      /** Escape 键关闭弹窗 */
+      function onKeydown(keyEvent) {
+        if (keyEvent.key === "Escape") cleanup(false);
+      }
+
+      confirmButton.addEventListener("click", onConfirm);
+      cancelButton.addEventListener("click", onCancel);
+      backdrop.addEventListener("keydown", onKeydown);
+
+      /* 自动聚焦到取消按钮，防止误操作 */
+      cancelButton.focus();
+    });
+  }
+
+  /* ═══════════════════════════════════════════════════════════
    * 时钟
    * ═══════════════════════════════════════════════════════════ */
+
   const clockElement = document.querySelector("[data-clock]");
   const timeFormatter = new Intl.DateTimeFormat("zh-CN", {
     dateStyle: "medium",
@@ -117,30 +231,63 @@ document.addEventListener("DOMContentLoaded", () => {
   setInterval(refreshClock, 1000);
 
   /* ═══════════════════════════════════════════════════════════
-   * Tab 切换
+   * Tab 切换（支持键盘左右箭头导航）
    * ═══════════════════════════════════════════════════════════ */
 
   /** 初始化 Tab 导航的点击事件与面板切换 */
   function initTabNavigation() {
     const tabButtons = document.querySelectorAll(".tab-bar__item[data-tab]");
+
     tabButtons.forEach((tabButton) => {
       tabButton.addEventListener("click", () => {
-        const targetTabId = tabButton.dataset.tab;
-
-        /* 更新按钮激活态 */
-        tabButtons.forEach((otherButton) => {
-          const isActive = otherButton === tabButton;
-          otherButton.classList.toggle("tab-bar__item--active", isActive);
-          otherButton.setAttribute("aria-selected", String(isActive));
-        });
-
-        /* 切换面板显示 */
-        document.querySelectorAll(".tab-panel").forEach((panel) => {
-          const isPanelActive = panel.id === `tab-${targetTabId}`;
-          panel.classList.toggle("tab-panel--active", isPanelActive);
-          panel.hidden = !isPanelActive;
-        });
+        activateTab(tabButton, tabButtons);
       });
+    });
+
+    /* 键盘导航：左右方向键在 Tab 之间移动焦点 */
+    const tabBar = document.querySelector(".tab-bar");
+    if (tabBar) {
+      tabBar.addEventListener("keydown", (keyEvent) => {
+        const tabArray = Array.from(tabButtons);
+        const currentIndex = tabArray.indexOf(document.activeElement);
+        if (currentIndex < 0) return;
+
+        let nextIndex = -1;
+        if (keyEvent.key === "ArrowRight" || keyEvent.key === "ArrowDown") {
+          nextIndex = (currentIndex + 1) % tabArray.length;
+        } else if (keyEvent.key === "ArrowLeft" || keyEvent.key === "ArrowUp") {
+          nextIndex = (currentIndex - 1 + tabArray.length) % tabArray.length;
+        }
+
+        if (nextIndex >= 0) {
+          keyEvent.preventDefault();
+          tabArray[nextIndex].focus();
+          activateTab(tabArray[nextIndex], tabButtons);
+        }
+      });
+    }
+  }
+
+  /**
+   * 激活指定的 Tab 按钮并切换面板
+   * @param {HTMLElement} targetTab - 要激活的 Tab 按钮
+   * @param {NodeList} allTabs - 所有 Tab 按钮集合
+   */
+  function activateTab(targetTab, allTabs) {
+    const targetTabId = targetTab.dataset.tab;
+
+    allTabs.forEach((otherButton) => {
+      const isActive = otherButton === targetTab;
+      otherButton.classList.toggle("tab-bar__item--active", isActive);
+      otherButton.setAttribute("aria-selected", String(isActive));
+      /* 非激活 Tab 排除 Tab 序列以符合 WAI-ARIA Tab 模式 */
+      otherButton.setAttribute("tabindex", isActive ? "0" : "-1");
+    });
+
+    document.querySelectorAll(".tab-panel").forEach((panel) => {
+      const isPanelActive = panel.id === `tab-${targetTabId}`;
+      panel.classList.toggle("tab-panel--active", isPanelActive);
+      panel.hidden = !isPanelActive;
     });
   }
 
@@ -171,7 +318,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       }
     } catch (networkError) {
-      /* 网络异常静默处理 */
+      /* 网络异常静默处理，避免轮询时大量报错 */
     } finally {
       _sourceSyncInFlight = false;
     }
@@ -190,15 +337,25 @@ document.addEventListener("DOMContentLoaded", () => {
       sourceBadge.textContent = `${sourceList.length} 个`;
     }
 
+    /* 空状态：友好提示 + 图标 */
     if (!sourceList || sourceList.length === 0) {
-      sourceContainer.innerHTML = '<p class="empty-state">暂无媒体源，请上传文件或添加本地路径。</p>';
+      sourceContainer.innerHTML = `
+        <div class="empty-state">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9l-7-7zm-1 2.5L17.5 10H13V4.5zM6 20V4h5v7h7v9H6z"/></svg>
+          <span>暂无媒体源，请上传文件或添加本地路径。</span>
+        </div>`;
       return;
     }
 
     const listHtml = sourceList.map((source) => {
+      /* 可用的源显示播放按钮，不可用的显示灰色徽标 */
       const availableButton = source.is_available
         ? `<button class="action-button action-button--primary action-button--small"
-                   type="button" onclick="openSource(${source.id})">播放</button>`
+                   type="button" onclick="openSource(${source.id}, event)"
+                   aria-label="播放 ${escapeHtml(source.name)}">
+             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+             播放
+           </button>`
         : '<span class="chip chip--neutral">不可用</span>';
 
       const truncatedUri = source.uri && source.uri.length > 60
@@ -214,7 +371,11 @@ document.addEventListener("DOMContentLoaded", () => {
         <div class="source-item__actions">
           ${availableButton}
           <button class="action-button action-button--danger action-button--small"
-                  type="button" onclick="removeSource(${source.id})">删除</button>
+                  type="button" onclick="removeSource(${source.id}, event)"
+                  aria-label="删除 ${escapeHtml(source.name)}">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+            删除
+          </button>
         </div>
       </li>`;
     }).join("");
@@ -225,31 +386,43 @@ document.addEventListener("DOMContentLoaded", () => {
   /**
    * 打开指定媒体源到播放区
    * @param {number} sourceId - MediaSource 主键
+   * @param {Event} [triggerEvent] - 触发事件（用于加载态管理）
    */
-  window.openSource = async function openSource(sourceId) {
-    const openResult = await postAction("/playback/open/", { source_id: sourceId });
-    if (openResult.success) {
-      showBanner("已打开媒体源");
-      if (openResult.session) {
-        applySessionState(openResult.session);
+  window.openSource = async function openSource(sourceId, triggerEvent) {
+    await withLoading(triggerEvent, async () => {
+      const openResult = await postAction("/playback/open/", { source_id: sourceId });
+      if (openResult.success) {
+        showBanner("已打开媒体源");
+        if (openResult.session) {
+          applySessionState(openResult.session);
+        }
+      } else {
+        showBanner(openResult.error || "打开失败", true);
       }
-    } else {
-      showBanner(openResult.error || "打开失败", true);
-    }
+    });
   };
 
   /**
-   * 删除指定媒体源
+   * 删除指定媒体源（带确认弹窗）
    * @param {number} sourceId - MediaSource 主键
+   * @param {Event} [triggerEvent] - 触发事件（用于加载态管理）
    */
-  window.removeSource = async function removeSource(sourceId) {
-    const removeResult = await postAction("/sources/remove/", { source_id: sourceId });
-    if (removeResult.success) {
-      showBanner("已删除媒体源");
-      refreshSources();
-    } else {
-      showBanner(removeResult.error || "删除失败", true);
-    }
+  window.removeSource = async function removeSource(sourceId, triggerEvent) {
+    const confirmed = await confirmAction(
+      "确认删除",
+      "删除后无法恢复，确定要删除该媒体源吗？"
+    );
+    if (!confirmed) return;
+
+    await withLoading(triggerEvent, async () => {
+      const removeResult = await postAction("/sources/remove/", { source_id: sourceId });
+      if (removeResult.success) {
+        showBanner("已删除媒体源");
+        refreshSources();
+      } else {
+        showBanner(removeResult.error || "删除失败", true);
+      }
+    });
   };
 
   /* ── 上传表单处理 ── */
@@ -275,16 +448,21 @@ document.addEventListener("DOMContentLoaded", () => {
         showBanner("请先选择文件", true);
         return;
       }
-      const formPayload = new FormData(uploadForm);
-      const uploadResult = await postFormData("/sources/upload/", formPayload);
-      if (uploadResult.success) {
-        showBanner(`已上传「${uploadResult.source.name}」`);
-        uploadForm.reset();
-        if (uploadNameRow) uploadNameRow.style.display = "none";
-        refreshSources();
-      } else {
-        showBanner(uploadResult.error || "上传失败", true);
-      }
+
+      /* 定位提交按钮，启用加载态 */
+      const submitButton = uploadForm.querySelector('button[type="submit"]');
+      await withLoading(submitButton, async () => {
+        const formPayload = new FormData(uploadForm);
+        const uploadResult = await postFormData("/sources/upload/", formPayload);
+        if (uploadResult.success) {
+          showBanner(`已上传「${uploadResult.source.name}」`);
+          uploadForm.reset();
+          if (uploadNameRow) uploadNameRow.style.display = "none";
+          refreshSources();
+        } else {
+          showBanner(uploadResult.error || "上传失败", true);
+        }
+      });
     });
   }
 
@@ -320,17 +498,21 @@ document.addEventListener("DOMContentLoaded", () => {
         showBanner("请输入文件路径", true);
         return;
       }
-      const addResult = await postAction("/sources/add-local/", {
-        path: localPath,
-        name: nameInput ? nameInput.value.trim() : "",
+
+      const submitButton = localPathForm.querySelector('button[type="submit"]');
+      await withLoading(submitButton, async () => {
+        const addResult = await postAction("/sources/add-local/", {
+          path: localPath,
+          name: nameInput ? nameInput.value.trim() : "",
+        });
+        if (addResult.success) {
+          showBanner(`已添加「${addResult.source.name}」`);
+          localPathForm.reset();
+          refreshSources();
+        } else {
+          showBanner(addResult.error || "添加失败", true);
+        }
       });
-      if (addResult.success) {
-        showBanner(`已添加「${addResult.source.name}」`);
-        localPathForm.reset();
-        refreshSources();
-      } else {
-        showBanner(addResult.error || "添加失败", true);
-      }
     });
   }
 
@@ -344,38 +526,45 @@ document.addEventListener("DOMContentLoaded", () => {
   /**
    * 发送播放控制指令（play / pause / stop）
    * @param {string} action - 控制动作
+   * @param {Event} [triggerEvent] - 触发事件
    */
-  window.controlPlayback = async function controlPlayback(action) {
-    const controlResult = await postAction("/playback/control/", { action });
-    if (controlResult.success) {
-      if (controlResult.session) {
-        applySessionState(controlResult.session);
+  window.controlPlayback = async function controlPlayback(action, triggerEvent) {
+    await withLoading(triggerEvent, async () => {
+      const controlResult = await postAction("/playback/control/", { action });
+      if (controlResult.success) {
+        if (controlResult.session) {
+          applySessionState(controlResult.session);
+        }
+      } else {
+        showBanner(controlResult.error || "操作失败", true);
       }
-    } else {
-      showBanner(controlResult.error || "操作失败", true);
-    }
+    });
   };
 
   /**
    * 关闭当前播放（停止播放并释放源）
+   * @param {Event} [triggerEvent] - 触发事件
    */
-  window.closePlayback = async function closePlayback() {
-    const closeResult = await postAction("/playback/close/");
-    if (closeResult.success) {
-      showBanner("已关闭播放");
-      if (closeResult.session) {
-        applySessionState(closeResult.session);
+  window.closePlayback = async function closePlayback(triggerEvent) {
+    await withLoading(triggerEvent, async () => {
+      const closeResult = await postAction("/playback/close/");
+      if (closeResult.success) {
+        showBanner("已关闭播放");
+        if (closeResult.session) {
+          applySessionState(closeResult.session);
+        }
+      } else {
+        showBanner(closeResult.error || "关闭失败", true);
       }
-    } else {
-      showBanner(closeResult.error || "关闭失败", true);
-    }
+    });
   };
 
   /**
    * 停止当前播放（toolbar 快捷操作，等价于 closePlayback）
+   * @param {Event} [triggerEvent] - 触发事件
    */
-  window.stopPlayback = async function stopPlayback() {
-    await closePlayback();
+  window.stopPlayback = async function stopPlayback(triggerEvent) {
+    await closePlayback(triggerEvent);
   };
 
   /* ═══════════════════════════════════════════════════════════
@@ -385,39 +574,46 @@ document.addEventListener("DOMContentLoaded", () => {
   /**
    * 发送内容导航指令（next / prev）
    * @param {string} action - 导航动作
+   * @param {Event} [triggerEvent] - 触发事件
    */
-  window.navigateContent = async function navigateContent(action) {
-    const navResult = await postAction("/playback/navigate/", { action });
-    if (navResult.success) {
-      if (navResult.session) {
-        applySessionState(navResult.session);
+  window.navigateContent = async function navigateContent(action, triggerEvent) {
+    await withLoading(triggerEvent, async () => {
+      const navResult = await postAction("/playback/navigate/", { action });
+      if (navResult.success) {
+        if (navResult.session) {
+          applySessionState(navResult.session);
+        }
+      } else {
+        showBanner(navResult.error || "导航失败", true);
       }
-    } else {
-      showBanner(navResult.error || "导航失败", true);
-    }
+    });
   };
 
   /**
    * 跳转到指定页码（读取 goto-page-input 输入框）
+   * @param {Event} [triggerEvent] - 触发事件
    */
-  window.gotoPage = async function gotoPage() {
+  window.gotoPage = async function gotoPage(triggerEvent) {
     const pageInput = document.getElementById("goto-page-input");
     const targetPage = pageInput ? parseInt(pageInput.value, 10) : 0;
     if (!targetPage || targetPage < 1) {
       showBanner("请输入有效页码", true);
       return;
     }
-    const gotoResult = await postAction("/playback/navigate/", {
-      action: "goto",
-      target_index: targetPage,
-    });
-    if (gotoResult.success) {
-      if (gotoResult.session) {
-        applySessionState(gotoResult.session);
+
+    await withLoading(triggerEvent, async () => {
+      const gotoResult = await postAction("/playback/navigate/", {
+        action: "goto",
+        target_index: targetPage,
+      });
+      if (gotoResult.success) {
+        if (gotoResult.session) {
+          applySessionState(gotoResult.session);
+        }
+      } else {
+        showBanner(gotoResult.error || "跳转失败", true);
       }
-    } else {
-      showBanner(gotoResult.error || "跳转失败", true);
-    }
+    });
   };
 
   /* ── Seek 滑块处理 ── */
@@ -455,20 +651,23 @@ document.addEventListener("DOMContentLoaded", () => {
    * 切换显示模式或选择显示器
    * @param {string} displayMode - 显示模式
    * @param {string} targetDisplayName - 目标显示器名称
+   * @param {Event} [triggerEvent] - 触发事件
    */
-  window.switchDisplay = async function switchDisplay(displayMode, targetDisplayName) {
-    const switchResult = await postAction("/display/switch/", {
-      display_mode: displayMode,
-      target_display_name: targetDisplayName,
-    });
-    if (switchResult.success) {
-      showBanner("已切换显示设置");
-      if (switchResult.session) {
-        applySessionState(switchResult.session);
+  window.switchDisplay = async function switchDisplay(displayMode, targetDisplayName, triggerEvent) {
+    await withLoading(triggerEvent, async () => {
+      const switchResult = await postAction("/display/switch/", {
+        display_mode: displayMode,
+        target_display_name: targetDisplayName,
+      });
+      if (switchResult.success) {
+        showBanner("已切换显示设置");
+        if (switchResult.session) {
+          applySessionState(switchResult.session);
+        }
+      } else {
+        showBanner(switchResult.error || "切换失败", true);
       }
-    } else {
-      showBanner(switchResult.error || "切换失败", true);
-    }
+    });
   };
 
   /* ═══════════════════════════════════════════════════════════
