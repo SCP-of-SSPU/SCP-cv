@@ -925,6 +925,17 @@ input:focus:not(:focus-visible) {
   border-top-color: var(--accent);
 }
 
+/* 循环播放按钮激活态（开启时高亮） */
+.action-button--active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.action-button--active:hover {
+  background: var(--accent-dark, #0053b8);
+  color: #fff;
+}
+
 /* 全局加载遮罩 */
 .loading-overlay {
   position: fixed;

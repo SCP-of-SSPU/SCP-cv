@@ -145,6 +145,35 @@ def add_local_path(
     return media_source
 
 
+def add_web_url(
+    url: str,
+    display_name: Optional[str] = None,
+) -> MediaSource:
+    """
+    通过 URL 添加网页类型媒体源。
+    :param url: 网页 URL（如 https://example.com）
+    :param display_name: 显示名称，默认使用 URL
+    :return: 创建的 MediaSource 实例
+    :raises MediaError: URL 为空时
+    """
+    stripped_url = url.strip()
+    if not stripped_url:
+        raise MediaError("URL 不能为空")
+
+    if display_name is None:
+        display_name = stripped_url[:80]
+
+    media_source = MediaSource.objects.create(
+        source_type=SourceType.WEB,
+        name=display_name,
+        uri=stripped_url,
+        is_available=True,
+    )
+
+    logger.info("通过 URL 添加网页媒体源「%s」→ %s", display_name, stripped_url)
+    return media_source
+
+
 def list_media_sources(source_type: Optional[str] = None) -> list[dict[str, object]]:
     """
     查询所有媒体源列表。

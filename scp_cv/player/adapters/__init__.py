@@ -21,6 +21,8 @@ _ADAPTER_CLASS_MAP: dict[str, str] = {
     "ppt": "scp_cv.player.adapters.ppt.PptSourceAdapter",
     "video": "scp_cv.player.adapters.video.VideoSourceAdapter",
     "audio": "scp_cv.player.adapters.video.VideoSourceAdapter",  # 音频复用视频适配器
+    "image": "scp_cv.player.adapters.image.ImageSourceAdapter",
+    "web": "scp_cv.player.adapters.web.WebSourceAdapter",
     "webrtc_stream": "scp_cv.player.adapters.webrtc_stream.WebRTCStreamAdapter",
     "custom_stream": "scp_cv.player.adapters.webrtc_stream.WebRTCStreamAdapter",
 }

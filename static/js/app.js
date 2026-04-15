@@ -516,6 +516,36 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  /* ─── 网页 URL 添加表单 ─── */
+  const webUrlForm = document.getElementById("web-url-form");
+  if (webUrlForm) {
+    webUrlForm.addEventListener("submit", async (submitEvent) => {
+      submitEvent.preventDefault();
+      const urlInput = webUrlForm.querySelector('input[name="url"]');
+      const nameInput = webUrlForm.querySelector('input[name="name"]');
+      const webUrl = urlInput ? urlInput.value.trim() : "";
+      if (!webUrl) {
+        showBanner("请输入网页 URL", true);
+        return;
+      }
+
+      const submitButton = webUrlForm.querySelector('button[type="submit"]');
+      await withLoading(submitButton, async () => {
+        const addResult = await postAction("/sources/add-web/", {
+          url: webUrl,
+          name: nameInput ? nameInput.value.trim() : "",
+        });
+        if (addResult.success) {
+          showBanner(`已添加「${addResult.source.name}」`);
+          webUrlForm.reset();
+          refreshSources();
+        } else {
+          showBanner(addResult.error || "添加失败", true);
+        }
+      });
+    });
+  }
+
   /* 源列表自动轮询（每 15 秒同步一次流状态） */
   setInterval(() => { refreshSources(); }, 15000);
 
@@ -565,6 +595,31 @@ document.addEventListener("DOMContentLoaded", () => {
    */
   window.stopPlayback = async function stopPlayback(triggerEvent) {
     await closePlayback(triggerEvent);
+  };
+
+  /**
+   * 切换循环播放状态
+   * @param {Event} [triggerEvent] - 触发事件
+   */
+  window.toggleLoop = async function toggleLoop(triggerEvent) {
+    const loopButton = document.getElementById("loop-toggle-btn");
+    /* 读取当前状态，取反后发送 */
+    const currentlyEnabled = loopButton && loopButton.getAttribute("aria-pressed") === "true";
+    const newEnabled = !currentlyEnabled;
+
+    await withLoading(triggerEvent, async () => {
+      const loopResult = await postAction("/playback/toggle-loop/", {
+        enabled: newEnabled ? "true" : "false",
+      });
+      if (loopResult.success) {
+        showBanner(newEnabled ? "循环播放已开启" : "循环播放已关闭");
+        if (loopResult.session) {
+          applySessionState(loopResult.session);
+        }
+      } else {
+        showBanner(loopResult.error || "切换失败", true);
+      }
+    });
   };
 
   /* ═══════════════════════════════════════════════════════════
@@ -714,6 +769,14 @@ document.addEventListener("DOMContentLoaded", () => {
       } else {
         seekSlider.value = "0";
       }
+    }
+
+    /* 循环播放按钮状态 */
+    const loopButton = document.getElementById("loop-toggle-btn");
+    if (loopButton) {
+      const isLoopOn = !!sessionData.loop_enabled;
+      loopButton.setAttribute("aria-pressed", String(isLoopOn));
+      loopButton.classList.toggle("action-button--active", isLoopOn);
     }
   }
 

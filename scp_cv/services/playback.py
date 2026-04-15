@@ -89,6 +89,8 @@ def get_session_snapshot() -> dict[str, object]:
         # 指令
         "pending_command": session.pending_command,
         "last_updated_at": session.last_updated_at.isoformat() if session.last_updated_at else "",
+        # 循环播放
+        "loop_enabled": session.loop_enabled,
     }
 
 
@@ -301,6 +303,26 @@ def select_display_target(
     return session
 
 
+def toggle_loop_playback(enabled: bool) -> PlaybackSession:
+    """
+    切换循环播放状态，同时下发 SET_LOOP 指令给播放器进程。
+    :param enabled: 是否启用循环播放
+    :return: 更新后的播放会话
+    :raises PlaybackError: 无活跃源时
+    """
+    session = get_or_create_session()
+    if session.media_source is None:
+        raise PlaybackError("当前没有打开的媒体源")
+
+    session.loop_enabled = enabled
+    session.pending_command = PlaybackCommand.SET_LOOP
+    session.command_args = {"enabled": enabled}
+    session.save()
+
+    logger.info("循环播放已%s", "开启" if enabled else "关闭")
+    return session
+
+
 def _reset_playback_fields(session: PlaybackSession) -> None:
     """
     内部方法：重置会话的播放相关字段。
@@ -312,5 +334,6 @@ def _reset_playback_fields(session: PlaybackSession) -> None:
     session.total_slides = 0
     session.position_ms = 0
     session.duration_ms = 0
+    session.loop_enabled = False
     session.pending_command = PlaybackCommand.NONE
     session.command_args = {}

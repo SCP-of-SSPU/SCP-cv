@@ -323,6 +323,7 @@ class PlayerController(QObject):
             PlaybackCommand.PREV: self._handle_prev,
             PlaybackCommand.GOTO: self._handle_goto,
             PlaybackCommand.SEEK: self._handle_seek,
+            PlaybackCommand.SET_LOOP: self._handle_set_loop,
         }
 
         handler = command_dispatch.get(command)
@@ -442,6 +443,16 @@ class PlayerController(QObject):
         if self._current_adapter is not None:
             position_ms = int(command_args.get("position_ms", 0))
             self._current_adapter.seek(position_ms)
+
+    def _handle_set_loop(self, command_args: dict[str, object]) -> None:
+        """
+        处理 SET_LOOP 指令：切换当前适配器的循环播放状态。
+        :param command_args: 包含 enabled 字段的参数字典
+        """
+        if self._current_adapter is not None:
+            loop_enabled = bool(command_args.get("enabled", False))
+            self._current_adapter.set_loop(loop_enabled)
+            logger.info("循环播放已设置为 %s", loop_enabled)
 
     # ═══════════════════ 适配器管理 ═══════════════════
 

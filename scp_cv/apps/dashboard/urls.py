@@ -19,6 +19,7 @@ urlpatterns = [
     # ── 源管理 ──
     path("sources/upload/", views.upload_source, name="upload_source"),
     path("sources/add-local/", views.add_local_source, name="add_local_source"),
+    path("sources/add-web/", views.add_web_source, name="add_web_source"),
     path("sources/remove/", views.remove_source, name="remove_source"),
     path("api/sources/", views.api_sources, name="api_sources"),
 
@@ -27,6 +28,7 @@ urlpatterns = [
     path("playback/control/", views.playback_control, name="playback_control"),
     path("playback/navigate/", views.navigate, name="navigate"),
     path("playback/close/", views.close_current, name="close_current"),
+    path("playback/toggle-loop/", views.toggle_loop, name="toggle_loop"),
 
     # ── 显示配置 ──
     path("display/switch/", views.switch_display, name="switch_display"),

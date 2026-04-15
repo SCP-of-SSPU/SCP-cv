@@ -30,6 +30,7 @@ from scp_cv.services.media import (
     MediaError,
     add_local_path,
     add_uploaded_file,
+    add_web_url,
     delete_media_source,
     list_media_sources,
     sync_streams_to_media_sources,
@@ -43,6 +44,7 @@ from scp_cv.services.playback import (
     navigate_content,
     open_source,
     select_display_target,
+    toggle_loop_playback,
 )
 from scp_cv.services.sse import event_stream, publish_event
 
@@ -151,6 +153,35 @@ def add_local_source(request: HttpRequest) -> JsonResponse:
         source = add_local_path(local_path, display_name, source_type)
     except MediaError as path_err:
         return JsonResponse({"success": False, "error": str(path_err)}, status=400)
+
+    return JsonResponse({
+        "success": True,
+        "source": {
+            "id": source.pk,
+            "name": source.name,
+            "source_type": source.source_type,
+            "uri": source.uri,
+        },
+    })
+
+
+@require_POST
+def add_web_source(request: HttpRequest) -> JsonResponse:
+    """
+    通过 URL 添加网页类型媒体源。
+    :param request: HTTP 请求（POST form，包含 url 字段）
+    :return: JSON 响应
+    """
+    web_url = request.POST.get("url", "").strip()
+    display_name = request.POST.get("name", "").strip() or None
+
+    if not web_url:
+        return JsonResponse({"success": False, "error": "缺少 url 字段"}, status=400)
+
+    try:
+        source = add_web_url(web_url, display_name)
+    except MediaError as web_err:
+        return JsonResponse({"success": False, "error": str(web_err)}, status=400)
 
     return JsonResponse({
         "success": True,
@@ -301,6 +332,26 @@ def close_current(request: HttpRequest) -> JsonResponse:
         close_source()
     except PlaybackError as close_err:
         return JsonResponse({"success": False, "error": str(close_err)}, status=400)
+
+    snapshot = get_session_snapshot()
+    publish_event("playback_state", snapshot)
+    return JsonResponse({"success": True, "session": snapshot})
+
+
+@require_POST
+def toggle_loop(request: HttpRequest) -> JsonResponse:
+    """
+    切换循环播放状态。
+    :param request: HTTP 请求（POST form，包含 enabled 字段）
+    :return: JSON 响应
+    """
+    enabled_raw = request.POST.get("enabled", "false").strip().lower()
+    loop_enabled = enabled_raw in ("true", "1", "yes")
+
+    try:
+        toggle_loop_playback(loop_enabled)
+    except PlaybackError as loop_err:
+        return JsonResponse({"success": False, "error": str(loop_err)}, status=400)
 
     snapshot = get_session_snapshot()
     publish_event("playback_state", snapshot)

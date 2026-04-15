@@ -57,6 +57,7 @@ class PlaybackCommand(models.TextChoices):
     NEXT = "next", "下一页/下一项"
     PREV = "prev", "上一页/上一项"
     GOTO = "goto", "跳转到指定页"
+    SET_LOOP = "set_loop", "设置循环播放"
 
 
 class MediaSource(models.Model):
@@ -179,6 +180,13 @@ class PlaybackSession(models.Model):
     duration_ms = models.BigIntegerField(
         default=0,
         verbose_name="总时长(ms)",
+    )
+
+    # ── 循环播放设置 ──
+    loop_enabled = models.BooleanField(
+        default=False,
+        verbose_name="循环播放",
+        help_text="视频/音频播放完毕后是否自动重头播放",
     )
 
     # ── 控制指令分发（Django 写入 → 播放器消费） ──

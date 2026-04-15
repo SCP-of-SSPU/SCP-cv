@@ -131,6 +131,14 @@ class SourceAdapter(ABC):
         """
         self._logger.debug("适配器 %s 不支持 seek", self._adapter_name)
 
+    def set_loop(self, enabled: bool) -> None:
+        """
+        设置循环播放（时间线型源重写）。
+        默认实现：不支持的源类型忽略操作。
+        :param enabled: 是否启用循环播放
+        """
+        self._logger.debug("适配器 %s 不支持 set_loop", self._adapter_name)
+
     # ═══════════════════ 状态获取 ═══════════════════
 
     @abstractmethod

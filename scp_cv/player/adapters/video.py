@@ -29,7 +29,7 @@ class VideoSourceAdapter(SourceAdapter):
     本地视频文件播放适配器。
 
     使用 Qt 6 的 QMediaPlayer 渲染视频，输出到 QVideoWidget。
-    支持播放 / 暂停 / 停止 / 跳转等时间线操作。
+    支持播放 / 暂停 / 停止 / 跳转 / 循环播放等时间线操作。
 
     与 PlayerWindow 的集成：
     - QVideoWidget 作为子 widget 嵌入到播放器窗口的视频容器中
@@ -45,6 +45,7 @@ class VideoSourceAdapter(SourceAdapter):
         self._file_path: str = ""
         self._has_error: bool = False
         self._error_message: str = ""
+        self._loop_enabled: bool = False
 
     def open(self, uri: str, window_handle: int, autoplay: bool = True) -> None:
         """
@@ -82,6 +83,7 @@ class VideoSourceAdapter(SourceAdapter):
         # 连接信号
         self._media_player.durationChanged.connect(self._on_duration_changed)
         self._media_player.errorOccurred.connect(self._on_error)
+        self._media_player.mediaStatusChanged.connect(self._on_media_status_changed)
 
         # 设置源
         self._media_player.setSource(QUrl.fromLocalFile(uri))
@@ -131,6 +133,7 @@ class VideoSourceAdapter(SourceAdapter):
         self._duration_ms = 0
         self._has_error = False
         self._error_message = ""
+        self._loop_enabled = False
         self._mark_closed()
         self._logger.info("视频已关闭")
 
@@ -162,6 +165,14 @@ class VideoSourceAdapter(SourceAdapter):
             clamped_position = max(0, min(position_ms, self._duration_ms))
             self._media_player.setPosition(clamped_position)
             self._logger.debug("视频跳转到 %d ms", clamped_position)
+
+    def set_loop(self, enabled: bool) -> None:
+        """
+        设置循环播放。开启后视频播放完毕会自动从头开始。
+        :param enabled: 是否启用循环播放
+        """
+        self._loop_enabled = enabled
+        self._logger.info("循环播放已%s", "开启" if enabled else "关闭")
 
     # ═══════════════════ 状态获取 ═══════════════════
 
@@ -216,3 +227,17 @@ class VideoSourceAdapter(SourceAdapter):
             self._has_error = True
             self._error_message = error_string
             self._logger.error("视频播放器错误：%s", error_string)
+
+    @Slot(QMediaPlayer.MediaStatus)
+    def _on_media_status_changed(self, status: QMediaPlayer.MediaStatus) -> None:
+        """
+        媒体状态变更回调，用于实现循环播放。
+        当媒体播放到末尾且循环模式开启时，自动从头播放。
+        :param status: 新的媒体状态
+        """
+        if (status == QMediaPlayer.MediaStatus.EndOfMedia
+                and self._loop_enabled
+                and self._media_player is not None):
+            self._logger.info("视频播放完毕，循环模式已开启，重新播放")
+            self._media_player.setPosition(0)
+            self._media_player.play()
