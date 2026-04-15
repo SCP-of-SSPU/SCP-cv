@@ -2,7 +2,7 @@
 # -*- coding: UTF-8 -*-
 '''
 播放器显示窗口：每物理屏幕一个实例，支持全屏/无边框/置顶。
-视频通过 QMediaPlayer 渲染到嵌入的原生容器中。
+视频通过适配器渲染到嵌入的原生容器中。
 @Project : SCP-cv
 @File : window.py
 @Author : Qintsg
@@ -13,7 +13,8 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from PySide6.QtCore import QRect, Qt, Signal, Slot
+from PySide6.QtCore import QRect, QTimer, Qt, Signal, Slot
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QLabel,
     QStackedLayout,
@@ -22,6 +23,9 @@ from PySide6.QtWidgets import (
 )
 
 logger = logging.getLogger(__name__)
+
+# 窗口 ID 覆盖层显示时长（毫秒）
+OVERLAY_DISPLAY_DURATION_MS = 5000
 
 
 class PlayerWindow(QWidget):
@@ -32,6 +36,7 @@ class PlayerWindow(QWidget):
     - 全屏/无边框/置顶（正常模式）或可调窗口（DEBUG 模式）
     - 提供原生窗口句柄供视频渲染
     - 显示器定位（坐标和尺寸由外部控制器指定）
+    - 窗口 ID 覆盖层（按钮触发后 5 秒自动隐藏）
 
     与视频管线的交互：
     - 通过 video_window_handle 属性提供渲染目标
@@ -43,13 +48,13 @@ class PlayerWindow(QWidget):
 
     def __init__(
         self,
-        window_id: str = "",
+        window_id: int = 0,
         debug_mode: bool = False,
         parent: Optional[QWidget] = None,
     ) -> None:
         """
         初始化播放器窗口。
-        :param window_id: 窗口标识符（如 "left"/"right"/"single"）
+        :param window_id: 窗口编号（1-4）
         :param debug_mode: True 时不强制全屏/置顶，方便调试
         :param parent: 父 widget
         """
@@ -59,8 +64,7 @@ class PlayerWindow(QWidget):
         self._is_showing_video = False
 
         # ═══ 窗口属性 ═══
-        title_suffix = f" [{window_id}]" if window_id else ""
-        self.setWindowTitle(f"SCP-cv 播放器{title_suffix}")
+        self.setWindowTitle(f"SCP-cv 播放器 [窗口{window_id}]")
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
 
         if not debug_mode:
@@ -85,7 +89,7 @@ class PlayerWindow(QWidget):
         self._background_label.setStyleSheet("background-color: #000000;")
         self._stacked_layout.addWidget(self._background_label)
 
-        # 顶层：视频渲染容器（原生窗口）
+        # 视频渲染容器（原生窗口）
         self._video_container = QWidget()
         self._video_container.setAttribute(
             Qt.WidgetAttribute.WA_NativeWindow, True,
@@ -99,15 +103,37 @@ class PlayerWindow(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addLayout(self._stacked_layout)
 
+        # ═══ 窗口 ID 覆盖层 ═══
+        self._overlay_label = QLabel(self)
+        self._overlay_label.setText(f"窗口 {window_id}")
+        self._overlay_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        overlay_font = QFont("Microsoft YaHei", 72, QFont.Weight.Bold)
+        self._overlay_label.setFont(overlay_font)
+        self._overlay_label.setStyleSheet(
+            "color: #FFFFFF;"
+            "background-color: rgba(0, 0, 0, 180);"
+            "border-radius: 20px;"
+            "padding: 20px 40px;"
+        )
+        self._overlay_label.setFixedSize(400, 200)
+        self._overlay_label.hide()
+        # 覆盖层始终居中显示——在 resizeEvent 中重新定位
+        self._overlay_label.raise_()
+
+        # 覆盖层自动隐藏计时器
+        self._overlay_timer = QTimer(self)
+        self._overlay_timer.setSingleShot(True)
+        self._overlay_timer.timeout.connect(self._hide_id_overlay)
+
         logger.info(
-            "播放器窗口已初始化（id=%s, debug=%s）",
-            window_id or "default",
+            "播放器窗口已初始化（id=%d, debug=%s）",
+            window_id,
             "开" if debug_mode else "关",
         )
 
     @property
-    def window_id(self) -> str:
-        """窗口标识符。"""
+    def window_id(self) -> int:
+        """窗口编号。"""
         return self._window_id
 
     @property
@@ -138,7 +164,7 @@ class PlayerWindow(QWidget):
         else:
             self.show()
         logger.info(
-            "窗口 [%s] 定位到 (%d, %d) %dx%d",
+            "窗口 [%d] 定位到 (%d, %d) %dx%d",
             self._window_id,
             geometry.x(), geometry.y(),
             geometry.width(), geometry.height(),
@@ -153,7 +179,7 @@ class PlayerWindow(QWidget):
         self._video_container.show()
         self._stacked_layout.setCurrentWidget(self._video_container)
         self._is_showing_video = True
-        logger.debug("窗口 [%s] 切换到视频模式", self._window_id)
+        logger.debug("窗口 [%d] 切换到视频模式", self._window_id)
 
     @Slot()
     def show_black_screen(self) -> None:
@@ -164,24 +190,55 @@ class PlayerWindow(QWidget):
         self._background_label.setStyleSheet("background-color: #000000;")
         self._stacked_layout.setCurrentWidget(self._background_label)
         self._is_showing_video = False
-        logger.debug("窗口 [%s] 切换到黑屏模式", self._window_id)
+        logger.debug("窗口 [%d] 切换到黑屏模式", self._window_id)
 
     @Slot()
     def stop_all(self) -> None:
         """停止所有显示内容并回到黑屏。"""
         self.show_black_screen()
-        logger.info("窗口 [%s] 已停止所有内容", self._window_id)
+        logger.info("窗口 [%d] 已停止所有内容", self._window_id)
 
     @Slot()
     def hide_window(self) -> None:
         """隐藏窗口但不销毁。"""
         self.hide()
 
+    # ═══════════════════ 窗口 ID 覆盖层 ═══════════════════
+
+    @Slot()
+    def show_id_overlay(self) -> None:
+        """
+        显示窗口 ID 覆盖层，5 秒后自动隐藏。
+        若已显示则重置计时器。
+        """
+        self._center_overlay()
+        self._overlay_label.show()
+        self._overlay_label.raise_()
+        # 重置计时器（如果已在倒计时则重新开始）
+        self._overlay_timer.start(OVERLAY_DISPLAY_DURATION_MS)
+        logger.debug("窗口 [%d] 显示 ID 覆盖层", self._window_id)
+
+    @Slot()
+    def _hide_id_overlay(self) -> None:
+        """隐藏窗口 ID 覆盖层。"""
+        self._overlay_label.hide()
+        logger.debug("窗口 [%d] 隐藏 ID 覆盖层", self._window_id)
+
+    def _center_overlay(self) -> None:
+        """将覆盖层居中定位到当前窗口中央。"""
+        overlay_width = self._overlay_label.width()
+        overlay_height = self._overlay_label.height()
+        center_x = (self.width() - overlay_width) // 2
+        center_y = (self.height() - overlay_height) // 2
+        self._overlay_label.move(max(0, center_x), max(0, center_y))
+
     # ═══════════════════ 事件处理 ═══════════════════
 
     def resizeEvent(self, event: object) -> None:
-        """窗口尺寸变化时处理布局更新。"""
+        """窗口尺寸变化时重新居中覆盖层。"""
         super().resizeEvent(event)
+        if self._overlay_label.isVisible():
+            self._center_overlay()
 
     def closeEvent(self, event: object) -> None:
         """窗口关闭时停止所有内容。"""

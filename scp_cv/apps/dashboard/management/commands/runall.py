@@ -211,7 +211,7 @@ class Command(BaseCommand):
         from PySide6.QtWidgets import QApplication
 
         self.stdout.write(self.style.SUCCESS(
-            f"启动播放器（dev={dev_mode}, poll={poll_interval}s, engine=QMediaPlayer+RTSP）"
+            f"启动播放器（dev={dev_mode}, poll={poll_interval}s）"
         ))
 
         # 创建 Qt 应用
@@ -219,7 +219,7 @@ class Command(BaseCommand):
         if qt_app is None:
             qt_app = QApplication(sys.argv)
 
-        # 显示启动器 GUI，等待用户选择显示模式和屏幕
+        # 显示启动器 GUI，等待用户逐个分配窗口→屏幕
         from scp_cv.player.launcher_gui import LauncherResult, LauncherWindow
 
         launcher_result_holder: list[LauncherResult] = []
@@ -227,7 +227,7 @@ class Command(BaseCommand):
         def on_launch_requested(result: LauncherResult) -> None:
             """
             启动器回调：保存选择结果。
-            :param result: 用户选择的显示模式和屏幕
+            :param result: 用户选择的窗口→屏幕分配
             """
             launcher_result_holder.append(result)
 
@@ -244,8 +244,9 @@ class Command(BaseCommand):
             return
 
         launch_result = launcher_result_holder[0]
+        assigned_count = len(launch_result.window_assignments)
         self.stdout.write(self.style.SUCCESS(
-            f"用户选择：mode={launch_result.display_mode}"
+            f"用户分配了 {assigned_count} 个播放窗口"
         ))
 
         # 根据选择结果创建播放窗口
@@ -259,9 +260,9 @@ class Command(BaseCommand):
         poll_interval: float,
     ) -> None:
         """
-        根据启动器结果创建播放窗口并启动事件循环。
+        根据启动器结果创建多个播放窗口并启动事件循环。
         :param qt_app: QApplication 实例
-        :param launch_result: LauncherResult
+        :param launch_result: LauncherResult（包含 window_assignments）
         :param dev_mode: 是否开发模式
         :param poll_interval: 轮询间隔
         """
@@ -271,68 +272,38 @@ class Command(BaseCommand):
         from scp_cv.player.launcher_gui import LauncherResult
         from scp_cv.player.window import PlayerWindow
         from scp_cv.services.playback import get_or_create_session
-        from scp_cv.apps.playback.models import PlaybackMode
 
         # 类型断言
         result: LauncherResult = launch_result
-
-        # 更新数据库会话的显示模式
-        session = get_or_create_session()
-        if result.display_mode == "left_right_splice":
-            session.display_mode = PlaybackMode.LEFT_RIGHT_SPLICE
-            if result.left_target and result.right_target:
-                session.spliced_display_label = (
-                    f"{result.left_target.name} + {result.right_target.name}"
-                )
-                session.is_spliced = True
-        else:
-            session.display_mode = PlaybackMode.SINGLE
-            if result.single_target:
-                session.target_display_label = result.single_target.name
-            session.is_spliced = False
-        session.save()
 
         # 创建控制器
         controller = PlayerController()
         all_windows: list[PlayerWindow] = []
 
-        if result.display_mode == "left_right_splice" and result.left_target and result.right_target:
-            # 拼接模式：左右各一个窗口
-            left_window = PlayerWindow(window_id="left", debug_mode=dev_mode)
-            right_window = PlayerWindow(window_id="right", debug_mode=dev_mode)
-            controller.register_window("left", left_window)
-            controller.register_window("right", right_window)
-            all_windows.extend([left_window, right_window])
+        # 逐个创建播放窗口并注册到控制器
+        for window_id, display_target in sorted(result.window_assignments.items()):
+            player_window = PlayerWindow(
+                window_id=window_id,
+                debug_mode=dev_mode,
+            )
+            controller.register_window(window_id, player_window)
+            all_windows.append(player_window)
 
-            # 定位到用户选择的屏幕
-            left_rect = QRect(
-                result.left_target.x, result.left_target.y,
-                result.left_target.width, result.left_target.height,
+            # 更新数据库会话并记录目标屏幕
+            session = get_or_create_session(window_id)
+            session.target_display_label = display_target.name
+            session.save()
+
+            # 定位窗口到目标屏幕
+            target_rect = QRect(
+                display_target.x, display_target.y,
+                display_target.width, display_target.height,
             )
-            right_rect = QRect(
-                result.right_target.x, result.right_target.y,
-                result.right_target.width, result.right_target.height,
-            )
-            left_window.position_on_display(left_rect)
-            right_window.position_on_display(right_rect)
+            player_window.position_on_display(target_rect)
+
             self.stdout.write(self.style.SUCCESS(
-                f"拼接模式：左={result.left_target.name}，右={result.right_target.name}"
+                f"窗口 {window_id} → {display_target.name}"
             ))
-        else:
-            # 单屏模式
-            single_window = PlayerWindow(window_id="single", debug_mode=dev_mode)
-            controller.register_window("single", single_window)
-            all_windows.append(single_window)
-
-            if result.single_target:
-                target_rect = QRect(
-                    result.single_target.x, result.single_target.y,
-                    result.single_target.width, result.single_target.height,
-                )
-                single_window.position_on_display(target_rect)
-                self.stdout.write(self.style.SUCCESS(
-                    f"单屏模式：{result.single_target.name}"
-                ))
 
         # 启动轮询
         controller.start_polling(interval_seconds=poll_interval)
@@ -342,8 +313,8 @@ class Command(BaseCommand):
             player_window.window_closed.connect(qt_app.quit)
 
         # dev 模式下显示窗口（非 dev 已由 position_on_display 处理）
-        for player_window in all_windows:
-            if dev_mode:
+        if dev_mode:
+            for player_window in all_windows:
                 player_window.resize(960, 540)
                 player_window.show()
 

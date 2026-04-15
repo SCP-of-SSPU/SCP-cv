@@ -13,6 +13,9 @@ import pytest
 
 from scp_cv.apps.playback.models import MediaSource, PlaybackSession, SourceType
 
+# 测试默认使用窗口 1
+TEST_DEFAULT_WINDOW_ID: int = 1
+
 
 @pytest.fixture
 def media_source_ppt(db) -> MediaSource:
@@ -59,7 +62,7 @@ def media_source_unavailable(db) -> MediaSource:
 @pytest.fixture
 def playback_session(db) -> PlaybackSession:
     """
-    创建一个空的 PlaybackSession 测试对象。
-    :return: 已持久化的播放会话（IDLE 状态）
+    创建窗口 1 的空 PlaybackSession 测试对象。
+    :return: 已持久化的播放会话（IDLE 状态，window_id=1）
     """
-    return PlaybackSession.objects.create()
+    return PlaybackSession.objects.create(window_id=TEST_DEFAULT_WINDOW_ID)

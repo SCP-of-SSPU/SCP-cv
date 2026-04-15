@@ -1,9 +1,10 @@
 #!/user/bin/env python
 # -*- coding: UTF-8 -*-
 '''
-启动器 GUI：Fluent 2 风格的屏幕选择界面。
-两步交互 —— ① 选择显示模式（单屏/双屏拼接）→ ② 指定目标显示器。
+启动器 GUI：Fluent 2 风格的多窗口屏幕选择界面。
+四步交互 —— 逐个为窗口 1~4 指定目标显示器，
 选择完成后关闭 GUI，由 run_player 命令创建播放窗口。
+剩余未被占用的屏幕留给 GUI 控制面板。
 @Project : SCP-cv
 @File : launcher_gui.py
 @Author : Qintsg
@@ -12,19 +13,16 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QApplication,
-    QButtonGroup,
     QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QRadioButton,
     QSizePolicy,
     QSpacerItem,
     QVBoxLayout,
@@ -65,29 +63,6 @@ QLabel#StepLabel {
     padding: 6px 0px;
 }
 
-QPushButton#ModeCard {
-    background: rgba(255, 255, 255, 0.86);
-    border: 1px solid rgba(15, 23, 42, 0.09);
-    border-radius: 14px;
-    padding: 24px 20px;
-    font-size: 16px;
-    font-weight: 600;
-    color: #0f172a;
-    text-align: left;
-    min-height: 80px;
-}
-QPushButton#ModeCard:hover {
-    background: rgba(0, 120, 212, 0.08);
-    border-color: rgba(0, 120, 212, 0.3);
-}
-QPushButton#ModeCard:pressed {
-    background: rgba(0, 120, 212, 0.14);
-}
-QPushButton#ModeCard:checked {
-    background: rgba(0, 120, 212, 0.12);
-    border: 2px solid #0078d4;
-}
-
 QPushButton#DisplayCard {
     background: rgba(255, 255, 255, 0.86);
     border: 1px solid rgba(15, 23, 42, 0.09);
@@ -110,10 +85,19 @@ QPushButton#DisplayCard:checked {
     border: 2px solid #0078d4;
 }
 
-QRadioButton#RoleRadio {
-    font-size: 13px;
-    color: #0f172a;
-    spacing: 6px;
+QPushButton#DisplayCard:disabled {
+    background: rgba(200, 200, 200, 0.4);
+    color: #999999;
+    border: 1px solid rgba(15, 23, 42, 0.05);
+}
+
+QLabel#SelectedTag {
+    font-size: 11px;
+    font-weight: 600;
+    color: #ffffff;
+    background: #0078d4;
+    border-radius: 6px;
+    padding: 2px 8px;
 }
 
 QPushButton#PrimaryButton {
@@ -154,29 +138,43 @@ QFrame#Divider {
     background: rgba(15, 23, 42, 0.09);
     max-height: 1px;
 }
+
+QFrame#SummaryCard {
+    background: rgba(255, 255, 255, 0.86);
+    border: 1px solid rgba(15, 23, 42, 0.09);
+    border-radius: 10px;
+    padding: 12px 16px;
+}
 """
+
+# 需要选择的窗口总数
+TOTAL_WINDOWS = 4
 
 
 @dataclass
 class LauncherResult:
-    """启动器选择结果。"""
+    """
+    启动器选择结果：记录每个窗口分配的显示器。
+    window_assignments: window_id(1-4) → DisplayTarget
+    gui_display: GUI 控制面板使用的剩余屏幕（可为 None）
+    """
 
-    display_mode: str                      # "single" 或 "left_right_splice"
-    single_target: Optional[DisplayTarget] = None  # 单屏模式下的目标
-    left_target: Optional[DisplayTarget] = None    # 拼接模式左屏
-    right_target: Optional[DisplayTarget] = None   # 拼接模式右屏
+    window_assignments: dict[int, DisplayTarget] = field(default_factory=dict)
+    gui_display: Optional[DisplayTarget] = None
 
 
 class LauncherWindow(QWidget):
     """
-    启动器主窗口：两步完成显示模式与屏幕选择。
+    启动器主窗口：逐步为窗口 1~4 分配目标显示器。
 
-    Step 1 — 选择显示模式（单屏 / 双屏拼接）
-    Step 2 — 指定具体屏幕
-      · 单屏：选一个目标屏幕
-      · 双屏拼接：为每个屏幕指定左/右角色
+    交互流程：
+    Step 1 → 选择窗口 1 的屏幕
+    Step 2 → 选择窗口 2 的屏幕（已选屏幕灰显）
+    Step 3 → 选择窗口 3 的屏幕
+    Step 4 → 选择窗口 4 的屏幕
+    确认 → 显示总览，启动播放
 
-    选择完成后发射 launch_requested 信号并关闭。
+    显示器数量不足 5 时自动跳过部分窗口或 GUI 屏。
     """
 
     # 选择完成信号，携带 LauncherResult
@@ -190,15 +188,18 @@ class LauncherWindow(QWidget):
         super().__init__()
         self._debug_mode = debug_mode
         self._display_targets = list_display_targets()
-        self._selected_mode: str = ""
 
-        # 双屏拼接选择状态
-        self._role_assignments: dict[int, str] = {}  # display index → "left"/"right"
+        # 分配映射：window_id(1-4) → DisplayTarget
+        self._assignments: dict[int, DisplayTarget] = {}
+        # 当前正在选择的窗口编号（1-4）
+        self._current_step = 1
+        # 可分配的最大窗口数（受显示器数量限制）
+        self._max_windows = min(TOTAL_WINDOWS, len(self._display_targets))
 
         self.setObjectName("LauncherWindow")
         self.setWindowTitle("SCP-cv 启动器")
-        self.setMinimumSize(520, 480)
-        self.resize(560, 520)
+        self.setMinimumSize(560, 520)
+        self.resize(600, 560)
 
         if not debug_mode:
             self.setWindowFlags(
@@ -208,9 +209,12 @@ class LauncherWindow(QWidget):
 
         self.setStyleSheet(_FLUENT_STYLESHEET)
         self._build_ui()
-        self._show_step_mode()
 
-        # 居中显示
+        if self._max_windows > 0:
+            self._show_step_select_display(self._current_step)
+        else:
+            self._show_no_displays_warning()
+
         self._center_on_primary()
 
     # ═══════════════════ UI 构建 ═══════════════════
@@ -224,7 +228,10 @@ class LauncherWindow(QWidget):
         # 标题区域
         self._title_label = QLabel("SCP-cv 播放器")
         self._title_label.setObjectName("TitleLabel")
-        self._subtitle_label = QLabel("选择显示模式和目标屏幕以启动播放窗口")
+        self._subtitle_label = QLabel(
+            f"依次为 {self._max_windows} 个播放窗口选择目标显示器（共检测到 "
+            f"{len(self._display_targets)} 台）"
+        )
         self._subtitle_label.setObjectName("SubtitleLabel")
         self._main_layout.addWidget(self._title_label)
         self._main_layout.addWidget(self._subtitle_label)
@@ -254,21 +261,21 @@ class LauncherWindow(QWidget):
         self._button_bar = QHBoxLayout()
         self._button_bar.setSpacing(12)
 
-        self._back_button = QPushButton("返回")
+        self._back_button = QPushButton("返回上一步")
         self._back_button.setObjectName("BackButton")
         self._back_button.clicked.connect(self._on_back)
         self._back_button.hide()
 
-        self._launch_button = QPushButton("启动播放")
-        self._launch_button.setObjectName("PrimaryButton")
-        self._launch_button.setEnabled(False)
-        self._launch_button.clicked.connect(self._on_launch)
+        self._next_button = QPushButton("下一步")
+        self._next_button.setObjectName("PrimaryButton")
+        self._next_button.setEnabled(False)
+        self._next_button.clicked.connect(self._on_next)
 
         self._button_bar.addWidget(self._back_button)
         self._button_bar.addItem(
             QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         )
-        self._button_bar.addWidget(self._launch_button)
+        self._button_bar.addWidget(self._next_button)
         self._main_layout.addLayout(self._button_bar)
 
     def _clear_content(self) -> None:
@@ -280,305 +287,214 @@ class LauncherWindow(QWidget):
                 widget.setParent(None)
                 widget.deleteLater()
 
-    # ═══════════════════ Step 1: 模式选择 ═══════════════════
+    # ═══════════════════ 已占用屏幕管理 ═══════════════════
 
-    def _show_step_mode(self) -> None:
-        """渲染第 1 步：让用户选择单屏或双屏拼接。"""
-        self._clear_content()
-        self._step_label.setText("第 1 步 — 选择显示模式")
-        self._back_button.hide()
-        self._launch_button.setEnabled(False)
-        self._launch_button.setText("下一步")
+    def _assigned_display_indices(self) -> set[int]:
+        """获取已被分配的显示器索引集合。"""
+        return {dt.index for dt in self._assignments.values()}
 
-        # 断开旧连接、重连为"下一步"逻辑
-        try:
-            self._launch_button.clicked.disconnect()
-        except RuntimeError:
-            pass
-        self._launch_button.clicked.connect(self._on_next_to_display)
-
-        # 单屏卡片
-        self._mode_single_btn = QPushButton("🖥  单屏模式\n在一台显示器上全屏播放")
-        self._mode_single_btn.setObjectName("ModeCard")
-        self._mode_single_btn.setCheckable(True)
-        self._mode_single_btn.clicked.connect(
-            lambda: self._select_mode("single")
-        )
-        self._content_layout.addWidget(self._mode_single_btn)
-
-        # 双屏拼接卡片
-        has_multiple = len(self._display_targets) >= 2
-        splice_desc = "🖥🖥  双屏拼接模式\n左右两台显示器拼接为一个播放区域"
-        if not has_multiple:
-            splice_desc += "\n⚠ 当前仅检测到 1 台显示器，无法使用"
-        self._mode_splice_btn = QPushButton(splice_desc)
-        self._mode_splice_btn.setObjectName("ModeCard")
-        self._mode_splice_btn.setCheckable(True)
-        self._mode_splice_btn.setEnabled(has_multiple)
-        self._mode_splice_btn.clicked.connect(
-            lambda: self._select_mode("left_right_splice")
-        )
-        self._content_layout.addWidget(self._mode_splice_btn)
-
-        # 弹性填充
-        self._content_layout.addItem(
-            QSpacerItem(0, 0, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
-        )
-
-        # 显示器数量提示
-        count_label = QLabel(
-            f"已检测到 {len(self._display_targets)} 台显示器"
-        )
-        count_label.setObjectName("SubtitleLabel")
-        count_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._content_layout.addWidget(count_label)
-
-    def _select_mode(self, mode: str) -> None:
+    def _find_gui_display(self) -> Optional[DisplayTarget]:
         """
-        模式按钮点击处理：互斥选中。
-        :param mode: "single" 或 "left_right_splice"
+        找到未被分配的显示器作为 GUI 面板屏幕。
+        :return: 剩余可用的 DisplayTarget，若无则 None
         """
-        self._selected_mode = mode
-        self._mode_single_btn.setChecked(mode == "single")
-        self._mode_splice_btn.setChecked(mode == "left_right_splice")
-        self._launch_button.setEnabled(True)
+        assigned_indices = self._assigned_display_indices()
+        for display_target in self._display_targets:
+            if display_target.index not in assigned_indices:
+                return display_target
+        return None
 
-    def _on_next_to_display(self) -> None:
-        """点击"下一步"进入第 2 步屏幕选择。"""
-        if not self._selected_mode:
-            return
-        if self._selected_mode == "single":
-            self._show_step_single_display()
-        else:
-            self._show_step_splice_displays()
+    # ═══════════════════ 步骤渲染 ═══════════════════
 
-    # ═══════════════════ Step 2a: 单屏选择 ═══════════════════
-
-    def _show_step_single_display(self) -> None:
-        """渲染第 2 步（单屏）：选择一台目标显示器。"""
+    def _show_no_displays_warning(self) -> None:
+        """未检测到任何显示器时显示警告。"""
         self._clear_content()
-        self._step_label.setText("第 2 步 — 选择目标显示器")
-        self._back_button.show()
-        self._launch_button.setText("启动播放")
-        self._launch_button.setEnabled(False)
+        self._step_label.setText("⚠ 无法启动")
+        warning_label = QLabel("未检测到可用的显示器，请检查硬件连接后重试。")
+        warning_label.setObjectName("SubtitleLabel")
+        warning_label.setWordWrap(True)
+        self._content_layout.addWidget(warning_label)
+        self._next_button.setEnabled(False)
 
-        # 重连为启动逻辑
-        try:
-            self._launch_button.clicked.disconnect()
-        except RuntimeError:
-            pass
-        self._launch_button.clicked.connect(self._on_launch)
+    def _show_step_select_display(self, window_id: int) -> None:
+        """
+        渲染屏幕选择步骤：为指定窗口选择一台显示器。
+        :param window_id: 当前选择的窗口编号（1-4）
+        """
+        self._clear_content()
+        self._step_label.setText(
+            f"第 {window_id} / {self._max_windows} 步 — 选择窗口 {window_id} 的显示器"
+        )
 
-        self._single_display_group = QButtonGroup(self)
-        self._single_display_group.setExclusive(True)
-        self._single_display_buttons: dict[int, QPushButton] = {}
+        # 显示/隐藏返回按钮
+        self._back_button.setVisible(window_id > 1)
+        self._next_button.setText("下一步")
+        self._next_button.setEnabled(False)
+
+        # 清除该步骤之前可能存在的临时选中状态
+        self._pending_selection: Optional[int] = None
+
+        assigned_indices = self._assigned_display_indices()
 
         for display_target in self._display_targets:
+            is_assigned = display_target.index in assigned_indices
             primary_tag = " ⭐ 主显示器" if display_target.is_primary else ""
+
+            # 已分配给其他窗口的屏幕：显示占用标记
+            assigned_window_label = ""
+            if is_assigned:
+                for wid, assigned_dt in self._assignments.items():
+                    if assigned_dt.index == display_target.index:
+                        assigned_window_label = f"  [已分配给窗口 {wid}]"
+                        break
+
             card_text = (
-                f"{display_target.name}{primary_tag}\n"
-                f"{display_target.geometry_label}  ·  "
-                f"位置 {display_target.position_label}"
+                f"{display_target.name}{primary_tag}{assigned_window_label}\n"
+                f"{display_target.geometry_label}  ·  位置 {display_target.position_label}"
             )
+
             card_btn = QPushButton(card_text)
             card_btn.setObjectName("DisplayCard")
             card_btn.setCheckable(True)
+            card_btn.setEnabled(not is_assigned)
             card_btn.clicked.connect(
-                lambda checked, idx=display_target.index: self._select_single_display(idx)
+                lambda checked, idx=display_target.index: self._select_display(idx)
             )
-
-            self._single_display_group.addButton(card_btn, display_target.index)
-            self._single_display_buttons[display_target.index] = card_btn
             self._content_layout.addWidget(card_btn)
 
         self._content_layout.addItem(
             QSpacerItem(0, 0, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
         )
 
-        self._selected_single_index: Optional[int] = None
-
-    def _select_single_display(self, display_index: int) -> None:
-        """
-        单屏模式下选中某台显示器。
-        :param display_index: 显示器索引
-        """
-        self._selected_single_index = display_index
-        self._launch_button.setEnabled(True)
-
-    # ═══════════════════ Step 2b: 双屏拼接选择 ═══════════════════
-
-    def _show_step_splice_displays(self) -> None:
-        """渲染第 2 步（双屏拼接）：为每台显示器指定左/右角色。"""
+    def _show_summary(self) -> None:
+        """渲染确认总览页面，显示所有窗口分配和 GUI 屏幕。"""
         self._clear_content()
-        self._step_label.setText("第 2 步 — 为显示器指定左/右角色")
+        self._step_label.setText("确认 — 播放窗口分配总览")
         self._back_button.show()
-        self._launch_button.setText("启动播放")
-        self._launch_button.setEnabled(False)
+        self._next_button.setText("启动播放")
+        self._next_button.setEnabled(True)
 
-        # 重连为启动逻辑
-        try:
-            self._launch_button.clicked.disconnect()
-        except RuntimeError:
-            pass
-        self._launch_button.clicked.connect(self._on_launch)
+        for window_id in sorted(self._assignments.keys()):
+            display_target = self._assignments[window_id]
+            primary_tag = " ⭐" if display_target.is_primary else ""
 
-        self._role_assignments.clear()
-        self._role_radio_groups: dict[int, QButtonGroup] = {}
+            summary_frame = QFrame()
+            summary_frame.setObjectName("SummaryCard")
+            summary_layout = QHBoxLayout(summary_frame)
+            summary_layout.setContentsMargins(12, 8, 12, 8)
 
-        for display_target in self._display_targets:
-            primary_tag = " ⭐ 主显示器" if display_target.is_primary else ""
-            # 显示器信息框
-            card_frame = QFrame()
-            card_frame.setStyleSheet(
-                "QFrame { background: rgba(255,255,255,0.86); "
-                "border: 1px solid rgba(15,23,42,0.09); "
-                "border-radius: 10px; padding: 12px 16px; }"
+            window_label = QLabel(f"窗口 {window_id}")
+            window_label.setStyleSheet(
+                "font-size: 16px; font-weight: 600; color: #0078d4;"
             )
-            card_layout = QVBoxLayout(card_frame)
-            card_layout.setSpacing(6)
-
-            info_label = QLabel(
-                f"<b>{display_target.name}{primary_tag}</b>"
-                f"<br/>{display_target.geometry_label}  ·  "
+            display_label = QLabel(
+                f"{display_target.name}{primary_tag}  ·  "
+                f"{display_target.geometry_label}  ·  "
                 f"位置 {display_target.position_label}"
             )
-            info_label.setStyleSheet("color: #0f172a; font-size: 14px;")
-            card_layout.addWidget(info_label)
+            display_label.setStyleSheet("font-size: 14px; color: #0f172a;")
 
-            # 角色选择：左 / 右 / 不使用
-            role_layout = QHBoxLayout()
-            role_layout.setSpacing(16)
-            role_group = QButtonGroup(card_frame)
+            summary_layout.addWidget(window_label)
+            summary_layout.addSpacing(16)
+            summary_layout.addWidget(display_label, stretch=1)
+            self._content_layout.addWidget(summary_frame)
 
-            radio_left = QRadioButton("左屏")
-            radio_left.setObjectName("RoleRadio")
-            radio_right = QRadioButton("右屏")
-            radio_right.setObjectName("RoleRadio")
-            radio_none = QRadioButton("不使用")
-            radio_none.setObjectName("RoleRadio")
-            radio_none.setChecked(True)
+        # GUI 面板屏幕
+        gui_display = self._find_gui_display()
+        if gui_display is not None:
+            gui_frame = QFrame()
+            gui_frame.setObjectName("SummaryCard")
+            gui_layout = QHBoxLayout(gui_frame)
+            gui_layout.setContentsMargins(12, 8, 12, 8)
 
-            role_group.addButton(radio_left, 1)   # id=1 → left
-            role_group.addButton(radio_right, 2)  # id=2 → right
-            role_group.addButton(radio_none, 0)   # id=0 → none
-
-            role_group.idClicked.connect(
-                lambda role_id, idx=display_target.index: self._assign_role(idx, role_id)
+            gui_label = QLabel("GUI 面板")
+            gui_label.setStyleSheet(
+                "font-size: 16px; font-weight: 600; color: #107c10;"
             )
-
-            role_layout.addWidget(radio_left)
-            role_layout.addWidget(radio_right)
-            role_layout.addWidget(radio_none)
-            role_layout.addItem(
-                QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+            gui_display_label = QLabel(
+                f"{gui_display.name}  ·  {gui_display.geometry_label}"
             )
-            card_layout.addLayout(role_layout)
-
-            self._role_radio_groups[display_target.index] = role_group
-            self._content_layout.addWidget(card_frame)
+            gui_display_label.setStyleSheet("font-size: 14px; color: #0f172a;")
+            gui_layout.addWidget(gui_label)
+            gui_layout.addSpacing(16)
+            gui_layout.addWidget(gui_display_label, stretch=1)
+            self._content_layout.addWidget(gui_frame)
+        else:
+            no_gui_label = QLabel("⚠ 没有剩余显示器可用于 GUI 面板（仅使用 Web 前端控制）")
+            no_gui_label.setObjectName("SubtitleLabel")
+            no_gui_label.setWordWrap(True)
+            self._content_layout.addWidget(no_gui_label)
 
         self._content_layout.addItem(
             QSpacerItem(0, 0, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
         )
 
-    def _assign_role(self, display_index: int, role_id: int) -> None:
+    # ═══════════════════ 用户交互 ═══════════════════
+
+    def _select_display(self, display_index: int) -> None:
         """
-        双屏拼接模式下分配角色。互斥逻辑：同一角色只能分配给一个屏幕。
+        选中某台显示器供当前窗口使用。
         :param display_index: 显示器索引
-        :param role_id: 0=不使用, 1=左屏, 2=右屏
         """
-        role_name = {0: "", 1: "left", 2: "right"}.get(role_id, "")
+        self._pending_selection = display_index
+        self._next_button.setEnabled(True)
 
-        # 若新角色已被其他屏幕占用，清除旧分配
-        if role_name:
-            for other_index, other_role in list(self._role_assignments.items()):
-                if other_role == role_name and other_index != display_index:
-                    self._role_assignments.pop(other_index)
-                    # 重置该屏幕的 radio 为"不使用"
-                    other_group = self._role_radio_groups.get(other_index)
-                    if other_group is not None:
-                        none_btn = other_group.button(0)
-                        if none_btn is not None:
-                            none_btn.setChecked(True)
+    def _on_next(self) -> None:
+        """点击"下一步"或"启动播放"。"""
+        # 总览页面点击"启动播放"
+        if self._current_step > self._max_windows:
+            self._on_launch()
+            return
 
-        # 更新当前分配
-        if role_name:
-            self._role_assignments[display_index] = role_name
-        else:
-            self._role_assignments.pop(display_index, None)
+        # 屏幕选择页面 → 记录分配 → 进入下一步或总览
+        if hasattr(self, "_pending_selection") and self._pending_selection is not None:
+            selected_display = next(
+                (dt for dt in self._display_targets if dt.index == self._pending_selection),
+                None,
+            )
+            if selected_display is not None:
+                self._assignments[self._current_step] = selected_display
 
-        # 检查是否左右都已分配
-        assigned_roles = set(self._role_assignments.values())
-        both_assigned = "left" in assigned_roles and "right" in assigned_roles
-        self._launch_button.setEnabled(both_assigned)
+            self._pending_selection = None
+            self._current_step += 1
 
-    # ═══════════════════ 导航按钮 ═══════════════════
+            if self._current_step <= self._max_windows:
+                self._show_step_select_display(self._current_step)
+            else:
+                self._show_summary()
 
     def _on_back(self) -> None:
-        """返回到第 1 步。"""
-        self._show_step_mode()
+        """返回上一步。"""
+        if self._current_step > self._max_windows:
+            # 从总览返回到最后一步
+            self._current_step = self._max_windows
+            # 撤销最后一步的分配
+            self._assignments.pop(self._current_step, None)
+            self._show_step_select_display(self._current_step)
+        elif self._current_step > 1:
+            # 撤销当前步骤上一步的分配
+            self._current_step -= 1
+            self._assignments.pop(self._current_step, None)
+            self._show_step_select_display(self._current_step)
 
     def _on_launch(self) -> None:
         """点击"启动播放"：构建结果并关闭窗口。"""
-        result = self._build_result()
-        if result is None:
-            return
-        logger.info(
-            "启动器选择完成：mode=%s, single=%s, left=%s, right=%s",
-            result.display_mode,
-            getattr(result.single_target, "name", None),
-            getattr(result.left_target, "name", None),
-            getattr(result.right_target, "name", None),
+        gui_display = self._find_gui_display()
+        launch_result = LauncherResult(
+            window_assignments=dict(self._assignments),
+            gui_display=gui_display,
         )
-        self.launch_requested.emit(result)
+        assignment_summary = ", ".join(
+            f"窗口{wid}→{dt.name}"
+            for wid, dt in sorted(launch_result.window_assignments.items())
+        )
+        gui_summary = gui_display.name if gui_display else "无"
+        logger.info(
+            "启动器选择完成：%s，GUI=%s",
+            assignment_summary, gui_summary,
+        )
+        self.launch_requested.emit(launch_result)
         self.close()
-
-    def _build_result(self) -> Optional[LauncherResult]:
-        """
-        根据当前选择状态构建 LauncherResult。
-        :return: 结果对象，若状态不完整返回 None
-        """
-        if self._selected_mode == "single":
-            if not hasattr(self, "_selected_single_index") or self._selected_single_index is None:
-                return None
-            target = next(
-                (dt for dt in self._display_targets if dt.index == self._selected_single_index),
-                None,
-            )
-            if target is None:
-                return None
-            return LauncherResult(display_mode="single", single_target=target)
-
-        elif self._selected_mode == "left_right_splice":
-            left_index = None
-            right_index = None
-            for idx, role in self._role_assignments.items():
-                if role == "left":
-                    left_index = idx
-                elif role == "right":
-                    right_index = idx
-
-            if left_index is None or right_index is None:
-                return None
-
-            left_target = next(
-                (dt for dt in self._display_targets if dt.index == left_index),
-                None,
-            )
-            right_target = next(
-                (dt for dt in self._display_targets if dt.index == right_index),
-                None,
-            )
-            if left_target is None or right_target is None:
-                return None
-
-            return LauncherResult(
-                display_mode="left_right_splice",
-                left_target=left_target,
-                right_target=right_target,
-            )
-
-        return None
 
     # ═══════════════════ 辅助方法 ═══════════════════
 

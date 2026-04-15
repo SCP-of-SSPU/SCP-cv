@@ -2,6 +2,7 @@
 # -*- coding: UTF-8 -*-
 '''
 播放控制台 URL 路由配置。
+播放控制端点通过 <window_id> 路径参数指定目标窗口。
 @Project : SCP-cv
 @File : urls.py
 @Author : Qintsg
@@ -16,22 +17,22 @@ urlpatterns = [
     # 页面
     path("", views.home, name="home"),
 
-    # ── 源管理 ──
+    # ── 源管理（全局） ──
     path("sources/upload/", views.upload_source, name="upload_source"),
     path("sources/add-local/", views.add_local_source, name="add_local_source"),
     path("sources/add-web/", views.add_web_source, name="add_web_source"),
     path("sources/remove/", views.remove_source, name="remove_source"),
     path("api/sources/", views.api_sources, name="api_sources"),
 
-    # ── 播放控制 ──
-    path("playback/open/", views.open_media_source, name="open_source"),
-    path("playback/control/", views.playback_control, name="playback_control"),
-    path("playback/navigate/", views.navigate, name="navigate"),
-    path("playback/close/", views.close_current, name="close_current"),
-    path("playback/toggle-loop/", views.toggle_loop, name="toggle_loop"),
+    # ── 播放控制（按窗口） ──
+    path("playback/<str:window_id>/open/", views.open_media_source, name="open_source"),
+    path("playback/<str:window_id>/control/", views.playback_control, name="playback_control"),
+    path("playback/<str:window_id>/navigate/", views.navigate, name="navigate"),
+    path("playback/<str:window_id>/close/", views.close_current, name="close_current"),
+    path("playback/<str:window_id>/toggle-loop/", views.toggle_loop, name="toggle_loop"),
 
-    # ── 显示配置 ──
-    path("display/switch/", views.switch_display, name="switch_display"),
+    # ── 拼接模式（窗口 1+2） ──
+    path("playback/splice/", views.toggle_splice, name="toggle_splice"),
 
     # ── 状态查询 & SSE ──
     path("api/session/", views.api_session_state, name="api_session_state"),

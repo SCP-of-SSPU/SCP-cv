@@ -118,10 +118,17 @@ class MediaSource(models.Model):
 
 class PlaybackSession(models.Model):
     """
-    统一播放会话，系统只维护一个实例。
-    记录当前播放的源、状态、显示配置、以及待执行的控制指令。
+    播放会话模型，每个输出窗口维护一个独立实例。
+    通过 window_id（1-4）区分不同窗口的播放状态与指令。
     播放器进程通过轮询本表驱动播放行为。
     """
+
+    # ── 窗口标识（1-4） ──
+    window_id = models.PositiveSmallIntegerField(
+        unique=True,
+        verbose_name="窗口编号",
+        help_text="输出窗口编号，1-4 对应四个输出显示器",
+    )
 
     # ── 当前播放源 ──
     media_source = models.ForeignKey(

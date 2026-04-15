@@ -2,7 +2,8 @@
 # -*- coding: UTF-8 -*-
 '''
 播放控制台视图，负责主页面渲染与所有 HTTP 操作端点。
-包含三大功能区：统一源列表管理、播放控制、系统设置。
+包含三大功能区：统一源列表管理、多窗口播放控制、系统设置。
+所有播放/显示操作均通过 window_id 路径参数定位目标窗口。
 @Project : SCP-cv
 @File : views.py
 @Author : Qintsg
@@ -24,7 +25,7 @@ from django.shortcuts import render
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
-from scp_cv.services.display import build_left_right_splice_target, list_display_targets
+from scp_cv.services.display import list_display_targets
 from scp_cv.services.executables import get_mediamtx_executable
 from scp_cv.services.media import (
     MediaError,
@@ -37,18 +38,37 @@ from scp_cv.services.media import (
 )
 from scp_cv.services.mediamtx import sync_stream_states
 from scp_cv.services.playback import (
+    VALID_WINDOW_IDS,
     PlaybackError,
     close_source,
     control_playback,
+    get_all_sessions_snapshot,
     get_session_snapshot,
+    is_splice_mode_active,
     navigate_content,
     open_source,
-    select_display_target,
+    set_splice_mode,
     toggle_loop_playback,
 )
 from scp_cv.services.sse import event_stream, publish_event
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_window_id(raw_window_id: str) -> int:
+    """
+    解析并校验路径中的 window_id。
+    :param raw_window_id: URL 路径捕获的窗口编号字符串
+    :return: 合法的窗口编号（int）
+    :raises PlaybackError: window_id 无效时
+    """
+    try:
+        window_id = int(raw_window_id)
+    except (ValueError, TypeError) as parse_err:
+        raise PlaybackError(f"window_id 格式无效：{raw_window_id}") from parse_err
+    if window_id not in VALID_WINDOW_IDS:
+        raise PlaybackError(f"window_id 不在有效范围内：{window_id}")
+    return window_id
 
 
 # ══════════════════════════════════════════════════════════════
@@ -58,13 +78,12 @@ logger = logging.getLogger(__name__)
 @require_GET
 def home(request: HttpRequest) -> HttpResponse:
     """
-    渲染播放控制台主页面，包含三个 Tab：源列表、播放控制、设置。
+    渲染播放控制台主页面，展示所有窗口状态和源列表。
     :param request: HTTP 请求
     :return: 渲染后的控制台页面
     """
     display_targets = list_display_targets()
-    splice_target = build_left_right_splice_target(display_targets)
-    session_snapshot = get_session_snapshot()
+    all_sessions = get_all_sessions_snapshot()
 
     # 同步流状态并获取源列表
     sync_stream_states()
@@ -72,15 +91,12 @@ def home(request: HttpRequest) -> HttpResponse:
     media_sources = list_media_sources()
 
     context = {
-        # 会话状态
-        "session": session_snapshot,
-        "current_source_name": session_snapshot["source_name"],
-        "current_source_type": session_snapshot["source_type_label"],
-        "current_playback_state": session_snapshot["playback_state_label"],
-        "current_display_mode": session_snapshot["display_mode_label"],
+        # 多窗口会话快照
+        "sessions": all_sessions,
+        "valid_window_ids": sorted(VALID_WINDOW_IDS),
+        "splice_active": is_splice_mode_active(),
         # 显示器
         "display_targets": display_targets,
-        "spliced_display": splice_target,
         # 媒体源
         "media_sources": media_sources,
         # 外部组件
@@ -92,7 +108,7 @@ def home(request: HttpRequest) -> HttpResponse:
 
 
 # ══════════════════════════════════════════════════════════════
-# 源管理 API
+# 源管理 API（全局，不分窗口）
 # ══════════════════════════════════════════════════════════════
 
 @require_POST
@@ -132,7 +148,6 @@ def add_local_source(request: HttpRequest) -> JsonResponse:
     :param request: HTTP 请求（JSON body 或 POST form，包含 path 字段）
     :return: JSON 响应
     """
-    # 支持 JSON body 和 form 两种提交方式
     local_path = request.POST.get("path", "").strip()
     display_name = request.POST.get("name", "").strip() or None
     source_type = request.POST.get("source_type", "").strip() or None
@@ -225,7 +240,6 @@ def api_sources(request: HttpRequest) -> JsonResponse:
     :param request: HTTP 请求
     :return: JSON 格式的媒体源列表
     """
-    # 先同步 MediaMTX 流状态
     sync_result = sync_stream_states()
     stream_sync = sync_streams_to_media_sources()
 
@@ -240,16 +254,22 @@ def api_sources(request: HttpRequest) -> JsonResponse:
 
 
 # ══════════════════════════════════════════════════════════════
-# 播放控制 API
+# 播放控制 API（按窗口操作）
 # ══════════════════════════════════════════════════════════════
 
 @require_POST
-def open_media_source(request: HttpRequest) -> JsonResponse:
+def open_media_source(request: HttpRequest, window_id: str) -> JsonResponse:
     """
-    打开指定媒体源到播放区域。
+    打开指定媒体源到指定窗口。
     :param request: HTTP 请求（POST form，包含 source_id 字段）
+    :param window_id: URL 路径中的窗口编号
     :return: JSON 响应
     """
+    try:
+        wid = _parse_window_id(window_id)
+    except PlaybackError as wid_err:
+        return JsonResponse({"success": False, "error": str(wid_err)}, status=400)
+
     source_id = request.POST.get("source_id")
     if not source_id:
         return JsonResponse({"success": False, "error": "缺少 source_id"}, status=400)
@@ -262,43 +282,55 @@ def open_media_source(request: HttpRequest) -> JsonResponse:
     autoplay = request.POST.get("autoplay", "true").lower() in ("true", "1", "yes")
 
     try:
-        open_source(source_id_int, autoplay=autoplay)
+        open_source(wid, source_id_int, autoplay=autoplay)
     except PlaybackError as open_err:
         return JsonResponse({"success": False, "error": str(open_err)}, status=400)
 
-    snapshot = get_session_snapshot()
+    snapshot = get_session_snapshot(wid)
     publish_event("playback_state", snapshot)
     return JsonResponse({"success": True, "session": snapshot})
 
 
 @require_POST
-def playback_control(request: HttpRequest) -> JsonResponse:
+def playback_control(request: HttpRequest, window_id: str) -> JsonResponse:
     """
     播放控制（play / pause / stop）。
     :param request: HTTP 请求（POST form，包含 action 字段）
+    :param window_id: URL 路径中的窗口编号
     :return: JSON 响应
     """
+    try:
+        wid = _parse_window_id(window_id)
+    except PlaybackError as wid_err:
+        return JsonResponse({"success": False, "error": str(wid_err)}, status=400)
+
     action = request.POST.get("action", "").strip()
     if not action:
         return JsonResponse({"success": False, "error": "缺少 action 字段"}, status=400)
 
     try:
-        control_playback(action)
+        control_playback(wid, action)
     except PlaybackError as ctrl_err:
         return JsonResponse({"success": False, "error": str(ctrl_err)}, status=400)
 
-    snapshot = get_session_snapshot()
+    snapshot = get_session_snapshot(wid)
     publish_event("playback_state", snapshot)
     return JsonResponse({"success": True, "session": snapshot})
 
 
 @require_POST
-def navigate(request: HttpRequest) -> JsonResponse:
+def navigate(request: HttpRequest, window_id: str) -> JsonResponse:
     """
     内容导航（下一页/上一页/跳转/Seek）。
     :param request: HTTP 请求（POST form，包含 action 字段）
+    :param window_id: URL 路径中的窗口编号
     :return: JSON 响应
     """
+    try:
+        wid = _parse_window_id(window_id)
+    except PlaybackError as wid_err:
+        return JsonResponse({"success": False, "error": str(wid_err)}, status=400)
+
     action = request.POST.get("action", "").strip()
     if not action:
         return JsonResponse({"success": False, "error": "缺少 action 字段"}, status=400)
@@ -312,74 +344,90 @@ def navigate(request: HttpRequest) -> JsonResponse:
         pass
 
     try:
-        navigate_content(action, target_index=target_index, position_ms=position_ms)
+        navigate_content(wid, action, target_index=target_index, position_ms=position_ms)
     except PlaybackError as nav_err:
         return JsonResponse({"success": False, "error": str(nav_err)}, status=400)
 
-    snapshot = get_session_snapshot()
+    snapshot = get_session_snapshot(wid)
     publish_event("playback_state", snapshot)
     return JsonResponse({"success": True, "session": snapshot})
 
 
 @require_POST
-def close_current(request: HttpRequest) -> JsonResponse:
+def close_current(request: HttpRequest, window_id: str) -> JsonResponse:
     """
-    关闭当前播放的源。
+    关闭指定窗口当前播放的源。
     :param request: HTTP 请求
+    :param window_id: URL 路径中的窗口编号
     :return: JSON 响应
     """
     try:
-        close_source()
+        wid = _parse_window_id(window_id)
+    except PlaybackError as wid_err:
+        return JsonResponse({"success": False, "error": str(wid_err)}, status=400)
+
+    try:
+        close_source(wid)
     except PlaybackError as close_err:
         return JsonResponse({"success": False, "error": str(close_err)}, status=400)
 
-    snapshot = get_session_snapshot()
+    snapshot = get_session_snapshot(wid)
     publish_event("playback_state", snapshot)
     return JsonResponse({"success": True, "session": snapshot})
 
 
 @require_POST
-def toggle_loop(request: HttpRequest) -> JsonResponse:
+def toggle_loop(request: HttpRequest, window_id: str) -> JsonResponse:
     """
-    切换循环播放状态。
+    切换指定窗口的循环播放状态。
     :param request: HTTP 请求（POST form，包含 enabled 字段）
+    :param window_id: URL 路径中的窗口编号
     :return: JSON 响应
     """
+    try:
+        wid = _parse_window_id(window_id)
+    except PlaybackError as wid_err:
+        return JsonResponse({"success": False, "error": str(wid_err)}, status=400)
+
     enabled_raw = request.POST.get("enabled", "false").strip().lower()
     loop_enabled = enabled_raw in ("true", "1", "yes")
 
     try:
-        toggle_loop_playback(loop_enabled)
+        toggle_loop_playback(wid, loop_enabled)
     except PlaybackError as loop_err:
         return JsonResponse({"success": False, "error": str(loop_err)}, status=400)
 
-    snapshot = get_session_snapshot()
+    snapshot = get_session_snapshot(wid)
     publish_event("playback_state", snapshot)
     return JsonResponse({"success": True, "session": snapshot})
 
 
 # ══════════════════════════════════════════════════════════════
-# 显示配置 API
+# 拼接模式 API
 # ══════════════════════════════════════════════════════════════
 
 @require_POST
-def switch_display(request: HttpRequest) -> JsonResponse:
+def toggle_splice(request: HttpRequest) -> JsonResponse:
     """
-    切换显示模式或选择显示器。
-    :param request: HTTP 请求
+    切换窗口 1+2 的拼接模式。
+    :param request: HTTP 请求（POST form，包含 enabled 字段）
     :return: JSON 响应
     """
-    display_mode = request.POST.get("display_mode", "")
-    target_display_name = request.POST.get("target_display_name", "")
+    enabled_raw = request.POST.get("enabled", "false").strip().lower()
+    splice_enabled = enabled_raw in ("true", "1", "yes")
 
     try:
-        select_display_target(display_mode, target_display_name)
-    except PlaybackError as switch_error:
-        return JsonResponse({"success": False, "error": str(switch_error)}, status=400)
+        set_splice_mode(splice_enabled)
+    except PlaybackError as splice_err:
+        return JsonResponse({"success": False, "error": str(splice_err)}, status=400)
 
-    snapshot = get_session_snapshot()
-    publish_event("playback_state", snapshot)
-    return JsonResponse({"success": True, "session": snapshot})
+    all_snapshots = get_all_sessions_snapshot()
+    publish_event("playback_state", {"sessions": all_snapshots})
+    return JsonResponse({
+        "success": True,
+        "splice_active": splice_enabled,
+        "sessions": all_snapshots,
+    })
 
 
 # ══════════════════════════════════════════════════════════════
@@ -389,12 +437,26 @@ def switch_display(request: HttpRequest) -> JsonResponse:
 @require_GET
 def api_session_state(request: HttpRequest) -> JsonResponse:
     """
-    获取当前播放会话状态的 JSON API。
+    获取所有窗口播放会话状态。
+    可选 ?window_id=N 获取单个窗口状态。
     :param request: HTTP 请求
     :return: JSON 格式的会话快照
     """
-    snapshot = get_session_snapshot()
-    return JsonResponse({"success": True, "session": snapshot})
+    single_window = request.GET.get("window_id", "").strip()
+    if single_window:
+        try:
+            wid = _parse_window_id(single_window)
+        except PlaybackError as wid_err:
+            return JsonResponse({"success": False, "error": str(wid_err)}, status=400)
+        snapshot = get_session_snapshot(wid)
+        return JsonResponse({"success": True, "session": snapshot})
+
+    all_snapshots = get_all_sessions_snapshot()
+    return JsonResponse({
+        "success": True,
+        "sessions": all_snapshots,
+        "splice_active": is_splice_mode_active(),
+    })
 
 
 @require_GET

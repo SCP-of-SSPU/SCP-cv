@@ -47,20 +47,21 @@ class TestGetOrCreateSession:
     def test_creates_session_when_none_exists(self) -> None:
         """数据库为空时应创建新会话。"""
         assert PlaybackSession.objects.count() == 0
-        session = get_or_create_session()
+        session = get_or_create_session(1)
         assert session.pk is not None
         assert session.playback_state == PlaybackState.IDLE
+        assert session.window_id == 1
         assert PlaybackSession.objects.count() == 1
 
     def test_returns_existing_session(self, playback_session: PlaybackSession) -> None:
         """已有会话时应复用同一实例。"""
-        session = get_or_create_session()
+        session = get_or_create_session(1)
         assert session.pk == playback_session.pk
 
     def test_idempotent_calls(self) -> None:
         """多次调用应返回同一会话。"""
-        first_session = get_or_create_session()
-        second_session = get_or_create_session()
+        first_session = get_or_create_session(1)
+        second_session = get_or_create_session(1)
         assert first_session.pk == second_session.pk
         assert PlaybackSession.objects.count() == 1
 
@@ -75,7 +76,7 @@ class TestGetSessionSnapshot:
 
     def test_snapshot_without_source(self) -> None:
         """无媒体源时快照应包含默认占位值。"""
-        snapshot = get_session_snapshot()
+        snapshot = get_session_snapshot(1)
 
         assert snapshot["source_name"] == "无"
         assert snapshot["source_type_label"] == "无"
@@ -85,14 +86,14 @@ class TestGetSessionSnapshot:
 
     def test_snapshot_with_source(self, media_source_ppt: MediaSource) -> None:
         """关联源后快照应反映源的信息。"""
-        session = get_or_create_session()
+        session = get_or_create_session(1)
         session.media_source = media_source_ppt
         session.playback_state = PlaybackState.PLAYING
         session.current_slide = 3
         session.total_slides = 10
         session.save()
 
-        snapshot = get_session_snapshot()
+        snapshot = get_session_snapshot(1)
 
         assert snapshot["source_name"] == "测试演示文稿"
         assert snapshot["source_type"] == "ppt"
@@ -102,9 +103,9 @@ class TestGetSessionSnapshot:
 
     def test_snapshot_contains_all_required_keys(self) -> None:
         """快照字典应包含所有必要的键。"""
-        snapshot = get_session_snapshot()
+        snapshot = get_session_snapshot(1)
         required_keys = {
-            "session_id", "source_name", "source_type", "source_type_label", "source_uri",
+            "window_id", "session_id", "source_name", "source_type", "source_type_label", "source_uri",
             "playback_state", "playback_state_label",
             "display_mode", "display_mode_label",
             "target_display_label", "spliced_display_label", "is_spliced",
@@ -124,7 +125,7 @@ class TestOpenSource:
 
     def test_open_existing_source(self, media_source_ppt: MediaSource) -> None:
         """打开已有源应设置 LOADING 状态和 OPEN 指令。"""
-        session = open_source(media_source_ppt.pk)
+        session = open_source(1, media_source_ppt.pk)
 
         assert session.media_source == media_source_ppt
         assert session.playback_state == PlaybackState.LOADING
@@ -135,28 +136,28 @@ class TestOpenSource:
 
     def test_open_with_autoplay_false(self, media_source_video: MediaSource) -> None:
         """autoplay=False 时指令参数应反映。"""
-        session = open_source(media_source_video.pk, autoplay=False)
+        session = open_source(1, media_source_video.pk, autoplay=False)
 
         assert session.command_args["autoplay"] is False
 
     def test_open_nonexistent_source_raises(self) -> None:
         """打开不存在的源 id 应抛出 PlaybackError。"""
         with pytest.raises(PlaybackError, match="不存在"):
-            open_source(99999)
+            open_source(1, 99999)
 
     def test_open_resets_previous_state(
         self, media_source_ppt: MediaSource, media_source_video: MediaSource,
     ) -> None:
         """打开新源应重置之前的播放状态。"""
         # 先打开 PPT 并模拟播放中
-        first_session = open_source(media_source_ppt.pk)
+        first_session = open_source(1, media_source_ppt.pk)
         first_session.playback_state = PlaybackState.PLAYING
         first_session.current_slide = 5
         first_session.total_slides = 20
         first_session.save()
 
         # 再打开视频
-        second_session = open_source(media_source_video.pk)
+        second_session = open_source(1, media_source_video.pk)
 
         assert second_session.media_source == media_source_video
         assert second_session.playback_state == PlaybackState.LOADING
@@ -174,36 +175,36 @@ class TestControlPlayback:
 
     def test_play_command(self, media_source_video: MediaSource) -> None:
         """发送 play 指令应设置正确的 pending_command。"""
-        open_source(media_source_video.pk)
-        session = control_playback(PlaybackCommand.PLAY)
+        open_source(1, media_source_video.pk)
+        session = control_playback(1, PlaybackCommand.PLAY)
 
         assert session.pending_command == PlaybackCommand.PLAY
 
     def test_pause_command(self, media_source_video: MediaSource) -> None:
         """发送 pause 指令应设置正确的 pending_command。"""
-        open_source(media_source_video.pk)
-        session = control_playback(PlaybackCommand.PAUSE)
+        open_source(1, media_source_video.pk)
+        session = control_playback(1, PlaybackCommand.PAUSE)
 
         assert session.pending_command == PlaybackCommand.PAUSE
 
     def test_stop_command(self, media_source_video: MediaSource) -> None:
         """发送 stop 指令应设置正确的 pending_command。"""
-        open_source(media_source_video.pk)
-        session = control_playback(PlaybackCommand.STOP)
+        open_source(1, media_source_video.pk)
+        session = control_playback(1, PlaybackCommand.STOP)
 
         assert session.pending_command == PlaybackCommand.STOP
 
     def test_invalid_action_raises(self, media_source_video: MediaSource) -> None:
         """无效的控制动作应抛出 PlaybackError。"""
-        open_source(media_source_video.pk)
+        open_source(1, media_source_video.pk)
         with pytest.raises(PlaybackError, match="无效"):
-            control_playback("rewind")
+            control_playback(1, "rewind")
 
     def test_no_source_raises(self) -> None:
         """没有打开源时发送控制指令应抛出 PlaybackError。"""
-        get_or_create_session()
+        get_or_create_session(1)
         with pytest.raises(PlaybackError, match="没有打开"):
-            control_playback(PlaybackCommand.PLAY)
+            control_playback(1, PlaybackCommand.PLAY)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -216,45 +217,45 @@ class TestNavigateContent:
 
     def test_next_command(self, media_source_ppt: MediaSource) -> None:
         """发送 next 应设置正确指令。"""
-        open_source(media_source_ppt.pk)
-        session = navigate_content(PlaybackCommand.NEXT)
+        open_source(1, media_source_ppt.pk)
+        session = navigate_content(1, PlaybackCommand.NEXT)
 
         assert session.pending_command == PlaybackCommand.NEXT
 
     def test_prev_command(self, media_source_ppt: MediaSource) -> None:
         """发送 prev 应设置正确指令。"""
-        open_source(media_source_ppt.pk)
-        session = navigate_content(PlaybackCommand.PREV)
+        open_source(1, media_source_ppt.pk)
+        session = navigate_content(1, PlaybackCommand.PREV)
 
         assert session.pending_command == PlaybackCommand.PREV
 
     def test_goto_with_target_index(self, media_source_ppt: MediaSource) -> None:
         """跳转到指定页码应在 command_args 中记录。"""
-        open_source(media_source_ppt.pk)
-        session = navigate_content(PlaybackCommand.GOTO, target_index=5)
+        open_source(1, media_source_ppt.pk)
+        session = navigate_content(1, PlaybackCommand.GOTO, target_index=5)
 
         assert session.pending_command == PlaybackCommand.GOTO
         assert session.command_args["target_index"] == 5
 
     def test_seek_with_position(self, media_source_video: MediaSource) -> None:
         """Seek 到指定毫秒位置应在 command_args 中记录。"""
-        open_source(media_source_video.pk)
-        session = navigate_content(PlaybackCommand.SEEK, position_ms=30000)
+        open_source(1, media_source_video.pk)
+        session = navigate_content(1, PlaybackCommand.SEEK, position_ms=30000)
 
         assert session.pending_command == PlaybackCommand.SEEK
         assert session.command_args["position_ms"] == 30000
 
     def test_invalid_action_raises(self, media_source_ppt: MediaSource) -> None:
         """无效的导航动作应抛出 PlaybackError。"""
-        open_source(media_source_ppt.pk)
+        open_source(1, media_source_ppt.pk)
         with pytest.raises(PlaybackError, match="无效"):
-            navigate_content("fast_forward")
+            navigate_content(1, "fast_forward")
 
     def test_no_source_raises(self) -> None:
         """没有打开源时发送导航指令应抛出 PlaybackError。"""
-        get_or_create_session()
+        get_or_create_session(1)
         with pytest.raises(PlaybackError, match="没有打开"):
-            navigate_content(PlaybackCommand.NEXT)
+            navigate_content(1, PlaybackCommand.NEXT)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -267,23 +268,23 @@ class TestCloseSource:
 
     def test_close_with_active_source(self, media_source_video: MediaSource) -> None:
         """有活跃源时关闭应发出 CLOSE 指令。"""
-        open_source(media_source_video.pk)
-        session = close_source()
+        open_source(1, media_source_video.pk)
+        session = close_source(1)
 
         assert session.pending_command == PlaybackCommand.CLOSE
 
     def test_close_without_source_resets(self) -> None:
         """无活跃源时关闭应直接重置为 IDLE。"""
-        get_or_create_session()
-        session = close_source()
+        get_or_create_session(1)
+        session = close_source(1)
 
         assert session.playback_state == PlaybackState.IDLE
         assert session.pending_command == PlaybackCommand.NONE
 
     def test_stop_current_content_delegates(self, media_source_video: MediaSource) -> None:
         """stop_current_content 应委托给 close_source。"""
-        open_source(media_source_video.pk)
-        session = stop_current_content()
+        open_source(1, media_source_video.pk)
+        session = stop_current_content(1)
 
         assert session.pending_command == PlaybackCommand.CLOSE
 
@@ -298,8 +299,8 @@ class TestClearPendingCommand:
 
     def test_clears_command_and_args(self, media_source_ppt: MediaSource) -> None:
         """清除后 pending_command 应回到 NONE。"""
-        open_source(media_source_ppt.pk)
-        session = clear_pending_command()
+        open_source(1, media_source_ppt.pk)
+        session = clear_pending_command(1)
 
         assert session.pending_command == PlaybackCommand.NONE
         assert session.command_args == {}
@@ -315,8 +316,9 @@ class TestUpdatePlaybackProgress:
 
     def test_update_ppt_progress(self) -> None:
         """上报 PPT 翻页进度应正确写入数据库。"""
-        get_or_create_session()
+        get_or_create_session(1)
         session = update_playback_progress(
+            1,
             playback_state=PlaybackState.PLAYING,
             current_slide=3,
             total_slides=20,
@@ -328,8 +330,9 @@ class TestUpdatePlaybackProgress:
 
     def test_update_video_progress(self) -> None:
         """上报视频播放进度应正确写入数据库。"""
-        get_or_create_session()
+        get_or_create_session(1)
         session = update_playback_progress(
+            1,
             playback_state=PlaybackState.PLAYING,
             position_ms=45000,
             duration_ms=120000,
@@ -340,14 +343,15 @@ class TestUpdatePlaybackProgress:
 
     def test_partial_update(self) -> None:
         """只上报部分字段时不应影响其他字段。"""
-        get_or_create_session()
+        get_or_create_session(1)
         update_playback_progress(
+            1,
             playback_state=PlaybackState.PLAYING,
             current_slide=5,
             total_slides=10,
             position_ms=1000,
         )
-        session = update_playback_progress(current_slide=6)
+        session = update_playback_progress(1, current_slide=6)
 
         assert session.current_slide == 6
         assert session.total_slides == 10  # 未传入的字段保持不变
@@ -355,9 +359,9 @@ class TestUpdatePlaybackProgress:
 
     def test_none_params_are_ignored(self) -> None:
         """传入 None 的参数不应修改对应字段。"""
-        get_or_create_session()
-        update_playback_progress(playback_state=PlaybackState.PAUSED)
-        session = update_playback_progress(playback_state=None)
+        get_or_create_session(1)
+        update_playback_progress(1, playback_state=PlaybackState.PAUSED)
+        session = update_playback_progress(1, playback_state=None)
 
         assert session.playback_state == PlaybackState.PAUSED  # 未被覆盖
 
@@ -399,7 +403,7 @@ class TestSelectDisplayTarget:
             self._make_display_target("HDMI-2", 1),
         ]
 
-        session = select_display_target(PlaybackMode.SINGLE, "HDMI-2")
+        session = select_display_target(1, PlaybackMode.SINGLE, "HDMI-2")
 
         assert session.display_mode == PlaybackMode.SINGLE
         assert session.target_display_label == "HDMI-2"
@@ -413,7 +417,7 @@ class TestSelectDisplayTarget:
         ]
 
         with pytest.raises(PlaybackError, match="不存在"):
-            select_display_target(PlaybackMode.SINGLE, "VGA-1")
+            select_display_target(1, PlaybackMode.SINGLE, "VGA-1")
 
     @patch("scp_cv.services.playback.build_left_right_splice_target")
     @patch("scp_cv.services.playback.list_display_targets")
@@ -431,7 +435,7 @@ class TestSelectDisplayTarget:
             height=1080,
         )
 
-        session = select_display_target(PlaybackMode.LEFT_RIGHT_SPLICE)
+        session = select_display_target(1, PlaybackMode.LEFT_RIGHT_SPLICE)
 
         assert session.display_mode == PlaybackMode.LEFT_RIGHT_SPLICE
         assert session.is_spliced is True
@@ -450,9 +454,9 @@ class TestSelectDisplayTarget:
         mock_splice.return_value = None
 
         with pytest.raises(PlaybackError, match="不足"):
-            select_display_target(PlaybackMode.LEFT_RIGHT_SPLICE)
+            select_display_target(1, PlaybackMode.LEFT_RIGHT_SPLICE)
 
     def test_unknown_display_mode_raises(self) -> None:
         """未知的显示模式应抛出 PlaybackError。"""
         with pytest.raises(PlaybackError, match="未知"):
-            select_display_target("triple_screen")
+            select_display_target(1, "triple_screen")
