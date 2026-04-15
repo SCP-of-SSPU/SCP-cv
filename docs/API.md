@@ -25,24 +25,27 @@
 
 ### 播放控制
 
-| 方法 | 路径 | 参数 | 响应 |
-|------|------|------|------|
-| POST | `/playback/open/` | `source_id`, `autoplay`（默认 `true`） | `{success, session: <快照>}` |
-| POST | `/playback/control/` | `action`（`play` / `pause` / `stop`） | `{success, session: <快照>}` |
-| POST | `/playback/navigate/` | `action`（`next` / `prev` / `goto` / `seek`）, `target_index`（goto 目标页，从 1 开始）, `position_ms`（seek 毫秒位置） | `{success, session: <快照>}` |
-| POST | `/playback/close/` | — | `{success, session: <快照>}` |
-
-### 显示配置
+> 所有播放控制接口路径中包含 `<window_id>`（1-4），表示目标输出窗口编号。
 
 | 方法 | 路径 | 参数 | 响应 |
 |------|------|------|------|
-| POST | `/display/switch/` | `display_mode`（`single` / `left_right_splice`）, `target_display_name` | `{success, session: <快照>}` |
+| POST | `/playback/<window_id>/open/` | `source_id`, `autoplay`（默认 `true`） | `{success, session: <快照>}` |
+| POST | `/playback/<window_id>/control/` | `action`（`play` / `pause` / `stop`） | `{success, session: <快照>}` |
+| POST | `/playback/<window_id>/navigate/` | `action`（`next` / `prev` / `goto` / `seek`）, `target_index`（goto 目标页，从 1 开始）, `position_ms`（seek 毫秒位置） | `{success, session: <快照>}` |
+| POST | `/playback/<window_id>/close/` | — | `{success, session: <快照>}` |
+| POST | `/playback/<window_id>/toggle-loop/` | — | `{success, session: <快照>}` |
+
+### 拼接控制
+
+| 方法 | 路径 | 参数 | 响应 |
+|------|------|------|------|
+| POST | `/playback/splice/` | `enabled`（`true` / `false`） | `{success, splice_active: bool}` |
 
 ### 状态查询 & SSE
 
 | 方法 | 路径 | 参数 | 响应 |
 |------|------|------|------|
-| GET | `/api/session/` | — | `{success, session: <快照>}` |
+| GET | `/api/session/` | `window_id`（可选，1-4，缺省返回所有窗口） | `{success, session: <快照>}` 或 `{success, sessions: [<快照>, ...]}` |
 | GET | `/events/` | `last_id`（可选，断线续传序列号） | SSE 事件流 |
 
 ### 会话快照字段
@@ -51,6 +54,7 @@
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
+| `window_id` | int | 窗口编号（1-4） |
 | `session_id` | int | 会话主键 |
 | `source_name` | string | 当前源名称（无源时为空串） |
 | `source_type` | string | 源类型代码（`PPT` / `VIDEO` / `RTSP_STREAM` 等） |

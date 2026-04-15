@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## 2026-04-18
+
+### 多窗口输出架构改造
+
+- **数据模型**：`PlaybackSession` 新增 `window_id` 字段（PositiveSmallIntegerField, unique），标识所属输出窗口
+- **服务层**：所有 playback 函数增加 `window_id` 参数，新增 `get_all_sessions()`、`get_all_sessions_snapshot()`、`set_splice_mode()`、`is_splice_mode_active()`、`sync_splice_command()` 等多窗口/拼接相关函数
+- **播放控制器**：改为多适配器架构（`_adapters: dict[int, SourceAdapter]`），按 window_id 分别创建、轮询、销毁适配器
+- **播放窗口**：`window_id` 改为 int 类型，启动时 5 秒显示窗口编号 Overlay
+- **启动器 GUI**：逐窗口弹出屏幕选择对话框，支持 4 个独立输出窗口分配到不同屏幕
+- **HTTP 路由**：播放控制接口路径改为 `/playback/<window_id>/xxx/`，新增 `/playback/splice/` 拼接控制端点，移除旧 `/display/switch/`
+- **gRPC**：`_extract_window_id()` 从请求中提取 window_id，缺省回退到窗口 1 保持向后兼容
+- **测试**：全部播放服务测试用例更新为传递 `window_id=1`
+- **迁移**：`0007_add_window_id` 添加窗口编号字段
+
 ## 2026-04-17
 
 ### SRT 直接播放——mpv/libmpv 低延迟引擎
