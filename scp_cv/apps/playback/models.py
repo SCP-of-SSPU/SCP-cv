@@ -24,6 +24,7 @@ class SourceType(models.TextChoices):
     WEB = "web", "网页"
     CUSTOM_STREAM = "custom_stream", "自定义流"
     RTSP_STREAM = "rtsp_stream", "RTSP 流"
+    SRT_STREAM = "srt_stream", "SRT 流"
 
 
 class PlaybackMode(models.TextChoices):

@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## 2026-04-17
+
+### SRT 直接播放——mpv/libmpv 低延迟引擎
+
+- **架构切换**：RTSP 拉流链路替换为 SRT 直连，路径变为 OBS → SRT(30ms) → MediaMTX → SRT read → mpv/libmpv → PySide6 QWidget，延迟目标 < 200ms
+- **新增 SrtStreamAdapter**：基于 python-mpv + libmpv，通过 `wid` 参数嵌入 Qt 窗口，低延迟配置（`profile=low-latency, cache=no, untimed=True`）
+- **新增下载脚本**：`tools/download_third_party.ps1` 自动从 GitHub Releases 下载 libmpv-2.dll
+- **数据模型**：新增 `SourceType.SRT_STREAM`，保留 `RTSP_STREAM` 向后兼容
+- **Proto 更新**：新增 `SOURCE_SRT_STREAM(8)`
+- **服务层**：新增 `get_srt_read_url()`，`sync_streams_to_media_sources()` 改用 SRT URL
+- **适配器工厂**：所有流类型映射到 `SrtStreamAdapter`，保留旧别名
+- **依赖**：`requirements.txt` 添加 `python-mpv>=1.0.7`
+- **MediaMTX**：关闭 WebRTC 服务（`webrtc: false`）
+
 ## 2026-04-16
 
 ### GStreamer 移除与 RTSP 播放重构

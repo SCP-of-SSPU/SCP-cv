@@ -220,7 +220,7 @@ def sync_streams_to_media_sources() -> dict[str, int]:
     :return: 同步计数 {created, updated, removed}
     """
     from scp_cv.apps.streams.models import StreamSource
-    from scp_cv.services.mediamtx import get_rtsp_read_url
+    from scp_cv.services.mediamtx import get_srt_read_url
 
     counts: dict[str, int] = {"created": 0, "updated": 0, "removed": 0}
     active_identifiers: set[str] = set()
@@ -229,32 +229,40 @@ def sync_streams_to_media_sources() -> dict[str, int]:
     for stream in StreamSource.objects.filter(is_online=True):
         active_identifiers.add(stream.stream_identifier)
         existing = MediaSource.objects.filter(
-            source_type=SourceType.RTSP_STREAM,
+            source_type=SourceType.SRT_STREAM,
             stream_identifier=stream.stream_identifier,
         ).first()
 
-        rtsp_url = get_rtsp_read_url(stream.stream_identifier)
+        # 向后兼容：同时查找旧的 RTSP_STREAM 类型记录
+        if existing is None:
+            existing = MediaSource.objects.filter(
+                source_type=SourceType.RTSP_STREAM,
+                stream_identifier=stream.stream_identifier,
+            ).first()
+
+        srt_url = get_srt_read_url(stream.stream_identifier)
 
         if existing is None:
             MediaSource.objects.create(
-                source_type=SourceType.RTSP_STREAM,
+                source_type=SourceType.SRT_STREAM,
                 name=stream.name,
-                uri=rtsp_url,
+                uri=srt_url,
                 stream_identifier=stream.stream_identifier,
                 is_available=True,
             )
             counts["created"] += 1
         else:
-            if not existing.is_available or existing.uri != rtsp_url:
+            if not existing.is_available or existing.uri != srt_url:
                 existing.is_available = True
-                existing.uri = rtsp_url
+                existing.uri = srt_url
                 existing.name = stream.name
+                existing.source_type = SourceType.SRT_STREAM
                 existing.save()
                 counts["updated"] += 1
 
     # 标记已离线的流为不可用
     offline_sources = MediaSource.objects.filter(
-        source_type=SourceType.RTSP_STREAM,
+        source_type__in=[SourceType.SRT_STREAM, SourceType.RTSP_STREAM],
     ).exclude(stream_identifier__in=active_identifiers)
 
     for offline_source in offline_sources.filter(is_available=True):

@@ -27,9 +27,17 @@ if _version_not_supported:
 
 class PlaybackControlServiceStub(object):
     """──────────────────────────────────────────────────────────────
-    PlaybackControlService
-    统一播放控制 gRPC 服务，Django 进程内运行。
-    包含源管理、播放控制、内容导航、显示配置、状态查询。
+    PlaybackControlService — SCP-cv 统一播放控制 gRPC 服务
+
+    该服务随 Django 进程启动（django-socio-grpc 共宿主），默认端口 50051。
+    外部系统（中控、自动化脚本等）通过本服务远程操控大屏播放内容。
+
+    功能分组：
+    源管理     — 打开 / 关闭媒体源（PPT、视频、WebRTC 流等）
+    播放控制   — 播放、暂停、停止
+    内容导航   — PPT 翻页、视频/音频时间跳转
+    状态查询   — 运行时概览、详细播放状态
+    显示器管理 — 查询可用屏幕、切换单屏/拼接模式
     ──────────────────────────────────────────────────────────────
     """
 
@@ -88,34 +96,56 @@ class PlaybackControlServiceStub(object):
 
 class PlaybackControlServiceServicer(object):
     """──────────────────────────────────────────────────────────────
-    PlaybackControlService
-    统一播放控制 gRPC 服务，Django 进程内运行。
-    包含源管理、播放控制、内容导航、显示配置、状态查询。
+    PlaybackControlService — SCP-cv 统一播放控制 gRPC 服务
+
+    该服务随 Django 进程启动（django-socio-grpc 共宿主），默认端口 50051。
+    外部系统（中控、自动化脚本等）通过本服务远程操控大屏播放内容。
+
+    功能分组：
+    源管理     — 打开 / 关闭媒体源（PPT、视频、WebRTC 流等）
+    播放控制   — 播放、暂停、停止
+    内容导航   — PPT 翻页、视频/音频时间跳转
+    状态查询   — 运行时概览、详细播放状态
+    显示器管理 — 查询可用屏幕、切换单屏/拼接模式
     ──────────────────────────────────────────────────────────────
     """
 
     def OpenSource(self, request, context):
         """── 源管理 ──
+
+        打开指定媒体源并开始播放。
+        通过 media_source_id 指定要打开的 MediaSource 记录。
+        若当前已有播放中的源，会先自动关闭再打开新源。
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def CloseSource(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """关闭当前正在播放的媒体源。
+        将播放状态归零，播放器窗口回到待命状态。
+        无需指定 ID，始终作用于当前活跃的源。
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def ControlPlayback(self, request, context):
         """── 播放控制 ──
+
+        对当前源执行播放/暂停/停止操作。
+        已有源打开时有效；无活跃源时返回错误。
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def NavigateContent(self, request, context):
-        """── 内容导航（PPT 翻页 / 视频跳转） ──
+        """── 内容导航 ──
+
+        PPT 翻页（上/下/跳转指定页）或 视频/音频时间跳转。
+        仅在相应源类型激活时生效：PPT 支持 NEXT/PREV/GOTO，
+        视频/音频支持 SEEK；源类型不匹配的动作会被忽略。
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -123,32 +153,44 @@ class PlaybackControlServiceServicer(object):
 
     def GetRuntimeStatus(self, request, context):
         """── 状态查询 ──
+
+        获取系统运行时概览（当前源类型、播放状态、显示模式、gRPC 地址等）。
+        适合中控面板轮询或健康检查使用。
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def GetPlaybackState(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """获取详细播放状态，包含 PPT 页码、视频进度等子类型特有信息。
+        比 GetRuntimeStatus 更完整，适合需要渲染进度条/页码的客户端。
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def ListDisplayTargets(self, request, context):
         """── 显示器管理 ──
+
+        列出当前主机上所有可用显示器及其分辨率、坐标信息。
+        同时返回自动拼接标签（如 "Display 1 + Display 2"）。
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def SelectDisplayTarget(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """切换显示目标：可选 single（单屏）或 left_right_splice（左右拼接）。
+        切换后播放器窗口会自动重新定位到目标屏幕。
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def StopCurrentContent(self, request, context):
-        """── 旧接口（兼容） ──
+        """── 兼容接口 ──
+
+        停止当前播放内容（等价于 CloseSource，保留供旧版客户端调用）。
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -212,9 +254,17 @@ def add_PlaybackControlServiceServicer_to_server(servicer, server):
  # This class is part of an EXPERIMENTAL API.
 class PlaybackControlService(object):
     """──────────────────────────────────────────────────────────────
-    PlaybackControlService
-    统一播放控制 gRPC 服务，Django 进程内运行。
-    包含源管理、播放控制、内容导航、显示配置、状态查询。
+    PlaybackControlService — SCP-cv 统一播放控制 gRPC 服务
+
+    该服务随 Django 进程启动（django-socio-grpc 共宿主），默认端口 50051。
+    外部系统（中控、自动化脚本等）通过本服务远程操控大屏播放内容。
+
+    功能分组：
+    源管理     — 打开 / 关闭媒体源（PPT、视频、WebRTC 流等）
+    播放控制   — 播放、暂停、停止
+    内容导航   — PPT 翻页、视频/音频时间跳转
+    状态查询   — 运行时概览、详细播放状态
+    显示器管理 — 查询可用屏幕、切换单屏/拼接模式
     ──────────────────────────────────────────────────────────────
     """
 

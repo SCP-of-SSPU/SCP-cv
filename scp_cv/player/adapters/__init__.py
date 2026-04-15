@@ -23,9 +23,10 @@ _ADAPTER_CLASS_MAP: dict[str, str] = {
     "audio": "scp_cv.player.adapters.video.VideoSourceAdapter",  # 音频复用视频适配器
     "image": "scp_cv.player.adapters.image.ImageSourceAdapter",
     "web": "scp_cv.player.adapters.web.WebSourceAdapter",
-    "rtsp_stream": "scp_cv.player.adapters.rtsp_stream.RtspStreamAdapter",
-    "webrtc_stream": "scp_cv.player.adapters.rtsp_stream.RtspStreamAdapter",  # 向后兼容
-    "custom_stream": "scp_cv.player.adapters.rtsp_stream.RtspStreamAdapter",  # 向后兼容
+    "srt_stream": "scp_cv.player.adapters.srt_stream.SrtStreamAdapter",
+    "rtsp_stream": "scp_cv.player.adapters.srt_stream.SrtStreamAdapter",  # 向后兼容：已迁移至 SRT
+    "webrtc_stream": "scp_cv.player.adapters.srt_stream.SrtStreamAdapter",  # 向后兼容
+    "custom_stream": "scp_cv.player.adapters.srt_stream.SrtStreamAdapter",  # 向后兼容
 }
 
 

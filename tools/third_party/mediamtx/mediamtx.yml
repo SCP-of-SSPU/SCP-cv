@@ -380,7 +380,8 @@ hlsMuxerCloseAfter: 60s
 # Global settings -> WebRTC server
 
 # Allow clients to publish and read streams with the WebRTC protocol.
-webrtc: true
+# 已关闭：本项目使用 SRT→RTSP 链路，不需要 WebRTC
+webrtc: false
 # Address of the WebRTC HTTP listener.
 webrtcAddress: :8889
 # Enable HTTPS on the WebRTC server.

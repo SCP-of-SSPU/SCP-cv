@@ -45,6 +45,16 @@ def get_srt_publish_url(stream_identifier: str) -> str:
     return f"srt://127.0.0.1:{_SRT_PORT}?streamid=publish:{stream_identifier}&latency=30000"
 
 
+def get_srt_read_url(stream_identifier: str) -> str:
+    """
+    获取 SRT 拉流地址（供播放器通过 SRT 直接读取使用）。
+    跳过 RTSP 转换环节，播放器直接从 MediaMTX SRT 端口拉流，延迟更低。
+    :param stream_identifier: 流标识符（路径名）
+    :return: SRT 拉流 URL
+    """
+    return f"srt://127.0.0.1:{_SRT_PORT}?streamid=read:{stream_identifier}&latency=30000"
+
+
 def get_rtsp_read_url(stream_identifier: str) -> str:
     """
     获取 RTSP 拉流地址（供播放器通过 RTSP 读取使用）。
@@ -180,12 +190,12 @@ def sync_stream_states() -> dict[str, int]:
     for new_identifier in new_identifiers:
         # 自动生成流名称：使用路径名作为显示名
         auto_name = f"[自动] {new_identifier}"
-        # 生成 RTSP 读取地址供播放器使用
-        rtsp_url = get_rtsp_read_url(new_identifier)
+        # 生成 SRT 读取地址供播放器使用
+        srt_url = get_srt_read_url(new_identifier)
         StreamSource.objects.create(
             name=auto_name,
             stream_identifier=new_identifier,
-            stream_url=rtsp_url,
+            stream_url=srt_url,
             is_active=True,
             is_online=True,
             current_state=StreamState.ONLINE,
