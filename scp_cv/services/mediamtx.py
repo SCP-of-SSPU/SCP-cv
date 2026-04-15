@@ -1,7 +1,7 @@
 #!/user/bin/env python
 # -*- coding: UTF-8 -*-
 '''
-MediaMTX 集成服务：管理 MediaMTX 进程、检测流状态、提供 WebRTC 连接入口。
+MediaMTX 集成服务：管理 MediaMTX 进程、检测流状态、提供 SRT/RTSP 连接入口。
 与 Django 应用解耦，仅通过服务层调用。
 @Project : SCP-cv
 @File : mediamtx.py
@@ -25,30 +25,34 @@ logger = logging.getLogger(__name__)
 # MediaMTX API 默认地址（与 mediamtx.yml 中 api 配置一致）
 _MEDIAMTX_API_BASE = "http://127.0.0.1:9997"
 
-# WebRTC 服务端口（与 mediamtx.yml 中 webrtcAddress 一致）
-_WEBRTC_PORT = 8889
+# RTSP 服务端口（与 mediamtx.yml 中 rtspAddress 一致）
+_RTSP_PORT = 8554
+
+# SRT 服务端口（与 mediamtx.yml 中 srtAddress 一致）
+_SRT_PORT = 8890
 
 # MediaMTX 进程引用
 _mediamtx_process: Optional[subprocess.Popen[bytes]] = None
 
 
-def get_whip_publish_url(stream_identifier: str) -> str:
+def get_srt_publish_url(stream_identifier: str) -> str:
     """
-    获取 WHIP 推流地址（供 OBS 等外部设备通过 WebRTC 推送使用）。
-    OBS 30+ 原生支持 WHIP 输出。
+    获取 SRT 推流地址（供 OBS 等外部设备通过 SRT 推送使用）。
+    OBS 原生支持 SRT 输出，延迟 30ms。
     :param stream_identifier: 流标识符（路径名）
-    :return: WHIP 推流 URL
+    :return: SRT 推流 URL
     """
-    return f"http://127.0.0.1:{_WEBRTC_PORT}/{stream_identifier}/whip"
+    return f"srt://127.0.0.1:{_SRT_PORT}?streamid=publish:{stream_identifier}&latency=30000"
 
 
-def get_whep_read_url(stream_identifier: str) -> str:
+def get_rtsp_read_url(stream_identifier: str) -> str:
     """
-    获取 WHEP 拉流地址（供播放器通过 WebRTC 读取使用）。
+    获取 RTSP 拉流地址（供播放器通过 RTSP 读取使用）。
+    MediaMTX 自动将 SRT 入流转为 RTSP 供 QMediaPlayer 消费。
     :param stream_identifier: 流标识符（路径名）
-    :return: WHEP 拉流 URL
+    :return: RTSP 拉流 URL
     """
-    return f"http://127.0.0.1:{_WEBRTC_PORT}/{stream_identifier}/whep"
+    return f"rtsp://127.0.0.1:{_RTSP_PORT}/{stream_identifier}"
 
 
 def start_mediamtx() -> bool:
@@ -176,12 +180,12 @@ def sync_stream_states() -> dict[str, int]:
     for new_identifier in new_identifiers:
         # 自动生成流名称：使用路径名作为显示名
         auto_name = f"[自动] {new_identifier}"
-        # 生成 WHEP 读取地址供播放器使用
-        whep_url = get_whep_read_url(new_identifier)
+        # 生成 RTSP 读取地址供播放器使用
+        rtsp_url = get_rtsp_read_url(new_identifier)
         StreamSource.objects.create(
             name=auto_name,
             stream_identifier=new_identifier,
-            stream_url=whep_url,
+            stream_url=rtsp_url,
             is_active=True,
             is_online=True,
             current_state=StreamState.ONLINE,

@@ -2,6 +2,16 @@
 
 ## 2026-04-16
 
+### GStreamer 移除与 RTSP 播放重构
+
+- **架构切换**：移除全部 GStreamer/PyGObject/WebRTC 依赖，改用 OBS → SRT(30ms) → MediaMTX → RTSP → QMediaPlayer(FFmpeg 后端) 链路
+- **新增 RtspStreamAdapter**：基于 QMediaPlayer + QVideoWidget + QAudioOutput，支持硬件解码（DXVA2/D3D11VA）
+- **删除文件**：`gst_pipeline.py`、`frame_sync.py`、`webrtc_stream.py`、`whep_client.py`、`install_pygobject.py`
+- **MediaMTX 配置**：启用 SRT(8890) 和 RTSP(8554)，关闭 WebRTC
+- **数据模型**：`SourceType.WEBRTC_STREAM` → `SourceType.RTSP_STREAM`
+- **Proto 更新**：`SOURCE_WEBRTC_STREAM` → `SOURCE_RTSP_STREAM`
+- **依赖精简**：从 `requirements.txt` 移除 `PyGObject>=3.50.0`
+
 ### PPT 放映窗口嵌入 PySide 播放器
 
 - **窗口嵌入重构**：通过 `win32gui.SetParent()` 将 PowerPoint 放映窗口嵌入到 PySide `_video_container` 中，解决 PPT 独立窗口被播放器窗口過盖的问题

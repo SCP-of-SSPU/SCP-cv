@@ -8,7 +8,6 @@
 线程模型：
 - Qt 主线程：所有窗口操作、适配器创建和控制（通过信号分发）
 - 轮询线程：定期读取 DB 中的 pending_command，发射信号到主线程
-- GLib MainLoop 线程：运行 GLib.MainLoop，驱动 libnice（webrtcbin ICE 层）的网络 I/O
 
 所有适配器操作（open / play / pause / stop / close / 导航）
 均通过 Qt 信号从轮询线程调度到主线程执行，避免跨线程 GUI 操作。
@@ -42,7 +41,6 @@ class PlayerController(QObject):
     - 轮询 DB 中的 pending_command 并通过信号分发到 Qt 主线程
     - 将适配器状态回写 DB
     - 窗口定位与显示模式切换
-    - GLib MainLoop 线程驱动 GStreamer 内部回调和 libnice ICE 网络 I/O
 
     线程安全：
     - 适配器操作全部在 Qt 主线程执行（through sig_dispatch_command）
@@ -74,10 +72,6 @@ class PlayerController(QObject):
 
         # 上一次处理的指令 hash（避免重复处理同一指令）
         self._last_command_hash = ""
-
-        # GLib MainLoop 线程（驱动 libnice ICE 网络 I/O）
-        self._glib_main_loop: Optional[object] = None
-        self._glib_loop_thread: Optional[threading.Thread] = None
 
         # 连接指令分发信号到主线程处理槽
         self.sig_dispatch_command.connect(self._execute_command_on_main_thread)
@@ -116,64 +110,15 @@ class PlayerController(QObject):
             return primary_window.video_window_handle
         return 0
 
-    # ═══════════════════ GLib 事件泵 ═══════════════════
-
-    def _start_glib_pump(self) -> None:
-        """
-        启动 GLib MainLoop 线程。
-        libnice（webrtcbin 的 ICE 层）需要 GLib MainLoop 持续运行，
-        才能正确调度 socket I/O（STUN 绑定、ICE 连接检查等）。
-        仅靠 QTimer + context.iteration(False) 无法驱动 I/O 源。
-        """
-        if self._glib_loop_thread is not None:
-            return
-
-        from gi.repository import GLib
-        self._glib_main_loop = GLib.MainLoop.new(GLib.MainContext.default(), False)
-        self._glib_loop_thread = threading.Thread(
-            target=self._run_glib_main_loop,
-            daemon=True,
-            name="glib-mainloop",
-        )
-        self._glib_loop_thread.start()
-        logger.info("GLib MainLoop 线程已启动")
-
-    def _stop_glib_pump(self) -> None:
-        """停止 GLib MainLoop 线程。"""
-        if self._glib_main_loop is not None:
-            self._glib_main_loop.quit()
-        if self._glib_loop_thread is not None:
-            self._glib_loop_thread.join(timeout=3.0)
-            self._glib_loop_thread = None
-        self._glib_main_loop = None
-        logger.info("GLib MainLoop 线程已停止")
-
-    def _run_glib_main_loop(self) -> None:
-        """
-        在独立线程中运行 GLib MainLoop。
-        libnice 会在此线程中执行 ICE 候选收集的 STUN/TURN 网络 I/O，
-        GStreamer webrtcbin 的信号（on-ice-candidate、notify::ice-gathering-state）
-        也在此线程中触发。上层回调已设计为线程安全（通过 threading.Thread 执行 WHEP 交换）。
-        """
-        logger.debug("GLib MainLoop 开始运行")
-        try:
-            self._glib_main_loop.run()
-        except Exception as loop_error:
-            logger.error("GLib MainLoop 异常退出：%s", loop_error)
-        logger.debug("GLib MainLoop 已退出")
-
     # ═══════════════════ 轮询生命周期 ═══════════════════
 
     def start_polling(self, interval_seconds: float = 0.5) -> None:
         """
-        启动后台轮询线程和 GLib 事件泵。
+        启动后台轮询线程。
         :param interval_seconds: 轮询间隔（秒）
         """
         if self._poll_running:
             return
-
-        # 启动 GLib 事件泵（在 Qt 主线程，驱动 GStreamer 信号）
-        self._start_glib_pump()
 
         self._poll_running = True
         self._poll_thread = threading.Thread(
@@ -186,14 +131,13 @@ class PlayerController(QObject):
         logger.info("控制器轮询已启动（间隔 %.1fs）", interval_seconds)
 
     def stop_polling(self) -> None:
-        """停止轮询、关闭适配器和 GLib 事件泵。"""
+        """停止轮询并关闭适配器。"""
         self._poll_running = False
         if self._poll_thread is not None:
             self._poll_thread.join(timeout=3.0)
             self._poll_thread = None
 
         self._close_current_adapter()
-        self._stop_glib_pump()
         logger.info("控制器轮询已停止")
 
     # ═══════════════════ 窗口定位 ═══════════════════

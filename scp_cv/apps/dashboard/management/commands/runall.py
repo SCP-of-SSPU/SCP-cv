@@ -91,7 +91,7 @@ class Command(BaseCommand):
         # 等待 Django 服务器就绪
         self._wait_for_django(host, port)
 
-        # ═══ 第三步：初始化 GStreamer 并启动播放器 ═══
+        # ═══ 第三步：启动播放器 ═══
         self._run_player(dev_mode, poll_interval)
 
         # ═══ 播放器退出，清理全部子进程 ═══
@@ -203,29 +203,15 @@ class Command(BaseCommand):
 
     def _run_player(self, dev_mode: bool, poll_interval: float) -> None:
         """
-        初始化 GStreamer 并在主线程运行 PySide6 播放器。
+        在主线程运行 PySide6 播放器。
         Qt 要求 QApplication 在主线程创建和运行。
         :param dev_mode: 是否开发模式（有标题栏，可移动缩放）
         :param poll_interval: 轮询间隔秒数
         """
-        # 初始化 GStreamer（必须在 Qt 之前）
-        from scp_cv.player import init_gstreamer
-
-        gst_ok = init_gstreamer()
-        if not gst_ok:
-            self.stderr.write(self.style.ERROR(
-                "GStreamer 初始化失败。请安装 GStreamer（Complete 选项）。\n"
-                "支持变体（按优先级）：MSVC x86_64 → MinGW x86_64 → MSYS2 MinGW64\n"
-                "下载地址：https://gstreamer.freedesktop.org/download/\n"
-                "PyGObject 安装请运行：python tools/install_pygobject.py"
-            ))
-            self._cleanup_subprocesses()
-            sys.exit(1)
-
         from PySide6.QtWidgets import QApplication
 
         self.stdout.write(self.style.SUCCESS(
-            f"启动播放器（dev={dev_mode}, poll={poll_interval}s, engine=GStreamer+WebRTC）"
+            f"启动播放器（dev={dev_mode}, poll={poll_interval}s, engine=QMediaPlayer+RTSP）"
         ))
 
         # 创建 Qt 应用

@@ -2,7 +2,7 @@
 # -*- coding: UTF-8 -*-
 '''
 播放器显示窗口：每物理屏幕一个实例，支持全屏/无边框/置顶。
-视频通过 GStreamer WebRTC 管线渲染到嵌入的原生容器中。
+视频通过 QMediaPlayer 渲染到嵌入的原生容器中。
 @Project : SCP-cv
 @File : window.py
 @Author : Qintsg
@@ -30,12 +30,12 @@ class PlayerWindow(QWidget):
 
     职责：
     - 全屏/无边框/置顶（正常模式）或可调窗口（DEBUG 模式）
-    - 提供原生窗口句柄供 GStreamer video sink 渲染
+    - 提供原生窗口句柄供视频渲染
     - 显示器定位（坐标和尺寸由外部控制器指定）
 
-    与 GStreamer 管线的交互：
+    与视频管线的交互：
     - 通过 video_window_handle 属性提供渲染目标
-    - GStreamer 管线的创建和生命周期由 PlayerController 管理
+    - 视频管线的创建和生命周期由 PlayerController 管理
     """
 
     # 信号：外部可监听窗口关闭
@@ -85,7 +85,7 @@ class PlayerWindow(QWidget):
         self._background_label.setStyleSheet("background-color: #000000;")
         self._stacked_layout.addWidget(self._background_label)
 
-        # 顶层：GStreamer 视频渲染容器（原生窗口）
+        # 顶层：视频渲染容器（原生窗口）
         self._video_container = QWidget()
         self._video_container.setAttribute(
             Qt.WidgetAttribute.WA_NativeWindow, True,
@@ -114,7 +114,7 @@ class PlayerWindow(QWidget):
     def video_window_handle(self) -> int:
         """
         视频容器的原生窗口句柄。
-        GStreamer video sink 通过此句柄将帧渲染到窗口中。
+        视频适配器通过此句柄将帧渲染到窗口中。
         :return: 原生窗口句柄（int）
         """
         return int(self._video_container.winId())
@@ -148,7 +148,7 @@ class PlayerWindow(QWidget):
 
     @Slot()
     def show_video_container(self) -> None:
-        """切换到视频显示模式：隐藏黑屏，显示 GStreamer 渲染容器。"""
+        """切换到视频显示模式：隐藏黑屏，显示视频渲染容器。"""
         self._background_label.hide()
         self._video_container.show()
         self._stacked_layout.setCurrentWidget(self._video_container)

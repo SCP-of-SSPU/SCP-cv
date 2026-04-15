@@ -47,7 +47,7 @@ class SourceAdapter(ABC):
     每种可播放内容类型对应一个子类实现：
     - PptSourceAdapter：PowerPoint COM 放映
     - VideoSourceAdapter：QMediaPlayer 本地视频
-    - WebRTCStreamAdapter：GStreamer WebRTC 管线
+    - WebRTCStreamAdapter / RtspStreamAdapter：RTSP 流播放
 
     生命周期：open → play/pause/stop → close
     适配器实例由 PlayerManager 创建和管理。

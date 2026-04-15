@@ -53,9 +53,9 @@
 |------|------|------|
 | `session_id` | int | 会话主键 |
 | `source_name` | string | 当前源名称（无源时为空串） |
-| `source_type` | string | 源类型代码（`PPT` / `VIDEO` / `WEBRTC_STREAM` 等） |
+| `source_type` | string | 源类型代码（`PPT` / `VIDEO` / `RTSP_STREAM` 等） |
 | `source_type_label` | string | 源类型显示标签 |
-| `source_uri` | string | 源 URI（文件路径或 WHEP URL） |
+| `source_uri` | string | 源 URI（文件路径或 RTSP URL） |
 | `playback_state` | string | 播放状态代码（`IDLE` / `PLAYING` / `PAUSED` / `STOPPED`） |
 | `playback_state_label` | string | 播放状态显示标签 |
 | `display_mode` | string | 显示模式代码（`single` / `left_right_splice`） |
@@ -101,7 +101,7 @@
 
 ### 枚举定义
 
-**SourceType**：`SOURCE_UNKNOWN(0)` / `SOURCE_PPT(1)` / `SOURCE_VIDEO(2)` / `SOURCE_AUDIO(3)` / `SOURCE_IMAGE(4)` / `SOURCE_WEB(5)` / `SOURCE_CUSTOM_STREAM(6)` / `SOURCE_WEBRTC_STREAM(7)`
+**SourceType**：`SOURCE_UNKNOWN(0)` / `SOURCE_PPT(1)` / `SOURCE_VIDEO(2)` / `SOURCE_AUDIO(3)` / `SOURCE_IMAGE(4)` / `SOURCE_WEB(5)` / `SOURCE_CUSTOM_STREAM(6)` / `SOURCE_RTSP_STREAM(7)`
 
 **PlaybackAction**：`ACTION_UNKNOWN(0)` / `ACTION_PLAY(1)` / `ACTION_PAUSE(2)` / `ACTION_STOP(3)`
 

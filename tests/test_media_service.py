@@ -235,8 +235,8 @@ class TestDeleteMediaSource:
 class TestSyncStreamsToMediaSources:
     """测试流状态同步到媒体源。"""
 
-    @patch("scp_cv.services.mediamtx.get_whep_read_url", return_value="http://localhost:8889/test/whep")
-    def test_creates_new_source_for_online_stream(self, mock_whep_url: MagicMock) -> None:
+    @patch("scp_cv.services.mediamtx.get_rtsp_read_url", return_value="rtsp://127.0.0.1:8554/test-stream")
+    def test_creates_new_source_for_online_stream(self, mock_rtsp_url: MagicMock) -> None:
         """在线的新流应创建对应的 MediaSource。"""
         from scp_cv.apps.streams.models import StreamSource
 
@@ -250,18 +250,18 @@ class TestSyncStreamsToMediaSources:
 
         assert counts["created"] == 1
         created_source = MediaSource.objects.get(stream_identifier="test-stream")
-        assert created_source.source_type == SourceType.WEBRTC_STREAM
+        assert created_source.source_type == SourceType.RTSP_STREAM
         assert created_source.is_available is True
-        assert created_source.uri == "http://localhost:8889/test/whep"
+        assert created_source.uri == "rtsp://127.0.0.1:8554/test-stream"
 
-    @patch("scp_cv.services.mediamtx.get_whep_read_url", return_value="http://localhost:8889/test/whep")
-    def test_marks_offline_streams_unavailable(self, mock_whep_url: MagicMock) -> None:
+    @patch("scp_cv.services.mediamtx.get_rtsp_read_url", return_value="rtsp://127.0.0.1:8554/test-stream")
+    def test_marks_offline_streams_unavailable(self, mock_rtsp_url: MagicMock) -> None:
         """流离线后，对应的 MediaSource 应标记为不可用。"""
-        # 预先创建一个 WebRTC 源（模拟之前在线）
+        # 预先创建一个 RTSP 源（模拟之前在线）
         MediaSource.objects.create(
-            source_type=SourceType.WEBRTC_STREAM,
+            source_type=SourceType.RTSP_STREAM,
             name="旧流",
-            uri="http://old/whep",
+            uri="rtsp://127.0.0.1:8554/gone-stream",
             stream_identifier="gone-stream",
             is_available=True,
         )

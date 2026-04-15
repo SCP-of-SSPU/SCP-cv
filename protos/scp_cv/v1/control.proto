@@ -83,7 +83,7 @@ enum SourceType {
   SOURCE_IMAGE = 4;          // 图片文件（.png / .jpg / .svg 等）
   SOURCE_WEB = 5;            // 网页内容（预留，待实现）
   SOURCE_CUSTOM_STREAM = 6;  // 自定义流（预留，待实现）
-  SOURCE_WEBRTC_STREAM = 7;  // WebRTC 实时流（通过 MediaMTX WHEP 拉流）
+  SOURCE_RTSP_STREAM = 7;  // RTSP 实时流（通过 MediaMTX RTSP 拉流）
 }
 
 // 播放控制动作，传入 ControlPlaybackRequest.action 字段。

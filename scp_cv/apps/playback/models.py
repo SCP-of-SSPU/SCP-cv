@@ -2,7 +2,7 @@
 # -*- coding: UTF-8 -*-
 '''
 播放系统数据模型：统一媒体源（MediaSource）与播放会话（PlaybackSession）。
-MediaSource 统一管理所有可播放源（PPT、视频、WebRTC 流等），
+MediaSource 统一管理所有可播放源（PPT、视频、RTSP 流等），
 PlaybackSession 维护当前播放状态与指令分发。
 @Project : SCP-cv
 @File : models.py
@@ -23,7 +23,7 @@ class SourceType(models.TextChoices):
     IMAGE = "image", "图片"
     WEB = "web", "网页"
     CUSTOM_STREAM = "custom_stream", "自定义流"
-    WEBRTC_STREAM = "webrtc_stream", "WebRTC 流"
+    RTSP_STREAM = "rtsp_stream", "RTSP 流"
 
 
 class PlaybackMode(models.TextChoices):
@@ -64,7 +64,7 @@ class MediaSource(models.Model):
     """
     统一媒体源模型，所有可播放内容的注册表。
     文件型源（PPT/视频/图片等）通过上传或本地路径录入；
-    WebRTC 流型源由 MediaMTX 自动发现后同步创建。
+    RTSP 流型源由 MediaMTX 自动发现后同步创建。
     """
 
     source_type = models.CharField(
@@ -88,13 +88,13 @@ class MediaSource(models.Model):
         verbose_name="上传文件",
         help_text="通过 Web 上传的文件存储路径",
     )
-    # 仅 WEBRTC_STREAM 类型使用，关联自动发现的流记录
+    # 仅 RTSP_STREAM 类型使用，关联自动发现的流记录
     stream_identifier = models.CharField(
         max_length=255,
         blank=True,
         db_index=True,
         verbose_name="流标识符",
-        help_text="WebRTC 流的 MediaMTX 路径标识",
+        help_text="RTSP 流的 MediaMTX 路径标识",
     )
     is_available = models.BooleanField(
         default=True,

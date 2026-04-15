@@ -1,14 +1,14 @@
 # SCP-cv
 
-> 面向 **单机大屏** 场景的统一播放控制系统——通过 Web 控制台、gRPC 接口远程操控本地大屏，支持 PPT、视频、音频、图片、WebRTC 实时流等多种媒体源。
+> 面向 **单机大屏** 场景的统一播放控制系统——通过 Web 控制台、gRPC 接口远程操控本地大屏，支持 PPT、视频、音频、图片、RTSP 实时流等多种媒体源。
 
 ---
 
 ## 功能特性
 
-- **统一媒体源管理**：本地文件上传、路径添加、WebRTC 流注册，全部媒体在同一界面管理
+- **统一媒体源管理**：本地文件上传、路径添加、RTSP 流注册，全部媒体在同一界面管理
 - **PPT 全功能控制**：通过 COM 自动化驱动 PowerPoint，支持翻页、跳转、播放/暂停
-- **GStreamer + WebRTC 播放**：基于 GStreamer 管线和 MediaMTX WHEP 实现低延迟流播放
+- **QMediaPlayer + RTSP 播放**：基于 Qt 6 QMediaPlayer（FFmpeg 后端）和 MediaMTX 实现低延迟 SRT→RTSP 流播放
 - **多显示器拼接**：单屏 / 左右双屏拼接模式，启动时通过 GUI 选择目标屏幕
 - **双协议控制面**：HTTP REST API + gRPC 双通道，适配 Web 前端、中控系统、自动化脚本
 - **SSE 实时推送**：播放状态和媒体源变更通过 Server-Sent Events 实时同步到浏览器
@@ -34,13 +34,13 @@
 │  PlayerController → 适配器分发     │
 │  ┌─────────┬──────────┬────────┐ │
 │  │ PPT适配  │ 视频适配  │ 流适配 │ │
-│  │ (COM)   │(GStreamer)│(WebRTC)│ │
+│  │ (COM)   │(QMedia)  │(RTSP)  │ │
 │  └─────────┴──────────┴────────┘ │
 └──────────────────────────────────┘
-           │ 拉流
+           │ 拉流 (RTSP)
 ┌──────────▼───────────────────────┐
 │       MediaMTX 流服务器             │
-│  WebRTC (WHIP/WHEP) · 端口 8889  │
+│  SRT 接收 (8890) → RTSP (8554)  │
 └──────────────────────────────────┘
 ```
 
@@ -51,7 +51,6 @@
 | 后端框架 | Django | 6.0.3 |
 | gRPC 集成 | django-socio-grpc | 0.25.0 |
 | 播放器 GUI | PySide6 (Qt 6) | 6.11.0 |
-| 流媒体管线 | PyGObject / GStreamer | ≥ 3.50.0 |
 | 流媒体服务器 | MediaMTX | — |
 | 数据库 | SQLite | 内置 |
 | 代码检查 | Ruff | 0.15.9 |
@@ -62,12 +61,6 @@
 ### 环境要求
 
 - **Python** 3.12+
-- **GStreamer**（[下载页](https://gstreamer.freedesktop.org/download/)，安装时选择 **Complete** 选项以包含开发文件）
-  - 支持变体（按优先级）：MSVC x86_64 → MinGW x86_64 → MSYS2 MinGW64
-- **C 编译器**（构建 PyGObject 时需要，任选其一）：
-  - Visual Studio（含 C++ 桌面开发组件）— 推荐
-  - GCC（通过 Scoop: `scoop install gcc`）
-  - MSYS2 MinGW-w64
 - **Microsoft PowerPoint**（PPT 播放功能需要，通过 COM 自动化调用）
 
 ### 安装
@@ -87,9 +80,6 @@ copy .env.example .env
 
 # 初始化数据库
 python manage.py migrate
-
-# 安装 PyGObject（GStreamer Python 绑定）
-python tools/install_pygobject.py
 ```
 
 ### 启动
