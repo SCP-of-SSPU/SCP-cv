@@ -52,6 +52,7 @@ class PptSourceAdapter(SourceAdapter):
         self._total_slides: int = 0
         self._file_path: str = ""
         self._window_handle: int = 0
+        self._ppt_hwnd: int = 0
         self._is_paused: bool = False
         # COM 线程锁（所有 COM 调用须串行）
         self._com_lock = threading.Lock()
@@ -109,65 +110,132 @@ class PptSourceAdapter(SourceAdapter):
             self._start_slideshow()
 
     def _start_slideshow(self) -> None:
-        """启动幻灯片放映并定位到目标屏幕。"""
+        """启动幻灯片放映并嵌入到 PySide 播放器窗口中。"""
         if self._presentation is None:
             return
 
-        # 配置放映参数
+        import win32gui
+        import win32con
+
+        # 配置放映参数：使用窗口模式，不占满独立屏幕
         settings = self._presentation.SlideShowSettings
         settings.ShowType = _PP_SLIDE_SHOW_SPEAKER
         settings.StartingSlide = 1
         settings.EndingSlide = self._total_slides
-
-        # 定位放映到目标屏幕（通过 PySide 窗口句柄查找屏幕编号）
-        screen_index = self._find_screen_index_for_handle(self._window_handle)
-        if screen_index > 0:
-            settings.ShowPresenterView = False
-            # COM 屏幕编号从 1 开始
-            try:
-                settings.PrimaryMonitor = screen_index
-            except Exception as monitor_error:
-                self._logger.warning(
-                    "设置目标屏幕失败（index=%d）：%s", screen_index, monitor_error,
-                )
+        settings.ShowPresenterView = False
 
         # 启动放映
         self._slideshow_window = settings.Run()
         self._slideshow_view = self._slideshow_window.View
         self._is_paused = False
 
+        # 获取 PowerPoint 放映窗口的 HWND
+        ppt_hwnd = self._find_slideshow_hwnd()
+        if ppt_hwnd == 0:
+            self._logger.warning("未找到 PowerPoint 放映窗口句柄，无法嵌入")
+            return
+
+        self._ppt_hwnd = ppt_hwnd
+
+        # 将 PPT 放映窗口嵌入到 PySide 视频容器中
+        # 移除窗口边框和标题栏
+        original_style = win32gui.GetWindowLong(ppt_hwnd, win32con.GWL_STYLE)
+        embedded_style = (
+            original_style
+            & ~win32con.WS_OVERLAPPEDWINDOW  # 移除标题栏、边框
+            | win32con.WS_CHILD              # 设为子窗口
+        )
+        win32gui.SetWindowLong(ppt_hwnd, win32con.GWL_STYLE, embedded_style)
+
+        # 移除扩展窗口样式中的顶层属性
+        extended_style = win32gui.GetWindowLong(ppt_hwnd, win32con.GWL_EXSTYLE)
+        extended_style &= ~win32con.WS_EX_TOPMOST
+        extended_style &= ~win32con.WS_EX_APPWINDOW
+        win32gui.SetWindowLong(ppt_hwnd, win32con.GWL_EXSTYLE, extended_style)
+
+        # 设置父窗口为 PySide 视频容器
+        win32gui.SetParent(ppt_hwnd, self._window_handle)
+
+        # 调整 PPT 窗口大小填满容器
+        self._resize_ppt_to_container()
+
         self._logger.info(
-            "PPT 放映已启动（屏幕=%d，共 %d 页）", screen_index, self._total_slides,
+            "PPT 放映已启动并嵌入到播放器窗口（HWND=%d，共 %d 页）",
+            ppt_hwnd, self._total_slides,
         )
 
-    @staticmethod
-    def _find_screen_index_for_handle(window_handle: int) -> int:
+    def _find_slideshow_hwnd(self) -> int:
         """
-        通过窗口句柄查找所在屏幕的 COM 编号（1-based）。
-        :param window_handle: 原生窗口句柄
-        :return: 屏幕编号（1-based），找不到返回 1（主屏幕）
+        查找 PowerPoint 放映窗口的 HWND。
+        优先通过 COM 对象获取，回退到枚举窗口查找。
+        :return: 放映窗口句柄，找不到返回 0
         """
+        # 方法1：通过 COM SlideShowWindow 获取 HWND
+        if self._slideshow_window is not None:
+            try:
+                ppt_hwnd = self._slideshow_window.HWND
+                if ppt_hwnd and ppt_hwnd > 0:
+                    self._logger.debug("通过 COM 获取到放映 HWND=%d", ppt_hwnd)
+                    return int(ppt_hwnd)
+            except Exception as com_error:
+                self._logger.debug("COM 获取 HWND 失败：%s，尝试枚举窗口", com_error)
+
+        # 方法2：枚举 Windows 窗口查找 PowerPoint 放映窗口
+        import win32gui
+
+        found_hwnd = 0
+        # PowerPoint 放映窗口类名为 "screenClass"
+        slideshow_class_names = ["screenClass", "paneClassDC"]
+
+        def enum_callback(hwnd: int, _extra: object) -> bool:
+            nonlocal found_hwnd
+            if win32gui.IsWindowVisible(hwnd):
+                class_name = win32gui.GetClassName(hwnd)
+                if class_name in slideshow_class_names:
+                    found_hwnd = hwnd
+                    return False  # 停止枚举
+            return True
+
         try:
-            from PySide6.QtWidgets import QApplication
-            from PySide6.QtGui import QWindow
-
-            # 通过 Qt 获取窗口所在屏幕
-            app = QApplication.instance()
-            if app is None:
-                return 1
-
-            screens = app.screens()
-            # 尝试通过 winId 关联找到目标窗口
-            for widget in app.topLevelWidgets():
-                if int(widget.winId()) == window_handle:
-                    window_screen = widget.screen()
-                    if window_screen is not None:
-                        for screen_index, screen in enumerate(screens, start=1):
-                            if screen.name() == window_screen.name():
-                                return screen_index
-            return 1
+            win32gui.EnumWindows(enum_callback, None)
         except Exception:
-            return 1
+            # EnumWindows 在回调返回 False 时会抛异常，正常行为
+            pass
+
+        if found_hwnd > 0:
+            self._logger.debug("通过枚举窗口找到放映 HWND=%d", found_hwnd)
+        else:
+            self._logger.warning("未能找到 PowerPoint 放映窗口")
+
+        return found_hwnd
+
+    def _resize_ppt_to_container(self) -> None:
+        """
+        调整 PPT 放映窗口大小以填满 PySide 视频容器。
+        通过 Qt 获取容器尺寸，再用 Win32 API 设置 PPT 窗口位置和大小。
+        """
+        if not hasattr(self, '_ppt_hwnd') or self._ppt_hwnd == 0:
+            return
+
+        import win32gui
+        import win32con
+
+        # 获取容器尺寸
+        container_rect = win32gui.GetClientRect(self._window_handle)
+        container_width = container_rect[2] - container_rect[0]
+        container_height = container_rect[3] - container_rect[1]
+
+        # 移动并调整大小
+        win32gui.SetWindowPos(
+            self._ppt_hwnd,
+            win32con.HWND_TOP,
+            0, 0,
+            container_width, container_height,
+            win32con.SWP_NOZORDER | win32con.SWP_SHOWWINDOW,
+        )
+        self._logger.debug(
+            "PPT 窗口已调整大小：%dx%d", container_width, container_height,
+        )
 
     def close(self) -> None:
         """关闭 PPT 放映并释放 COM 资源。"""
@@ -177,10 +245,19 @@ class PptSourceAdapter(SourceAdapter):
         self._logger.info("PPT 已关闭")
 
     def _close_com_resources(self) -> None:
-        """释放所有 COM 资源。"""
+        """释放所有 COM 资源，并解除 PPT 窗口嵌入。"""
         import pythoncom
 
         try:
+            # 先解除父窗口关系，避免 PowerPoint 关闭时影响 PySide 窗口
+            if self._ppt_hwnd != 0:
+                try:
+                    import win32gui
+                    win32gui.SetParent(self._ppt_hwnd, 0)  # 还原为顶层窗口
+                except Exception:
+                    pass
+                self._ppt_hwnd = 0
+
             if self._slideshow_view is not None:
                 try:
                     self._slideshow_view.Exit()

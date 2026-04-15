@@ -43,6 +43,14 @@ class Command(BaseCommand):
         入口：初始化 GStreamer → 显示启动器 GUI → 创建播放窗口。
         :param options: 命令行参数字典
         """
+        # 配置播放器日志（确保 player 模块日志输出到控制台）
+        import logging
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+            datefmt="%H:%M:%S",
+        )
+
         # 初始化 GStreamer（必须在 Qt 之前）
         from scp_cv.player import init_gstreamer
         gst_ok = init_gstreamer()
