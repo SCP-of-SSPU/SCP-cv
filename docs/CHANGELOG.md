@@ -2,6 +2,14 @@
 
 ## 2026-04-16
 
+### PPT 放映窗口嵌入 PySide 播放器
+
+- **窗口嵌入重构**：通过 `win32gui.SetParent()` 将 PowerPoint 放映窗口嵌入到 PySide `_video_container` 中，解决 PPT 独立窗口被播放器窗口過盖的问题
+- **窗口样式处理**：移除 `WS_OVERLAPPEDWINDOW` 边框、添加 `WS_CHILD`、清除 `WS_EX_TOPMOST`
+- **HWND 获取**：优先通过 COM `SlideShowWindow.HWND`，回退到枚举 `screenClass` 窗口
+- **关闭安全**：关闭前先解除父窗口关系，避免影响 PySide 窗口
+- **播放器日志**：`run_player` 命令添加 `logging.basicConfig()`，确保播放器模块日志输出到控制台
+
 ### 新增图片/网页适配器与视频循环播放
 
 - **ImageSourceAdapter**：新增静态图片显示适配器，使用 `QLabel` + `QPixmap` 实现等比缩放显示
