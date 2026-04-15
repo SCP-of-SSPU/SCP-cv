@@ -153,8 +153,11 @@ class PlayerController(QObject):
             from gi.repository import GLib
             context = GLib.MainContext.default()
             # 非阻塞迭代：处理所有已就绪事件
+            processed_count = 0
             while context.iteration(False):
-                pass
+                processed_count += 1
+            if processed_count > 0:
+                logger.debug("GLib 事件泵处理了 %d 个事件", processed_count)
         except ImportError:
             # GStreamer 未安装时忽略
             pass

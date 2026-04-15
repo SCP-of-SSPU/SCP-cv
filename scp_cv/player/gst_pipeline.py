@@ -261,6 +261,7 @@ class GstWebRTCPipeline:
             "notify::ice-gathering-state",
             self._on_ice_gathering_state_changed,
         )
+        self._webrtcbin.connect("on-ice-candidate", self._on_ice_candidate)
 
         # Bus：同步消息（窗口句柄绑定）+ 异步消息（错误/EOS）
         bus = self._pipeline.get_bus()
@@ -272,7 +273,7 @@ class GstWebRTCPipeline:
 
     def _on_negotiation_needed(self, webrtcbin: Gst.Element) -> None:
         """webrtcbin 请求协商 → 创建 SDP Offer。"""
-        logger.debug("webrtcbin 请求协商，创建 SDP Offer")
+        logger.info("webrtcbin 请求协商，创建 SDP Offer")
         promise = Gst.Promise.new_with_change_func(
             self._on_offer_created, webrtcbin, None,
         )
@@ -329,6 +330,20 @@ class GstWebRTCPipeline:
                         logger.error("ICE 完成回调异常：%s", callback_error)
             else:
                 self._notify_error("ICE 收集完成但无法获取本地 SDP 描述")
+
+    def _on_ice_candidate(
+        self,
+        webrtcbin: Gst.Element,
+        sdp_mline_index: int,
+        candidate: str,
+    ) -> None:
+        """
+        单个 ICE 候选生成回调（诊断用）。
+        :param sdp_mline_index: SDP media line 索引
+        :param candidate: ICE 候选 SDP 字符串
+        """
+        candidate_preview = candidate[:80] if candidate else "None"
+        logger.info("ICE 候选生成: mline=%d, candidate=%s", sdp_mline_index, candidate_preview)
 
     def _on_pad_added(self, webrtcbin: Gst.Element, pad: Gst.Pad) -> None:
         """webrtcbin 新增 src pad → 连接 decodebin 动态解码。"""
