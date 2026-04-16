@@ -153,6 +153,39 @@ class Command(BaseCommand):
         # 启动轮询
         controller.start_polling(interval_seconds=poll_interval)
 
+        # ═══ 创建 GUI 控制面板（窗口 0）═══
+        from scp_cv.player.control_panel import ControlPanel
+
+        control_panel = ControlPanel(
+            controller=controller,
+            debug_mode=dev_mode,
+        )
+
+        # 将控制面板放置到 GUI 屏幕上（若有剩余屏幕）
+        gui_display = result.gui_display
+        if gui_display is not None:
+            gui_rect = QRect(
+                gui_display.x, gui_display.y,
+                gui_display.width, gui_display.height,
+            )
+            # 不全屏，居中显示在 GUI 屏幕上
+            panel_width = min(560, gui_display.width - 40)
+            panel_height = min(780, gui_display.height - 40)
+            panel_x = gui_display.x + (gui_display.width - panel_width) // 2
+            panel_y = gui_display.y + (gui_display.height - panel_height) // 2
+            control_panel.setGeometry(panel_x, panel_y, panel_width, panel_height)
+            self.stdout.write(self.style.SUCCESS(
+                f"控制面板 → {gui_display.name}"
+            ))
+        else:
+            # 无剩余屏幕，在主屏幕显示
+            control_panel.resize(520, 720)
+            self.stdout.write(self.style.WARNING(
+                "无剩余屏幕用于控制面板，在默认屏幕显示"
+            ))
+
+        control_panel.show()
+
         # 任意窗口关闭时退出应用（仅非 dev 模式）
         if not dev_mode:
             for player_window in all_windows:
