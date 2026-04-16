@@ -2,6 +2,20 @@
 
 ## 2026-04-18
 
+### 前端 JS 模块化拆分 & 多窗口 UI
+
+- **JS 模块化**：app.js 拆分为 7 个 ES 模块（utils / tabs / windows / sources / playback / sse / app），base.html 改为 `type="module"` 加载
+- **多窗口 UI**：播放 Tab 新增窗口选择器导航（4 窗口按钮 + 拼接开关 + 显示 ID 按钮），设置 Tab 新增窗口状态网格卡片
+- **CSS**：新增 `.window-selector` / `.window-status-grid` / `.window-status-card` / `.toolbar__active-window` 组件样式及响应式规则
+- **多窗口播放 URL**：所有前端播放/源操作 URL 改为 `/playback/${windowId}/xxx/` 动态路径
+- **SSE 适配**：事件处理兼容 `{sessions:[...]}` 多窗口快照格式
+
+### SHOW_ID 指令
+
+- **数据模型**：`PlaybackCommand` 枚举新增 `SHOW_ID`
+- **HTTP 接口**：新增 `POST /playback/show-ids/`，触发所有窗口显示 5 秒 ID 覆盖层
+- **播放器控制器**：`_handle_show_id` 调用 `window.show_id_overlay()`
+
 ### 多窗口输出架构改造
 
 - **数据模型**：`PlaybackSession` 新增 `window_id` 字段（PositiveSmallIntegerField, unique），标识所属输出窗口

@@ -41,6 +41,14 @@
 |------|------|------|------|
 | POST | `/playback/splice/` | `enabled`（`true` / `false`） | `{success, splice_active: bool}` |
 
+### 窗口 ID 叠加显示
+
+| 方法 | 路径 | 参数 | 响应 |
+|------|------|------|------|
+| POST | `/playback/show-ids/` | — | `{success: true}` |
+
+> 触发所有输出窗口（1-4）显示半透明窗口 ID 叠加层，5 秒后自动消失。
+
 ### 状态查询 & SSE
 
 | 方法 | 路径 | 参数 | 响应 |
