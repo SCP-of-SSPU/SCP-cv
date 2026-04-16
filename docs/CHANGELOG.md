@@ -16,6 +16,16 @@
 - **HTTP 接口**：新增 `POST /playback/show-ids/`，触发所有窗口显示 5 秒 ID 覆盖层
 - **播放器控制器**：`_handle_show_id` 调用 `window.show_id_overlay()`
 
+### PySide GUI 控制面板（窗口 0）
+
+- **新增 `control_panel.py`**：Fluent 2 风格控制面板，与 Web 前端功能对等
+  - 4 窗口状态卡片（状态/源名/进度实时刷新）
+  - 源选择下拉框 + 打开/关闭
+  - 播放/暂停/停止/翻页/循环控制
+  - 拼接模式切换 + 显示窗口 ID
+  - QTimer 定时轮询 DB 状态更新 UI
+- **run_player.py 集成**：启动器分配屏幕后自动在 GUI 屏幕居中显示控制面板
+
 ### 多窗口输出架构改造
 
 - **数据模型**：`PlaybackSession` 新增 `window_id` 字段（PositiveSmallIntegerField, unique），标识所属输出窗口
