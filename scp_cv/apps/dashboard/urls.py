@@ -34,6 +34,9 @@ urlpatterns = [
     # ── 拼接模式（窗口 1+2） ──
     path("playback/splice/", views.toggle_splice, name="toggle_splice"),
 
+    # ── 窗口 ID 叠加显示 ──
+    path("playback/show-ids/", views.show_window_ids, name="show_window_ids"),
+
     # ── 状态查询 & SSE ──
     path("api/session/", views.api_session_state, name="api_session_state"),
     path("events/", views.sse_events, name="sse_events"),

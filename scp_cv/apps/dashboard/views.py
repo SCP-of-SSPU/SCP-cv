@@ -431,6 +431,26 @@ def toggle_splice(request: HttpRequest) -> JsonResponse:
 
 
 # ══════════════════════════════════════════════════════════════
+# 窗口 ID 叠加显示
+# ══════════════════════════════════════════════════════════════
+
+@require_POST
+def show_window_ids(request: HttpRequest) -> JsonResponse:
+    """
+    触发所有输出窗口显示 5 秒窗口 ID 叠加标识。
+    向每个窗口的 PlaybackSession 写入 SHOW_ID 指令，
+    播放器轮询消费后会在窗口上渲染半透明 ID 文字。
+    :param request: HTTP 请求（POST）
+    :return: JSON 响应
+    """
+    for wid in VALID_WINDOW_IDS:
+        session = get_or_create_session(wid)
+        session.pending_command = PlaybackCommand.SHOW_ID
+        session.save(update_fields=["pending_command"])
+    return JsonResponse({"success": True})
+
+
+# ══════════════════════════════════════════════════════════════
 # 状态查询 & SSE
 # ══════════════════════════════════════════════════════════════
 

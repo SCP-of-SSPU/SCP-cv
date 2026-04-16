@@ -59,6 +59,7 @@ class PlaybackCommand(models.TextChoices):
     PREV = "prev", "上一页/上一项"
     GOTO = "goto", "跳转到指定页"
     SET_LOOP = "set_loop", "设置循环播放"
+    SHOW_ID = "show_id", "显示窗口 ID"
 
 
 class MediaSource(models.Model):

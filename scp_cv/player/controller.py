@@ -263,6 +263,7 @@ class PlayerController(QObject):
             PlaybackCommand.GOTO: self._handle_goto,
             PlaybackCommand.SEEK: self._handle_seek,
             PlaybackCommand.SET_LOOP: self._handle_set_loop,
+            PlaybackCommand.SHOW_ID: self._handle_show_id,
         }
 
         handler = command_dispatch.get(command)
@@ -408,6 +409,17 @@ class PlayerController(QObject):
             loop_enabled = bool(command_args.get("enabled", False))
             adapter.set_loop(loop_enabled)
             logger.info("窗口 %d 循环播放已设置为 %s", window_id, loop_enabled)
+
+    def _handle_show_id(self, window_id: int, command_args: dict[str, object]) -> None:
+        """
+        处理 SHOW_ID 指令：在指定窗口显示半透明 ID 覆盖层 5 秒。
+        :param window_id: 窗口编号
+        :param command_args: 未使用
+        """
+        window = self.get_window(window_id)
+        if window is not None:
+            window.show_id_overlay()
+            logger.info("窗口 %d 触发 ID 覆盖层显示", window_id)
 
     # ═══════════════════ 适配器管理 ═══════════════════
 
