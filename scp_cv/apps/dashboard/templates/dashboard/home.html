@@ -161,24 +161,49 @@
 
 {# ═══════════════════ Tab 2: 播放控制 ═══════════════════ #}
 <section class="tab-panel" id="tab-playback" role="tabpanel" aria-labelledby="tab-playback" hidden>
-  {# 当前播放状态 Hero #}
+  {# 窗口选择器 #}
+  <nav class="window-selector" role="tablist" aria-label="输出窗口选择">
+    {% for wid in valid_window_ids %}
+      <button class="window-selector__btn{% if forloop.first %} window-selector__btn--active{% endif %}"
+              role="tab" aria-selected="{% if forloop.first %}true{% else %}false{% endif %}"
+              data-window-id="{{ wid }}" type="button"
+              onclick="selectWindow({{ wid }}, this)">
+        <span class="window-selector__id">{{ wid }}</span>
+        <span class="window-selector__state" id="win-state-{{ wid }}">空闲</span>
+      </button>
+    {% endfor %}
+    <button class="window-selector__btn window-selector__btn--splice{% if splice_active %} window-selector__btn--active-splice{% endif %}"
+            type="button" id="splice-toggle-btn"
+            onclick="toggleSplice(event)"
+            aria-pressed="{{ splice_active|yesno:'true,false' }}">
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z"/></svg>
+      拼接 1+2
+    </button>
+    <button class="window-selector__btn window-selector__btn--util"
+            type="button" onclick="showWindowIds(event)">
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M11 7h2v2h-2V7zm0 4h2v6h-2v-6zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>
+      显示窗口 ID
+    </button>
+  </nav>
+
+  {# 当前窗口播放状态 Hero #}
   <article class="panel panel--hero">
     <div class="playback-hero">
       <div class="playback-hero__info">
-        <p class="eyebrow">正在播放</p>
-        <h2 id="hero-source-name">{{ current_source_name }}</h2>
+        <p class="eyebrow">窗口 <strong id="hero-window-id">1</strong> · 正在播放</p>
+        <h2 id="hero-source-name">—</h2>
         <div class="hero-stats">
           <div>
             <span class="hero-stats__label">源类型</span>
-            <strong id="hero-source-type">{{ current_source_type }}</strong>
+            <strong id="hero-source-type">—</strong>
           </div>
           <div>
             <span class="hero-stats__label">播放状态</span>
-            <strong id="hero-playback-state">{{ current_playback_state }}</strong>
+            <strong id="hero-playback-state">—</strong>
           </div>
           <div>
             <span class="hero-stats__label">显示模式</span>
-            <strong id="hero-display-mode">{{ current_display_mode }}</strong>
+            <strong id="hero-display-mode">—</strong>
           </div>
         </div>
       </div>
@@ -188,7 +213,7 @@
   {# 播放控制按钮 #}
   <article class="panel">
     <div class="panel__header">
-      <h3>播放控制</h3>
+      <h3>播放控制 · 窗口 <span id="ctrl-window-id">1</span></h3>
     </div>
     <div class="control-grid">
       {# 基本操作 #}
@@ -285,48 +310,34 @@
     <div class="panel__header">
       <h3>
         <svg viewBox="0 0 24 24" width="18" height="18" style="vertical-align: -3px; margin-right: 6px;" aria-hidden="true"><path fill="currentColor" d="M21 2H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h7l-2 3v1h8v-1l-2-3h7c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H3V4h18v12z"/></svg>
-        显示器与拼接
+        输出窗口状态
       </h3>
-      <span class="panel__badge">{{ display_targets|length }} 台显示器</span>
+      <span class="panel__badge">4 个窗口</span>
     </div>
-    {% if display_targets %}
-      <ul class="display-list">
-        {% for display in display_targets %}
-          <li>
-            <div>
-              <strong>显示器 {{ display.index }}</strong>
-              <p>{{ display.name }}</p>
-            </div>
-            <div class="display-list__meta">
-              <span>{{ display.geometry_label }}</span>
-              <span>{{ display.position_label }}</span>
-              {% if display.is_primary %}<span class="chip chip--success">主屏</span>{% endif %}
-            </div>
-          </li>
-        {% endfor %}
-      </ul>
-      <div class="button-row" style="margin-top: var(--space-3, 12px);">
-        {% for display in display_targets %}
-          <button class="action-button action-button--ghost" type="button"
-                  onclick="switchDisplay('single', '{{ display.name }}', event)"
-                  aria-label="选择显示器 {{ display.name }}">
-            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M21 2H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h7l-2 3v1h8v-1l-2-3h7c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H3V4h18v12z"/></svg>
-            选择「{{ display.name }}」
-          </button>
-        {% endfor %}
-        {% if spliced_display %}
-          <button class="action-button" type="button"
-                  onclick="switchDisplay('left_right_splice', '', event)">
-            左右拼接 ({{ spliced_display.geometry_label }})
-          </button>
-        {% endif %}
-      </div>
-    {% else %}
-      <div class="empty-state">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21 2H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h7l-2 3v1h8v-1l-2-3h7c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H3V4h18v12z"/></svg>
-        <span>暂未识别到显示器信息。</span>
-      </div>
-    {% endif %}
+    <div class="window-status-grid" id="window-status-grid">
+      {% for wid in valid_window_ids %}
+        <div class="window-status-card" data-window-id="{{ wid }}">
+          <div class="window-status-card__header">
+            <strong>窗口 {{ wid }}</strong>
+            <span class="chip chip--neutral" id="settings-win-state-{{ wid }}">空闲</span>
+          </div>
+          <p class="window-status-card__source" id="settings-win-source-{{ wid }}">未打开媒体源</p>
+        </div>
+      {% endfor %}
+    </div>
+    <div class="button-row" style="margin-top: var(--space-3, 12px);">
+      <button class="action-button{% if splice_active %} action-button--active{% endif %}" type="button"
+              id="settings-splice-btn"
+              onclick="toggleSplice(event)" aria-label="切换拼接模式"
+              aria-pressed="{{ splice_active|yesno:'true,false' }}">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z"/></svg>
+        拼接模式（窗口 1+2）
+      </button>
+      <button class="action-button action-button--ghost" type="button"
+              onclick="showWindowIds(event)" aria-label="显示窗口 ID">
+        显示所有窗口 ID（5s）
+      </button>
+    </div>
   </article>
 
   {# 外部组件信息 #}
