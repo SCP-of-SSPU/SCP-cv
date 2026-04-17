@@ -23,10 +23,11 @@ from django.core.management.base import BaseCommand
 
 
 class Command(BaseCommand):
-    help = "一键启动所有服务：MediaMTX + Django 开发服务器 + PySide6 播放器"
+    help = "一键启动所有服务：MediaMTX + gRPC-Web Proxy + Django 开发服务器 + PySide6 播放器"
 
     # 子进程引用，供清理时使用
     _mediamtx_proc: Optional[subprocess.Popen[bytes]] = None
+    _grpcweb_proxy_proc: Optional[subprocess.Popen[bytes]] = None
     _django_proc: Optional[subprocess.Popen[bytes]] = None
 
     def add_arguments(self, parser: object) -> None:
@@ -47,6 +48,12 @@ class Command(BaseCommand):
             help="Django 开发服务器监听端口（默认 8000）",
         )
         parser.add_argument(
+            "--grpc-web-port",
+            type=int,
+            default=8081,
+            help="gRPC-Web 代理监听端口（默认 8081）",
+        )
+        parser.add_argument(
             "--poll-interval",
             type=float,
             default=0.5,
@@ -57,6 +64,12 @@ class Command(BaseCommand):
             action="store_true",
             default=False,
             help="跳过 MediaMTX 启动（已在外部运行时使用）",
+        )
+        parser.add_argument(
+            "--skip-grpcweb",
+            action="store_true",
+            default=False,
+            help="跳过 gRPC-Web 代理启动（已在外部运行时使用）",
         )
 
     def handle(self, **options: object) -> None:
@@ -75,8 +88,10 @@ class Command(BaseCommand):
 
         host: str = str(options.get("host", "127.0.0.1"))
         port: int = int(options.get("port", 8000))
+        grpc_web_port: int = int(options.get("grpc_web_port", 8081))
         poll_interval: float = float(options.get("poll_interval", 0.5))
         skip_mediamtx: bool = bool(options.get("skip_mediamtx", False))
+        skip_grpcweb: bool = bool(options.get("skip_grpcweb", False))
         dev_mode: bool = settings.DEBUG
 
         # ═══ 第一步：启动 MediaMTX ═══
@@ -85,7 +100,13 @@ class Command(BaseCommand):
         else:
             self.stdout.write(self.style.WARNING("跳过 MediaMTX 启动"))
 
-        # ═══ 第二步：启动 Django 开发服务器 ═══
+        # ═══ 第二步：启动 gRPC-Web 代理 ═══
+        if not skip_grpcweb:
+            self._start_grpcweb_proxy(grpc_web_port)
+        else:
+            self.stdout.write(self.style.WARNING("跳过 gRPC-Web 代理启动"))
+
+        # ═══ 第三步：启动 Django 开发服务器 ═══
         self._start_django_server(host, port)
 
         # 等待 Django 服务器就绪
@@ -134,6 +155,46 @@ class Command(BaseCommand):
         except OSError as start_error:
             self.stderr.write(self.style.WARNING(
                 f"MediaMTX 启动失败：{start_error}"
+            ))
+
+    # ─── gRPC-Web 代理启动 ─── #
+
+    def _start_grpcweb_proxy(self, listen_port: int) -> None:
+        """
+        以子进程方式启动 @grpc-web/proxy（Node.js gRPC-Web 反向代理）。
+        代理将浏览器的 gRPC-Web 请求转发到本地 gRPC 服务端口。
+        :param listen_port: 代理监听端口
+        """
+        import shutil
+
+        grpc_port: int = getattr(settings, "GRPC_PORT", 50051)
+        npx_path = shutil.which("npx")
+        if npx_path is None:
+            self.stderr.write(self.style.WARNING(
+                "未找到 npx，gRPC-Web 代理不可用。请安装 Node.js。"
+            ))
+            return
+
+        proxy_command = [
+            npx_path,
+            "@grpc-web/proxy",
+            f"--target=http://127.0.0.1:{grpc_port}",
+            f"--listen={listen_port}",
+        ]
+
+        try:
+            self._grpcweb_proxy_proc = subprocess.Popen(
+                proxy_command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            )
+            self.stdout.write(self.style.SUCCESS(
+                f"gRPC-Web 代理已启动（pid={self._grpcweb_proxy_proc.pid}，"
+                f"端口={listen_port}，后端=127.0.0.1:{grpc_port}）"
+            ))
+        except OSError as start_error:
+            self.stderr.write(self.style.WARNING(
+                f"gRPC-Web 代理启动失败：{start_error}"
             ))
 
     # ─── Django 开发服务器启动 ─── #
@@ -338,6 +399,7 @@ class Command(BaseCommand):
         """
         for label, proc in [
             ("Django", self._django_proc),
+            ("gRPC-Web 代理", self._grpcweb_proxy_proc),
             ("MediaMTX", self._mediamtx_proc),
         ]:
             if proc is None:
@@ -356,6 +418,7 @@ class Command(BaseCommand):
                 ))
 
         self._django_proc = None
+        self._grpcweb_proxy_proc = None
         self._mediamtx_proc = None
 
     def _signal_handler(self, signum: int, frame: object) -> None:
