@@ -4,6 +4,8 @@
 
 所有 POST 接口需携带 CSRF Token（Cookie 中的 `csrftoken`）。
 
+> **前端通信变更**：Web 控制台已迁移至 gRPC-Web 通信。HTTP 接口仅保留：页面渲染（`GET /`）、文件上传（`POST /sources/upload/`）、静态/媒体文件。其余前端操作均通过 gRPC-Web 代理（端口 8081）访问 gRPC 服务。
+
 ### 页面路由
 
 | 方法 | 路径 | 说明 |
@@ -50,7 +52,7 @@
 
 > 触发所有输出窗口（1-4）显示半透明窗口 ID 叠加层，5 秒后自动消失。
 
-### 状态查询 & SSE
+### 状态查询
 
 | 方法 | 路径 | 参数 | 响应 |
 |------|------|------|------|
@@ -116,7 +118,9 @@
 | `loop_enabled` | bool | 是否启用循环播放 |
 | `last_updated_at` | string | 最后更新时间（ISO 8601） |
 
-### SSE 事件类型
+### SSE 事件类型（已废弃）
+
+> ⚠️ Web 前端已迁移至 gRPC 流式订阅（`WatchPlaybackState`），SSE 端点 `/events/` 仍保留供第三方集成使用。
 
 | 事件名 | 载荷 | 说明 |
 |--------|------|------|
@@ -139,10 +143,19 @@
 | `CloseSource` | `CloseSourceRequest` | `OperationReply` | 关闭当前播放的源 |
 | `ControlPlayback` | `ControlPlaybackRequest` | `OperationReply` | 播放控制（play / pause / stop） |
 | `NavigateContent` | `NavigateContentRequest` | `OperationReply` | 内容导航（翻页 / 跳转 / seek） |
-| `GetRuntimeStatus` | `EmptyRequest` | `RuntimeStatusReply` | 获取运行时状态概览 |
-| `GetPlaybackState` | `EmptyRequest` | `PlaybackStateReply` | 获取详细播放状态（含 PPT 页码、视频进度） |
+| `GetRuntimeStatus` | `WindowRequest` | `RuntimeStatusReply` | 获取运行时状态概览 |
+| `GetPlaybackState` | `WindowRequest` | `PlaybackStateReply` | 获取详细播放状态（含 PPT 页码、视频进度） |
 | `ListDisplayTargets` | `EmptyRequest` | `DisplayTargetsReply` | 列出可用显示器和拼接标签 |
 | `SelectDisplayTarget` | `SelectDisplayTargetRequest` | `OperationReply` | 切换显示目标（single / left_right_splice） |
+| `ListSources` | `ListSourcesRequest` | `ListSourcesReply` | 列出所有可用媒体源（可按类型过滤） |
+| `AddLocalPathSource` | `AddLocalPathSourceRequest` | `SourceReply` | 通过本地路径注册媒体源 |
+| `AddWebUrlSource` | `AddWebUrlSourceRequest` | `SourceReply` | 通过 URL 添加网页媒体源 |
+| `DeleteSource` | `DeleteSourceRequest` | `OperationReply` | 删除指定媒体源 |
+| `ToggleLoop` | `ToggleLoopRequest` | `OperationReply` | 切换循环播放模式 |
+| `SetSpliceMode` | `SetSpliceModeRequest` | `SpliceModeReply` | 设置窗口 1+2 拼接模式 |
+| `ShowWindowIds` | `EmptyRequest` | `OperationReply` | 触发窗口 ID 叠加显示（5s） |
+| `GetAllSessionSnapshots` | `EmptyRequest` | `AllSessionSnapshotsReply` | 获取所有窗口播放会话快照 |
+| `WatchPlaybackState` | `EmptyRequest` | `stream PlaybackStateEvent` | 服务端流式推送播放状态变更 |
 | `StopCurrentContent` | `EmptyRequest` | `OperationReply` | 停止当前播放（兼容旧接口） |
 | `ListScenarios` | `EmptyRequest` | `ListScenariosReply` | 获取所有预案列表 |
 | `CreateScenario` | `ScenarioDetail` | `ScenarioReply` | 创建新预案 |
@@ -157,6 +170,17 @@
 **PlaybackAction**：`ACTION_UNKNOWN(0)` / `ACTION_PLAY(1)` / `ACTION_PAUSE(2)` / `ACTION_STOP(3)`
 
 **NavigateAction**：`NAV_UNKNOWN(0)` / `NAV_NEXT(1)` / `NAV_PREV(2)` / `NAV_GOTO(3)` / `NAV_SEEK(4)`
+
+### gRPC-Web 浏览器客户端
+
+前端通过 gRPC-Web 代理（端口 8081）访问 gRPC 服务。
+
+| 组件 | 路径/位置 | 说明 |
+|------|-----------|------|
+| 代理 | `npx @grpc-web/proxy --backend http://localhost:50051 --port 8081` | 将 gRPC-Web 请求转为原生 gRPC |
+| JS 桩代码 | `static/js/grpc-generated/scp_cv/v1/` | protoc + grpc-web 生成 |
+| 客户端封装 | `static/js/grpc-client.js` → `grpc-client.bundle.js` | Promise 风格 API，18 个 RPC + 5 个预案 + 1 个流式订阅 |
+| 启动方式 | `python manage.py runall`（自动启动代理） | 可通过 `--skip-grpcweb` 跳过 |
 
 ### 调用示例（Python）
 

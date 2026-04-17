@@ -1,5 +1,26 @@
 # CHANGELOG
 
+## 2026-04-20
+
+### 前端 gRPC-Web 迁移
+
+- **通信层**：前端从 HTTP 全面迁移至 gRPC-Web，文件上传保留 HTTP POST
+- **Proto 扩展**：新增 10 个 RPC（源管理、循环、拼接、窗口 ID、全窗口快照、流式推送），所有请求消息添加 `window_id` 字段
+- **gRPC 服务端**：实现所有新 RPC 的 Servicer 方法，新增 `WatchPlaybackState` 服务端流
+- **gRPC-Web 基础设施**：生成 JS 桩代码（protoc-gen-js + protoc-gen-grpc-web），esbuild 打包为 ESM bundle，`@grpc-web/proxy` 集成到 `runall` 命令
+- **HTML 重构**：移除所有内联 `onclick`/`onchange` 处理器（27 处），改用 `data-action` 声明式属性 + 事件委托；修复模板变量 Bug（`session.loop_enabled` 等未定义、硬编码窗口数）
+- **JS 重构**：
+  - `app.js`：移除 `window.*` 全局注册，改用 `ACTION_HANDLERS` 事件委托
+  - `windows.js`：`fetchAllSessions()` / `toggleSplice()` / `showWindowIds()` 改用 gRPC 调用，字段名从 snake_case 迁移至 camelCase
+  - `sources.js`：列表刷新、打开/删除源改用 gRPC，文件上传保留 HTTP，修复拖拽文件赋值兼容性
+  - `playback.js`：全部控制操作改用 gRPC，状态更新依赖流式推送
+  - `scenarios.js`：预案 CRUD 改用 gRPC（`listScenarios` / `createScenario` / `updateScenario` / `deleteScenario` / `activateScenario`）
+  - `streaming.js`（新建）：替代 SSE 模块，使用 `WatchPlaybackState` gRPC 流式订阅 + 指数退避重连
+  - `utils.js`：移除不再使用的 `postAction` HTTP 函数
+  - `sse.js`：已删除（由 `streaming.js` 取代）
+- **CSS 修复**：添加 Firefox `::-moz-range-thumb` 滑块样式
+- **base.html**：加载 gRPC-Web bundle、更新连接状态标签和页脚文案
+
 ## 2026-04-19
 
 ### 预案系统
