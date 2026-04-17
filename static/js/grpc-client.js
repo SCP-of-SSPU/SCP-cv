@@ -35,6 +35,12 @@ const {
   DeleteSourceRequest,
   ToggleLoopRequest,
   SetSpliceModeRequest,
+  // 预案管理消息
+  ScenarioDetail,
+  ScenarioWindowSlot,
+  UpdateScenarioRequest,
+  DeleteScenarioRequest,
+  ActivateScenarioRequest,
 } = require('./grpc-generated/scp_cv/v1/control_pb.js');
 
 // ────────────────────────────────────────────────────
@@ -417,6 +423,117 @@ export function stopCurrentContent() {
   return unaryCall(
     'StopCurrentContent',
     grpcClient.stopCurrentContent,
+    request,
+  );
+}
+
+// ────────────────────────────────────────────────────
+// 预案管理 API
+// ────────────────────────────────────────────────────
+
+/**
+ * 获取所有已保存的预案列表。
+ * @returns {Promise<Object>} ListScenariosReply 对象
+ */
+export function listScenarios() {
+  const request = new EmptyRequest();
+  return unaryCall(
+    'ListScenarios',
+    grpcClient.listScenarios,
+    request,
+  );
+}
+
+/**
+ * 构建窗口配置槽位 protobuf 消息。
+ * @param {Object} slotConfig - 窗口配置对象
+ * @param {number} [slotConfig.sourceId=0] - 媒体源 ID
+ * @param {boolean} [slotConfig.autoplay=true] - 是否自动播放
+ * @param {boolean} [slotConfig.resume=true] - 是否保留进度
+ * @returns {ScenarioWindowSlot} protobuf 消息实例
+ */
+function buildWindowSlot(slotConfig = {}) {
+  const slot = new ScenarioWindowSlot();
+  slot.setSourceId(slotConfig.sourceId || 0);
+  slot.setAutoplay(slotConfig.autoplay !== false);
+  slot.setResume(slotConfig.resume !== false);
+  return slot;
+}
+
+/**
+ * 创建新预案。
+ * @param {Object} detail - 预案详情
+ * @param {string} detail.name - 预案名称
+ * @param {string} [detail.description=''] - 描述
+ * @param {boolean} [detail.isSpliceMode=false] - 是否拼接模式
+ * @param {Object} [detail.window1] - 窗口 1 配置
+ * @param {Object} [detail.window2] - 窗口 2 配置
+ * @returns {Promise<Object>} ScenarioReply 对象
+ */
+export function createScenario(detail) {
+  const request = new ScenarioDetail();
+  request.setName(detail.name || '');
+  request.setDescription(detail.description || '');
+  request.setIsSpliceMode(!!detail.isSpliceMode);
+  request.setWindow1(buildWindowSlot(detail.window1));
+  request.setWindow2(buildWindowSlot(detail.window2));
+  return unaryCall(
+    'CreateScenario',
+    grpcClient.createScenario,
+    request,
+  );
+}
+
+/**
+ * 更新已有预案配置。
+ * @param {number} scenarioId - 预案 ID
+ * @param {Object} detail - 预案详情（同 createScenario 的 detail 参数）
+ * @returns {Promise<Object>} ScenarioReply 对象
+ */
+export function updateScenario(scenarioId, detail) {
+  const scenarioDetail = new ScenarioDetail();
+  scenarioDetail.setName(detail.name || '');
+  scenarioDetail.setDescription(detail.description || '');
+  scenarioDetail.setIsSpliceMode(!!detail.isSpliceMode);
+  scenarioDetail.setWindow1(buildWindowSlot(detail.window1));
+  scenarioDetail.setWindow2(buildWindowSlot(detail.window2));
+
+  const request = new UpdateScenarioRequest();
+  request.setScenarioId(scenarioId);
+  request.setDetail(scenarioDetail);
+  return unaryCall(
+    'UpdateScenario',
+    grpcClient.updateScenario,
+    request,
+  );
+}
+
+/**
+ * 删除指定预案。
+ * @param {number} scenarioId - 预案 ID
+ * @returns {Promise<Object>} OperationReply 对象
+ */
+export function deleteScenarioGrpc(scenarioId) {
+  const request = new DeleteScenarioRequest();
+  request.setScenarioId(scenarioId);
+  return unaryCall(
+    'DeleteScenario',
+    grpcClient.deleteScenario,
+    request,
+  );
+}
+
+/**
+ * 激活预案：一键应用预设的窗口配置。
+ * @param {number} scenarioId - 预案 ID
+ * @returns {Promise<Object>} ActivateScenarioReply 对象
+ */
+export function activateScenarioGrpc(scenarioId) {
+  const request = new ActivateScenarioRequest();
+  request.setScenarioId(scenarioId);
+  return unaryCall(
+    'ActivateScenario',
+    grpcClient.activateScenario,
     request,
   );
 }

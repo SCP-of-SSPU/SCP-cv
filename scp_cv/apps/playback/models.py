@@ -226,3 +226,86 @@ class PlaybackSession(models.Model):
     def __str__(self) -> str:
         source_label = self.media_source.name if self.media_source else "无"
         return f"{source_label} / {self.get_playback_state_display()}"
+
+
+class Scenario(models.Model):
+    """
+    预案模型：预定义窗口 1/2 的播放配置快照。
+    激活时一键恢复指定窗口的媒体源与显示模式，
+    支持拼接模式和进度保留/重置两种策略。
+    """
+
+    # ── 基本信息 ──
+    name = models.CharField(
+        max_length=100,
+        verbose_name="预案名称",
+    )
+    description = models.TextField(
+        blank=True,
+        default="",
+        verbose_name="描述",
+    )
+
+    # ── 显示模式 ──
+    is_splice_mode = models.BooleanField(
+        default=False,
+        verbose_name="拼接模式",
+        help_text="启用后窗口 1+2 拼接显示同一源，窗口 2 配置被忽略",
+    )
+
+    # ── 窗口 1 配置 ──
+    window1_source = models.ForeignKey(
+        MediaSource,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="scenarios_as_w1",
+        verbose_name="窗口 1 媒体源",
+    )
+    window1_autoplay = models.BooleanField(
+        default=True,
+        verbose_name="窗口 1 自动播放",
+    )
+    window1_resume = models.BooleanField(
+        default=True,
+        verbose_name="窗口 1 保留进度",
+        help_text="相同源已打开时保留当前进度，否则从头播放",
+    )
+
+    # ── 窗口 2 配置（拼接模式下忽略） ──
+    window2_source = models.ForeignKey(
+        MediaSource,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="scenarios_as_w2",
+        verbose_name="窗口 2 媒体源",
+    )
+    window2_autoplay = models.BooleanField(
+        default=True,
+        verbose_name="窗口 2 自动播放",
+    )
+    window2_resume = models.BooleanField(
+        default=True,
+        verbose_name="窗口 2 保留进度",
+        help_text="相同源已打开时保留当前进度，否则从头播放",
+    )
+
+    # ── 时间戳 ──
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="创建时间",
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        verbose_name="更新时间",
+    )
+
+    class Meta:
+        ordering = ["-updated_at"]
+        verbose_name = "预案"
+        verbose_name_plural = "预案"
+
+    def __str__(self) -> str:
+        mode_label = "拼接" if self.is_splice_mode else "独立"
+        return f"[{mode_label}] {self.name}"

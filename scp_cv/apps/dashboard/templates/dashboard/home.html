@@ -31,6 +31,14 @@
     </span>
     系统设置
   </button>
+  <button class="tab-bar__item"
+          role="tab" aria-selected="false" aria-controls="tab-scenarios"
+          data-tab="scenarios" tabindex="-1">
+    <span class="tab-bar__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zM6 20V4h5v7h7v9H6z"/></svg>
+    </span>
+    预案管理
+  </button>
 </nav>
 
 {# ═══════════════════ Tab 1: 媒体源管理 ═══════════════════ #}
@@ -355,6 +363,148 @@
       <div><dt>运行模式</dt><dd>{{ debug_mode_label }}</dd></div>
       <div><dt>刷新时间</dt><dd>{{ refresh_timestamp }}</dd></div>
     </dl>
+  </article>
+</section>
+
+{# ═══════════════════ Tab 4: 预案管理 ═══════════════════ #}
+<section class="tab-panel" id="tab-scenarios" role="tabpanel" aria-labelledby="tab-scenarios" hidden>
+  {# 预案列表 #}
+  <article class="panel">
+    <div class="panel__header">
+      <h3>
+        <svg viewBox="0 0 24 24" width="18" height="18" style="vertical-align: -3px; margin-right: 6px;" aria-hidden="true"><path fill="currentColor" d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zM6 20V4h5v7h7v9H6z"/></svg>
+        已保存预案
+      </h3>
+      <span class="panel__badge" id="scenario-count-badge">{{ scenarios|length }} 个</span>
+    </div>
+    <div id="scenario-list-container">
+      {% if scenarios %}
+        {% for sc in scenarios %}
+        <div class="source-row" data-scenario-id="{{ sc.id }}">
+          <div class="source-row__info">
+            <strong>{{ sc.name }}</strong>
+            <span class="chip {% if sc.is_splice_mode %}chip--accent{% else %}chip--neutral{% endif %}">
+              {% if sc.is_splice_mode %}拼接{% else %}独立{% endif %}
+            </span>
+            {% if sc.description %}
+              <small style="display:block; opacity:.7; margin-top:2px;">{{ sc.description }}</small>
+            {% endif %}
+            <small style="display:block; opacity:.5; margin-top:2px;">
+              W1:
+              {% if sc.window1_source_name %}{{ sc.window1_source_name }}{% else %}无{% endif %}
+              {% if not sc.is_splice_mode %}
+                · W2:
+                {% if sc.window2_source_name %}{{ sc.window2_source_name }}{% else %}无{% endif %}
+              {% endif %}
+            </small>
+          </div>
+          <div class="source-row__actions">
+            <button class="action-button action-button--small action-button--primary"
+                    onclick="activateScenario({{ sc.id }}, event)" title="激活预案">
+              ▶ 激活
+            </button>
+            <button class="action-button action-button--small"
+                    onclick="editScenario({{ sc.id }})" title="编辑预案">
+              ✎ 编辑
+            </button>
+            <button class="action-button action-button--small action-button--danger"
+                    onclick="deleteScenario({{ sc.id }}, event)" title="删除预案">
+              ✕
+            </button>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <p class="empty-hint">暂无预案，点击下方按钮创建</p>
+      {% endif %}
+    </div>
+  </article>
+
+  {# 预案编辑器 #}
+  <article class="panel" id="scenario-editor-panel">
+    <div class="panel__header">
+      <h3 id="scenario-editor-title">
+        <svg viewBox="0 0 24 24" width="18" height="18" style="vertical-align: -3px; margin-right: 6px;" aria-hidden="true"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 000-1.42l-2.34-2.34a1.003 1.003 0 00-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z"/></svg>
+        新建预案
+      </h3>
+    </div>
+    <form id="scenario-form" onsubmit="return false;">
+      {# 隐藏字段：编辑模式的 ID #}
+      <input type="hidden" id="scenario-edit-id" value="">
+
+      <div class="form-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:var(--space-3, 12px);">
+        {# 预案名称 #}
+        <div class="form-field" style="grid-column: span 2;">
+          <label for="scenario-name">预案名称 <span style="color:var(--danger)">*</span></label>
+          <input type="text" id="scenario-name" class="text-input" placeholder="如：日常播放、会议模式" required>
+        </div>
+
+        {# 描述 #}
+        <div class="form-field" style="grid-column: span 2;">
+          <label for="scenario-desc">描述</label>
+          <input type="text" id="scenario-desc" class="text-input" placeholder="可选，预案用途简述">
+        </div>
+
+        {# 拼接模式 #}
+        <div class="form-field" style="grid-column: span 2;">
+          <label>
+            <input type="checkbox" id="scenario-splice" onchange="onSpliceModeToggle()">
+            启用拼接模式（窗口 1+2 拼接显示同一源）
+          </label>
+        </div>
+      </div>
+
+      <hr style="border:none; border-top:1px solid var(--neutral-stroke-1, #d1d1d1); margin:var(--space-3, 12px) 0;">
+
+      {# 窗口 1 配置 #}
+      <fieldset class="form-fieldset">
+        <legend>窗口 1 配置</legend>
+        <div class="form-grid" style="display:grid; grid-template-columns:1fr auto auto; gap:var(--space-2, 8px); align-items:center;">
+          <select id="scenario-w1-source" class="text-input">
+            <option value="">— 不绑定源 —</option>
+            {% for src in media_sources %}
+              <option value="{{ src.id }}">{{ src.name }}（{{ src.source_type }}）</option>
+            {% endfor %}
+          </select>
+          <label style="white-space:nowrap;">
+            <input type="checkbox" id="scenario-w1-autoplay" checked> 自动播放
+          </label>
+          <label style="white-space:nowrap;">
+            <input type="checkbox" id="scenario-w1-resume" checked> 保留进度
+          </label>
+        </div>
+      </fieldset>
+
+      {# 窗口 2 配置（拼接模式下隐藏） #}
+      <fieldset class="form-fieldset" id="scenario-w2-fieldset">
+        <legend>窗口 2 配置</legend>
+        <div class="form-grid" style="display:grid; grid-template-columns:1fr auto auto; gap:var(--space-2, 8px); align-items:center;">
+          <select id="scenario-w2-source" class="text-input">
+            <option value="">— 不绑定源 —</option>
+            {% for src in media_sources %}
+              <option value="{{ src.id }}">{{ src.name }}（{{ src.source_type }}）</option>
+            {% endfor %}
+          </select>
+          <label style="white-space:nowrap;">
+            <input type="checkbox" id="scenario-w2-autoplay" checked> 自动播放
+          </label>
+          <label style="white-space:nowrap;">
+            <input type="checkbox" id="scenario-w2-resume" checked> 保留进度
+          </label>
+        </div>
+      </fieldset>
+
+      <div class="button-row" style="margin-top: var(--space-3, 12px);">
+        <button class="action-button action-button--primary" type="button"
+                onclick="saveScenario(event)" id="scenario-save-btn">
+          保存预案
+        </button>
+        <button class="action-button action-button--ghost" type="button"
+                onclick="resetScenarioForm()">
+          重置
+        </button>
+      </div>
+    </form>
   </article>
 </section>
 {% endblock %}

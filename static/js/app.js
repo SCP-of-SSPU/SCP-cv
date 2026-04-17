@@ -34,6 +34,14 @@ import {
   initSeekSlider,
 } from "./playback.js";
 import { connectSSE } from "./sse.js";
+import {
+  onSpliceModeToggle,
+  saveScenario,
+  deleteScenario,
+  activateScenario,
+  editScenario,
+  resetScenarioForm,
+} from "./scenarios.js";
 
 /* ═══════════════════════════════════════════════════════════
  * 注册全局函数（供 HTML onclick 属性调用）
@@ -56,6 +64,14 @@ window.stopPlayback = stopPlayback;
 window.toggleLoop = toggleLoop;
 window.navigateContent = navigateContent;
 window.gotoPage = gotoPage;
+
+/* 预案管理 */
+window.onSpliceModeToggle = onSpliceModeToggle;
+window.saveScenario = saveScenario;
+window.deleteScenario = deleteScenario;
+window.activateScenario = activateScenario;
+window.editScenario = editScenario;
+window.resetScenarioForm = resetScenarioForm;
 
 /** 刷新整个页面 */
 window.refreshPage = function refreshPage() {

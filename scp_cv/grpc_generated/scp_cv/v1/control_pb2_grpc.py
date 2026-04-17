@@ -132,6 +132,31 @@ class PlaybackControlServiceStub(object):
                 request_serializer=scp__cv_dot_v1_dot_control__pb2.EmptyRequest.SerializeToString,
                 response_deserializer=scp__cv_dot_v1_dot_control__pb2.PlaybackStateEvent.FromString,
                 _registered_method=True)
+        self.ListScenarios = channel.unary_unary(
+                '/scp_cv.v1.PlaybackControlService/ListScenarios',
+                request_serializer=scp__cv_dot_v1_dot_control__pb2.EmptyRequest.SerializeToString,
+                response_deserializer=scp__cv_dot_v1_dot_control__pb2.ListScenariosReply.FromString,
+                _registered_method=True)
+        self.CreateScenario = channel.unary_unary(
+                '/scp_cv.v1.PlaybackControlService/CreateScenario',
+                request_serializer=scp__cv_dot_v1_dot_control__pb2.ScenarioDetail.SerializeToString,
+                response_deserializer=scp__cv_dot_v1_dot_control__pb2.ScenarioReply.FromString,
+                _registered_method=True)
+        self.UpdateScenario = channel.unary_unary(
+                '/scp_cv.v1.PlaybackControlService/UpdateScenario',
+                request_serializer=scp__cv_dot_v1_dot_control__pb2.UpdateScenarioRequest.SerializeToString,
+                response_deserializer=scp__cv_dot_v1_dot_control__pb2.ScenarioReply.FromString,
+                _registered_method=True)
+        self.DeleteScenario = channel.unary_unary(
+                '/scp_cv.v1.PlaybackControlService/DeleteScenario',
+                request_serializer=scp__cv_dot_v1_dot_control__pb2.DeleteScenarioRequest.SerializeToString,
+                response_deserializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
+                _registered_method=True)
+        self.ActivateScenario = channel.unary_unary(
+                '/scp_cv.v1.PlaybackControlService/ActivateScenario',
+                request_serializer=scp__cv_dot_v1_dot_control__pb2.ActivateScenarioRequest.SerializeToString,
+                response_deserializer=scp__cv_dot_v1_dot_control__pb2.ActivateScenarioReply.FromString,
+                _registered_method=True)
         self.StopCurrentContent = channel.unary_unary(
                 '/scp_cv.v1.PlaybackControlService/StopCurrentContent',
                 request_serializer=scp__cv_dot_v1_dot_control__pb2.EmptyRequest.SerializeToString,
@@ -303,6 +328,43 @@ class PlaybackControlServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ListScenarios(self, request, context):
+        """── 预案管理 ──
+
+        获取所有预案列表。
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CreateScenario(self, request, context):
+        """创建新预案。
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def UpdateScenario(self, request, context):
+        """更新已有预案。
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteScenario(self, request, context):
+        """删除预案。
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ActivateScenario(self, request, context):
+        """激活预案：一键应用预设的窗口配置。
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def StopCurrentContent(self, request, context):
         """── 兼容接口 ──
 
@@ -399,6 +461,31 @@ def add_PlaybackControlServiceServicer_to_server(servicer, server):
                     servicer.WatchPlaybackState,
                     request_deserializer=scp__cv_dot_v1_dot_control__pb2.EmptyRequest.FromString,
                     response_serializer=scp__cv_dot_v1_dot_control__pb2.PlaybackStateEvent.SerializeToString,
+            ),
+            'ListScenarios': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListScenarios,
+                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.EmptyRequest.FromString,
+                    response_serializer=scp__cv_dot_v1_dot_control__pb2.ListScenariosReply.SerializeToString,
+            ),
+            'CreateScenario': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateScenario,
+                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.ScenarioDetail.FromString,
+                    response_serializer=scp__cv_dot_v1_dot_control__pb2.ScenarioReply.SerializeToString,
+            ),
+            'UpdateScenario': grpc.unary_unary_rpc_method_handler(
+                    servicer.UpdateScenario,
+                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.UpdateScenarioRequest.FromString,
+                    response_serializer=scp__cv_dot_v1_dot_control__pb2.ScenarioReply.SerializeToString,
+            ),
+            'DeleteScenario': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteScenario,
+                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.DeleteScenarioRequest.FromString,
+                    response_serializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.SerializeToString,
+            ),
+            'ActivateScenario': grpc.unary_unary_rpc_method_handler(
+                    servicer.ActivateScenario,
+                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.ActivateScenarioRequest.FromString,
+                    response_serializer=scp__cv_dot_v1_dot_control__pb2.ActivateScenarioReply.SerializeToString,
             ),
             'StopCurrentContent': grpc.unary_unary_rpc_method_handler(
                     servicer.StopCurrentContent,
@@ -878,6 +965,141 @@ class PlaybackControlService(object):
             '/scp_cv.v1.PlaybackControlService/WatchPlaybackState',
             scp__cv_dot_v1_dot_control__pb2.EmptyRequest.SerializeToString,
             scp__cv_dot_v1_dot_control__pb2.PlaybackStateEvent.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListScenarios(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/scp_cv.v1.PlaybackControlService/ListScenarios',
+            scp__cv_dot_v1_dot_control__pb2.EmptyRequest.SerializeToString,
+            scp__cv_dot_v1_dot_control__pb2.ListScenariosReply.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateScenario(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/scp_cv.v1.PlaybackControlService/CreateScenario',
+            scp__cv_dot_v1_dot_control__pb2.ScenarioDetail.SerializeToString,
+            scp__cv_dot_v1_dot_control__pb2.ScenarioReply.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def UpdateScenario(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/scp_cv.v1.PlaybackControlService/UpdateScenario',
+            scp__cv_dot_v1_dot_control__pb2.UpdateScenarioRequest.SerializeToString,
+            scp__cv_dot_v1_dot_control__pb2.ScenarioReply.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteScenario(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/scp_cv.v1.PlaybackControlService/DeleteScenario',
+            scp__cv_dot_v1_dot_control__pb2.DeleteScenarioRequest.SerializeToString,
+            scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ActivateScenario(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/scp_cv.v1.PlaybackControlService/ActivateScenario',
+            scp__cv_dot_v1_dot_control__pb2.ActivateScenarioRequest.SerializeToString,
+            scp__cv_dot_v1_dot_control__pb2.ActivateScenarioReply.FromString,
             options,
             channel_credentials,
             insecure,

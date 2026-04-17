@@ -40,4 +40,11 @@ urlpatterns = [
     # ── 状态查询 & SSE ──
     path("api/session/", views.api_session_state, name="api_session_state"),
     path("events/", views.sse_events, name="sse_events"),
+
+    # ── 预案管理 ──
+    path("api/scenarios/", views.api_scenarios, name="api_scenarios"),
+    path("scenarios/create/", views.create_scenario_view, name="create_scenario"),
+    path("scenarios/<str:scenario_id>/update/", views.update_scenario_view, name="update_scenario"),
+    path("scenarios/<str:scenario_id>/delete/", views.delete_scenario_view, name="delete_scenario"),
+    path("scenarios/<str:scenario_id>/activate/", views.activate_scenario_view, name="activate_scenario"),
 ]

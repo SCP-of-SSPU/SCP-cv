@@ -45,6 +45,14 @@ from scp_cv.services.playback import (
     stop_current_content,
     toggle_loop_playback,
 )
+from scp_cv.services.scenario import (
+    ScenarioError,
+    activate_scenario,
+    create_scenario,
+    delete_scenario,
+    list_scenarios,
+    update_scenario,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -141,6 +149,32 @@ def _source_to_proto(source_dict: dict[str, object]) -> control_pb2.SourceItem:
         is_available=bool(source_dict["is_available"]),
         stream_identifier=str(source_dict.get("stream_identifier", "") or ""),
         created_at=str(source_dict.get("created_at", "")),
+    )
+
+
+def _scenario_dict_to_proto(scenario_dict: dict[str, object]) -> control_pb2.ScenarioItem:
+    """
+    将服务层返回的预案字典转换为 proto ScenarioItem 消息。
+    :param scenario_dict: list_scenarios() / _scenario_to_dict() 返回的字典
+    :return: proto ScenarioItem 实例
+    """
+    return control_pb2.ScenarioItem(
+        id=int(scenario_dict["id"]),
+        name=str(scenario_dict["name"]),
+        description=str(scenario_dict.get("description", "")),
+        is_splice_mode=bool(scenario_dict["is_splice_mode"]),
+        window1=control_pb2.ScenarioWindowSlot(
+            source_id=int(scenario_dict.get("window1_source_id") or 0),
+            autoplay=bool(scenario_dict.get("window1_autoplay", True)),
+            resume=bool(scenario_dict.get("window1_resume", True)),
+        ),
+        window2=control_pb2.ScenarioWindowSlot(
+            source_id=int(scenario_dict.get("window2_source_id") or 0),
+            autoplay=bool(scenario_dict.get("window2_autoplay", True)),
+            resume=bool(scenario_dict.get("window2_resume", True)),
+        ),
+        created_at=str(scenario_dict.get("created_at", "")),
+        updated_at=str(scenario_dict.get("updated_at", "")),
     )
 
 
@@ -608,6 +642,162 @@ class PlaybackControlServicer(control_pb2_grpc.PlaybackControlServiceServicer):
             splice_active=is_splice_mode_active(),
             sessions=session_protos,
         )
+
+    # ------------------------------------------------------------------
+    # 预案管理
+    # ------------------------------------------------------------------
+    def ListScenarios(
+        self,
+        request: control_pb2.EmptyRequest,
+        context: grpc.ServicerContext,
+    ) -> control_pb2.ListScenariosReply:
+        """
+        获取所有预案列表。
+        :param request: EmptyRequest
+        :param context: gRPC 服务上下文
+        :return: ListScenariosReply
+        """
+        scenario_dicts = list_scenarios()
+        items = [_scenario_dict_to_proto(s) for s in scenario_dicts]
+        return control_pb2.ListScenariosReply(success=True, scenarios=items)
+
+    def CreateScenario(
+        self,
+        request: control_pb2.ScenarioDetail,
+        context: grpc.ServicerContext,
+    ) -> control_pb2.ScenarioReply:
+        """
+        创建新预案。
+        :param request: ScenarioDetail（名称、描述、拼接模式、窗口配置）
+        :param context: gRPC 服务上下文
+        :return: ScenarioReply
+        """
+        if not request.name.strip():
+            return control_pb2.ScenarioReply(
+                success=False, message="预案名称不能为空",
+            )
+
+        # 提取窗口 1/2 配置
+        w1 = request.window1
+        w2 = request.window2
+
+        try:
+            scenario = create_scenario(
+                name=request.name.strip(),
+                description=request.description.strip(),
+                is_splice_mode=request.is_splice_mode,
+                window1_source_id=int(w1.source_id) if w1 and w1.source_id else None,
+                window1_autoplay=w1.autoplay if w1 else True,
+                window1_resume=w1.resume if w1 else True,
+                window2_source_id=int(w2.source_id) if w2 and w2.source_id else None,
+                window2_autoplay=w2.autoplay if w2 else True,
+                window2_resume=w2.resume if w2 else True,
+            )
+        except ScenarioError as create_err:
+            return control_pb2.ScenarioReply(
+                success=False, message=str(create_err),
+            )
+
+        from scp_cv.services.scenario import _scenario_to_dict
+        item = _scenario_dict_to_proto(_scenario_to_dict(scenario))
+        return control_pb2.ScenarioReply(
+            success=True, message="预案创建成功", scenario=item,
+        )
+
+    def UpdateScenario(
+        self,
+        request: control_pb2.UpdateScenarioRequest,
+        context: grpc.ServicerContext,
+    ) -> control_pb2.ScenarioReply:
+        """
+        更新已有预案配置。
+        :param request: UpdateScenarioRequest（scenario_id, detail）
+        :param context: gRPC 服务上下文
+        :return: ScenarioReply
+        """
+        if request.scenario_id <= 0:
+            return control_pb2.ScenarioReply(
+                success=False, message="scenario_id 必须大于 0",
+            )
+
+        detail = request.detail
+        w1 = detail.window1 if detail else None
+        w2 = detail.window2 if detail else None
+
+        try:
+            scenario = update_scenario(
+                scenario_id=int(request.scenario_id),
+                name=detail.name.strip() if detail and detail.name else None,
+                description=detail.description if detail else None,
+                is_splice_mode=detail.is_splice_mode if detail else None,
+                window1_source_id=int(w1.source_id) if w1 and w1.source_id else None,
+                window1_autoplay=w1.autoplay if w1 else None,
+                window1_resume=w1.resume if w1 else None,
+                window2_source_id=int(w2.source_id) if w2 and w2.source_id else None,
+                window2_autoplay=w2.autoplay if w2 else None,
+                window2_resume=w2.resume if w2 else None,
+                _window1_source_provided=w1 is not None,
+                _window2_source_provided=w2 is not None,
+            )
+        except ScenarioError as update_err:
+            return control_pb2.ScenarioReply(
+                success=False, message=str(update_err),
+            )
+
+        from scp_cv.services.scenario import _scenario_to_dict
+        item = _scenario_dict_to_proto(_scenario_to_dict(scenario))
+        return control_pb2.ScenarioReply(
+            success=True, message="预案更新成功", scenario=item,
+        )
+
+    def DeleteScenario(
+        self,
+        request: control_pb2.DeleteScenarioRequest,
+        context: grpc.ServicerContext,
+    ) -> control_pb2.OperationReply:
+        """
+        删除指定预案。
+        :param request: DeleteScenarioRequest（scenario_id）
+        :param context: gRPC 服务上下文
+        :return: OperationReply
+        """
+        if request.scenario_id <= 0:
+            return _error_reply("scenario_id 必须大于 0")
+
+        try:
+            delete_scenario(int(request.scenario_id))
+            return _success_reply(message="预案已删除")
+        except ScenarioError as del_err:
+            return _error_reply(str(del_err))
+
+    def ActivateScenario(
+        self,
+        request: control_pb2.ActivateScenarioRequest,
+        context: grpc.ServicerContext,
+    ) -> control_pb2.ActivateScenarioReply:
+        """
+        激活预案：一键应用预设的窗口配置。
+        :param request: ActivateScenarioRequest（scenario_id）
+        :param context: gRPC 服务上下文
+        :return: ActivateScenarioReply（含激活后的窗口快照）
+        """
+        if request.scenario_id <= 0:
+            return control_pb2.ActivateScenarioReply(
+                success=False, message="scenario_id 必须大于 0",
+            )
+
+        try:
+            session_snapshots = activate_scenario(int(request.scenario_id))
+            session_protos = [_snapshot_to_proto(s) for s in session_snapshots]
+            return control_pb2.ActivateScenarioReply(
+                success=True,
+                message="预案激活成功",
+                sessions=session_protos,
+            )
+        except ScenarioError as act_err:
+            return control_pb2.ActivateScenarioReply(
+                success=False, message=str(act_err),
+            )
 
     # ------------------------------------------------------------------
     # 服务端流式推送

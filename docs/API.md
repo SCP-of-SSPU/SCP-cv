@@ -8,7 +8,7 @@
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/` | 播放控制台首页（三 Tab 布局：源列表、播放控制、设置） |
+| GET | `/` | 播放控制台首页（四 Tab 布局：源列表、播放控制、设置、预案管理） |
 | GET | `/admin/` | Django admin 管理入口 |
 
 ### 源管理
@@ -17,6 +17,7 @@
 |------|------|------|------|
 | POST | `/sources/upload/` | `file`（multipart 文件）, `name`（可选）, `source_type`（可选） | `{success, source: {id, name, source_type, uri}}` |
 | POST | `/sources/add-local/` | `path`（文件绝对路径）, `name`（可选）, `source_type`（可选） | `{success, source: {id, name, source_type, uri}}` |
+| POST | `/sources/add-web/` | `url`（网页地址）, `name`（可选） | `{success, source: {id, name, source_type, uri}}` |
 | POST | `/sources/remove/` | `source_id` | `{success}` |
 | GET | `/api/sources/` | `source_type`（可选，过滤） | `{success, sources: [...], sync_result: {...}}` |
 
@@ -33,13 +34,13 @@
 | POST | `/playback/<window_id>/control/` | `action`（`play` / `pause` / `stop`） | `{success, session: <快照>}` |
 | POST | `/playback/<window_id>/navigate/` | `action`（`next` / `prev` / `goto` / `seek`）, `target_index`（goto 目标页，从 1 开始）, `position_ms`（seek 毫秒位置） | `{success, session: <快照>}` |
 | POST | `/playback/<window_id>/close/` | — | `{success, session: <快照>}` |
-| POST | `/playback/<window_id>/toggle-loop/` | — | `{success, session: <快照>}` |
+| POST | `/playback/<window_id>/toggle-loop/` | `enabled`（`true` / `false`，默认 `false`） | `{success, session: <快照>}` |
 
 ### 拼接控制
 
 | 方法 | 路径 | 参数 | 响应 |
 |------|------|------|------|
-| POST | `/playback/splice/` | `enabled`（`true` / `false`） | `{success, splice_active: bool}` |
+| POST | `/playback/splice/` | `enabled`（`true` / `false`） | `{success, splice_active: bool, sessions: [<快照>, ...]}` |
 
 ### 窗口 ID 叠加显示
 
@@ -53,8 +54,40 @@
 
 | 方法 | 路径 | 参数 | 响应 |
 |------|------|------|------|
-| GET | `/api/session/` | `window_id`（可选，1-4，缺省返回所有窗口） | `{success, session: <快照>}` 或 `{success, sessions: [<快照>, ...]}` |
+| GET | `/api/session/` | `window_id`（可选，1-4，缺省返回所有窗口） | 单窗口：`{success, session: <快照>}`；全部窗口：`{success, sessions: [<快照>, ...], splice_active: bool}` |
 | GET | `/events/` | `last_id`（可选，断线续传序列号） | SSE 事件流 |
+
+### 预案管理
+
+| 方法 | 路径 | 参数 | 响应 |
+|------|------|------|------|
+| GET | `/api/scenarios/` | — | `{success, scenarios: [<预案>, ...]}` |
+| POST | `/scenarios/create/` | `name`（必填）, `description`, `is_splice_mode`, `window1_source_id`, `window1_autoplay`, `window1_resume`, `window2_source_id`, `window2_autoplay`, `window2_resume` | `{success, scenario: <预案>}` |
+| POST | `/scenarios/<id>/update/` | 同上（仅传需修改的字段） | `{success, scenario: <预案>}` |
+| POST | `/scenarios/<id>/delete/` | — | `{success}` |
+| POST | `/scenarios/<id>/activate/` | — | `{success, sessions: [<快照>, ...], splice_active: bool}` |
+
+> 支持 JSON body 和 form-data 两种提交方式。
+> `window*_source_id` 设为 `0` 或不传表示该窗口不绑定源。
+
+#### 预案对象字段
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | int | 预案主键 |
+| `name` | string | 预案名称 |
+| `description` | string | 描述 |
+| `is_splice_mode` | bool | 是否拼接模式 |
+| `window1_source_id` | int/null | 窗口 1 绑定的媒体源 ID |
+| `window1_source_name` | string | 窗口 1 媒体源名称 |
+| `window1_autoplay` | bool | 窗口 1 是否自动播放 |
+| `window1_resume` | bool | 窗口 1 是否保留播放进度 |
+| `window2_source_id` | int/null | 窗口 2 绑定的媒体源 ID |
+| `window2_source_name` | string | 窗口 2 媒体源名称 |
+| `window2_autoplay` | bool | 窗口 2 是否自动播放 |
+| `window2_resume` | bool | 窗口 2 是否保留播放进度 |
+| `created_at` | string | 创建时间（ISO 8601） |
+| `updated_at` | string | 最后更新时间（ISO 8601） |
 
 ### 会话快照字段
 
@@ -80,6 +113,7 @@
 | `position_ms` | int | 视频/音频当前播放位置（毫秒） |
 | `duration_ms` | int | 视频/音频总时长（毫秒） |
 | `pending_command` | string | 待执行的播放器命令（播放器轮询消费后清空） |
+| `loop_enabled` | bool | 是否启用循环播放 |
 | `last_updated_at` | string | 最后更新时间（ISO 8601） |
 
 ### SSE 事件类型
@@ -110,6 +144,11 @@
 | `ListDisplayTargets` | `EmptyRequest` | `DisplayTargetsReply` | 列出可用显示器和拼接标签 |
 | `SelectDisplayTarget` | `SelectDisplayTargetRequest` | `OperationReply` | 切换显示目标（single / left_right_splice） |
 | `StopCurrentContent` | `EmptyRequest` | `OperationReply` | 停止当前播放（兼容旧接口） |
+| `ListScenarios` | `EmptyRequest` | `ListScenariosReply` | 获取所有预案列表 |
+| `CreateScenario` | `ScenarioDetail` | `ScenarioReply` | 创建新预案 |
+| `UpdateScenario` | `UpdateScenarioRequest` | `ScenarioReply` | 更新预案 |
+| `DeleteScenario` | `DeleteScenarioRequest` | `OperationReply` | 删除预案 |
+| `ActivateScenario` | `ActivateScenarioRequest` | `ActivateScenarioReply` | 激活预案（一键应用窗口配置） |
 
 ### 枚举定义
 
@@ -170,9 +209,10 @@ reply = stub.CloseSource(control_pb2.CloseSourceRequest())
 
 ## 关键数据对象
 
-- `MediaSource`：统一媒体源记录（PPT / 视频 / 音频 / WebRTC 流等）
+- `MediaSource`：统一媒体源记录（PPT / 视频 / 音频 / SRT 流等）
 - `PlaybackSession`：当前播放会话（关联 MediaSource、播放状态、显示配置）
-- `StreamSource`：WebRTC 流记录（与 MediaMTX 同步）
+- `StreamSource`：外部推流（SRT/RTSP）接入记录（与 MediaMTX 同步）
+- `PlaybackScenario`：预案配置记录（窗口 1/2 源绑定、拼接模式、自动播放等）
 
 ---
 
@@ -182,5 +222,5 @@ reply = stub.CloseSource(control_pb2.CloseSourceRequest())
 |------|----------|----------|
 | Django Web 服务 | 8000 | `runserver` 命令参数 |
 | gRPC 服务 | 50051 | `.env` 中 `GRPC_PORT` |
-| MediaMTX WebRTC | 8889 | `mediamtx.yml` |
+| MediaMTX SRT | 8890 | `mediamtx.yml` |
 | MediaMTX API | 9997 | `mediamtx.yml` |

@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 2026-04-19
+
+### 预案系统
+
+- **数据模型**：新增 `PlaybackScenario` 模型，包含窗口 1/2 源绑定、拼接模式、自动播放、保留进度等字段
+- **服务层**：新增 `scp_cv.services.scenario` 模块，提供预案的 CRUD 和一键激活逻辑
+- **HTTP 接口**：新增 5 个预案管理端点（列表 / 创建 / 更新 / 删除 / 激活）
+- **gRPC 接口**：proto 新增 `ListScenarios` / `CreateScenario` / `UpdateScenario` / `DeleteScenario` / `ActivateScenario` 五个 RPC 方法及对应消息类型
+- **gRPC-Web**：`grpc-client.js` 新增预案管理函数，bundle 已同步重建
+- **前端 UI**：控制台新增「预案管理」Tab（第 4 个），包含预案列表、创建/编辑表单、一键激活功能
+- **JS 模块**：新增 `static/js/scenarios.js` 模块（预案 CRUD、编辑器表单交互、列表动态刷新）
+- **文档**：`docs/API.md` 同步补充预案相关 HTTP 及 gRPC 接口说明
+
 ## 2026-04-18
 
 ### DEBUG 模式显示器限制解除

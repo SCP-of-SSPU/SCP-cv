@@ -97,6 +97,23 @@ service PlaybackControlService {
   // 服务端流式推送播放状态变更，客户端通过此 RPC 代替 SSE 订阅实时更新。
   rpc WatchPlaybackState(EmptyRequest) returns (stream PlaybackStateEvent);
 
+  // ── 预案管理 ──
+
+  // 获取所有预案列表。
+  rpc ListScenarios(EmptyRequest) returns (ListScenariosReply);
+
+  // 创建新预案。
+  rpc CreateScenario(ScenarioDetail) returns (ScenarioReply);
+
+  // 更新已有预案。
+  rpc UpdateScenario(UpdateScenarioRequest) returns (ScenarioReply);
+
+  // 删除预案。
+  rpc DeleteScenario(DeleteScenarioRequest) returns (OperationReply);
+
+  // 激活预案：一键应用预设的窗口配置。
+  rpc ActivateScenario(ActivateScenarioRequest) returns (ActivateScenarioReply);
+
   // ── 兼容接口 ──
 
   // 停止当前播放内容（等价于 CloseSource，保留供旧版客户端调用）。
@@ -363,6 +380,75 @@ message AllSessionSnapshotsReply {
   bool success = 1;
   bool splice_active = 2;
   repeated SessionSnapshot sessions = 3;
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// 预案管理消息
+// ══════════════════════════════════════════════════════════════
+
+// 预案窗口配置槽位（窗口 1 或 2 的媒体源与播放参数）。
+message ScenarioWindowSlot {
+  int64 source_id = 1;    // 媒体源 ID（0 表示无源）
+  bool autoplay = 2;      // 是否自动播放
+  bool resume = 3;        // 相同源已打开时是否保留进度
+}
+
+// 预案详细信息（创建 / 更新时发送）。
+message ScenarioDetail {
+  string name = 1;                    // 预案名称（必填）
+  string description = 2;            // 描述（可选）
+  bool is_splice_mode = 3;           // 拼接模式
+  ScenarioWindowSlot window1 = 4;    // 窗口 1 配置
+  ScenarioWindowSlot window2 = 5;    // 窗口 2 配置（拼接模式下忽略）
+}
+
+// 预案摘要项（列表响应中的重复元素）。
+message ScenarioItem {
+  int64 id = 1;
+  string name = 2;
+  string description = 3;
+  bool is_splice_mode = 4;
+  ScenarioWindowSlot window1 = 5;
+  ScenarioWindowSlot window2 = 6;
+  string created_at = 7;     // ISO 8601 时间戳
+  string updated_at = 8;
+}
+
+// 预案列表响应（ListScenarios）。
+message ListScenariosReply {
+  bool success = 1;
+  repeated ScenarioItem scenarios = 2;
+}
+
+// 更新预案请求（UpdateScenario）。
+message UpdateScenarioRequest {
+  int64 scenario_id = 1;     // 目标预案 ID
+  ScenarioDetail detail = 2; // 更新内容
+}
+
+// 删除预案请求（DeleteScenario）。
+message DeleteScenarioRequest {
+  int64 scenario_id = 1;
+}
+
+// 激活预案请求（ActivateScenario）。
+message ActivateScenarioRequest {
+  int64 scenario_id = 1;
+}
+
+// 预案操作响应（CreateScenario、UpdateScenario）。
+message ScenarioReply {
+  bool success = 1;
+  string message = 2;
+  ScenarioItem scenario = 3;
+}
+
+// 激活预案响应（ActivateScenario）。
+message ActivateScenarioReply {
+  bool success = 1;
+  string message = 2;
+  repeated SessionSnapshot sessions = 3;  // 激活后的窗口状态快照
 }
 
 

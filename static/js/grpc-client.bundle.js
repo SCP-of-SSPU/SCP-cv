@@ -6926,15 +6926,19 @@ var require_control_pb = __commonJS({
     var jspb2 = require_google_protobuf();
     var goog2 = jspb2;
     var global = globalThis;
+    goog2.exportSymbol("proto.scp_cv.v1.ActivateScenarioReply", null, global);
+    goog2.exportSymbol("proto.scp_cv.v1.ActivateScenarioRequest", null, global);
     goog2.exportSymbol("proto.scp_cv.v1.AddLocalPathSourceRequest", null, global);
     goog2.exportSymbol("proto.scp_cv.v1.AddWebUrlSourceRequest", null, global);
     goog2.exportSymbol("proto.scp_cv.v1.AllSessionSnapshotsReply", null, global);
     goog2.exportSymbol("proto.scp_cv.v1.CloseSourceRequest", null, global);
     goog2.exportSymbol("proto.scp_cv.v1.ControlPlaybackRequest", null, global);
+    goog2.exportSymbol("proto.scp_cv.v1.DeleteScenarioRequest", null, global);
     goog2.exportSymbol("proto.scp_cv.v1.DeleteSourceRequest", null, global);
     goog2.exportSymbol("proto.scp_cv.v1.DisplayTargetItem", null, global);
     goog2.exportSymbol("proto.scp_cv.v1.DisplayTargetsReply", null, global);
     goog2.exportSymbol("proto.scp_cv.v1.EmptyRequest", null, global);
+    goog2.exportSymbol("proto.scp_cv.v1.ListScenariosReply", null, global);
     goog2.exportSymbol("proto.scp_cv.v1.ListSourcesReply", null, global);
     goog2.exportSymbol("proto.scp_cv.v1.ListSourcesRequest", null, global);
     goog2.exportSymbol("proto.scp_cv.v1.NavigateAction", null, global);
@@ -6945,6 +6949,10 @@ var require_control_pb = __commonJS({
     goog2.exportSymbol("proto.scp_cv.v1.PlaybackStateEvent", null, global);
     goog2.exportSymbol("proto.scp_cv.v1.PlaybackStateReply", null, global);
     goog2.exportSymbol("proto.scp_cv.v1.RuntimeStatusReply", null, global);
+    goog2.exportSymbol("proto.scp_cv.v1.ScenarioDetail", null, global);
+    goog2.exportSymbol("proto.scp_cv.v1.ScenarioItem", null, global);
+    goog2.exportSymbol("proto.scp_cv.v1.ScenarioReply", null, global);
+    goog2.exportSymbol("proto.scp_cv.v1.ScenarioWindowSlot", null, global);
     goog2.exportSymbol("proto.scp_cv.v1.SelectDisplayTargetRequest", null, global);
     goog2.exportSymbol("proto.scp_cv.v1.SessionSnapshot", null, global);
     goog2.exportSymbol("proto.scp_cv.v1.SetSpliceModeRequest", null, global);
@@ -6953,6 +6961,7 @@ var require_control_pb = __commonJS({
     goog2.exportSymbol("proto.scp_cv.v1.SourceType", null, global);
     goog2.exportSymbol("proto.scp_cv.v1.SpliceModeReply", null, global);
     goog2.exportSymbol("proto.scp_cv.v1.ToggleLoopRequest", null, global);
+    goog2.exportSymbol("proto.scp_cv.v1.UpdateScenarioRequest", null, global);
     goog2.exportSymbol("proto.scp_cv.v1.WindowRequest", null, global);
     proto.scp_cv.v1.EmptyRequest = function(opt_data) {
       jspb2.Message.initialize(this, opt_data, 0, -1, null, null);
@@ -7121,6 +7130,69 @@ var require_control_pb = __commonJS({
     goog2.inherits(proto.scp_cv.v1.AllSessionSnapshotsReply, jspb2.Message);
     if (goog2.DEBUG && !COMPILED) {
       proto.scp_cv.v1.AllSessionSnapshotsReply.displayName = "proto.scp_cv.v1.AllSessionSnapshotsReply";
+    }
+    proto.scp_cv.v1.ScenarioWindowSlot = function(opt_data) {
+      jspb2.Message.initialize(this, opt_data, 0, -1, null, null);
+    };
+    goog2.inherits(proto.scp_cv.v1.ScenarioWindowSlot, jspb2.Message);
+    if (goog2.DEBUG && !COMPILED) {
+      proto.scp_cv.v1.ScenarioWindowSlot.displayName = "proto.scp_cv.v1.ScenarioWindowSlot";
+    }
+    proto.scp_cv.v1.ScenarioDetail = function(opt_data) {
+      jspb2.Message.initialize(this, opt_data, 0, -1, null, null);
+    };
+    goog2.inherits(proto.scp_cv.v1.ScenarioDetail, jspb2.Message);
+    if (goog2.DEBUG && !COMPILED) {
+      proto.scp_cv.v1.ScenarioDetail.displayName = "proto.scp_cv.v1.ScenarioDetail";
+    }
+    proto.scp_cv.v1.ScenarioItem = function(opt_data) {
+      jspb2.Message.initialize(this, opt_data, 0, -1, null, null);
+    };
+    goog2.inherits(proto.scp_cv.v1.ScenarioItem, jspb2.Message);
+    if (goog2.DEBUG && !COMPILED) {
+      proto.scp_cv.v1.ScenarioItem.displayName = "proto.scp_cv.v1.ScenarioItem";
+    }
+    proto.scp_cv.v1.ListScenariosReply = function(opt_data) {
+      jspb2.Message.initialize(this, opt_data, 0, -1, proto.scp_cv.v1.ListScenariosReply.repeatedFields_, null);
+    };
+    goog2.inherits(proto.scp_cv.v1.ListScenariosReply, jspb2.Message);
+    if (goog2.DEBUG && !COMPILED) {
+      proto.scp_cv.v1.ListScenariosReply.displayName = "proto.scp_cv.v1.ListScenariosReply";
+    }
+    proto.scp_cv.v1.UpdateScenarioRequest = function(opt_data) {
+      jspb2.Message.initialize(this, opt_data, 0, -1, null, null);
+    };
+    goog2.inherits(proto.scp_cv.v1.UpdateScenarioRequest, jspb2.Message);
+    if (goog2.DEBUG && !COMPILED) {
+      proto.scp_cv.v1.UpdateScenarioRequest.displayName = "proto.scp_cv.v1.UpdateScenarioRequest";
+    }
+    proto.scp_cv.v1.DeleteScenarioRequest = function(opt_data) {
+      jspb2.Message.initialize(this, opt_data, 0, -1, null, null);
+    };
+    goog2.inherits(proto.scp_cv.v1.DeleteScenarioRequest, jspb2.Message);
+    if (goog2.DEBUG && !COMPILED) {
+      proto.scp_cv.v1.DeleteScenarioRequest.displayName = "proto.scp_cv.v1.DeleteScenarioRequest";
+    }
+    proto.scp_cv.v1.ActivateScenarioRequest = function(opt_data) {
+      jspb2.Message.initialize(this, opt_data, 0, -1, null, null);
+    };
+    goog2.inherits(proto.scp_cv.v1.ActivateScenarioRequest, jspb2.Message);
+    if (goog2.DEBUG && !COMPILED) {
+      proto.scp_cv.v1.ActivateScenarioRequest.displayName = "proto.scp_cv.v1.ActivateScenarioRequest";
+    }
+    proto.scp_cv.v1.ScenarioReply = function(opt_data) {
+      jspb2.Message.initialize(this, opt_data, 0, -1, null, null);
+    };
+    goog2.inherits(proto.scp_cv.v1.ScenarioReply, jspb2.Message);
+    if (goog2.DEBUG && !COMPILED) {
+      proto.scp_cv.v1.ScenarioReply.displayName = "proto.scp_cv.v1.ScenarioReply";
+    }
+    proto.scp_cv.v1.ActivateScenarioReply = function(opt_data) {
+      jspb2.Message.initialize(this, opt_data, 0, -1, proto.scp_cv.v1.ActivateScenarioReply.repeatedFields_, null);
+    };
+    goog2.inherits(proto.scp_cv.v1.ActivateScenarioReply, jspb2.Message);
+    if (goog2.DEBUG && !COMPILED) {
+      proto.scp_cv.v1.ActivateScenarioReply.displayName = "proto.scp_cv.v1.ActivateScenarioReply";
     }
     proto.scp_cv.v1.PlaybackStateEvent = function(opt_data) {
       jspb2.Message.initialize(this, opt_data, 0, -1, proto.scp_cv.v1.PlaybackStateEvent.repeatedFields_, null);
@@ -10341,6 +10413,1088 @@ var require_control_pb = __commonJS({
     proto.scp_cv.v1.AllSessionSnapshotsReply.prototype.clearSessionsList = function() {
       return this.setSessionsList([]);
     };
+    if (jspb2.Message.GENERATE_TO_OBJECT) {
+      proto.scp_cv.v1.ScenarioWindowSlot.prototype.toObject = function(opt_includeInstance) {
+        return proto.scp_cv.v1.ScenarioWindowSlot.toObject(opt_includeInstance, this);
+      };
+      proto.scp_cv.v1.ScenarioWindowSlot.toObject = function(includeInstance, msg) {
+        var f, obj = {
+          sourceId: jspb2.Message.getFieldWithDefault(msg, 1, 0),
+          autoplay: jspb2.Message.getBooleanFieldWithDefault(msg, 2, false),
+          resume: jspb2.Message.getBooleanFieldWithDefault(msg, 3, false)
+        };
+        if (includeInstance) {
+          obj.$jspbMessageInstance = msg;
+        }
+        return obj;
+      };
+    }
+    proto.scp_cv.v1.ScenarioWindowSlot.deserializeBinary = function(bytes) {
+      var reader = new jspb2.BinaryReader(bytes);
+      var msg = new proto.scp_cv.v1.ScenarioWindowSlot();
+      return proto.scp_cv.v1.ScenarioWindowSlot.deserializeBinaryFromReader(msg, reader);
+    };
+    proto.scp_cv.v1.ScenarioWindowSlot.deserializeBinaryFromReader = function(msg, reader) {
+      while (reader.nextField()) {
+        if (reader.isEndGroup()) {
+          break;
+        }
+        var field = reader.getFieldNumber();
+        switch (field) {
+          case 1:
+            var value = (
+              /** @type {number} */
+              reader.readInt64()
+            );
+            msg.setSourceId(value);
+            break;
+          case 2:
+            var value = (
+              /** @type {boolean} */
+              reader.readBool()
+            );
+            msg.setAutoplay(value);
+            break;
+          case 3:
+            var value = (
+              /** @type {boolean} */
+              reader.readBool()
+            );
+            msg.setResume(value);
+            break;
+          default:
+            reader.skipField();
+            break;
+        }
+      }
+      return msg;
+    };
+    proto.scp_cv.v1.ScenarioWindowSlot.prototype.serializeBinary = function() {
+      var writer = new jspb2.BinaryWriter();
+      proto.scp_cv.v1.ScenarioWindowSlot.serializeBinaryToWriter(this, writer);
+      return writer.getResultBuffer();
+    };
+    proto.scp_cv.v1.ScenarioWindowSlot.serializeBinaryToWriter = function(message, writer) {
+      var f = void 0;
+      f = message.getSourceId();
+      if (f !== 0) {
+        writer.writeInt64(
+          1,
+          f
+        );
+      }
+      f = message.getAutoplay();
+      if (f) {
+        writer.writeBool(
+          2,
+          f
+        );
+      }
+      f = message.getResume();
+      if (f) {
+        writer.writeBool(
+          3,
+          f
+        );
+      }
+    };
+    proto.scp_cv.v1.ScenarioWindowSlot.prototype.getSourceId = function() {
+      return (
+        /** @type {number} */
+        jspb2.Message.getFieldWithDefault(this, 1, 0)
+      );
+    };
+    proto.scp_cv.v1.ScenarioWindowSlot.prototype.setSourceId = function(value) {
+      return jspb2.Message.setProto3IntField(this, 1, value);
+    };
+    proto.scp_cv.v1.ScenarioWindowSlot.prototype.getAutoplay = function() {
+      return (
+        /** @type {boolean} */
+        jspb2.Message.getBooleanFieldWithDefault(this, 2, false)
+      );
+    };
+    proto.scp_cv.v1.ScenarioWindowSlot.prototype.setAutoplay = function(value) {
+      return jspb2.Message.setProto3BooleanField(this, 2, value);
+    };
+    proto.scp_cv.v1.ScenarioWindowSlot.prototype.getResume = function() {
+      return (
+        /** @type {boolean} */
+        jspb2.Message.getBooleanFieldWithDefault(this, 3, false)
+      );
+    };
+    proto.scp_cv.v1.ScenarioWindowSlot.prototype.setResume = function(value) {
+      return jspb2.Message.setProto3BooleanField(this, 3, value);
+    };
+    if (jspb2.Message.GENERATE_TO_OBJECT) {
+      proto.scp_cv.v1.ScenarioDetail.prototype.toObject = function(opt_includeInstance) {
+        return proto.scp_cv.v1.ScenarioDetail.toObject(opt_includeInstance, this);
+      };
+      proto.scp_cv.v1.ScenarioDetail.toObject = function(includeInstance, msg) {
+        var f, obj = {
+          name: jspb2.Message.getFieldWithDefault(msg, 1, ""),
+          description: jspb2.Message.getFieldWithDefault(msg, 2, ""),
+          isSpliceMode: jspb2.Message.getBooleanFieldWithDefault(msg, 3, false),
+          window1: (f = msg.getWindow1()) && proto.scp_cv.v1.ScenarioWindowSlot.toObject(includeInstance, f),
+          window2: (f = msg.getWindow2()) && proto.scp_cv.v1.ScenarioWindowSlot.toObject(includeInstance, f)
+        };
+        if (includeInstance) {
+          obj.$jspbMessageInstance = msg;
+        }
+        return obj;
+      };
+    }
+    proto.scp_cv.v1.ScenarioDetail.deserializeBinary = function(bytes) {
+      var reader = new jspb2.BinaryReader(bytes);
+      var msg = new proto.scp_cv.v1.ScenarioDetail();
+      return proto.scp_cv.v1.ScenarioDetail.deserializeBinaryFromReader(msg, reader);
+    };
+    proto.scp_cv.v1.ScenarioDetail.deserializeBinaryFromReader = function(msg, reader) {
+      while (reader.nextField()) {
+        if (reader.isEndGroup()) {
+          break;
+        }
+        var field = reader.getFieldNumber();
+        switch (field) {
+          case 1:
+            var value = (
+              /** @type {string} */
+              reader.readStringRequireUtf8()
+            );
+            msg.setName(value);
+            break;
+          case 2:
+            var value = (
+              /** @type {string} */
+              reader.readStringRequireUtf8()
+            );
+            msg.setDescription(value);
+            break;
+          case 3:
+            var value = (
+              /** @type {boolean} */
+              reader.readBool()
+            );
+            msg.setIsSpliceMode(value);
+            break;
+          case 4:
+            var value = new proto.scp_cv.v1.ScenarioWindowSlot();
+            reader.readMessage(value, proto.scp_cv.v1.ScenarioWindowSlot.deserializeBinaryFromReader);
+            msg.setWindow1(value);
+            break;
+          case 5:
+            var value = new proto.scp_cv.v1.ScenarioWindowSlot();
+            reader.readMessage(value, proto.scp_cv.v1.ScenarioWindowSlot.deserializeBinaryFromReader);
+            msg.setWindow2(value);
+            break;
+          default:
+            reader.skipField();
+            break;
+        }
+      }
+      return msg;
+    };
+    proto.scp_cv.v1.ScenarioDetail.prototype.serializeBinary = function() {
+      var writer = new jspb2.BinaryWriter();
+      proto.scp_cv.v1.ScenarioDetail.serializeBinaryToWriter(this, writer);
+      return writer.getResultBuffer();
+    };
+    proto.scp_cv.v1.ScenarioDetail.serializeBinaryToWriter = function(message, writer) {
+      var f = void 0;
+      f = message.getName();
+      if (f.length > 0) {
+        writer.writeString(
+          1,
+          f
+        );
+      }
+      f = message.getDescription();
+      if (f.length > 0) {
+        writer.writeString(
+          2,
+          f
+        );
+      }
+      f = message.getIsSpliceMode();
+      if (f) {
+        writer.writeBool(
+          3,
+          f
+        );
+      }
+      f = message.getWindow1();
+      if (f != null) {
+        writer.writeMessage(
+          4,
+          f,
+          proto.scp_cv.v1.ScenarioWindowSlot.serializeBinaryToWriter
+        );
+      }
+      f = message.getWindow2();
+      if (f != null) {
+        writer.writeMessage(
+          5,
+          f,
+          proto.scp_cv.v1.ScenarioWindowSlot.serializeBinaryToWriter
+        );
+      }
+    };
+    proto.scp_cv.v1.ScenarioDetail.prototype.getName = function() {
+      return (
+        /** @type {string} */
+        jspb2.Message.getFieldWithDefault(this, 1, "")
+      );
+    };
+    proto.scp_cv.v1.ScenarioDetail.prototype.setName = function(value) {
+      return jspb2.Message.setProto3StringField(this, 1, value);
+    };
+    proto.scp_cv.v1.ScenarioDetail.prototype.getDescription = function() {
+      return (
+        /** @type {string} */
+        jspb2.Message.getFieldWithDefault(this, 2, "")
+      );
+    };
+    proto.scp_cv.v1.ScenarioDetail.prototype.setDescription = function(value) {
+      return jspb2.Message.setProto3StringField(this, 2, value);
+    };
+    proto.scp_cv.v1.ScenarioDetail.prototype.getIsSpliceMode = function() {
+      return (
+        /** @type {boolean} */
+        jspb2.Message.getBooleanFieldWithDefault(this, 3, false)
+      );
+    };
+    proto.scp_cv.v1.ScenarioDetail.prototype.setIsSpliceMode = function(value) {
+      return jspb2.Message.setProto3BooleanField(this, 3, value);
+    };
+    proto.scp_cv.v1.ScenarioDetail.prototype.getWindow1 = function() {
+      return (
+        /** @type{?proto.scp_cv.v1.ScenarioWindowSlot} */
+        jspb2.Message.getWrapperField(this, proto.scp_cv.v1.ScenarioWindowSlot, 4)
+      );
+    };
+    proto.scp_cv.v1.ScenarioDetail.prototype.setWindow1 = function(value) {
+      return jspb2.Message.setWrapperField(this, 4, value);
+    };
+    proto.scp_cv.v1.ScenarioDetail.prototype.clearWindow1 = function() {
+      return this.setWindow1(void 0);
+    };
+    proto.scp_cv.v1.ScenarioDetail.prototype.hasWindow1 = function() {
+      return jspb2.Message.getField(this, 4) != null;
+    };
+    proto.scp_cv.v1.ScenarioDetail.prototype.getWindow2 = function() {
+      return (
+        /** @type{?proto.scp_cv.v1.ScenarioWindowSlot} */
+        jspb2.Message.getWrapperField(this, proto.scp_cv.v1.ScenarioWindowSlot, 5)
+      );
+    };
+    proto.scp_cv.v1.ScenarioDetail.prototype.setWindow2 = function(value) {
+      return jspb2.Message.setWrapperField(this, 5, value);
+    };
+    proto.scp_cv.v1.ScenarioDetail.prototype.clearWindow2 = function() {
+      return this.setWindow2(void 0);
+    };
+    proto.scp_cv.v1.ScenarioDetail.prototype.hasWindow2 = function() {
+      return jspb2.Message.getField(this, 5) != null;
+    };
+    if (jspb2.Message.GENERATE_TO_OBJECT) {
+      proto.scp_cv.v1.ScenarioItem.prototype.toObject = function(opt_includeInstance) {
+        return proto.scp_cv.v1.ScenarioItem.toObject(opt_includeInstance, this);
+      };
+      proto.scp_cv.v1.ScenarioItem.toObject = function(includeInstance, msg) {
+        var f, obj = {
+          id: jspb2.Message.getFieldWithDefault(msg, 1, 0),
+          name: jspb2.Message.getFieldWithDefault(msg, 2, ""),
+          description: jspb2.Message.getFieldWithDefault(msg, 3, ""),
+          isSpliceMode: jspb2.Message.getBooleanFieldWithDefault(msg, 4, false),
+          window1: (f = msg.getWindow1()) && proto.scp_cv.v1.ScenarioWindowSlot.toObject(includeInstance, f),
+          window2: (f = msg.getWindow2()) && proto.scp_cv.v1.ScenarioWindowSlot.toObject(includeInstance, f),
+          createdAt: jspb2.Message.getFieldWithDefault(msg, 7, ""),
+          updatedAt: jspb2.Message.getFieldWithDefault(msg, 8, "")
+        };
+        if (includeInstance) {
+          obj.$jspbMessageInstance = msg;
+        }
+        return obj;
+      };
+    }
+    proto.scp_cv.v1.ScenarioItem.deserializeBinary = function(bytes) {
+      var reader = new jspb2.BinaryReader(bytes);
+      var msg = new proto.scp_cv.v1.ScenarioItem();
+      return proto.scp_cv.v1.ScenarioItem.deserializeBinaryFromReader(msg, reader);
+    };
+    proto.scp_cv.v1.ScenarioItem.deserializeBinaryFromReader = function(msg, reader) {
+      while (reader.nextField()) {
+        if (reader.isEndGroup()) {
+          break;
+        }
+        var field = reader.getFieldNumber();
+        switch (field) {
+          case 1:
+            var value = (
+              /** @type {number} */
+              reader.readInt64()
+            );
+            msg.setId(value);
+            break;
+          case 2:
+            var value = (
+              /** @type {string} */
+              reader.readStringRequireUtf8()
+            );
+            msg.setName(value);
+            break;
+          case 3:
+            var value = (
+              /** @type {string} */
+              reader.readStringRequireUtf8()
+            );
+            msg.setDescription(value);
+            break;
+          case 4:
+            var value = (
+              /** @type {boolean} */
+              reader.readBool()
+            );
+            msg.setIsSpliceMode(value);
+            break;
+          case 5:
+            var value = new proto.scp_cv.v1.ScenarioWindowSlot();
+            reader.readMessage(value, proto.scp_cv.v1.ScenarioWindowSlot.deserializeBinaryFromReader);
+            msg.setWindow1(value);
+            break;
+          case 6:
+            var value = new proto.scp_cv.v1.ScenarioWindowSlot();
+            reader.readMessage(value, proto.scp_cv.v1.ScenarioWindowSlot.deserializeBinaryFromReader);
+            msg.setWindow2(value);
+            break;
+          case 7:
+            var value = (
+              /** @type {string} */
+              reader.readStringRequireUtf8()
+            );
+            msg.setCreatedAt(value);
+            break;
+          case 8:
+            var value = (
+              /** @type {string} */
+              reader.readStringRequireUtf8()
+            );
+            msg.setUpdatedAt(value);
+            break;
+          default:
+            reader.skipField();
+            break;
+        }
+      }
+      return msg;
+    };
+    proto.scp_cv.v1.ScenarioItem.prototype.serializeBinary = function() {
+      var writer = new jspb2.BinaryWriter();
+      proto.scp_cv.v1.ScenarioItem.serializeBinaryToWriter(this, writer);
+      return writer.getResultBuffer();
+    };
+    proto.scp_cv.v1.ScenarioItem.serializeBinaryToWriter = function(message, writer) {
+      var f = void 0;
+      f = message.getId();
+      if (f !== 0) {
+        writer.writeInt64(
+          1,
+          f
+        );
+      }
+      f = message.getName();
+      if (f.length > 0) {
+        writer.writeString(
+          2,
+          f
+        );
+      }
+      f = message.getDescription();
+      if (f.length > 0) {
+        writer.writeString(
+          3,
+          f
+        );
+      }
+      f = message.getIsSpliceMode();
+      if (f) {
+        writer.writeBool(
+          4,
+          f
+        );
+      }
+      f = message.getWindow1();
+      if (f != null) {
+        writer.writeMessage(
+          5,
+          f,
+          proto.scp_cv.v1.ScenarioWindowSlot.serializeBinaryToWriter
+        );
+      }
+      f = message.getWindow2();
+      if (f != null) {
+        writer.writeMessage(
+          6,
+          f,
+          proto.scp_cv.v1.ScenarioWindowSlot.serializeBinaryToWriter
+        );
+      }
+      f = message.getCreatedAt();
+      if (f.length > 0) {
+        writer.writeString(
+          7,
+          f
+        );
+      }
+      f = message.getUpdatedAt();
+      if (f.length > 0) {
+        writer.writeString(
+          8,
+          f
+        );
+      }
+    };
+    proto.scp_cv.v1.ScenarioItem.prototype.getId = function() {
+      return (
+        /** @type {number} */
+        jspb2.Message.getFieldWithDefault(this, 1, 0)
+      );
+    };
+    proto.scp_cv.v1.ScenarioItem.prototype.setId = function(value) {
+      return jspb2.Message.setProto3IntField(this, 1, value);
+    };
+    proto.scp_cv.v1.ScenarioItem.prototype.getName = function() {
+      return (
+        /** @type {string} */
+        jspb2.Message.getFieldWithDefault(this, 2, "")
+      );
+    };
+    proto.scp_cv.v1.ScenarioItem.prototype.setName = function(value) {
+      return jspb2.Message.setProto3StringField(this, 2, value);
+    };
+    proto.scp_cv.v1.ScenarioItem.prototype.getDescription = function() {
+      return (
+        /** @type {string} */
+        jspb2.Message.getFieldWithDefault(this, 3, "")
+      );
+    };
+    proto.scp_cv.v1.ScenarioItem.prototype.setDescription = function(value) {
+      return jspb2.Message.setProto3StringField(this, 3, value);
+    };
+    proto.scp_cv.v1.ScenarioItem.prototype.getIsSpliceMode = function() {
+      return (
+        /** @type {boolean} */
+        jspb2.Message.getBooleanFieldWithDefault(this, 4, false)
+      );
+    };
+    proto.scp_cv.v1.ScenarioItem.prototype.setIsSpliceMode = function(value) {
+      return jspb2.Message.setProto3BooleanField(this, 4, value);
+    };
+    proto.scp_cv.v1.ScenarioItem.prototype.getWindow1 = function() {
+      return (
+        /** @type{?proto.scp_cv.v1.ScenarioWindowSlot} */
+        jspb2.Message.getWrapperField(this, proto.scp_cv.v1.ScenarioWindowSlot, 5)
+      );
+    };
+    proto.scp_cv.v1.ScenarioItem.prototype.setWindow1 = function(value) {
+      return jspb2.Message.setWrapperField(this, 5, value);
+    };
+    proto.scp_cv.v1.ScenarioItem.prototype.clearWindow1 = function() {
+      return this.setWindow1(void 0);
+    };
+    proto.scp_cv.v1.ScenarioItem.prototype.hasWindow1 = function() {
+      return jspb2.Message.getField(this, 5) != null;
+    };
+    proto.scp_cv.v1.ScenarioItem.prototype.getWindow2 = function() {
+      return (
+        /** @type{?proto.scp_cv.v1.ScenarioWindowSlot} */
+        jspb2.Message.getWrapperField(this, proto.scp_cv.v1.ScenarioWindowSlot, 6)
+      );
+    };
+    proto.scp_cv.v1.ScenarioItem.prototype.setWindow2 = function(value) {
+      return jspb2.Message.setWrapperField(this, 6, value);
+    };
+    proto.scp_cv.v1.ScenarioItem.prototype.clearWindow2 = function() {
+      return this.setWindow2(void 0);
+    };
+    proto.scp_cv.v1.ScenarioItem.prototype.hasWindow2 = function() {
+      return jspb2.Message.getField(this, 6) != null;
+    };
+    proto.scp_cv.v1.ScenarioItem.prototype.getCreatedAt = function() {
+      return (
+        /** @type {string} */
+        jspb2.Message.getFieldWithDefault(this, 7, "")
+      );
+    };
+    proto.scp_cv.v1.ScenarioItem.prototype.setCreatedAt = function(value) {
+      return jspb2.Message.setProto3StringField(this, 7, value);
+    };
+    proto.scp_cv.v1.ScenarioItem.prototype.getUpdatedAt = function() {
+      return (
+        /** @type {string} */
+        jspb2.Message.getFieldWithDefault(this, 8, "")
+      );
+    };
+    proto.scp_cv.v1.ScenarioItem.prototype.setUpdatedAt = function(value) {
+      return jspb2.Message.setProto3StringField(this, 8, value);
+    };
+    proto.scp_cv.v1.ListScenariosReply.repeatedFields_ = [2];
+    if (jspb2.Message.GENERATE_TO_OBJECT) {
+      proto.scp_cv.v1.ListScenariosReply.prototype.toObject = function(opt_includeInstance) {
+        return proto.scp_cv.v1.ListScenariosReply.toObject(opt_includeInstance, this);
+      };
+      proto.scp_cv.v1.ListScenariosReply.toObject = function(includeInstance, msg) {
+        var f, obj = {
+          success: jspb2.Message.getBooleanFieldWithDefault(msg, 1, false),
+          scenariosList: jspb2.Message.toObjectList(
+            msg.getScenariosList(),
+            proto.scp_cv.v1.ScenarioItem.toObject,
+            includeInstance
+          )
+        };
+        if (includeInstance) {
+          obj.$jspbMessageInstance = msg;
+        }
+        return obj;
+      };
+    }
+    proto.scp_cv.v1.ListScenariosReply.deserializeBinary = function(bytes) {
+      var reader = new jspb2.BinaryReader(bytes);
+      var msg = new proto.scp_cv.v1.ListScenariosReply();
+      return proto.scp_cv.v1.ListScenariosReply.deserializeBinaryFromReader(msg, reader);
+    };
+    proto.scp_cv.v1.ListScenariosReply.deserializeBinaryFromReader = function(msg, reader) {
+      while (reader.nextField()) {
+        if (reader.isEndGroup()) {
+          break;
+        }
+        var field = reader.getFieldNumber();
+        switch (field) {
+          case 1:
+            var value = (
+              /** @type {boolean} */
+              reader.readBool()
+            );
+            msg.setSuccess(value);
+            break;
+          case 2:
+            var value = new proto.scp_cv.v1.ScenarioItem();
+            reader.readMessage(value, proto.scp_cv.v1.ScenarioItem.deserializeBinaryFromReader);
+            msg.addScenarios(value);
+            break;
+          default:
+            reader.skipField();
+            break;
+        }
+      }
+      return msg;
+    };
+    proto.scp_cv.v1.ListScenariosReply.prototype.serializeBinary = function() {
+      var writer = new jspb2.BinaryWriter();
+      proto.scp_cv.v1.ListScenariosReply.serializeBinaryToWriter(this, writer);
+      return writer.getResultBuffer();
+    };
+    proto.scp_cv.v1.ListScenariosReply.serializeBinaryToWriter = function(message, writer) {
+      var f = void 0;
+      f = message.getSuccess();
+      if (f) {
+        writer.writeBool(
+          1,
+          f
+        );
+      }
+      f = message.getScenariosList();
+      if (f.length > 0) {
+        writer.writeRepeatedMessage(
+          2,
+          f,
+          proto.scp_cv.v1.ScenarioItem.serializeBinaryToWriter
+        );
+      }
+    };
+    proto.scp_cv.v1.ListScenariosReply.prototype.getSuccess = function() {
+      return (
+        /** @type {boolean} */
+        jspb2.Message.getBooleanFieldWithDefault(this, 1, false)
+      );
+    };
+    proto.scp_cv.v1.ListScenariosReply.prototype.setSuccess = function(value) {
+      return jspb2.Message.setProto3BooleanField(this, 1, value);
+    };
+    proto.scp_cv.v1.ListScenariosReply.prototype.getScenariosList = function() {
+      return (
+        /** @type{!Array<!proto.scp_cv.v1.ScenarioItem>} */
+        jspb2.Message.getRepeatedWrapperField(this, proto.scp_cv.v1.ScenarioItem, 2)
+      );
+    };
+    proto.scp_cv.v1.ListScenariosReply.prototype.setScenariosList = function(value) {
+      return jspb2.Message.setRepeatedWrapperField(this, 2, value);
+    };
+    proto.scp_cv.v1.ListScenariosReply.prototype.addScenarios = function(opt_value, opt_index) {
+      return jspb2.Message.addToRepeatedWrapperField(this, 2, opt_value, proto.scp_cv.v1.ScenarioItem, opt_index);
+    };
+    proto.scp_cv.v1.ListScenariosReply.prototype.clearScenariosList = function() {
+      return this.setScenariosList([]);
+    };
+    if (jspb2.Message.GENERATE_TO_OBJECT) {
+      proto.scp_cv.v1.UpdateScenarioRequest.prototype.toObject = function(opt_includeInstance) {
+        return proto.scp_cv.v1.UpdateScenarioRequest.toObject(opt_includeInstance, this);
+      };
+      proto.scp_cv.v1.UpdateScenarioRequest.toObject = function(includeInstance, msg) {
+        var f, obj = {
+          scenarioId: jspb2.Message.getFieldWithDefault(msg, 1, 0),
+          detail: (f = msg.getDetail()) && proto.scp_cv.v1.ScenarioDetail.toObject(includeInstance, f)
+        };
+        if (includeInstance) {
+          obj.$jspbMessageInstance = msg;
+        }
+        return obj;
+      };
+    }
+    proto.scp_cv.v1.UpdateScenarioRequest.deserializeBinary = function(bytes) {
+      var reader = new jspb2.BinaryReader(bytes);
+      var msg = new proto.scp_cv.v1.UpdateScenarioRequest();
+      return proto.scp_cv.v1.UpdateScenarioRequest.deserializeBinaryFromReader(msg, reader);
+    };
+    proto.scp_cv.v1.UpdateScenarioRequest.deserializeBinaryFromReader = function(msg, reader) {
+      while (reader.nextField()) {
+        if (reader.isEndGroup()) {
+          break;
+        }
+        var field = reader.getFieldNumber();
+        switch (field) {
+          case 1:
+            var value = (
+              /** @type {number} */
+              reader.readInt64()
+            );
+            msg.setScenarioId(value);
+            break;
+          case 2:
+            var value = new proto.scp_cv.v1.ScenarioDetail();
+            reader.readMessage(value, proto.scp_cv.v1.ScenarioDetail.deserializeBinaryFromReader);
+            msg.setDetail(value);
+            break;
+          default:
+            reader.skipField();
+            break;
+        }
+      }
+      return msg;
+    };
+    proto.scp_cv.v1.UpdateScenarioRequest.prototype.serializeBinary = function() {
+      var writer = new jspb2.BinaryWriter();
+      proto.scp_cv.v1.UpdateScenarioRequest.serializeBinaryToWriter(this, writer);
+      return writer.getResultBuffer();
+    };
+    proto.scp_cv.v1.UpdateScenarioRequest.serializeBinaryToWriter = function(message, writer) {
+      var f = void 0;
+      f = message.getScenarioId();
+      if (f !== 0) {
+        writer.writeInt64(
+          1,
+          f
+        );
+      }
+      f = message.getDetail();
+      if (f != null) {
+        writer.writeMessage(
+          2,
+          f,
+          proto.scp_cv.v1.ScenarioDetail.serializeBinaryToWriter
+        );
+      }
+    };
+    proto.scp_cv.v1.UpdateScenarioRequest.prototype.getScenarioId = function() {
+      return (
+        /** @type {number} */
+        jspb2.Message.getFieldWithDefault(this, 1, 0)
+      );
+    };
+    proto.scp_cv.v1.UpdateScenarioRequest.prototype.setScenarioId = function(value) {
+      return jspb2.Message.setProto3IntField(this, 1, value);
+    };
+    proto.scp_cv.v1.UpdateScenarioRequest.prototype.getDetail = function() {
+      return (
+        /** @type{?proto.scp_cv.v1.ScenarioDetail} */
+        jspb2.Message.getWrapperField(this, proto.scp_cv.v1.ScenarioDetail, 2)
+      );
+    };
+    proto.scp_cv.v1.UpdateScenarioRequest.prototype.setDetail = function(value) {
+      return jspb2.Message.setWrapperField(this, 2, value);
+    };
+    proto.scp_cv.v1.UpdateScenarioRequest.prototype.clearDetail = function() {
+      return this.setDetail(void 0);
+    };
+    proto.scp_cv.v1.UpdateScenarioRequest.prototype.hasDetail = function() {
+      return jspb2.Message.getField(this, 2) != null;
+    };
+    if (jspb2.Message.GENERATE_TO_OBJECT) {
+      proto.scp_cv.v1.DeleteScenarioRequest.prototype.toObject = function(opt_includeInstance) {
+        return proto.scp_cv.v1.DeleteScenarioRequest.toObject(opt_includeInstance, this);
+      };
+      proto.scp_cv.v1.DeleteScenarioRequest.toObject = function(includeInstance, msg) {
+        var f, obj = {
+          scenarioId: jspb2.Message.getFieldWithDefault(msg, 1, 0)
+        };
+        if (includeInstance) {
+          obj.$jspbMessageInstance = msg;
+        }
+        return obj;
+      };
+    }
+    proto.scp_cv.v1.DeleteScenarioRequest.deserializeBinary = function(bytes) {
+      var reader = new jspb2.BinaryReader(bytes);
+      var msg = new proto.scp_cv.v1.DeleteScenarioRequest();
+      return proto.scp_cv.v1.DeleteScenarioRequest.deserializeBinaryFromReader(msg, reader);
+    };
+    proto.scp_cv.v1.DeleteScenarioRequest.deserializeBinaryFromReader = function(msg, reader) {
+      while (reader.nextField()) {
+        if (reader.isEndGroup()) {
+          break;
+        }
+        var field = reader.getFieldNumber();
+        switch (field) {
+          case 1:
+            var value = (
+              /** @type {number} */
+              reader.readInt64()
+            );
+            msg.setScenarioId(value);
+            break;
+          default:
+            reader.skipField();
+            break;
+        }
+      }
+      return msg;
+    };
+    proto.scp_cv.v1.DeleteScenarioRequest.prototype.serializeBinary = function() {
+      var writer = new jspb2.BinaryWriter();
+      proto.scp_cv.v1.DeleteScenarioRequest.serializeBinaryToWriter(this, writer);
+      return writer.getResultBuffer();
+    };
+    proto.scp_cv.v1.DeleteScenarioRequest.serializeBinaryToWriter = function(message, writer) {
+      var f = void 0;
+      f = message.getScenarioId();
+      if (f !== 0) {
+        writer.writeInt64(
+          1,
+          f
+        );
+      }
+    };
+    proto.scp_cv.v1.DeleteScenarioRequest.prototype.getScenarioId = function() {
+      return (
+        /** @type {number} */
+        jspb2.Message.getFieldWithDefault(this, 1, 0)
+      );
+    };
+    proto.scp_cv.v1.DeleteScenarioRequest.prototype.setScenarioId = function(value) {
+      return jspb2.Message.setProto3IntField(this, 1, value);
+    };
+    if (jspb2.Message.GENERATE_TO_OBJECT) {
+      proto.scp_cv.v1.ActivateScenarioRequest.prototype.toObject = function(opt_includeInstance) {
+        return proto.scp_cv.v1.ActivateScenarioRequest.toObject(opt_includeInstance, this);
+      };
+      proto.scp_cv.v1.ActivateScenarioRequest.toObject = function(includeInstance, msg) {
+        var f, obj = {
+          scenarioId: jspb2.Message.getFieldWithDefault(msg, 1, 0)
+        };
+        if (includeInstance) {
+          obj.$jspbMessageInstance = msg;
+        }
+        return obj;
+      };
+    }
+    proto.scp_cv.v1.ActivateScenarioRequest.deserializeBinary = function(bytes) {
+      var reader = new jspb2.BinaryReader(bytes);
+      var msg = new proto.scp_cv.v1.ActivateScenarioRequest();
+      return proto.scp_cv.v1.ActivateScenarioRequest.deserializeBinaryFromReader(msg, reader);
+    };
+    proto.scp_cv.v1.ActivateScenarioRequest.deserializeBinaryFromReader = function(msg, reader) {
+      while (reader.nextField()) {
+        if (reader.isEndGroup()) {
+          break;
+        }
+        var field = reader.getFieldNumber();
+        switch (field) {
+          case 1:
+            var value = (
+              /** @type {number} */
+              reader.readInt64()
+            );
+            msg.setScenarioId(value);
+            break;
+          default:
+            reader.skipField();
+            break;
+        }
+      }
+      return msg;
+    };
+    proto.scp_cv.v1.ActivateScenarioRequest.prototype.serializeBinary = function() {
+      var writer = new jspb2.BinaryWriter();
+      proto.scp_cv.v1.ActivateScenarioRequest.serializeBinaryToWriter(this, writer);
+      return writer.getResultBuffer();
+    };
+    proto.scp_cv.v1.ActivateScenarioRequest.serializeBinaryToWriter = function(message, writer) {
+      var f = void 0;
+      f = message.getScenarioId();
+      if (f !== 0) {
+        writer.writeInt64(
+          1,
+          f
+        );
+      }
+    };
+    proto.scp_cv.v1.ActivateScenarioRequest.prototype.getScenarioId = function() {
+      return (
+        /** @type {number} */
+        jspb2.Message.getFieldWithDefault(this, 1, 0)
+      );
+    };
+    proto.scp_cv.v1.ActivateScenarioRequest.prototype.setScenarioId = function(value) {
+      return jspb2.Message.setProto3IntField(this, 1, value);
+    };
+    if (jspb2.Message.GENERATE_TO_OBJECT) {
+      proto.scp_cv.v1.ScenarioReply.prototype.toObject = function(opt_includeInstance) {
+        return proto.scp_cv.v1.ScenarioReply.toObject(opt_includeInstance, this);
+      };
+      proto.scp_cv.v1.ScenarioReply.toObject = function(includeInstance, msg) {
+        var f, obj = {
+          success: jspb2.Message.getBooleanFieldWithDefault(msg, 1, false),
+          message: jspb2.Message.getFieldWithDefault(msg, 2, ""),
+          scenario: (f = msg.getScenario()) && proto.scp_cv.v1.ScenarioItem.toObject(includeInstance, f)
+        };
+        if (includeInstance) {
+          obj.$jspbMessageInstance = msg;
+        }
+        return obj;
+      };
+    }
+    proto.scp_cv.v1.ScenarioReply.deserializeBinary = function(bytes) {
+      var reader = new jspb2.BinaryReader(bytes);
+      var msg = new proto.scp_cv.v1.ScenarioReply();
+      return proto.scp_cv.v1.ScenarioReply.deserializeBinaryFromReader(msg, reader);
+    };
+    proto.scp_cv.v1.ScenarioReply.deserializeBinaryFromReader = function(msg, reader) {
+      while (reader.nextField()) {
+        if (reader.isEndGroup()) {
+          break;
+        }
+        var field = reader.getFieldNumber();
+        switch (field) {
+          case 1:
+            var value = (
+              /** @type {boolean} */
+              reader.readBool()
+            );
+            msg.setSuccess(value);
+            break;
+          case 2:
+            var value = (
+              /** @type {string} */
+              reader.readStringRequireUtf8()
+            );
+            msg.setMessage(value);
+            break;
+          case 3:
+            var value = new proto.scp_cv.v1.ScenarioItem();
+            reader.readMessage(value, proto.scp_cv.v1.ScenarioItem.deserializeBinaryFromReader);
+            msg.setScenario(value);
+            break;
+          default:
+            reader.skipField();
+            break;
+        }
+      }
+      return msg;
+    };
+    proto.scp_cv.v1.ScenarioReply.prototype.serializeBinary = function() {
+      var writer = new jspb2.BinaryWriter();
+      proto.scp_cv.v1.ScenarioReply.serializeBinaryToWriter(this, writer);
+      return writer.getResultBuffer();
+    };
+    proto.scp_cv.v1.ScenarioReply.serializeBinaryToWriter = function(message, writer) {
+      var f = void 0;
+      f = message.getSuccess();
+      if (f) {
+        writer.writeBool(
+          1,
+          f
+        );
+      }
+      f = message.getMessage();
+      if (f.length > 0) {
+        writer.writeString(
+          2,
+          f
+        );
+      }
+      f = message.getScenario();
+      if (f != null) {
+        writer.writeMessage(
+          3,
+          f,
+          proto.scp_cv.v1.ScenarioItem.serializeBinaryToWriter
+        );
+      }
+    };
+    proto.scp_cv.v1.ScenarioReply.prototype.getSuccess = function() {
+      return (
+        /** @type {boolean} */
+        jspb2.Message.getBooleanFieldWithDefault(this, 1, false)
+      );
+    };
+    proto.scp_cv.v1.ScenarioReply.prototype.setSuccess = function(value) {
+      return jspb2.Message.setProto3BooleanField(this, 1, value);
+    };
+    proto.scp_cv.v1.ScenarioReply.prototype.getMessage = function() {
+      return (
+        /** @type {string} */
+        jspb2.Message.getFieldWithDefault(this, 2, "")
+      );
+    };
+    proto.scp_cv.v1.ScenarioReply.prototype.setMessage = function(value) {
+      return jspb2.Message.setProto3StringField(this, 2, value);
+    };
+    proto.scp_cv.v1.ScenarioReply.prototype.getScenario = function() {
+      return (
+        /** @type{?proto.scp_cv.v1.ScenarioItem} */
+        jspb2.Message.getWrapperField(this, proto.scp_cv.v1.ScenarioItem, 3)
+      );
+    };
+    proto.scp_cv.v1.ScenarioReply.prototype.setScenario = function(value) {
+      return jspb2.Message.setWrapperField(this, 3, value);
+    };
+    proto.scp_cv.v1.ScenarioReply.prototype.clearScenario = function() {
+      return this.setScenario(void 0);
+    };
+    proto.scp_cv.v1.ScenarioReply.prototype.hasScenario = function() {
+      return jspb2.Message.getField(this, 3) != null;
+    };
+    proto.scp_cv.v1.ActivateScenarioReply.repeatedFields_ = [3];
+    if (jspb2.Message.GENERATE_TO_OBJECT) {
+      proto.scp_cv.v1.ActivateScenarioReply.prototype.toObject = function(opt_includeInstance) {
+        return proto.scp_cv.v1.ActivateScenarioReply.toObject(opt_includeInstance, this);
+      };
+      proto.scp_cv.v1.ActivateScenarioReply.toObject = function(includeInstance, msg) {
+        var f, obj = {
+          success: jspb2.Message.getBooleanFieldWithDefault(msg, 1, false),
+          message: jspb2.Message.getFieldWithDefault(msg, 2, ""),
+          sessionsList: jspb2.Message.toObjectList(
+            msg.getSessionsList(),
+            proto.scp_cv.v1.SessionSnapshot.toObject,
+            includeInstance
+          )
+        };
+        if (includeInstance) {
+          obj.$jspbMessageInstance = msg;
+        }
+        return obj;
+      };
+    }
+    proto.scp_cv.v1.ActivateScenarioReply.deserializeBinary = function(bytes) {
+      var reader = new jspb2.BinaryReader(bytes);
+      var msg = new proto.scp_cv.v1.ActivateScenarioReply();
+      return proto.scp_cv.v1.ActivateScenarioReply.deserializeBinaryFromReader(msg, reader);
+    };
+    proto.scp_cv.v1.ActivateScenarioReply.deserializeBinaryFromReader = function(msg, reader) {
+      while (reader.nextField()) {
+        if (reader.isEndGroup()) {
+          break;
+        }
+        var field = reader.getFieldNumber();
+        switch (field) {
+          case 1:
+            var value = (
+              /** @type {boolean} */
+              reader.readBool()
+            );
+            msg.setSuccess(value);
+            break;
+          case 2:
+            var value = (
+              /** @type {string} */
+              reader.readStringRequireUtf8()
+            );
+            msg.setMessage(value);
+            break;
+          case 3:
+            var value = new proto.scp_cv.v1.SessionSnapshot();
+            reader.readMessage(value, proto.scp_cv.v1.SessionSnapshot.deserializeBinaryFromReader);
+            msg.addSessions(value);
+            break;
+          default:
+            reader.skipField();
+            break;
+        }
+      }
+      return msg;
+    };
+    proto.scp_cv.v1.ActivateScenarioReply.prototype.serializeBinary = function() {
+      var writer = new jspb2.BinaryWriter();
+      proto.scp_cv.v1.ActivateScenarioReply.serializeBinaryToWriter(this, writer);
+      return writer.getResultBuffer();
+    };
+    proto.scp_cv.v1.ActivateScenarioReply.serializeBinaryToWriter = function(message, writer) {
+      var f = void 0;
+      f = message.getSuccess();
+      if (f) {
+        writer.writeBool(
+          1,
+          f
+        );
+      }
+      f = message.getMessage();
+      if (f.length > 0) {
+        writer.writeString(
+          2,
+          f
+        );
+      }
+      f = message.getSessionsList();
+      if (f.length > 0) {
+        writer.writeRepeatedMessage(
+          3,
+          f,
+          proto.scp_cv.v1.SessionSnapshot.serializeBinaryToWriter
+        );
+      }
+    };
+    proto.scp_cv.v1.ActivateScenarioReply.prototype.getSuccess = function() {
+      return (
+        /** @type {boolean} */
+        jspb2.Message.getBooleanFieldWithDefault(this, 1, false)
+      );
+    };
+    proto.scp_cv.v1.ActivateScenarioReply.prototype.setSuccess = function(value) {
+      return jspb2.Message.setProto3BooleanField(this, 1, value);
+    };
+    proto.scp_cv.v1.ActivateScenarioReply.prototype.getMessage = function() {
+      return (
+        /** @type {string} */
+        jspb2.Message.getFieldWithDefault(this, 2, "")
+      );
+    };
+    proto.scp_cv.v1.ActivateScenarioReply.prototype.setMessage = function(value) {
+      return jspb2.Message.setProto3StringField(this, 2, value);
+    };
+    proto.scp_cv.v1.ActivateScenarioReply.prototype.getSessionsList = function() {
+      return (
+        /** @type{!Array<!proto.scp_cv.v1.SessionSnapshot>} */
+        jspb2.Message.getRepeatedWrapperField(this, proto.scp_cv.v1.SessionSnapshot, 3)
+      );
+    };
+    proto.scp_cv.v1.ActivateScenarioReply.prototype.setSessionsList = function(value) {
+      return jspb2.Message.setRepeatedWrapperField(this, 3, value);
+    };
+    proto.scp_cv.v1.ActivateScenarioReply.prototype.addSessions = function(opt_value, opt_index) {
+      return jspb2.Message.addToRepeatedWrapperField(this, 3, opt_value, proto.scp_cv.v1.SessionSnapshot, opt_index);
+    };
+    proto.scp_cv.v1.ActivateScenarioReply.prototype.clearSessionsList = function() {
+      return this.setSessionsList([]);
+    };
     proto.scp_cv.v1.PlaybackStateEvent.repeatedFields_ = [3];
     if (jspb2.Message.GENERATE_TO_OBJECT) {
       proto.scp_cv.v1.PlaybackStateEvent.prototype.toObject = function(opt_includeInstance) {
@@ -11061,6 +12215,161 @@ var require_control_grpc_web_pb = __commonJS({
         methodDescriptor_PlaybackControlService_WatchPlaybackState
       );
     };
+    var methodDescriptor_PlaybackControlService_ListScenarios = new grpc.web.MethodDescriptor(
+      "/scp_cv.v1.PlaybackControlService/ListScenarios",
+      grpc.web.MethodType.UNARY,
+      proto2.scp_cv.v1.EmptyRequest,
+      proto2.scp_cv.v1.ListScenariosReply,
+      /**
+       * @param {!proto.scp_cv.v1.EmptyRequest} request
+       * @return {!Uint8Array}
+       */
+      function(request) {
+        return request.serializeBinary();
+      },
+      proto2.scp_cv.v1.ListScenariosReply.deserializeBinary
+    );
+    proto2.scp_cv.v1.PlaybackControlServiceClient.prototype.listScenarios = function(request, metadata, callback) {
+      return this.client_.rpcCall(
+        this.hostname_ + "/scp_cv.v1.PlaybackControlService/ListScenarios",
+        request,
+        metadata || {},
+        methodDescriptor_PlaybackControlService_ListScenarios,
+        callback
+      );
+    };
+    proto2.scp_cv.v1.PlaybackControlServicePromiseClient.prototype.listScenarios = function(request, metadata) {
+      return this.client_.unaryCall(
+        this.hostname_ + "/scp_cv.v1.PlaybackControlService/ListScenarios",
+        request,
+        metadata || {},
+        methodDescriptor_PlaybackControlService_ListScenarios
+      );
+    };
+    var methodDescriptor_PlaybackControlService_CreateScenario = new grpc.web.MethodDescriptor(
+      "/scp_cv.v1.PlaybackControlService/CreateScenario",
+      grpc.web.MethodType.UNARY,
+      proto2.scp_cv.v1.ScenarioDetail,
+      proto2.scp_cv.v1.ScenarioReply,
+      /**
+       * @param {!proto.scp_cv.v1.ScenarioDetail} request
+       * @return {!Uint8Array}
+       */
+      function(request) {
+        return request.serializeBinary();
+      },
+      proto2.scp_cv.v1.ScenarioReply.deserializeBinary
+    );
+    proto2.scp_cv.v1.PlaybackControlServiceClient.prototype.createScenario = function(request, metadata, callback) {
+      return this.client_.rpcCall(
+        this.hostname_ + "/scp_cv.v1.PlaybackControlService/CreateScenario",
+        request,
+        metadata || {},
+        methodDescriptor_PlaybackControlService_CreateScenario,
+        callback
+      );
+    };
+    proto2.scp_cv.v1.PlaybackControlServicePromiseClient.prototype.createScenario = function(request, metadata) {
+      return this.client_.unaryCall(
+        this.hostname_ + "/scp_cv.v1.PlaybackControlService/CreateScenario",
+        request,
+        metadata || {},
+        methodDescriptor_PlaybackControlService_CreateScenario
+      );
+    };
+    var methodDescriptor_PlaybackControlService_UpdateScenario = new grpc.web.MethodDescriptor(
+      "/scp_cv.v1.PlaybackControlService/UpdateScenario",
+      grpc.web.MethodType.UNARY,
+      proto2.scp_cv.v1.UpdateScenarioRequest,
+      proto2.scp_cv.v1.ScenarioReply,
+      /**
+       * @param {!proto.scp_cv.v1.UpdateScenarioRequest} request
+       * @return {!Uint8Array}
+       */
+      function(request) {
+        return request.serializeBinary();
+      },
+      proto2.scp_cv.v1.ScenarioReply.deserializeBinary
+    );
+    proto2.scp_cv.v1.PlaybackControlServiceClient.prototype.updateScenario = function(request, metadata, callback) {
+      return this.client_.rpcCall(
+        this.hostname_ + "/scp_cv.v1.PlaybackControlService/UpdateScenario",
+        request,
+        metadata || {},
+        methodDescriptor_PlaybackControlService_UpdateScenario,
+        callback
+      );
+    };
+    proto2.scp_cv.v1.PlaybackControlServicePromiseClient.prototype.updateScenario = function(request, metadata) {
+      return this.client_.unaryCall(
+        this.hostname_ + "/scp_cv.v1.PlaybackControlService/UpdateScenario",
+        request,
+        metadata || {},
+        methodDescriptor_PlaybackControlService_UpdateScenario
+      );
+    };
+    var methodDescriptor_PlaybackControlService_DeleteScenario = new grpc.web.MethodDescriptor(
+      "/scp_cv.v1.PlaybackControlService/DeleteScenario",
+      grpc.web.MethodType.UNARY,
+      proto2.scp_cv.v1.DeleteScenarioRequest,
+      proto2.scp_cv.v1.OperationReply,
+      /**
+       * @param {!proto.scp_cv.v1.DeleteScenarioRequest} request
+       * @return {!Uint8Array}
+       */
+      function(request) {
+        return request.serializeBinary();
+      },
+      proto2.scp_cv.v1.OperationReply.deserializeBinary
+    );
+    proto2.scp_cv.v1.PlaybackControlServiceClient.prototype.deleteScenario = function(request, metadata, callback) {
+      return this.client_.rpcCall(
+        this.hostname_ + "/scp_cv.v1.PlaybackControlService/DeleteScenario",
+        request,
+        metadata || {},
+        methodDescriptor_PlaybackControlService_DeleteScenario,
+        callback
+      );
+    };
+    proto2.scp_cv.v1.PlaybackControlServicePromiseClient.prototype.deleteScenario = function(request, metadata) {
+      return this.client_.unaryCall(
+        this.hostname_ + "/scp_cv.v1.PlaybackControlService/DeleteScenario",
+        request,
+        metadata || {},
+        methodDescriptor_PlaybackControlService_DeleteScenario
+      );
+    };
+    var methodDescriptor_PlaybackControlService_ActivateScenario = new grpc.web.MethodDescriptor(
+      "/scp_cv.v1.PlaybackControlService/ActivateScenario",
+      grpc.web.MethodType.UNARY,
+      proto2.scp_cv.v1.ActivateScenarioRequest,
+      proto2.scp_cv.v1.ActivateScenarioReply,
+      /**
+       * @param {!proto.scp_cv.v1.ActivateScenarioRequest} request
+       * @return {!Uint8Array}
+       */
+      function(request) {
+        return request.serializeBinary();
+      },
+      proto2.scp_cv.v1.ActivateScenarioReply.deserializeBinary
+    );
+    proto2.scp_cv.v1.PlaybackControlServiceClient.prototype.activateScenario = function(request, metadata, callback) {
+      return this.client_.rpcCall(
+        this.hostname_ + "/scp_cv.v1.PlaybackControlService/ActivateScenario",
+        request,
+        metadata || {},
+        methodDescriptor_PlaybackControlService_ActivateScenario,
+        callback
+      );
+    };
+    proto2.scp_cv.v1.PlaybackControlServicePromiseClient.prototype.activateScenario = function(request, metadata) {
+      return this.client_.unaryCall(
+        this.hostname_ + "/scp_cv.v1.PlaybackControlService/ActivateScenario",
+        request,
+        metadata || {},
+        methodDescriptor_PlaybackControlService_ActivateScenario
+      );
+    };
     var methodDescriptor_PlaybackControlService_StopCurrentContent = new grpc.web.MethodDescriptor(
       "/scp_cv.v1.PlaybackControlService/StopCurrentContent",
       grpc.web.MethodType.UNARY,
@@ -11113,7 +12422,13 @@ var {
   AddWebUrlSourceRequest,
   DeleteSourceRequest,
   ToggleLoopRequest,
-  SetSpliceModeRequest
+  SetSpliceModeRequest,
+  // 预案管理消息
+  ScenarioDetail,
+  ScenarioWindowSlot,
+  UpdateScenarioRequest,
+  DeleteScenarioRequest,
+  ActivateScenarioRequest
 } = require_control_pb();
 var GRPC_WEB_PROXY_URL = typeof window !== "undefined" && window.GRPC_WEB_PROXY_URL || "http://localhost:8081";
 var grpcClient = new PlaybackControlServiceClient(GRPC_WEB_PROXY_URL);
@@ -11320,6 +12635,68 @@ function stopCurrentContent() {
     request
   );
 }
+function listScenarios() {
+  const request = new EmptyRequest();
+  return unaryCall(
+    "ListScenarios",
+    grpcClient.listScenarios,
+    request
+  );
+}
+function buildWindowSlot(slotConfig = {}) {
+  const slot = new ScenarioWindowSlot();
+  slot.setSourceId(slotConfig.sourceId || 0);
+  slot.setAutoplay(slotConfig.autoplay !== false);
+  slot.setResume(slotConfig.resume !== false);
+  return slot;
+}
+function createScenario(detail) {
+  const request = new ScenarioDetail();
+  request.setName(detail.name || "");
+  request.setDescription(detail.description || "");
+  request.setIsSpliceMode(!!detail.isSpliceMode);
+  request.setWindow1(buildWindowSlot(detail.window1));
+  request.setWindow2(buildWindowSlot(detail.window2));
+  return unaryCall(
+    "CreateScenario",
+    grpcClient.createScenario,
+    request
+  );
+}
+function updateScenario(scenarioId, detail) {
+  const scenarioDetail = new ScenarioDetail();
+  scenarioDetail.setName(detail.name || "");
+  scenarioDetail.setDescription(detail.description || "");
+  scenarioDetail.setIsSpliceMode(!!detail.isSpliceMode);
+  scenarioDetail.setWindow1(buildWindowSlot(detail.window1));
+  scenarioDetail.setWindow2(buildWindowSlot(detail.window2));
+  const request = new UpdateScenarioRequest();
+  request.setScenarioId(scenarioId);
+  request.setDetail(scenarioDetail);
+  return unaryCall(
+    "UpdateScenario",
+    grpcClient.updateScenario,
+    request
+  );
+}
+function deleteScenarioGrpc(scenarioId) {
+  const request = new DeleteScenarioRequest();
+  request.setScenarioId(scenarioId);
+  return unaryCall(
+    "DeleteScenario",
+    grpcClient.deleteScenario,
+    request
+  );
+}
+function activateScenarioGrpc(scenarioId) {
+  const request = new ActivateScenarioRequest();
+  request.setScenarioId(scenarioId);
+  return unaryCall(
+    "ActivateScenario",
+    grpcClient.activateScenario,
+    request
+  );
+}
 function watchPlaybackState(onEvent, onError, onEnd) {
   const request = new EmptyRequest();
   const stream = grpcClient.watchPlaybackState(request, {});
@@ -11341,15 +12718,19 @@ function watchPlaybackState(onEvent, onError, onEnd) {
   };
 }
 export {
+  activateScenarioGrpc,
   addLocalPathSource,
   addWebUrlSource,
   closeSource,
   controlPlayback,
+  createScenario,
+  deleteScenarioGrpc,
   deleteSource,
   getAllSessionSnapshots,
   getPlaybackState,
   getRuntimeStatus,
   listDisplayTargets,
+  listScenarios,
   listSources,
   navigateContent,
   openSource,
@@ -11358,6 +12739,7 @@ export {
   showWindowIds,
   stopCurrentContent,
   toggleLoop,
+  updateScenario,
   watchPlaybackState
 };
 //# sourceMappingURL=grpc-client.bundle.js.map
