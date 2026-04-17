@@ -13,6 +13,7 @@ gRPC PlaybackControlService 实现，将 proto 定义的 RPC
 from __future__ import annotations
 
 import logging
+import time
 
 import grpc
 from django.conf import settings
@@ -23,15 +24,26 @@ from scp_cv.services.display import (
     build_left_right_splice_target,
     list_display_targets,
 )
+from scp_cv.services.media import (
+    MediaError,
+    add_local_path,
+    add_web_url,
+    delete_media_source,
+    list_media_sources,
+)
 from scp_cv.services.playback import (
     PlaybackError,
     close_source,
     control_playback,
+    get_all_sessions_snapshot,
     get_session_snapshot,
+    is_splice_mode_active,
     navigate_content,
     open_source,
     select_display_target,
+    set_splice_mode,
     stop_current_content,
+    toggle_loop_playback,
 )
 
 logger = logging.getLogger(__name__)
@@ -83,6 +95,53 @@ def _error_reply(message: str, detail: str = "") -> control_pb2.OperationReply:
     :return: OperationReply protobuf 实例
     """
     return control_pb2.OperationReply(success=False, message=message, detail=detail)
+
+
+def _snapshot_to_proto(snapshot: dict[str, object]) -> control_pb2.SessionSnapshot:
+    """
+    将服务层返回的会话快照字典转换为 proto SessionSnapshot 消息。
+    :param snapshot: get_session_snapshot() 返回的字典
+    :return: proto SessionSnapshot 实例
+    """
+    return control_pb2.SessionSnapshot(
+        window_id=int(snapshot["window_id"]),
+        session_id=int(snapshot["session_id"]),
+        source_name=str(snapshot["source_name"]),
+        source_type=str(snapshot["source_type"]),
+        source_type_label=str(snapshot["source_type_label"]),
+        source_uri=str(snapshot["source_uri"]),
+        playback_state=str(snapshot["playback_state"]),
+        playback_state_label=str(snapshot["playback_state_label"]),
+        display_mode=str(snapshot["display_mode"]),
+        display_mode_label=str(snapshot["display_mode_label"]),
+        target_display_label=str(snapshot["target_display_label"]),
+        spliced_display_label=str(snapshot["spliced_display_label"]),
+        is_spliced=bool(snapshot["is_spliced"]),
+        current_slide=int(snapshot["current_slide"]),
+        total_slides=int(snapshot["total_slides"]),
+        position_ms=int(snapshot["position_ms"]),
+        duration_ms=int(snapshot["duration_ms"]),
+        pending_command=str(snapshot["pending_command"]),
+        last_updated_at=str(snapshot["last_updated_at"]),
+        loop_enabled=bool(snapshot["loop_enabled"]),
+    )
+
+
+def _source_to_proto(source_dict: dict[str, object]) -> control_pb2.SourceItem:
+    """
+    将服务层返回的媒体源字典转换为 proto SourceItem 消息。
+    :param source_dict: list_media_sources() 返回的字典元素
+    :return: proto SourceItem 实例
+    """
+    return control_pb2.SourceItem(
+        id=int(source_dict["id"]),
+        source_type=str(source_dict["source_type"]),
+        name=str(source_dict["name"]),
+        uri=str(source_dict["uri"]),
+        is_available=bool(source_dict["is_available"]),
+        stream_identifier=str(source_dict.get("stream_identifier", "") or ""),
+        created_at=str(source_dict.get("created_at", "")),
+    )
 
 
 class PlaybackControlServicer(control_pb2_grpc.PlaybackControlServiceServicer):
@@ -199,18 +258,17 @@ class PlaybackControlServicer(control_pb2_grpc.PlaybackControlServiceServicer):
     # ------------------------------------------------------------------
     def GetRuntimeStatus(
         self,
-        request: control_pb2.EmptyRequest,
+        request: control_pb2.WindowRequest,
         context: grpc.ServicerContext,
     ) -> control_pb2.RuntimeStatusReply:
         """
-        返回窗口 1 播放会话的运行时状态摘要。
-        多窗口状态查询应通过 HTTP 接口或后续 GetWindowStatus RPC 实现。
-        :param request: EmptyRequest
+        返回指定窗口播放会话的运行时状态摘要。
+        :param request: WindowRequest（window_id）
         :param context: gRPC 服务上下文
         :return: RuntimeStatusReply
         """
-        # 状态查询使用窗口 1 作为默认（兼容旧客户端）
-        snapshot = get_session_snapshot(_DEFAULT_WINDOW_ID)
+        window_id = _extract_window_id(request)
+        snapshot = get_session_snapshot(window_id)
         grpc_port: int = getattr(settings, "GRPC_PORT", 50051)
         is_debug: bool = getattr(settings, "DEBUG", False)
 
@@ -225,18 +283,17 @@ class PlaybackControlServicer(control_pb2_grpc.PlaybackControlServiceServicer):
 
     def GetPlaybackState(
         self,
-        request: control_pb2.EmptyRequest,
+        request: control_pb2.WindowRequest,
         context: grpc.ServicerContext,
     ) -> control_pb2.PlaybackStateReply:
         """
-        返回窗口 1 的详细播放状态（含 PPT 页码和视频进度）。
-        多窗口状态查询应通过 HTTP 接口或后续 GetWindowState RPC 实现。
-        :param request: EmptyRequest
+        返回指定窗口的详细播放状态（含 PPT 页码和视频进度）。
+        :param request: WindowRequest（window_id）
         :param context: gRPC 服务上下文
         :return: PlaybackStateReply
         """
-        # 状态查询使用窗口 1 作为默认（兼容旧客户端）
-        snapshot = get_session_snapshot(_DEFAULT_WINDOW_ID)
+        window_id = _extract_window_id(request)
+        snapshot = get_session_snapshot(window_id)
         return control_pb2.PlaybackStateReply(
             playback_state=str(snapshot["playback_state"]),
             source_type=str(snapshot["source_type"]),
@@ -249,6 +306,7 @@ class PlaybackControlServicer(control_pb2_grpc.PlaybackControlServiceServicer):
             display_mode=str(snapshot["display_mode"]),
             target_display=str(snapshot["target_display_label"]),
             is_spliced=bool(snapshot["is_spliced"]),
+            loop_enabled=bool(snapshot["loop_enabled"]),
         )
 
     # ------------------------------------------------------------------
@@ -339,3 +397,269 @@ class PlaybackControlServicer(control_pb2_grpc.PlaybackControlServiceServicer):
             return _success_reply(message="播放已停止")
         except PlaybackError as playback_err:
             return _error_reply(str(playback_err))
+
+    # ------------------------------------------------------------------
+    # 媒体源管理
+    # ------------------------------------------------------------------
+    def ListSources(
+        self,
+        request: control_pb2.ListSourcesRequest,
+        context: grpc.ServicerContext,
+    ) -> control_pb2.ListSourcesReply:
+        """
+        列出所有可用媒体源。可按 source_type 过滤。
+        :param request: ListSourcesRequest（source_type）
+        :param context: gRPC 服务上下文
+        :return: ListSourcesReply
+        """
+        filter_type = request.source_type.strip() if request.source_type else None
+        source_dicts = list_media_sources(source_type=filter_type)
+        source_items = [_source_to_proto(s) for s in source_dicts]
+        return control_pb2.ListSourcesReply(success=True, sources=source_items)
+
+    def AddLocalPathSource(
+        self,
+        request: control_pb2.AddLocalPathSourceRequest,
+        context: grpc.ServicerContext,
+    ) -> control_pb2.SourceReply:
+        """
+        通过本地文件路径注册媒体源。
+        :param request: AddLocalPathSourceRequest（path, name, source_type）
+        :param context: gRPC 服务上下文
+        :return: SourceReply
+        """
+        local_path = request.path.strip()
+        if not local_path:
+            return control_pb2.SourceReply(success=False, message="path 不能为空")
+
+        display_name = request.name.strip() or None
+        source_type = request.source_type.strip() or None
+
+        try:
+            media_source = add_local_path(
+                local_path, display_name=display_name, source_type=source_type,
+            )
+            source_item = control_pb2.SourceItem(
+                id=media_source.pk,
+                source_type=media_source.source_type,
+                name=media_source.name,
+                uri=media_source.uri,
+                is_available=media_source.is_available,
+                stream_identifier=media_source.stream_identifier or "",
+                created_at=(
+                    media_source.created_at.isoformat()
+                    if media_source.created_at else ""
+                ),
+            )
+            return control_pb2.SourceReply(
+                success=True, message="添加成功", source=source_item,
+            )
+        except MediaError as media_err:
+            return control_pb2.SourceReply(success=False, message=str(media_err))
+
+    def AddWebUrlSource(
+        self,
+        request: control_pb2.AddWebUrlSourceRequest,
+        context: grpc.ServicerContext,
+    ) -> control_pb2.SourceReply:
+        """
+        通过 URL 添加网页类型媒体源。
+        :param request: AddWebUrlSourceRequest（url, name）
+        :param context: gRPC 服务上下文
+        :return: SourceReply
+        """
+        web_url = request.url.strip()
+        if not web_url:
+            return control_pb2.SourceReply(success=False, message="url 不能为空")
+
+        display_name = request.name.strip() or None
+
+        try:
+            media_source = add_web_url(web_url, display_name=display_name)
+            source_item = control_pb2.SourceItem(
+                id=media_source.pk,
+                source_type=media_source.source_type,
+                name=media_source.name,
+                uri=media_source.uri,
+                is_available=media_source.is_available,
+                stream_identifier=media_source.stream_identifier or "",
+                created_at=(
+                    media_source.created_at.isoformat()
+                    if media_source.created_at else ""
+                ),
+            )
+            return control_pb2.SourceReply(
+                success=True, message="添加成功", source=source_item,
+            )
+        except MediaError as media_err:
+            return control_pb2.SourceReply(success=False, message=str(media_err))
+
+    def DeleteSource(
+        self,
+        request: control_pb2.DeleteSourceRequest,
+        context: grpc.ServicerContext,
+    ) -> control_pb2.OperationReply:
+        """
+        删除指定媒体源。
+        :param request: DeleteSourceRequest（media_source_id）
+        :param context: gRPC 服务上下文
+        :return: OperationReply
+        """
+        if request.media_source_id <= 0:
+            return _error_reply("media_source_id 必须大于 0")
+
+        try:
+            delete_media_source(int(request.media_source_id))
+            return _success_reply(message="媒体源已删除")
+        except MediaError as media_err:
+            return _error_reply(str(media_err))
+
+    # ------------------------------------------------------------------
+    # 播放模式控制
+    # ------------------------------------------------------------------
+    def ToggleLoop(
+        self,
+        request: control_pb2.ToggleLoopRequest,
+        context: grpc.ServicerContext,
+    ) -> control_pb2.OperationReply:
+        """
+        切换指定窗口的循环播放模式。
+        :param request: ToggleLoopRequest（window_id, enabled）
+        :param context: gRPC 服务上下文
+        :return: OperationReply
+        """
+        window_id = _extract_window_id(request)
+        try:
+            toggle_loop_playback(window_id, request.enabled)
+            state_label = "开启" if request.enabled else "关闭"
+            return _success_reply(
+                message=f"窗口 {window_id} 循环播放已{state_label}",
+            )
+        except PlaybackError as playback_err:
+            return _error_reply(str(playback_err))
+
+    def SetSpliceMode(
+        self,
+        request: control_pb2.SetSpliceModeRequest,
+        context: grpc.ServicerContext,
+    ) -> control_pb2.SpliceModeReply:
+        """
+        设置窗口 1+2 的左右拼接模式。
+        :param request: SetSpliceModeRequest（enabled）
+        :param context: gRPC 服务上下文
+        :return: SpliceModeReply
+        """
+        try:
+            set_splice_mode(request.enabled)
+            all_snapshots = get_all_sessions_snapshot()
+            session_protos = [_snapshot_to_proto(s) for s in all_snapshots]
+            return control_pb2.SpliceModeReply(
+                success=True,
+                splice_active=request.enabled,
+                sessions=session_protos,
+            )
+        except PlaybackError as playback_err:
+            # 拼接模式失败时仍返回当前状态
+            return control_pb2.SpliceModeReply(
+                success=False,
+                splice_active=is_splice_mode_active(),
+                sessions=[],
+            )
+
+    # ------------------------------------------------------------------
+    # 窗口与会话查询
+    # ------------------------------------------------------------------
+    def ShowWindowIds(
+        self,
+        request: control_pb2.EmptyRequest,
+        context: grpc.ServicerContext,
+    ) -> control_pb2.OperationReply:
+        """
+        触发所有窗口显示 5 秒窗口 ID 叠加标识。
+        向每个窗口写入 SHOW_ID 指令。
+        :param request: EmptyRequest
+        :param context: gRPC 服务上下文
+        :return: OperationReply
+        """
+        from scp_cv.apps.playback.models import PlaybackCommand as PBCmd
+        from scp_cv.services.playback import get_or_create_session, VALID_WINDOW_IDS
+
+        for wid in VALID_WINDOW_IDS:
+            session = get_or_create_session(wid)
+            session.pending_command = PBCmd.SHOW_ID
+            session.save(update_fields=["pending_command"])
+        return _success_reply(message="窗口 ID 显示指令已下发")
+
+    def GetAllSessionSnapshots(
+        self,
+        request: control_pb2.EmptyRequest,
+        context: grpc.ServicerContext,
+    ) -> control_pb2.AllSessionSnapshotsReply:
+        """
+        获取所有窗口的播放会话快照列表。
+        :param request: EmptyRequest
+        :param context: gRPC 服务上下文
+        :return: AllSessionSnapshotsReply
+        """
+        all_snapshots = get_all_sessions_snapshot()
+        session_protos = [_snapshot_to_proto(s) for s in all_snapshots]
+        return control_pb2.AllSessionSnapshotsReply(
+            success=True,
+            splice_active=is_splice_mode_active(),
+            sessions=session_protos,
+        )
+
+    # ------------------------------------------------------------------
+    # 服务端流式推送
+    # ------------------------------------------------------------------
+    def WatchPlaybackState(
+        self,
+        request: control_pb2.EmptyRequest,
+        context: grpc.ServicerContext,
+    ) -> None:
+        """
+        服务端流式推送播放状态变更，替代 SSE。
+        客户端发起此调用后持续接收状态变化事件，直到断开连接。
+        使用 SSE 事件总线的 _event_condition 监听新事件，避免轮询。
+        :param request: EmptyRequest
+        :param context: gRPC 服务上下文（客户端取消时 is_active() 返回 False）
+        """
+        from scp_cv.services.sse import (
+            _event_condition,
+            _latest_event_data,
+        )
+
+        current_sequence: int = 0
+
+        # 先推送当前完整状态作为初始帧
+        initial_snapshots = get_all_sessions_snapshot()
+        initial_event = control_pb2.PlaybackStateEvent(
+            event_type="initial_state",
+            sequence=0,
+            sessions=[_snapshot_to_proto(s) for s in initial_snapshots],
+            timestamp=time.time(),
+        )
+        yield initial_event
+
+        # 持续监听新事件
+        while context.is_active():
+            with _event_condition:
+                # 等待新事件（30 秒超时发心跳）
+                _event_condition.wait(timeout=30.0)
+
+                # 检查是否有新事件
+                for event_type, event_record in _latest_event_data.items():
+                    record_sequence = int(event_record.get("sequence", 0))
+                    if record_sequence > current_sequence:
+                        current_sequence = record_sequence
+                        # 获取最新全量快照推送
+                        all_snapshots = get_all_sessions_snapshot()
+                        state_event = control_pb2.PlaybackStateEvent(
+                            event_type=str(event_type),
+                            sequence=record_sequence,
+                            sessions=[
+                                _snapshot_to_proto(s) for s in all_snapshots
+                            ],
+                            timestamp=time.time(),
+                        )
+                        yield state_event
