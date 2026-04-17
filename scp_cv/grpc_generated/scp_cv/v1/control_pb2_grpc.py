@@ -69,12 +69,12 @@ class PlaybackControlServiceStub(object):
                 _registered_method=True)
         self.GetRuntimeStatus = channel.unary_unary(
                 '/scp_cv.v1.PlaybackControlService/GetRuntimeStatus',
-                request_serializer=scp__cv_dot_v1_dot_control__pb2.EmptyRequest.SerializeToString,
+                request_serializer=scp__cv_dot_v1_dot_control__pb2.WindowRequest.SerializeToString,
                 response_deserializer=scp__cv_dot_v1_dot_control__pb2.RuntimeStatusReply.FromString,
                 _registered_method=True)
         self.GetPlaybackState = channel.unary_unary(
                 '/scp_cv.v1.PlaybackControlService/GetPlaybackState',
-                request_serializer=scp__cv_dot_v1_dot_control__pb2.EmptyRequest.SerializeToString,
+                request_serializer=scp__cv_dot_v1_dot_control__pb2.WindowRequest.SerializeToString,
                 response_deserializer=scp__cv_dot_v1_dot_control__pb2.PlaybackStateReply.FromString,
                 _registered_method=True)
         self.ListDisplayTargets = channel.unary_unary(
@@ -86,6 +86,51 @@ class PlaybackControlServiceStub(object):
                 '/scp_cv.v1.PlaybackControlService/SelectDisplayTarget',
                 request_serializer=scp__cv_dot_v1_dot_control__pb2.SelectDisplayTargetRequest.SerializeToString,
                 response_deserializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
+                _registered_method=True)
+        self.ListSources = channel.unary_unary(
+                '/scp_cv.v1.PlaybackControlService/ListSources',
+                request_serializer=scp__cv_dot_v1_dot_control__pb2.ListSourcesRequest.SerializeToString,
+                response_deserializer=scp__cv_dot_v1_dot_control__pb2.ListSourcesReply.FromString,
+                _registered_method=True)
+        self.AddLocalPathSource = channel.unary_unary(
+                '/scp_cv.v1.PlaybackControlService/AddLocalPathSource',
+                request_serializer=scp__cv_dot_v1_dot_control__pb2.AddLocalPathSourceRequest.SerializeToString,
+                response_deserializer=scp__cv_dot_v1_dot_control__pb2.SourceReply.FromString,
+                _registered_method=True)
+        self.AddWebUrlSource = channel.unary_unary(
+                '/scp_cv.v1.PlaybackControlService/AddWebUrlSource',
+                request_serializer=scp__cv_dot_v1_dot_control__pb2.AddWebUrlSourceRequest.SerializeToString,
+                response_deserializer=scp__cv_dot_v1_dot_control__pb2.SourceReply.FromString,
+                _registered_method=True)
+        self.DeleteSource = channel.unary_unary(
+                '/scp_cv.v1.PlaybackControlService/DeleteSource',
+                request_serializer=scp__cv_dot_v1_dot_control__pb2.DeleteSourceRequest.SerializeToString,
+                response_deserializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
+                _registered_method=True)
+        self.ToggleLoop = channel.unary_unary(
+                '/scp_cv.v1.PlaybackControlService/ToggleLoop',
+                request_serializer=scp__cv_dot_v1_dot_control__pb2.ToggleLoopRequest.SerializeToString,
+                response_deserializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
+                _registered_method=True)
+        self.SetSpliceMode = channel.unary_unary(
+                '/scp_cv.v1.PlaybackControlService/SetSpliceMode',
+                request_serializer=scp__cv_dot_v1_dot_control__pb2.SetSpliceModeRequest.SerializeToString,
+                response_deserializer=scp__cv_dot_v1_dot_control__pb2.SpliceModeReply.FromString,
+                _registered_method=True)
+        self.ShowWindowIds = channel.unary_unary(
+                '/scp_cv.v1.PlaybackControlService/ShowWindowIds',
+                request_serializer=scp__cv_dot_v1_dot_control__pb2.EmptyRequest.SerializeToString,
+                response_deserializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
+                _registered_method=True)
+        self.GetAllSessionSnapshots = channel.unary_unary(
+                '/scp_cv.v1.PlaybackControlService/GetAllSessionSnapshots',
+                request_serializer=scp__cv_dot_v1_dot_control__pb2.EmptyRequest.SerializeToString,
+                response_deserializer=scp__cv_dot_v1_dot_control__pb2.AllSessionSnapshotsReply.FromString,
+                _registered_method=True)
+        self.WatchPlaybackState = channel.unary_stream(
+                '/scp_cv.v1.PlaybackControlService/WatchPlaybackState',
+                request_serializer=scp__cv_dot_v1_dot_control__pb2.EmptyRequest.SerializeToString,
+                response_deserializer=scp__cv_dot_v1_dot_control__pb2.PlaybackStateEvent.FromString,
                 _registered_method=True)
         self.StopCurrentContent = channel.unary_unary(
                 '/scp_cv.v1.PlaybackControlService/StopCurrentContent',
@@ -187,6 +232,77 @@ class PlaybackControlServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ListSources(self, request, context):
+        """── 源管理（CRUD） ──
+
+        列出所有可用媒体源。可选按类型过滤。
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def AddLocalPathSource(self, request, context):
+        """通过本地文件路径注册媒体源（文件上传保留 HTTP 端点）。
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def AddWebUrlSource(self, request, context):
+        """通过 URL 添加网页类型媒体源。
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteSource(self, request, context):
+        """删除指定媒体源。
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ToggleLoop(self, request, context):
+        """── 扩展播放控制 ──
+
+        切换指定窗口的循环播放模式。
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SetSpliceMode(self, request, context):
+        """设置窗口 1+2 的左右拼接模式。
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ShowWindowIds(self, request, context):
+        """触发所有窗口显示 5 秒窗口 ID 叠加标识。
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetAllSessionSnapshots(self, request, context):
+        """── 扩展状态查询 ──
+
+        获取所有窗口的播放会话快照列表。
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def WatchPlaybackState(self, request, context):
+        """── 实时推送（替代 SSE） ──
+
+        服务端流式推送播放状态变更，客户端通过此 RPC 代替 SSE 订阅实时更新。
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def StopCurrentContent(self, request, context):
         """── 兼容接口 ──
 
@@ -221,12 +337,12 @@ def add_PlaybackControlServiceServicer_to_server(servicer, server):
             ),
             'GetRuntimeStatus': grpc.unary_unary_rpc_method_handler(
                     servicer.GetRuntimeStatus,
-                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.EmptyRequest.FromString,
+                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.WindowRequest.FromString,
                     response_serializer=scp__cv_dot_v1_dot_control__pb2.RuntimeStatusReply.SerializeToString,
             ),
             'GetPlaybackState': grpc.unary_unary_rpc_method_handler(
                     servicer.GetPlaybackState,
-                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.EmptyRequest.FromString,
+                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.WindowRequest.FromString,
                     response_serializer=scp__cv_dot_v1_dot_control__pb2.PlaybackStateReply.SerializeToString,
             ),
             'ListDisplayTargets': grpc.unary_unary_rpc_method_handler(
@@ -238,6 +354,51 @@ def add_PlaybackControlServiceServicer_to_server(servicer, server):
                     servicer.SelectDisplayTarget,
                     request_deserializer=scp__cv_dot_v1_dot_control__pb2.SelectDisplayTargetRequest.FromString,
                     response_serializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.SerializeToString,
+            ),
+            'ListSources': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListSources,
+                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.ListSourcesRequest.FromString,
+                    response_serializer=scp__cv_dot_v1_dot_control__pb2.ListSourcesReply.SerializeToString,
+            ),
+            'AddLocalPathSource': grpc.unary_unary_rpc_method_handler(
+                    servicer.AddLocalPathSource,
+                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.AddLocalPathSourceRequest.FromString,
+                    response_serializer=scp__cv_dot_v1_dot_control__pb2.SourceReply.SerializeToString,
+            ),
+            'AddWebUrlSource': grpc.unary_unary_rpc_method_handler(
+                    servicer.AddWebUrlSource,
+                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.AddWebUrlSourceRequest.FromString,
+                    response_serializer=scp__cv_dot_v1_dot_control__pb2.SourceReply.SerializeToString,
+            ),
+            'DeleteSource': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteSource,
+                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.DeleteSourceRequest.FromString,
+                    response_serializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.SerializeToString,
+            ),
+            'ToggleLoop': grpc.unary_unary_rpc_method_handler(
+                    servicer.ToggleLoop,
+                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.ToggleLoopRequest.FromString,
+                    response_serializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.SerializeToString,
+            ),
+            'SetSpliceMode': grpc.unary_unary_rpc_method_handler(
+                    servicer.SetSpliceMode,
+                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.SetSpliceModeRequest.FromString,
+                    response_serializer=scp__cv_dot_v1_dot_control__pb2.SpliceModeReply.SerializeToString,
+            ),
+            'ShowWindowIds': grpc.unary_unary_rpc_method_handler(
+                    servicer.ShowWindowIds,
+                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.EmptyRequest.FromString,
+                    response_serializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.SerializeToString,
+            ),
+            'GetAllSessionSnapshots': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetAllSessionSnapshots,
+                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.EmptyRequest.FromString,
+                    response_serializer=scp__cv_dot_v1_dot_control__pb2.AllSessionSnapshotsReply.SerializeToString,
+            ),
+            'WatchPlaybackState': grpc.unary_stream_rpc_method_handler(
+                    servicer.WatchPlaybackState,
+                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.EmptyRequest.FromString,
+                    response_serializer=scp__cv_dot_v1_dot_control__pb2.PlaybackStateEvent.SerializeToString,
             ),
             'StopCurrentContent': grpc.unary_unary_rpc_method_handler(
                     servicer.StopCurrentContent,
@@ -391,7 +552,7 @@ class PlaybackControlService(object):
             request,
             target,
             '/scp_cv.v1.PlaybackControlService/GetRuntimeStatus',
-            scp__cv_dot_v1_dot_control__pb2.EmptyRequest.SerializeToString,
+            scp__cv_dot_v1_dot_control__pb2.WindowRequest.SerializeToString,
             scp__cv_dot_v1_dot_control__pb2.RuntimeStatusReply.FromString,
             options,
             channel_credentials,
@@ -418,7 +579,7 @@ class PlaybackControlService(object):
             request,
             target,
             '/scp_cv.v1.PlaybackControlService/GetPlaybackState',
-            scp__cv_dot_v1_dot_control__pb2.EmptyRequest.SerializeToString,
+            scp__cv_dot_v1_dot_control__pb2.WindowRequest.SerializeToString,
             scp__cv_dot_v1_dot_control__pb2.PlaybackStateReply.FromString,
             options,
             channel_credentials,
@@ -474,6 +635,249 @@ class PlaybackControlService(object):
             '/scp_cv.v1.PlaybackControlService/SelectDisplayTarget',
             scp__cv_dot_v1_dot_control__pb2.SelectDisplayTargetRequest.SerializeToString,
             scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListSources(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/scp_cv.v1.PlaybackControlService/ListSources',
+            scp__cv_dot_v1_dot_control__pb2.ListSourcesRequest.SerializeToString,
+            scp__cv_dot_v1_dot_control__pb2.ListSourcesReply.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def AddLocalPathSource(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/scp_cv.v1.PlaybackControlService/AddLocalPathSource',
+            scp__cv_dot_v1_dot_control__pb2.AddLocalPathSourceRequest.SerializeToString,
+            scp__cv_dot_v1_dot_control__pb2.SourceReply.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def AddWebUrlSource(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/scp_cv.v1.PlaybackControlService/AddWebUrlSource',
+            scp__cv_dot_v1_dot_control__pb2.AddWebUrlSourceRequest.SerializeToString,
+            scp__cv_dot_v1_dot_control__pb2.SourceReply.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteSource(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/scp_cv.v1.PlaybackControlService/DeleteSource',
+            scp__cv_dot_v1_dot_control__pb2.DeleteSourceRequest.SerializeToString,
+            scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ToggleLoop(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/scp_cv.v1.PlaybackControlService/ToggleLoop',
+            scp__cv_dot_v1_dot_control__pb2.ToggleLoopRequest.SerializeToString,
+            scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SetSpliceMode(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/scp_cv.v1.PlaybackControlService/SetSpliceMode',
+            scp__cv_dot_v1_dot_control__pb2.SetSpliceModeRequest.SerializeToString,
+            scp__cv_dot_v1_dot_control__pb2.SpliceModeReply.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ShowWindowIds(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/scp_cv.v1.PlaybackControlService/ShowWindowIds',
+            scp__cv_dot_v1_dot_control__pb2.EmptyRequest.SerializeToString,
+            scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetAllSessionSnapshots(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/scp_cv.v1.PlaybackControlService/GetAllSessionSnapshots',
+            scp__cv_dot_v1_dot_control__pb2.EmptyRequest.SerializeToString,
+            scp__cv_dot_v1_dot_control__pb2.AllSessionSnapshotsReply.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def WatchPlaybackState(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(
+            request,
+            target,
+            '/scp_cv.v1.PlaybackControlService/WatchPlaybackState',
+            scp__cv_dot_v1_dot_control__pb2.EmptyRequest.SerializeToString,
+            scp__cv_dot_v1_dot_control__pb2.PlaybackStateEvent.FromString,
             options,
             channel_credentials,
             insecure,
