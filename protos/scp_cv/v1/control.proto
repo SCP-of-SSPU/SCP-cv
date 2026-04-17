@@ -46,11 +46,11 @@ service PlaybackControlService {
 
   // 获取系统运行时概览（当前源类型、播放状态、显示模式、gRPC 地址等）。
   // 适合中控面板轮询或健康检查使用。
-  rpc GetRuntimeStatus(EmptyRequest) returns (RuntimeStatusReply);
+  rpc GetRuntimeStatus(WindowRequest) returns (RuntimeStatusReply);
 
   // 获取详细播放状态，包含 PPT 页码、视频进度等子类型特有信息。
   // 比 GetRuntimeStatus 更完整，适合需要渲染进度条/页码的客户端。
-  rpc GetPlaybackState(EmptyRequest) returns (PlaybackStateReply);
+  rpc GetPlaybackState(WindowRequest) returns (PlaybackStateReply);
 
   // ── 显示器管理 ──
 
@@ -61,6 +61,41 @@ service PlaybackControlService {
   // 切换显示目标：可选 single（单屏）或 left_right_splice（左右拼接）。
   // 切换后播放器窗口会自动重新定位到目标屏幕。
   rpc SelectDisplayTarget(SelectDisplayTargetRequest) returns (OperationReply);
+
+  // ── 源管理（CRUD） ──
+
+  // 列出所有可用媒体源。可选按类型过滤。
+  rpc ListSources(ListSourcesRequest) returns (ListSourcesReply);
+
+  // 通过本地文件路径注册媒体源（文件上传保留 HTTP 端点）。
+  rpc AddLocalPathSource(AddLocalPathSourceRequest) returns (SourceReply);
+
+  // 通过 URL 添加网页类型媒体源。
+  rpc AddWebUrlSource(AddWebUrlSourceRequest) returns (SourceReply);
+
+  // 删除指定媒体源。
+  rpc DeleteSource(DeleteSourceRequest) returns (OperationReply);
+
+  // ── 扩展播放控制 ──
+
+  // 切换指定窗口的循环播放模式。
+  rpc ToggleLoop(ToggleLoopRequest) returns (OperationReply);
+
+  // 设置窗口 1+2 的左右拼接模式。
+  rpc SetSpliceMode(SetSpliceModeRequest) returns (SpliceModeReply);
+
+  // 触发所有窗口显示 5 秒窗口 ID 叠加标识。
+  rpc ShowWindowIds(EmptyRequest) returns (OperationReply);
+
+  // ── 扩展状态查询 ──
+
+  // 获取所有窗口的播放会话快照列表。
+  rpc GetAllSessionSnapshots(EmptyRequest) returns (AllSessionSnapshotsReply);
+
+  // ── 实时推送（替代 SSE） ──
+
+  // 服务端流式推送播放状态变更，客户端通过此 RPC 代替 SSE 订阅实时更新。
+  rpc WatchPlaybackState(EmptyRequest) returns (stream PlaybackStateEvent);
 
   // ── 兼容接口 ──
 
@@ -114,21 +149,30 @@ enum NavigateAction {
 // ListDisplayTargets、StopCurrentContent）。
 message EmptyRequest {}
 
+// 按窗口查询请求（GetPlaybackState、GetRuntimeStatus 等需要指定窗口）
+message WindowRequest {
+  int32 window_id = 1;  // 目标窗口编号（1-4，0 表示全部或默认窗口 1）
+}
+
 // 打开媒体源请求。
 // media_source_id 对应数据库中 MediaSource 表的主键，
 // 可通过 HTTP GET /api/sources/ 接口查询可用的源列表。
 message OpenSourceRequest {
   int64 media_source_id = 1;    // MediaSource 主键（必填）
   bool autoplay = 2;            // 是否打开后立即播放（默认 false，建议传 true）
+  int32 window_id = 3;          // 目标窗口编号（1-4，0 表示默认窗口 1）
 }
 
 // 关闭当前媒体源请求。
 // 始终作用于当前活跃源，无需指定任何 ID。
-message CloseSourceRequest {}
+message CloseSourceRequest {
+  int32 window_id = 1;          // 目标窗口编号（1-4，0 表示默认窗口 1）
+}
 
 // 播放控制请求。
 message ControlPlaybackRequest {
   PlaybackAction action = 1;    // 要执行的动作（PLAY / PAUSE / STOP）
+  int32 window_id = 2;          // 目标窗口编号（1-4，0 表示默认窗口 1）
 }
 
 // 内容导航请求。
@@ -140,6 +184,7 @@ message NavigateContentRequest {
   NavigateAction action = 1;    // 导航动作类型
   int32 target_index = 2;       // NAV_GOTO: 目标页码（从 1 开始，其他动作忽略此字段）
   int64 position_ms = 3;        // NAV_SEEK: 目标播放位置（毫秒，其他动作忽略此字段）
+  int32 window_id = 4;          // 目标窗口编号（1-4，0 表示默认窗口 1）
 }
 
 // 切换显示目标请求。
@@ -149,6 +194,7 @@ message SelectDisplayTargetRequest {
   // 目标显示器名称（单屏模式）或拼接标签（拼接模式）。
   // 可通过 ListDisplayTargets 获取可用名称。
   string target_label = 2;
+  int32 window_id = 3;          // 目标窗口编号（1-4，0 表示默认窗口 1）
 }
 
 
@@ -188,6 +234,7 @@ message PlaybackStateReply {
   string display_mode = 9;      // 显示模式（"single" / "left_right_splice"）
   string target_display = 10;   // 当前目标显示器名称
   bool is_spliced = 11;         // 是否处于拼接模式
+  bool loop_enabled = 12;       // 是否启用循环播放
 }
 
 // 单个显示器信息（ListDisplayTargets 响应中的重复元素）。
@@ -205,4 +252,128 @@ message DisplayTargetItem {
 message DisplayTargetsReply {
   repeated DisplayTargetItem targets = 1;  // 所有可用显示器
   string splice_label = 2;                 // 自动生成的拼接标签（如 "Display 1 + Display 2"）
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// 源管理消息
+// ══════════════════════════════════════════════════════════════
+
+// 列出媒体源请求（ListSources）。
+message ListSourcesRequest {
+  string source_type = 1;  // 可选：按源类型过滤（如 "ppt", "video"），空串表示全部
+}
+
+// 单个媒体源信息（ListSourcesReply 响应中的重复元素）。
+message SourceItem {
+  int64 id = 1;                  // MediaSource 主键
+  string source_type = 2;       // 源类型代码
+  string name = 3;              // 显示名称
+  string uri = 4;               // 资源路径或 URL
+  bool is_available = 5;        // 是否可用
+  string stream_identifier = 6; // 流标识符（仅流类型有值）
+  string created_at = 7;        // 创建时间 ISO 格式
+}
+
+// 媒体源列表响应（ListSources）。
+message ListSourcesReply {
+  bool success = 1;
+  repeated SourceItem sources = 2;
+}
+
+// 通过本地路径添加媒体源请求（AddLocalPathSource）。
+message AddLocalPathSourceRequest {
+  string path = 1;           // 本地文件绝对路径（必填）
+  string name = 2;           // 显示名称（可选，默认用文件名）
+  string source_type = 3;    // 源类型（可选，默认自动检测）
+}
+
+// 通过 URL 添加网页媒体源请求（AddWebUrlSource）。
+message AddWebUrlSourceRequest {
+  string url = 1;            // 网页 URL（必填）
+  string name = 2;           // 显示名称（可选，默认用 URL）
+}
+
+// 媒体源操作响应（AddLocalPathSource、AddWebUrlSource）。
+message SourceReply {
+  bool success = 1;
+  string message = 2;
+  SourceItem source = 3;     // 创建成功的源信息
+}
+
+// 删除媒体源请求（DeleteSource）。
+message DeleteSourceRequest {
+  int64 media_source_id = 1; // 要删除的 MediaSource 主键
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// 扩展播放控制消息
+// ══════════════════════════════════════════════════════════════
+
+// 切换循环播放请求（ToggleLoop）。
+message ToggleLoopRequest {
+  int32 window_id = 1;  // 目标窗口编号（1-4）
+  bool enabled = 2;      // 是否启用循环播放
+}
+
+// 设置拼接模式请求（SetSpliceMode）。
+message SetSpliceModeRequest {
+  bool enabled = 1;  // 是否启用窗口 1+2 拼接模式
+}
+
+// 拼接模式操作响应（SetSpliceMode）。
+message SpliceModeReply {
+  bool success = 1;
+  bool splice_active = 2;
+  repeated SessionSnapshot sessions = 3;  // 所有窗口更新后的快照
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// 扩展状态查询消息
+// ══════════════════════════════════════════════════════════════
+
+// 单窗口播放会话快照（AllSessionSnapshotsReply、SpliceModeReply 等中的重复元素）。
+message SessionSnapshot {
+  int32 window_id = 1;
+  int64 session_id = 2;
+  string source_name = 3;
+  string source_type = 4;
+  string source_type_label = 5;
+  string source_uri = 6;
+  string playback_state = 7;
+  string playback_state_label = 8;
+  string display_mode = 9;
+  string display_mode_label = 10;
+  string target_display_label = 11;
+  string spliced_display_label = 12;
+  bool is_spliced = 13;
+  int32 current_slide = 14;
+  int32 total_slides = 15;
+  int64 position_ms = 16;
+  int64 duration_ms = 17;
+  string pending_command = 18;
+  string last_updated_at = 19;
+  bool loop_enabled = 20;
+}
+
+// 所有窗口播放会话快照列表响应（GetAllSessionSnapshots）。
+message AllSessionSnapshotsReply {
+  bool success = 1;
+  bool splice_active = 2;
+  repeated SessionSnapshot sessions = 3;
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// 实时推送消息
+// ══════════════════════════════════════════════════════════════
+
+// 播放状态变更事件（WatchPlaybackState 流式响应元素）。
+message PlaybackStateEvent {
+  string event_type = 1;                // 事件类型（如 "playback_state"）
+  int64 sequence = 2;                   // 事件序列号
+  repeated SessionSnapshot sessions = 3; // 更新后的会话快照列表
+  double timestamp = 4;                 // UNIX 时间戳
 }
