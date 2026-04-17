@@ -1,10 +1,17 @@
 /**
  * SCP-cv 播放控制模块
  * 职责：播放 / 暂停 / 停止 / 关闭、循环切换、PPT 导航、视频 Seek
+ * 所有操作通过 gRPC-Web 调用后端，状态更新由 gRPC 流推送。
  */
 
-import { postAction, showBanner, withLoading } from "./utils.js";
-import { getActiveWindowId, applyWindowSession } from "./windows.js";
+import { showBanner, withLoading } from "./utils.js";
+import { getActiveWindowId } from "./windows.js";
+import {
+  controlPlayback as grpcControlPlayback,
+  closeSource,
+  toggleLoop as grpcToggleLoop,
+  navigateContent as grpcNavigateContent,
+} from "./grpc-client.bundle.js";
 
 /* ═══════════════════════════════════════════════════════════
  * 基本播放操作
@@ -12,22 +19,17 @@ import { getActiveWindowId, applyWindowSession } from "./windows.js";
 
 /**
  * 发送播放控制指令（play / pause / stop）到当前活跃窗口
- * @param {string} action - 控制动作
- * @param {Event} triggerEvent - 触发事件
+ * @param {string} action - 控制动作："play" | "pause" | "stop"
+ * @param {Event} triggerEvent - 触发事件（用于 withLoading 锁定按钮）
  */
 export async function controlPlayback(action, triggerEvent) {
   await withLoading(triggerEvent, async () => {
-    const controlResult = await postAction(
-      `/playback/${getActiveWindowId()}/control/`,
-      { action },
-    );
-    if (controlResult.success) {
-      if (controlResult.session) {
-        applyWindowSession(getActiveWindowId(), controlResult.session);
-      }
-    } else {
-      showBanner(controlResult.error || "操作失败", true);
+    const reply = await grpcControlPlayback(getActiveWindowId(), action);
+    const result = reply.toObject();
+    if (!result.success) {
+      showBanner(result.message || "操作失败", true);
     }
+    /* 成功时状态更新通过 gRPC 流推送 */
   });
 }
 
@@ -37,14 +39,12 @@ export async function controlPlayback(action, triggerEvent) {
  */
 export async function closePlayback(triggerEvent) {
   await withLoading(triggerEvent, async () => {
-    const closeResult = await postAction(`/playback/${getActiveWindowId()}/close/`);
-    if (closeResult.success) {
+    const reply = await closeSource(getActiveWindowId());
+    const result = reply.toObject();
+    if (result.success) {
       showBanner("已关闭播放");
-      if (closeResult.session) {
-        applyWindowSession(getActiveWindowId(), closeResult.session);
-      }
     } else {
-      showBanner(closeResult.error || "关闭失败", true);
+      showBanner(result.message || "关闭失败", true);
     }
   });
 }
@@ -64,21 +64,17 @@ export async function stopPlayback(triggerEvent) {
 export async function toggleLoop(triggerEvent) {
   const loopButton = document.getElementById("loop-toggle-btn");
   /* 读取当前状态，取反后发送 */
-  const currentlyEnabled = loopButton && loopButton.getAttribute("aria-pressed") === "true";
+  const currentlyEnabled =
+    loopButton && loopButton.getAttribute("aria-pressed") === "true";
   const newEnabled = !currentlyEnabled;
 
   await withLoading(triggerEvent, async () => {
-    const loopResult = await postAction(
-      `/playback/${getActiveWindowId()}/toggle-loop/`,
-      { enabled: newEnabled ? "true" : "false" },
-    );
-    if (loopResult.success) {
+    const reply = await grpcToggleLoop(getActiveWindowId(), newEnabled);
+    const result = reply.toObject();
+    if (result.success) {
       showBanner(newEnabled ? "循环播放已开启" : "循环播放已关闭");
-      if (loopResult.session) {
-        applyWindowSession(getActiveWindowId(), loopResult.session);
-      }
     } else {
-      showBanner(loopResult.error || "切换失败", true);
+      showBanner(result.message || "切换失败", true);
     }
   });
 }
@@ -89,21 +85,15 @@ export async function toggleLoop(triggerEvent) {
 
 /**
  * 发送内容导航指令（next / prev）到当前活跃窗口
- * @param {string} action - 导航动作
+ * @param {string} action - 导航动作："next" | "prev"
  * @param {Event} triggerEvent - 触发事件
  */
 export async function navigateContent(action, triggerEvent) {
   await withLoading(triggerEvent, async () => {
-    const navResult = await postAction(
-      `/playback/${getActiveWindowId()}/navigate/`,
-      { action },
-    );
-    if (navResult.success) {
-      if (navResult.session) {
-        applyWindowSession(getActiveWindowId(), navResult.session);
-      }
-    } else {
-      showBanner(navResult.error || "导航失败", true);
+    const reply = await grpcNavigateContent(getActiveWindowId(), action);
+    const result = reply.toObject();
+    if (!result.success) {
+      showBanner(result.message || "导航失败", true);
     }
   });
 }
@@ -121,16 +111,14 @@ export async function gotoPage(triggerEvent) {
   }
 
   await withLoading(triggerEvent, async () => {
-    const gotoResult = await postAction(
-      `/playback/${getActiveWindowId()}/navigate/`,
-      { action: "goto", target_index: targetPage },
+    const reply = await grpcNavigateContent(
+      getActiveWindowId(),
+      "goto",
+      targetPage,
     );
-    if (gotoResult.success) {
-      if (gotoResult.session) {
-        applyWindowSession(getActiveWindowId(), gotoResult.session);
-      }
-    } else {
-      showBanner(gotoResult.error || "跳转失败", true);
+    const result = reply.toObject();
+    if (!result.success) {
+      showBanner(result.message || "跳转失败", true);
     }
   });
 }
@@ -154,12 +142,15 @@ export function initSeekSlider() {
       if (durationMs <= 0) return;
       /* 将滑块百分比转换为毫秒位置 */
       const targetMs = Math.round((sliderValue / 1000) * durationMs);
-      const seekResult = await postAction(
-        `/playback/${getActiveWindowId()}/navigate/`,
-        { action: "seek", position_ms: targetMs },
+      const reply = await grpcNavigateContent(
+        getActiveWindowId(),
+        "seek",
+        0,
+        targetMs,
       );
-      if (!seekResult.success) {
-        showBanner(seekResult.error || "Seek 失败", true);
+      const result = reply.toObject();
+      if (!result.success) {
+        showBanner(result.message || "Seek 失败", true);
       }
     }, 200);
   });
