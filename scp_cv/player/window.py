@@ -22,6 +22,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from PySide6.QtWebEngineWidgets import QWebEngineView
+
 logger = logging.getLogger(__name__)
 
 # 窗口 ID 覆盖层显示时长（毫秒）
@@ -98,6 +100,15 @@ class PlayerWindow(QWidget):
         self._video_container.hide()
         self._stacked_layout.addWidget(self._video_container)
 
+        # 网页渲染容器（标准 QWidget，不设置 WA_NativeWindow 以支持鼠标交互）
+        self._web_container = QWidget()
+        self._web_container.setStyleSheet("background-color: #000000;")
+        # 启用鼠标追踪，确保 QWebEngineView 子组件能接收鼠标事件
+        self._web_container.setMouseTracking(True)
+        self._web_container.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self._web_container.hide()
+        self._stacked_layout.addWidget(self._web_container)
+
         # 主 layout
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -150,6 +161,16 @@ class PlayerWindow(QWidget):
         """当前是否正在显示视频。"""
         return self._is_showing_video
 
+    @property
+    def web_container(self) -> QWidget:
+        """
+        网页渲染容器 widget。
+        WebSourceAdapter 将 QWebEngineView 创建为此容器的子组件，
+        从而支持鼠标点击、滚动等交互操作。
+        :return: 网页容器 QWidget
+        """
+        return self._web_container
+
     # ═══════════════════ 窗口定位 ═══════════════════
 
     @Slot(QRect)
@@ -174,17 +195,33 @@ class PlayerWindow(QWidget):
 
     @Slot()
     def show_video_container(self) -> None:
-        """切换到视频显示模式：隐藏黑屏，显示视频渲染容器。"""
+        """切换到视频显示模式：隐藏黑屏和网页容器，显示视频渲染容器。"""
         self._background_label.hide()
+        self._web_container.hide()
         self._video_container.show()
         self._stacked_layout.setCurrentWidget(self._video_container)
         self._is_showing_video = True
         logger.debug("窗口 [%d] 切换到视频模式", self._window_id)
 
     @Slot()
-    def show_black_screen(self) -> None:
-        """切换到黑屏模式：隐藏视频容器，显示纯黑背景。"""
+    def show_web_container(self) -> None:
+        """
+        切换到网页显示模式：隐藏黑屏和视频容器，显示网页渲染容器。
+        网页容器不使用 WA_NativeWindow，因此 QWebEngineView 能正常接收
+        鼠标点击、滚动、键盘输入等用户交互事件。
+        """
+        self._background_label.hide()
         self._video_container.hide()
+        self._web_container.show()
+        self._stacked_layout.setCurrentWidget(self._web_container)
+        self._is_showing_video = True
+        logger.debug("窗口 [%d] 切换到网页模式", self._window_id)
+
+    @Slot()
+    def show_black_screen(self) -> None:
+        """切换到黑屏模式：隐藏视频和网页容器，显示纯黑背景。"""
+        self._video_container.hide()
+        self._web_container.hide()
         self._background_label.show()
         self._background_label.clear()
         self._background_label.setStyleSheet("background-color: #000000;")

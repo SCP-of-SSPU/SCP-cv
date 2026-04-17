@@ -319,14 +319,27 @@ class PlayerController(QObject):
             logger.warning("窗口 %d 没有可用句柄，跳过 OPEN", window_id)
             return
 
+        # 网页源使用专用的网页容器（支持鼠标交互）
+        is_web_source = source_type == "web"
+        if is_web_source:
+            window = self.get_window(window_id)
+            if window is not None:
+                # 注入网页容器给适配器，避免使用原生窗口句柄查找
+                from scp_cv.player.adapters.web import WebSourceAdapter
+                if isinstance(adapter, WebSourceAdapter):
+                    adapter.set_parent_container(window.web_container)
+
         adapter.open(uri=uri, window_handle=window_handle, autoplay=autoplay)
         self._adapters[window_id] = adapter
         self._adapter_source_types[window_id] = source_type
 
-        # 切换窗口到视频模式
+        # 网页源切换到网页容器，其他源切换到视频容器
         window = self.get_window(window_id)
         if window is not None:
-            window.show_video_container()
+            if is_web_source:
+                window.show_web_container()
+            else:
+                window.show_video_container()
 
         self._update_session_state(window_id, "playing" if autoplay else "loading")
 
