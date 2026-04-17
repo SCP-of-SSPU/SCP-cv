@@ -35,6 +35,11 @@ const {
   DeleteSourceRequest,
   ToggleLoopRequest,
   SetSpliceModeRequest,
+  ScenarioDetail,
+  ScenarioWindowSlot,
+  UpdateScenarioRequest,
+  DeleteScenarioRequest,
+  ActivateScenarioRequest,
 } = require('./grpc-generated/scp_cv/v1/control_pb.js');
 
 // ────────────────────────────────────────────────────
@@ -417,6 +422,127 @@ export function stopCurrentContent() {
   return unaryCall(
     'StopCurrentContent',
     grpcClient.stopCurrentContent,
+    request,
+  );
+}
+
+// ────────────────────────────────────────────────────
+// 预案管理 API
+// ────────────────────────────────────────────────────
+
+/**
+ * 构建 ScenarioWindowSlot 消息对象。
+ * @param {Object} windowConfig - 窗口槽位配置
+ * @param {number} windowConfig.sourceId - 媒体源 ID
+ * @param {boolean} windowConfig.autoplay - 是否自动播放
+ * @param {boolean} windowConfig.resume - 是否断点续播
+ * @returns {ScenarioWindowSlot} 填充后的 protobuf 消息
+ */
+function buildWindowSlot(windowConfig) {
+  const slot = new ScenarioWindowSlot();
+  slot.setSourceId(windowConfig.sourceId);
+  slot.setAutoplay(windowConfig.autoplay);
+  slot.setResume(windowConfig.resume);
+  return slot;
+}
+
+/**
+ * 构建 ScenarioDetail 消息对象。
+ * @param {string} name - 预案名称
+ * @param {string} description - 预案描述
+ * @param {boolean} isSpliceMode - 是否为拼接模式
+ * @param {Object} window1Config - 窗口 1 槽位配置 {sourceId, autoplay, resume}
+ * @param {Object} window2Config - 窗口 2 槽位配置 {sourceId, autoplay, resume}
+ * @returns {ScenarioDetail} 填充后的 protobuf 消息
+ */
+function buildScenarioDetail(name, description, isSpliceMode, window1Config, window2Config) {
+  const detail = new ScenarioDetail();
+  detail.setName(name);
+  detail.setDescription(description);
+  detail.setIsSpliceMode(isSpliceMode);
+  detail.setWindow1(buildWindowSlot(window1Config));
+  detail.setWindow2(buildWindowSlot(window2Config));
+  return detail;
+}
+
+/**
+ * 列出所有预案。
+ * @returns {Promise<Object>} ListScenariosReply 对象
+ */
+export function listScenarios() {
+  const request = new EmptyRequest();
+  return unaryCall(
+    'ListScenarios',
+    grpcClient.listScenarios,
+    request,
+  );
+}
+
+/**
+ * 创建新预案。
+ * @param {string} name - 预案名称
+ * @param {string} description - 预案描述
+ * @param {boolean} isSpliceMode - 是否为拼接模式
+ * @param {Object} window1Config - 窗口 1 槽位配置 {sourceId, autoplay, resume}
+ * @param {Object} window2Config - 窗口 2 槽位配置 {sourceId, autoplay, resume}
+ * @returns {Promise<Object>} ScenarioReply 对象
+ */
+export function createScenario(name, description, isSpliceMode, window1Config, window2Config) {
+  const request = buildScenarioDetail(name, description, isSpliceMode, window1Config, window2Config);
+  return unaryCall(
+    'CreateScenario',
+    grpcClient.createScenario,
+    request,
+  );
+}
+
+/**
+ * 更新已有预案。
+ * @param {number} scenarioId - 预案唯一标识
+ * @param {string} name - 预案名称
+ * @param {string} description - 预案描述
+ * @param {boolean} isSpliceMode - 是否为拼接模式
+ * @param {Object} window1Config - 窗口 1 槽位配置 {sourceId, autoplay, resume}
+ * @param {Object} window2Config - 窗口 2 槽位配置 {sourceId, autoplay, resume}
+ * @returns {Promise<Object>} ScenarioReply 对象
+ */
+export function updateScenario(scenarioId, name, description, isSpliceMode, window1Config, window2Config) {
+  const request = new UpdateScenarioRequest();
+  request.setScenarioId(scenarioId);
+  request.setDetail(buildScenarioDetail(name, description, isSpliceMode, window1Config, window2Config));
+  return unaryCall(
+    'UpdateScenario',
+    grpcClient.updateScenario,
+    request,
+  );
+}
+
+/**
+ * 删除指定预案。
+ * @param {number} scenarioId - 预案唯一标识
+ * @returns {Promise<Object>} OperationReply 对象
+ */
+export function deleteScenario(scenarioId) {
+  const request = new DeleteScenarioRequest();
+  request.setScenarioId(scenarioId);
+  return unaryCall(
+    'DeleteScenario',
+    grpcClient.deleteScenario,
+    request,
+  );
+}
+
+/**
+ * 激活指定预案，启动对应播放会话。
+ * @param {number} scenarioId - 预案唯一标识
+ * @returns {Promise<Object>} ActivateScenarioReply 对象
+ */
+export function activateScenario(scenarioId) {
+  const request = new ActivateScenarioRequest();
+  request.setScenarioId(scenarioId);
+  return unaryCall(
+    'ActivateScenario',
+    grpcClient.activateScenario,
     request,
   );
 }
