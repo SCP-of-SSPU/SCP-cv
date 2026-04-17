@@ -20,29 +20,6 @@ export function getCSRFToken() {
 }
 
 /**
- * 统一的 POST 请求封装（application/x-www-form-urlencoded）
- * @param {string} url - 请求地址
- * @param {object} bodyParams - 请求体键值对
- * @returns {Promise<object>} 解析后的 JSON 响应
- */
-export async function postAction(url, bodyParams = {}) {
-  const formData = new URLSearchParams();
-  for (const [key, value] of Object.entries(bodyParams)) {
-    formData.append(key, String(value));
-  }
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "X-CSRFToken": getCSRFToken(),
-      "X-Requested-With": "XMLHttpRequest",
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: formData.toString(),
-  });
-  return response.json();
-}
-
-/**
  * 发送 multipart/form-data 请求（用于文件上传）
  * @param {string} url - 请求地址
  * @param {FormData} formData - 包含文件的 FormData 对象

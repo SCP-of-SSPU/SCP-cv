@@ -836,6 +836,27 @@ input:focus:not(:focus-visible) {
   transform: scale(1.2);
 }
 
+.timeline-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 2px 8px rgba(0, 120, 212, 0.3);
+  cursor: pointer;
+  transition: transform var(--transition-fast);
+}
+
+.timeline-slider::-moz-range-thumb:hover {
+  transform: scale(1.2);
+}
+
+.timeline-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border-strong);
+}
+
 .timeline-info {
   display: flex;
   align-items: center;
