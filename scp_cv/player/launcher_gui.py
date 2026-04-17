@@ -169,12 +169,13 @@ class LauncherWindow(QWidget):
 
     交互流程：
     Step 1 → 选择窗口 1 的屏幕
-    Step 2 → 选择窗口 2 的屏幕（已选屏幕灰显）
+    Step 2 → 选择窗口 2 的屏幕（正常模式灰显已选屏幕）
     Step 3 → 选择窗口 3 的屏幕
     Step 4 → 选择窗口 4 的屏幕
     确认 → 显示总览，启动播放
 
-    显示器数量不足 5 时自动跳过部分窗口或 GUI 屏。
+    正常模式下显示器数量不足时自动减少可用窗口数。
+    DEBUG 模式下始终开放全部 4 个窗口，同一显示器可分配给多个窗口。
     """
 
     # 选择完成信号，携带 LauncherResult
@@ -193,8 +194,12 @@ class LauncherWindow(QWidget):
         self._assignments: dict[int, DisplayTarget] = {}
         # 当前正在选择的窗口编号（1-4）
         self._current_step = 1
-        # 可分配的最大窗口数（受显示器数量限制）
-        self._max_windows = min(TOTAL_WINDOWS, len(self._display_targets))
+        # 可分配的最大窗口数
+        # DEBUG 模式下允许窗口数超过显示器数量（同一屏幕可复用）
+        if debug_mode:
+            self._max_windows = TOTAL_WINDOWS
+        else:
+            self._max_windows = min(TOTAL_WINDOWS, len(self._display_targets))
 
         self.setObjectName("LauncherWindow")
         self.setWindowTitle("SCP-cv 启动器")
@@ -228,9 +233,11 @@ class LauncherWindow(QWidget):
         # 标题区域
         self._title_label = QLabel("SCP-cv 播放器")
         self._title_label.setObjectName("TitleLabel")
+        # 副标题：DEBUG 模式提示可复用显示器
+        reuse_hint = "，同一屏幕可复用" if debug_mode else ""
         self._subtitle_label = QLabel(
             f"依次为 {self._max_windows} 个播放窗口选择目标显示器（共检测到 "
-            f"{len(self._display_targets)} 台）"
+            f"{len(self._display_targets)} 台{reuse_hint}）"
         )
         self._subtitle_label.setObjectName("SubtitleLabel")
         self._main_layout.addWidget(self._title_label)
@@ -356,7 +363,8 @@ class LauncherWindow(QWidget):
             card_btn = QPushButton(card_text)
             card_btn.setObjectName("DisplayCard")
             card_btn.setCheckable(True)
-            card_btn.setEnabled(not is_assigned)
+            # DEBUG 模式下允许复用已分配的显示器
+            card_btn.setEnabled(not is_assigned or self._debug_mode)
             card_btn.clicked.connect(
                 lambda checked, idx=display_target.index: self._select_display(idx)
             )

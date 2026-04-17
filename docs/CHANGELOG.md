@@ -2,6 +2,12 @@
 
 ## 2026-04-18
 
+### DEBUG 模式显示器限制解除
+
+- **启动器 GUI**：DEBUG 模式下不再要求显示器数量 ≥ 窗口数，始终开放全部 4 个窗口
+- **屏幕复用**：DEBUG 模式下同一显示器可分配给多个窗口（已分配屏幕不再灰显禁用）
+- 仅影响 `launcher_gui.py`，正常模式行为不变
+
 ### 前端 JS 模块化拆分 & 多窗口 UI
 
 - **JS 模块化**：app.js 拆分为 7 个 ES 模块（utils / tabs / windows / sources / playback / sse / app），base.html 改为 `type="module"` 加载
