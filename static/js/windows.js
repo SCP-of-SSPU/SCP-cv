@@ -1,9 +1,10 @@
 /**
  * SCP-cv 多窗口状态管理模块
- * 职责：窗口切换、拼接模式、状态缓存、DOM 状态同步、SSE 事件分发
+ * 职责：窗口切换、拼接模式、状态缓存、DOM 状态同步、gRPC 流式事件分发
  */
 
-import { postAction, showBanner, withLoading, formatDuration } from "./utils.js";
+import { showBanner, withLoading, formatDuration } from "./utils.js";
+import { setSpliceMode, showWindowIds as grpcShowWindowIds, getAllSessionSnapshots } from "./grpc-client.bundle.js";
 
 /* ═══════════════════════════════════════════════════════════
  * 多窗口共享状态
@@ -73,20 +74,19 @@ export function selectWindow(windowId, btnElement) {
 export async function toggleSplice(triggerEvent) {
   const newEnabled = !spliceActive;
   await withLoading(triggerEvent, async () => {
-    const result = await postAction("/playback/splice/", {
-      enabled: newEnabled ? "true" : "false",
-    });
+    const reply = await setSpliceMode(newEnabled);
+    const result = reply.toObject();
     if (result.success) {
-      spliceActive = result.splice_active;
+      spliceActive = result.spliceActive;
       showBanner(spliceActive ? "拼接模式已开启（窗口 1+2）" : "拼接模式已关闭");
       updateSpliceUI();
-      if (result.sessions) {
-        result.sessions.forEach((sessionItem) => {
-          applyWindowSession(sessionItem.window_id, sessionItem);
+      if (result.sessionsList) {
+        result.sessionsList.forEach((snapshot) => {
+          applyWindowSession(snapshot.windowId, snapshot);
         });
       }
     } else {
-      showBanner(result.error || "拼接切换失败", true);
+      showBanner("拼接切换失败", true);
     }
   });
 }
@@ -113,11 +113,12 @@ function updateSpliceUI() {
  */
 export async function showWindowIds(triggerEvent) {
   await withLoading(triggerEvent, async () => {
-    const result = await postAction("/playback/show-ids/");
+    const reply = await grpcShowWindowIds();
+    const result = reply.toObject();
     if (result.success) {
       showBanner("已触发窗口 ID 显示（5 秒）");
     } else {
-      showBanner(result.error || "操作失败", true);
+      showBanner(result.message || "操作失败", true);
     }
   });
 }
@@ -129,7 +130,7 @@ export async function showWindowIds(triggerEvent) {
 /**
  * 将会话数据写入缓存，并同步到选择器标签和主面板
  * @param {number} windowId - 窗口编号
- * @param {object} sessionData - 来自 get_session_snapshot 的字典
+ * @param {object} sessionData - gRPC SessionSnapshot.toObject() 快照
  */
 export function applyWindowSession(windowId, sessionData) {
   windowSessions[windowId] = sessionData;
@@ -138,8 +139,8 @@ export function applyWindowSession(windowId, sessionData) {
   const stateEl = document.getElementById("win-state-" + windowId);
   const settingsStateEl = document.getElementById("settings-win-state-" + windowId);
   const settingsSourceEl = document.getElementById("settings-win-source-" + windowId);
-  const stateLabel = sessionData.playback_state_label || "空闲";
-  const sourceName = sessionData.source_name || "未打开媒体源";
+  const stateLabel = sessionData.playbackStateLabel || "空闲";
+  const sourceName = sessionData.sourceName || "未打开媒体源";
   if (stateEl) stateEl.textContent = stateLabel;
   if (settingsStateEl) settingsStateEl.textContent = stateLabel;
   if (settingsSourceEl) settingsSourceEl.textContent = sourceName;
@@ -152,7 +153,7 @@ export function applyWindowSession(windowId, sessionData) {
 
 /**
  * 将会话快照应用到主面板 DOM 元素
- * @param {object} sessionData - 会话快照数据
+ * @param {object} sessionData - gRPC SessionSnapshot.toObject() 快照（camelCase 字段）
  */
 function applySessionToDOM(sessionData) {
   /* Hero 面板 */
@@ -160,22 +161,22 @@ function applySessionToDOM(sessionData) {
   const heroSourceType = document.getElementById("hero-source-type");
   const heroPlaybackState = document.getElementById("hero-playback-state");
   const heroDisplayMode = document.getElementById("hero-display-mode");
-  if (heroSourceName) heroSourceName.textContent = sessionData.source_name || "无";
-  if (heroSourceType) heroSourceType.textContent = sessionData.source_type_label || "无";
-  if (heroPlaybackState) heroPlaybackState.textContent = sessionData.playback_state_label || "—";
-  if (heroDisplayMode) heroDisplayMode.textContent = sessionData.display_mode_label || "—";
+  if (heroSourceName) heroSourceName.textContent = sessionData.sourceName || "无";
+  if (heroSourceType) heroSourceType.textContent = sessionData.sourceTypeLabel || "无";
+  if (heroPlaybackState) heroPlaybackState.textContent = sessionData.playbackStateLabel || "—";
+  if (heroDisplayMode) heroDisplayMode.textContent = sessionData.displayModeLabel || "—";
 
   /* PPT 翻页状态 */
   const slideCurrent = document.getElementById("slide-current");
   const slideTotal = document.getElementById("slide-total");
-  if (slideCurrent) slideCurrent.textContent = sessionData.current_slide || 0;
-  if (slideTotal) slideTotal.textContent = sessionData.total_slides || 0;
+  if (slideCurrent) slideCurrent.textContent = sessionData.currentSlide || 0;
+  if (slideTotal) slideTotal.textContent = sessionData.totalSlides || 0;
 
   /* 时间线 */
   const positionLabel = document.getElementById("position-label");
   const durationLabel = document.getElementById("duration-label");
-  const positionMs = sessionData.position_ms || 0;
-  const durationMs = sessionData.duration_ms || 0;
+  const positionMs = sessionData.positionMs || 0;
+  const durationMs = sessionData.durationMs || 0;
   if (positionLabel) positionLabel.textContent = formatDuration(positionMs);
   if (durationLabel) durationLabel.textContent = formatDuration(durationMs);
 
@@ -194,7 +195,7 @@ function applySessionToDOM(sessionData) {
   /* 循环播放按钮状态 */
   const loopButton = document.getElementById("loop-toggle-btn");
   if (loopButton) {
-    const isLoopOn = !!sessionData.loop_enabled;
+    const isLoopOn = !!sessionData.loopEnabled;
     loopButton.setAttribute("aria-pressed", String(isLoopOn));
     loopButton.classList.toggle("action-button--active", isLoopOn);
   }
@@ -203,44 +204,37 @@ function applySessionToDOM(sessionData) {
 /** 重置主面板为空状态 */
 function resetSessionDOM() {
   applySessionToDOM({
-    source_name: "—",
-    source_type_label: "—",
-    playback_state_label: "—",
-    display_mode_label: "—",
-    current_slide: 0,
-    total_slides: 0,
-    position_ms: 0,
-    duration_ms: 0,
-    loop_enabled: false,
+    sourceName: "—",
+    sourceTypeLabel: "—",
+    playbackStateLabel: "—",
+    displayModeLabel: "—",
+    currentSlide: 0,
+    totalSlides: 0,
+    positionMs: 0,
+    durationMs: 0,
+    loopEnabled: false,
   });
 }
 
 /* ═══════════════════════════════════════════════════════════
- * SSE 事件处理入口
+ * gRPC 流式事件处理入口
  * ═══════════════════════════════════════════════════════════ */
 
 /**
- * 处理 SSE 推送的 playback_state 事件载荷
- * 支持两种格式：
- *   - 多窗口广播：{sessions: [...], splice_active: bool}
- *   - 单窗口更新：{window_id: N, ...sessionFields}
- * @param {object} payload - 已解析的 JSON 载荷
+ * 处理 gRPC 流式推送的 PlaybackStateEvent 载荷
+ * @param {object} eventPayload - PlaybackStateEvent.toObject() 结果
  */
-export function handlePlaybackStateEvent(payload) {
-  /* 多窗口广播（来自拼接切换等批量操作） */
-  if (payload.sessions && Array.isArray(payload.sessions)) {
-    payload.sessions.forEach((sessionItem) => {
-      applyWindowSession(sessionItem.window_id, sessionItem);
+export function handlePlaybackStateEvent(eventPayload) {
+  /* gRPC 流式事件：sessionsList 包含所有变更的窗口快照 */
+  if (eventPayload.sessionsList && Array.isArray(eventPayload.sessionsList)) {
+    eventPayload.sessionsList.forEach((snapshot) => {
+      applyWindowSession(snapshot.windowId, snapshot);
     });
-    if (payload.splice_active !== undefined) {
-      spliceActive = payload.splice_active;
-      updateSpliceUI();
-    }
-    return;
   }
-  /* 单窗口更新（来自 open/control/close 等逐窗口操作） */
-  if (payload.window_id) {
-    applyWindowSession(payload.window_id, payload);
+  /* 拼接状态可能从全局快照同步到来 */
+  if (eventPayload.spliceActive !== undefined) {
+    spliceActive = eventPayload.spliceActive;
+    updateSpliceUI();
   }
 }
 
@@ -249,18 +243,18 @@ export function handlePlaybackStateEvent(payload) {
  * ═══════════════════════════════════════════════════════════ */
 
 /**
- * 从 API 加载所有窗口的初始状态
+ * 通过 gRPC 加载所有窗口的初始状态
  */
 export async function fetchAllSessions() {
   try {
-    const response = await fetch("/api/session/");
-    const result = await response.json();
+    const reply = await getAllSessionSnapshots();
+    const result = reply.toObject();
     if (result.success) {
-      spliceActive = !!result.splice_active;
+      spliceActive = !!result.spliceActive;
       updateSpliceUI();
-      if (result.sessions) {
-        result.sessions.forEach((sessionItem) => {
-          applyWindowSession(sessionItem.window_id, sessionItem);
+      if (result.sessionsList) {
+        result.sessionsList.forEach((snapshot) => {
+          applyWindowSession(snapshot.windowId, snapshot);
         });
       }
     }
