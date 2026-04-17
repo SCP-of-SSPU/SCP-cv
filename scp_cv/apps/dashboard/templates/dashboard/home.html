@@ -80,7 +80,6 @@
         </h3>
       </div>
       <form id="local-path-form" class="local-path-form">
-        {% csrf_token %}
         <div class="upload-form__row">
           <input type="text" name="path" class="input-field input-field--grow"
                  placeholder="输入本地文件绝对路径" required aria-label="本地文件路径">
@@ -101,7 +100,6 @@
         </h3>
       </div>
       <form id="web-url-form" class="local-path-form">
-        {% csrf_token %}
         <div class="upload-form__row">
           <input type="url" name="url" class="input-field input-field--grow"
                  placeholder="输入网页 URL（如 https://example.com）" required aria-label="网页 URL">
@@ -121,7 +119,7 @@
       <h3>所有媒体源</h3>
       <span class="panel__badge" id="source-count-badge">{{ media_sources|length }} 个</span>
       <button class="action-button action-button--ghost action-button--small"
-              type="button" onclick="refreshSources()" aria-label="刷新媒体源列表">
+              type="button" data-action="refresh-sources" aria-label="刷新媒体源列表">
         <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
         刷新
       </button>
@@ -139,7 +137,7 @@
               <div class="source-item__actions">
                 {% if source.is_available %}
                   <button class="action-button action-button--primary action-button--small"
-                          type="button" onclick="openSource({{ source.id }}, event)"
+                          type="button" data-action="open-source" data-source-id="{{ source.id }}"
                           aria-label="播放 {{ source.name }}">
                     <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
                     播放
@@ -148,7 +146,7 @@
                   <span class="chip chip--neutral">不可用</span>
                 {% endif %}
                 <button class="action-button action-button--danger action-button--small"
-                        type="button" onclick="removeSource({{ source.id }}, event)"
+                        type="button" data-action="remove-source" data-source-id="{{ source.id }}"
                         aria-label="删除 {{ source.name }}">
                   <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
                   删除
@@ -175,20 +173,20 @@
       <button class="window-selector__btn{% if forloop.first %} window-selector__btn--active{% endif %}"
               role="tab" aria-selected="{% if forloop.first %}true{% else %}false{% endif %}"
               data-window-id="{{ wid }}" type="button"
-              onclick="selectWindow({{ wid }}, this)">
+              data-action="select-window">
         <span class="window-selector__id">{{ wid }}</span>
         <span class="window-selector__state" id="win-state-{{ wid }}">空闲</span>
       </button>
     {% endfor %}
     <button class="window-selector__btn window-selector__btn--splice{% if splice_active %} window-selector__btn--active-splice{% endif %}"
             type="button" id="splice-toggle-btn"
-            onclick="toggleSplice(event)"
+            data-action="toggle-splice"
             aria-pressed="{{ splice_active|yesno:'true,false' }}">
       <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z"/></svg>
       拼接 1+2
     </button>
     <button class="window-selector__btn window-selector__btn--util"
-            type="button" onclick="showWindowIds(event)">
+            type="button" data-action="show-window-ids">
       <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M11 7h2v2h-2V7zm0 4h2v6h-2v-6zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>
       显示窗口 ID
     </button>
@@ -229,28 +227,28 @@
         <h4 class="control-group__title">基本操作</h4>
         <div class="button-row">
           <button class="action-button action-button--primary" type="button"
-                  onclick="controlPlayback('play', event)" aria-label="播放">
+                  data-action="playback-control" data-playback-action="play" aria-label="播放">
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
             播放
           </button>
           <button class="action-button" type="button"
-                  onclick="controlPlayback('pause', event)" aria-label="暂停">
+                  data-action="playback-control" data-playback-action="pause" aria-label="暂停">
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
             暂停
           </button>
           <button class="action-button" type="button"
-                  onclick="controlPlayback('stop', event)" aria-label="停止">
+                  data-action="playback-control" data-playback-action="stop" aria-label="停止">
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M6 6h12v12H6z"/></svg>
             停止
           </button>
           <button class="action-button action-button--danger" type="button"
-                  onclick="closePlayback(event)" aria-label="关闭播放">
+                  data-action="close-playback" aria-label="关闭播放">
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
             关闭
           </button>
           <button class="action-button" type="button" id="loop-toggle-btn"
-                  onclick="toggleLoop(event)" aria-label="循环播放"
-                  aria-pressed="{{ session.loop_enabled|yesno:'true,false' }}">
+                  data-action="toggle-loop" aria-label="循环播放"
+                  aria-pressed="false">
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
             循环
           </button>
@@ -263,12 +261,12 @@
         <div class="playback-nav">
           <div class="button-row">
             <button class="action-button" type="button"
-                    onclick="navigateContent('prev', event)" aria-label="上一页">
+                    data-action="navigate-content" data-nav-action="prev" aria-label="上一页">
               <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
               上一页
             </button>
             <button class="action-button" type="button"
-                    onclick="navigateContent('next', event)" aria-label="下一页">
+                    data-action="navigate-content" data-nav-action="next" aria-label="下一页">
               下一页
               <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
             </button>
@@ -279,13 +277,13 @@
                    min="1" value="1" aria-label="跳转页码">
             <label class="input-label">页</label>
             <button class="action-button action-button--ghost action-button--small"
-                    type="button" onclick="gotoPage(event)" aria-label="跳转到指定页">跳转</button>
+                    type="button" data-action="goto-page" aria-label="跳转到指定页">跳转</button>
           </div>
           <div class="slide-status" role="status" aria-live="polite">
             <span>当前：</span>
-            <strong id="slide-current">{{ session.current_slide }}</strong>
+            <strong id="slide-current">0</strong>
             <span>/</span>
-            <strong id="slide-total">{{ session.total_slides }}</strong>
+            <strong id="slide-total">0</strong>
             <span>页</span>
           </div>
         </div>
@@ -320,7 +318,7 @@
         <svg viewBox="0 0 24 24" width="18" height="18" style="vertical-align: -3px; margin-right: 6px;" aria-hidden="true"><path fill="currentColor" d="M21 2H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h7l-2 3v1h8v-1l-2-3h7c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H3V4h18v12z"/></svg>
         输出窗口状态
       </h3>
-      <span class="panel__badge">4 个窗口</span>
+      <span class="panel__badge">{{ valid_window_ids|length }} 个窗口</span>
     </div>
     <div class="window-status-grid" id="window-status-grid">
       {% for wid in valid_window_ids %}
@@ -336,13 +334,13 @@
     <div class="button-row" style="margin-top: var(--space-3, 12px);">
       <button class="action-button{% if splice_active %} action-button--active{% endif %}" type="button"
               id="settings-splice-btn"
-              onclick="toggleSplice(event)" aria-label="切换拼接模式"
+              data-action="toggle-splice" aria-label="切换拼接模式"
               aria-pressed="{{ splice_active|yesno:'true,false' }}">
         <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z"/></svg>
         拼接模式（窗口 1+2）
       </button>
       <button class="action-button action-button--ghost" type="button"
-              onclick="showWindowIds(event)" aria-label="显示窗口 ID">
+              data-action="show-window-ids" aria-label="显示窗口 ID">
         显示所有窗口 ID（5s）
       </button>
     </div>
@@ -400,15 +398,15 @@
           </div>
           <div class="source-row__actions">
             <button class="action-button action-button--small action-button--primary"
-                    onclick="activateScenario({{ sc.id }}, event)" title="激活预案">
+                    data-action="activate-scenario" data-scenario-id="{{ sc.id }}" title="激活预案">
               ▶ 激活
             </button>
             <button class="action-button action-button--small"
-                    onclick="editScenario({{ sc.id }})" title="编辑预案">
+                    data-action="edit-scenario" data-scenario-id="{{ sc.id }}" title="编辑预案">
               ✎ 编辑
             </button>
             <button class="action-button action-button--small action-button--danger"
-                    onclick="deleteScenario({{ sc.id }}, event)" title="删除预案">
+                    data-action="delete-scenario" data-scenario-id="{{ sc.id }}" title="删除预案">
               ✕
             </button>
           </div>
@@ -428,7 +426,7 @@
         新建预案
       </h3>
     </div>
-    <form id="scenario-form" onsubmit="return false;">
+    <form id="scenario-form">
       {# 隐藏字段：编辑模式的 ID #}
       <input type="hidden" id="scenario-edit-id" value="">
 
@@ -448,7 +446,7 @@
         {# 拼接模式 #}
         <div class="form-field" style="grid-column: span 2;">
           <label>
-            <input type="checkbox" id="scenario-splice" onchange="onSpliceModeToggle()">
+            <input type="checkbox" id="scenario-splice" data-action="splice-mode-toggle">
             启用拼接模式（窗口 1+2 拼接显示同一源）
           </label>
         </div>
@@ -496,11 +494,11 @@
 
       <div class="button-row" style="margin-top: var(--space-3, 12px);">
         <button class="action-button action-button--primary" type="button"
-                onclick="saveScenario(event)" id="scenario-save-btn">
+                data-action="save-scenario" id="scenario-save-btn">
           保存预案
         </button>
         <button class="action-button action-button--ghost" type="button"
-                onclick="resetScenarioForm()">
+                data-action="reset-scenario-form">
           重置
         </button>
       </div>
