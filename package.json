@@ -29,6 +29,7 @@
     "grpc-web": "^2.0.2"
   },
   "devDependencies": {
+    "@grpc-web/proxy": "^0.1.0",
     "esbuild": "^0.28.0"
   }
 }

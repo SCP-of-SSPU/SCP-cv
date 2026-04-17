@@ -12422,13 +12422,7 @@ var {
   AddWebUrlSourceRequest,
   DeleteSourceRequest,
   ToggleLoopRequest,
-  SetSpliceModeRequest,
-  // 预案管理消息
-  ScenarioDetail,
-  ScenarioWindowSlot,
-  UpdateScenarioRequest,
-  DeleteScenarioRequest,
-  ActivateScenarioRequest
+  SetSpliceModeRequest
 } = require_control_pb();
 var GRPC_WEB_PROXY_URL = typeof window !== "undefined" && window.GRPC_WEB_PROXY_URL || "http://localhost:8081";
 var grpcClient = new PlaybackControlServiceClient(GRPC_WEB_PROXY_URL);
@@ -12635,68 +12629,6 @@ function stopCurrentContent() {
     request
   );
 }
-function listScenarios() {
-  const request = new EmptyRequest();
-  return unaryCall(
-    "ListScenarios",
-    grpcClient.listScenarios,
-    request
-  );
-}
-function buildWindowSlot(slotConfig = {}) {
-  const slot = new ScenarioWindowSlot();
-  slot.setSourceId(slotConfig.sourceId || 0);
-  slot.setAutoplay(slotConfig.autoplay !== false);
-  slot.setResume(slotConfig.resume !== false);
-  return slot;
-}
-function createScenario(detail) {
-  const request = new ScenarioDetail();
-  request.setName(detail.name || "");
-  request.setDescription(detail.description || "");
-  request.setIsSpliceMode(!!detail.isSpliceMode);
-  request.setWindow1(buildWindowSlot(detail.window1));
-  request.setWindow2(buildWindowSlot(detail.window2));
-  return unaryCall(
-    "CreateScenario",
-    grpcClient.createScenario,
-    request
-  );
-}
-function updateScenario(scenarioId, detail) {
-  const scenarioDetail = new ScenarioDetail();
-  scenarioDetail.setName(detail.name || "");
-  scenarioDetail.setDescription(detail.description || "");
-  scenarioDetail.setIsSpliceMode(!!detail.isSpliceMode);
-  scenarioDetail.setWindow1(buildWindowSlot(detail.window1));
-  scenarioDetail.setWindow2(buildWindowSlot(detail.window2));
-  const request = new UpdateScenarioRequest();
-  request.setScenarioId(scenarioId);
-  request.setDetail(scenarioDetail);
-  return unaryCall(
-    "UpdateScenario",
-    grpcClient.updateScenario,
-    request
-  );
-}
-function deleteScenarioGrpc(scenarioId) {
-  const request = new DeleteScenarioRequest();
-  request.setScenarioId(scenarioId);
-  return unaryCall(
-    "DeleteScenario",
-    grpcClient.deleteScenario,
-    request
-  );
-}
-function activateScenarioGrpc(scenarioId) {
-  const request = new ActivateScenarioRequest();
-  request.setScenarioId(scenarioId);
-  return unaryCall(
-    "ActivateScenario",
-    grpcClient.activateScenario,
-    request
-  );
-}
 function watchPlaybackState(onEvent, onError, onEnd) {
   const request = new EmptyRequest();
   const stream = grpcClient.watchPlaybackState(request, {});
@@ -12718,19 +12650,15 @@ function watchPlaybackState(onEvent, onError, onEnd) {
   };
 }
 export {
-  activateScenarioGrpc,
   addLocalPathSource,
   addWebUrlSource,
   closeSource,
   controlPlayback,
-  createScenario,
-  deleteScenarioGrpc,
   deleteSource,
   getAllSessionSnapshots,
   getPlaybackState,
   getRuntimeStatus,
   listDisplayTargets,
-  listScenarios,
   listSources,
   navigateContent,
   openSource,
@@ -12739,7 +12667,6 @@ export {
   showWindowIds,
   stopCurrentContent,
   toggleLoop,
-  updateScenario,
   watchPlaybackState
 };
 //# sourceMappingURL=grpc-client.bundle.js.map
