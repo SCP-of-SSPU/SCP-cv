@@ -162,7 +162,18 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 .idea/
 
-# Third-party download caches
+# Local agent artifacts
+AGENT_TODO.md
+.github/dida365-state.md
+.github/copilot-runtime/
+.omx/
+
+# Local runtime artifacts
+node_modules/
+.playwright-mcp/
+media/uploads/
+
+# Third-party download caches and extracted binaries
 tools/third_party/*.zip
 tools/third_party/*.msi
 tools/third_party/**/*.exe
@@ -181,4 +192,3 @@ tools/third_party/mpv/*.pdf
 tools/third_party/mpv/*.png
 tools/third_party/mpv/*.ico
 tools/third_party/mpv/*.conf
-

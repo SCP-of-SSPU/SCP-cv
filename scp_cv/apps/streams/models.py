@@ -4,7 +4,7 @@ from django.db import models
 
 
 class StreamState(models.TextChoices):
-	"""WebRTC 流连接状态。"""
+	"""外部推流（SRT/RTSP）连接状态。"""
 
 	OFFLINE = "offline", "离线"
 	CONNECTING = "connecting", "连接中"
@@ -14,7 +14,7 @@ class StreamState(models.TextChoices):
 
 
 class StreamSource(models.Model):
-	"""外部 WebRTC 推流接入记录。"""
+	"""外部推流（SRT/RTSP）接入记录，由 MediaMTX 自动发现后同步创建。"""
 
 	name = models.CharField(max_length=255, db_index=True)
 	stream_identifier = models.CharField(max_length=255, unique=True)

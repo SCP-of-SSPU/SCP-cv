@@ -1,26 +1,26 @@
 # SCP-cv
 
-> 面向 **单机大屏** 场景的统一播放控制系统——通过 Web 控制台、gRPC 接口远程操控本地大屏，支持 PPT、视频、音频、图片、RTSP 实时流等多种媒体源。
+> 面向 **单机大屏** 场景的统一播放控制系统——通过 Web 控制台、gRPC 接口远程操控本地大屏，支持 PPT、视频、音频、图片、网页与 SRT 实时流等多种媒体源。
 
 ---
 
 ## 功能特性
 
-- **统一媒体源管理**：本地文件上传、路径添加、RTSP 流注册，全部媒体在同一界面管理
+- **统一媒体源管理**：本地文件上传、路径添加、网页与流媒体源注册，全部媒体在同一界面管理
 - **PPT 全功能控制**：通过 COM 自动化驱动 PowerPoint，支持翻页、跳转、播放/暂停
-- **QMediaPlayer + RTSP 播放**：基于 Qt 6 QMediaPlayer（FFmpeg 后端）和 MediaMTX 实现低延迟 SRT→RTSP 流播放
+- **mpv/libmpv 低延迟播放**：基于 python-mpv + libmpv 和 MediaMTX 实现低延迟 SRT 直连播放
 - **多显示器拼接**：单屏 / 左右双屏拼接模式，启动时通过 GUI 选择目标屏幕
 - **双协议控制面**：HTTP REST API + gRPC 双通道，适配 Web 前端、中控系统、自动化脚本
 - **SSE 实时推送**：播放状态和媒体源变更通过 Server-Sent Events 实时同步到浏览器
-- **一键启动**：`python manage.py runall` 单终端同时启动 MediaMTX、Django、PySide6 播放器
+- **一键启动**：`uv run python manage.py runall` 单终端同时启动 MediaMTX、Django、PySide6 播放器
 
 ## 架构概览
 
 ```
 ┌──────────────────────────────────┐
 │         Web 控制台 (浏览器)        │
-│   Fluent 2 风格 · 三 Tab 布局    │
-│   媒体源 │ 播放控制 │ 设置         │
+│   Fluent 2 风格 · 四 Tab 布局    │
+│ 媒体源 │ 播放控制 │ 设置 │ 预案     │
 └──────────┬───────────────────────┘
            │ HTTP / SSE
 ┌──────────▼───────────────────────┐
@@ -34,13 +34,13 @@
 │  PlayerController → 适配器分发     │
 │  ┌─────────┬──────────┬────────┐ │
 │  │ PPT适配  │ 视频适配  │ 流适配 │ │
-│  │ (COM)   │(QMedia)  │(RTSP)  │ │
+│  │ (COM)   │(QMedia)  │ (mpv)  │ │
 │  └─────────┴──────────┴────────┘ │
 └──────────────────────────────────┘
-           │ 拉流 (RTSP)
+           │ 拉流 (SRT)
 ┌──────────▼───────────────────────┐
 │       MediaMTX 流服务器             │
-│  SRT 接收 (8890) → RTSP (8554)  │
+│ SRT 推流 (8890) / 读取 (8891)    │
 └──────────────────────────────────┘
 ```
 
@@ -70,26 +70,30 @@
 git clone <repo-url> SCP-cv
 cd SCP-cv
 
-# 创建虚拟环境并安装依赖
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements-dev.txt
+# 如未安装 uv（Windows PowerShell）
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# 安装项目 Python（遵循 .python-version）并同步依赖
+uv python install
+uv sync
 
 # 复制环境变量配置
 copy .env.example .env
 
 # 初始化数据库
-python manage.py migrate
+uv run python manage.py migrate
 ```
+
+> 项目已切换到 `uv` 工作流；根目录的 `requirements*.txt` 仅作为历史兼容清单保留，不再作为推荐安装入口。仅需运行时依赖时，可将 `uv sync` 改为 `uv sync --no-dev`。
 
 ### 启动
 
 ```powershell
 # 一键启动（推荐）：MediaMTX + Django + 播放器
-python manage.py runall
+uv run python manage.py runall
 
 # 自定义参数
-python manage.py runall --host 0.0.0.0 --port 8080 --skip-mediamtx
+uv run python manage.py runall --host 0.0.0.0 --port 8080 --skip-mediamtx
 ```
 
 启动后：
@@ -104,10 +108,10 @@ python manage.py runall --host 0.0.0.0 --port 8080 --skip-mediamtx
 
 ```powershell
 # 终端 1：Django 服务端（HTTP + gRPC）
-python manage.py runserver
+uv run python manage.py runserver
 
 # 终端 2：PySide6 播放器
-python manage.py run_player
+uv run python manage.py run_player
 
 # 终端 3：MediaMTX（可选）
 .\tools\third_party\mediamtx\mediamtx.exe
@@ -126,8 +130,8 @@ SCP-cv/
 │   ├── apps/
 │   │   ├── dashboard/          # Web 控制台（视图 + 模板 + 管理命令）
 │   │   ├── playback/           # 播放会话模型（PlaybackSession + MediaSource）
-│   │   └── streams/            # WebRTC 流注册模型（StreamSource）
-│   ├── player/                 # PySide6 播放器（窗口 + 控制器 + GStreamer 初始化）
+│   │   └── streams/            # 外部流注册模型（StreamSource）
+│   ├── player/                 # PySide6 播放器（窗口 + 控制器 + mpv/libmpv 适配）
 │   ├── services/               # 业务服务层（显示、播放、MediaMTX、SSE）
 │   └── grpc_generated/         # protoc 生成的 Python 代码
 ├── protos/                     # gRPC Proto 定义
@@ -149,17 +153,18 @@ SCP-cv/
 |------|------|------|
 | 8000 | Django HTTP | Web 控制台 + REST API + SSE |
 | 50051 | gRPC | 播放控制 gRPC 服务 |
-| 8889 | MediaMTX WebRTC | WHIP 推流 / WHEP 拉流 |
+| 8890 | MediaMTX SRT Publish | OBS / 外部设备推流入口 |
+| 8891 | MediaMTX SRT Read | 播放器读取入口 |
 | 9997 | MediaMTX API | 流管理 REST API |
 
 ## 测试
 
 ```powershell
 # 运行全部测试
-python -m pytest tests/ -v
+uv run pytest tests/ -v
 
 # 运行特定测试文件
-python -m pytest tests/test_media_source.py -v
+uv run pytest tests/test_media_service.py -v
 ```
 
 ## 文档

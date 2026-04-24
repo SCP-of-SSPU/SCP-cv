@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 2026-04-21
+
+### uv 依赖管理迁移与仓库清理
+
+- **uv 项目入口**：新增 `pyproject.toml`、`.python-version` 与 `uv.lock`，将 `uv` 作为 Python 依赖与锁文件的主入口
+- **依赖分组**：将 `pytest`、`pytest-django`、`ruff` 纳入 `dev` 依赖组，`uv sync` 默认同步开发依赖
+- **运行工作流**：README 与 `docs/使用文档.md` 统一切换为 `uv python install`、`uv sync`、`uv run python manage.py ...` 与 `uv run pytest ...`
+- **仓库清理**：更新 `.gitignore`，恢复误删的需求文档与第三方工具说明，继续忽略本地运行产物和第三方二进制文件
+
+
 ## 2026-04-20
 
 ### 前端 gRPC-Web 迁移
