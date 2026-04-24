@@ -10,18 +10,28 @@
   <script type="module" src="{% static 'js/app.js' %}"></script>
 </head>
 <body class="app-shell">
+  <a class="skip-link" href="#main-content">跳到主内容</a>
+
   {# ── 顶栏：品牌标识 + 运行时元数据 ── #}
   <header class="topbar">
     <div class="topbar__brand">
-      <div class="brand-mark" aria-hidden="true">S</div>
+      <div class="brand-mark" aria-hidden="true">
+        <span>S</span>
+      </div>
       <div>
         <p class="eyebrow">{{ project_name }}</p>
         <h1>{% block title %}播放控制台{% endblock %}</h1>
       </div>
     </div>
     <div class="topbar__meta">
-      <span class="chip chip--neutral">{{ runtime_mode }}</span>
-      <span class="chip chip--accent">gRPC {{ grpc_endpoint }}</span>
+      <span class="chip chip--neutral">
+        <span class="status-dot status-dot--neutral" aria-hidden="true"></span>
+        {{ runtime_mode }}
+      </span>
+      <span class="chip chip--accent">
+        <span class="status-dot status-dot--accent" aria-hidden="true"></span>
+        gRPC {{ grpc_endpoint }}
+      </span>
     </div>
   </header>
 
@@ -41,7 +51,7 @@
   </nav>
 
   {# ── 主内容区 ── #}
-  <main class="content">
+  <main class="content" id="main-content">
     {# 全局通知横幅 #}
     <div class="banner" data-banner id="global-banner" role="alert" aria-live="assertive" style="display: none;"></div>
     {% block content %}{% endblock %}

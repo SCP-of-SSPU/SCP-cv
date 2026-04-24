@@ -13,7 +13,7 @@ import {
   activateScenario as grpcActivateScenario,
 } from "./grpc-client.bundle.js";
 
-import { showBanner, withLoading } from "./utils.js";
+import { escapeHtml, showBanner, withLoading } from "./utils.js";
 
 /* ═══════════════════════════════════════════════════════════
  * DOM 元素缓存
@@ -183,7 +183,7 @@ export async function editScenario(scenarioId) {
     if (editorTitle) {
       editorTitle.innerHTML =
         '<svg viewBox="0 0 24 24" width="18" height="18" style="vertical-align:-3px;margin-right:6px;" aria-hidden="true"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 000-1.42l-2.34-2.34a1.003 1.003 0 00-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z"/></svg>' +
-        `编辑预案「${scenario.name}」`;
+        `编辑预案「${escapeHtml(scenario.name)}」`;
     }
     if (saveBtn) saveBtn.textContent = "更新预案";
 
@@ -257,16 +257,16 @@ export async function refreshScenarioList() {
       const w1Label = w1.sourceId ? `源 #${w1.sourceId}` : "无";
       const w2Section = sc.isSpliceMode ? "" : ` · W2: ${w2.sourceId ? `源 #${w2.sourceId}` : "无"}`;
       const descHtml = sc.description
-        ? `<small style="display:block;opacity:.7;margin-top:2px;">${sc.description}</small>`
+        ? `<small class="source-row__description">${escapeHtml(sc.description)}</small>`
         : "";
 
       return `
         <div class="source-row" data-scenario-id="${sc.id}">
           <div class="source-row__info">
-            <strong>${sc.name}</strong>
+            <strong>${escapeHtml(sc.name)}</strong>
             <span class="chip ${modeClass}">${modeLabel}</span>
             ${descHtml}
-            <small style="display:block;opacity:.5;margin-top:2px;">W1: ${w1Label}${w2Section}</small>
+            <small class="source-row__meta">W1: ${w1Label}${w2Section}</small>
           </div>
           <div class="source-row__actions">
             <button class="action-button action-button--small action-button--primary"

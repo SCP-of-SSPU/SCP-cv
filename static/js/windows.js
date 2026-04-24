@@ -19,6 +19,16 @@ const windowSessions = {};
 /** 拼接模式是否启用 */
 let spliceActive = false;
 
+/** 播放状态 → Fluent 2 语义色类 */
+const STATE_CHIP_CLASS_MAP = {
+  playing: "chip--success",
+  paused: "chip--warning",
+  loading: "chip--accent",
+  stopped: "chip--neutral",
+  idle: "chip--neutral",
+  error: "chip--error",
+};
+
 /**
  * 获取当前活跃窗口编号
  * @returns {number} 窗口编号（1-4）
@@ -141,8 +151,15 @@ export function applyWindowSession(windowId, sessionData) {
   const settingsSourceEl = document.getElementById("settings-win-source-" + windowId);
   const stateLabel = sessionData.playbackStateLabel || "空闲";
   const sourceName = sessionData.sourceName || "未打开媒体源";
-  if (stateEl) stateEl.textContent = stateLabel;
-  if (settingsStateEl) settingsStateEl.textContent = stateLabel;
+  const stateClassName = STATE_CHIP_CLASS_MAP[sessionData.playbackState] || "chip--neutral";
+  if (stateEl) {
+    stateEl.textContent = stateLabel;
+    stateEl.dataset.state = sessionData.playbackState || "idle";
+  }
+  if (settingsStateEl) {
+    settingsStateEl.textContent = stateLabel;
+    settingsStateEl.className = `chip ${stateClassName}`;
+  }
   if (settingsSourceEl) settingsSourceEl.textContent = sourceName;
 
   /* 如果是当前活跃窗口，同步到主面板 */
