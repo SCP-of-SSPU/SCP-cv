@@ -66,7 +66,6 @@ class RtspStreamAdapter(SourceAdapter):
         self._stop_player()
 
         # 从窗口句柄获取视频容器 widget
-        from scp_cv.player.window import PlayerWindow
         from PySide6.QtWidgets import QWidget
 
         # 通过控制器获取 PlayerWindow 实例的视频容器

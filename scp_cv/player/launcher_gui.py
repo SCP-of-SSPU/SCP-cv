@@ -234,7 +234,7 @@ class LauncherWindow(QWidget):
         self._title_label = QLabel("SCP-cv 播放器")
         self._title_label.setObjectName("TitleLabel")
         # 副标题：DEBUG 模式提示可复用显示器
-        reuse_hint = "，同一屏幕可复用" if debug_mode else ""
+        reuse_hint = "，同一屏幕可复用" if self._debug_mode else ""
         self._subtitle_label = QLabel(
             f"依次为 {self._max_windows} 个播放窗口选择目标显示器（共检测到 "
             f"{len(self._display_targets)} 台{reuse_hint}）"

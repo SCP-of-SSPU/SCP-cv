@@ -21,11 +21,8 @@ from scp_cv.apps.playback.models import (
     PlaybackMode,
     PlaybackSession,
     PlaybackState,
-    SourceType,
 )
 from scp_cv.services.display import (
-    DisplayTarget,
-    SplicedDisplayTarget,
     build_left_right_splice_target,
     list_display_targets,
 )
@@ -156,6 +153,7 @@ def open_source(window_id: int, media_source_id: int, autoplay: bool = True) -> 
         "autoplay": autoplay,
     }
     session.save()
+    sync_splice_command(window_id, session)
 
     logger.info("窗口 %d 打开媒体源「%s」（%s: %s）", window_id, source.name, source.source_type, source.uri)
     return session
@@ -180,6 +178,7 @@ def control_playback(window_id: int, action: str) -> PlaybackSession:
     session.pending_command = action
     session.command_args = {}
     session.save()
+    sync_splice_command(window_id, session)
 
     logger.info("窗口 %d 发送播放控制指令：%s", window_id, action)
     return session
@@ -217,6 +216,7 @@ def navigate_content(
         command_args["position_ms"] = position_ms
     session.command_args = command_args
     session.save()
+    sync_splice_command(window_id, session)
 
     logger.info("窗口 %d 发送导航指令：%s，参数=%s", window_id, action, command_args)
     return session
@@ -235,6 +235,7 @@ def close_source(window_id: int) -> PlaybackSession:
         session.pending_command = PlaybackCommand.CLOSE
         session.command_args = {}
         session.save()
+        sync_splice_command(window_id, session)
         logger.info("窗口 %d 发送关闭指令", window_id)
     else:
         # 无源则直接重置
@@ -440,6 +441,7 @@ def toggle_loop_playback(window_id: int, enabled: bool) -> PlaybackSession:
     session.pending_command = PlaybackCommand.SET_LOOP
     session.command_args = {"enabled": enabled}
     session.save()
+    sync_splice_command(window_id, session)
 
     logger.info("窗口 %d 循环播放已%s", window_id, "开启" if enabled else "关闭")
     return session

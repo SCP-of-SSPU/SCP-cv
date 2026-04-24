@@ -17,7 +17,7 @@ import sys
 # 强制使用 FFmpeg 后端
 os.environ["QT_MEDIA_BACKEND"] = "ffmpeg"
 
-from PySide6.QtCore import QTimer, QUrl
+from PySide6.QtCore import QUrl
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtMultimediaWidgets import QVideoWidget
 from PySide6.QtWidgets import QApplication, QMainWindow

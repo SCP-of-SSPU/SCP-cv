@@ -15,7 +15,6 @@ import logging
 import threading
 import time
 from collections.abc import Generator
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -59,11 +58,11 @@ def event_stream(last_sequence: int = 0) -> Generator[str, None, None]:
 
     # 先推送一次当前完整状态作为初始化数据
     with _event_lock:
-        for event_type, event_record in _latest_event_data.items():
-            record_sequence = int(event_record.get("sequence", 0))
-            if record_sequence > current_sequence:
-                yield _format_sse_message(event_record)
-                current_sequence = max(current_sequence, record_sequence)
+        pending_messages, current_sequence = _collect_pending_messages_locked(
+            current_sequence,
+        )
+    for pending_message in pending_messages:
+        yield pending_message
 
     # 持续等待并推送新事件
     while True:
@@ -71,18 +70,32 @@ def event_stream(last_sequence: int = 0) -> Generator[str, None, None]:
             # 等待新事件，超时 30 秒发送心跳保活
             _event_condition.wait(timeout=30.0)
 
-            # 推送所有新事件
-            pushed_any = False
-            for event_type, event_record in _latest_event_data.items():
-                record_sequence = int(event_record.get("sequence", 0))
-                if record_sequence > current_sequence:
-                    yield _format_sse_message(event_record)
-                    current_sequence = max(current_sequence, record_sequence)
-                    pushed_any = True
+            # 只在锁内复制消息，实际 yield 放到锁外，避免阻塞发布者。
+            pending_messages, current_sequence = _collect_pending_messages_locked(
+                current_sequence,
+            )
 
-        # 若无新事件，发送心跳注释保持连接
-        if not pushed_any:
+        if pending_messages:
+            for pending_message in pending_messages:
+                yield pending_message
+        else:
             yield ": heartbeat\n\n"
+
+
+def _collect_pending_messages_locked(current_sequence: int) -> tuple[list[str], int]:
+    """
+    收集当前锁保护下的新事件消息。
+    :param current_sequence: 客户端已收到的最大序列号
+    :return: 待发送消息列表与更新后的最大序列号
+    """
+    pending_messages: list[str] = []
+    next_sequence = current_sequence
+    for event_record in _latest_event_data.values():
+        record_sequence = int(event_record.get("sequence", 0))
+        if record_sequence > current_sequence:
+            pending_messages.append(_format_sse_message(event_record))
+            next_sequence = max(next_sequence, record_sequence)
+    return pending_messages, next_sequence
 
 
 def _format_sse_message(event_record: dict[str, object]) -> str:

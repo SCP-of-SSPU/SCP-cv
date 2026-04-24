@@ -29,3 +29,6 @@ dev = [
 
 [tool.uv]
 default-groups = ["dev"]
+
+[tool.ruff]
+extend-exclude = ["scp_cv/grpc_generated"]

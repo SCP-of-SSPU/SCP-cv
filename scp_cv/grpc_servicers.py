@@ -593,6 +593,7 @@ class PlaybackControlServicer(control_pb2_grpc.PlaybackControlServiceServicer):
                 sessions=session_protos,
             )
         except PlaybackError as playback_err:
+            logger.warning("设置拼接模式失败：%s", playback_err)
             # 拼接模式失败时仍返回当前状态
             return control_pb2.SpliceModeReply(
                 success=False,
@@ -621,7 +622,8 @@ class PlaybackControlServicer(control_pb2_grpc.PlaybackControlServiceServicer):
         for wid in VALID_WINDOW_IDS:
             session = get_or_create_session(wid)
             session.pending_command = PBCmd.SHOW_ID
-            session.save(update_fields=["pending_command"])
+            session.command_args = {}
+            session.save(update_fields=["pending_command", "command_args"])
         return _success_reply(message="窗口 ID 显示指令已下发")
 
     def GetAllSessionSnapshots(
@@ -837,19 +839,22 @@ class PlaybackControlServicer(control_pb2_grpc.PlaybackControlServiceServicer):
                 # 等待新事件（30 秒超时发心跳）
                 _event_condition.wait(timeout=30.0)
 
-                # 检查是否有新事件
+                pending_events: list[tuple[str, int]] = []
                 for event_type, event_record in _latest_event_data.items():
                     record_sequence = int(event_record.get("sequence", 0))
                     if record_sequence > current_sequence:
-                        current_sequence = record_sequence
-                        # 获取最新全量快照推送
-                        all_snapshots = get_all_sessions_snapshot()
-                        state_event = control_pb2.PlaybackStateEvent(
-                            event_type=str(event_type),
-                            sequence=record_sequence,
-                            sessions=[
-                                _snapshot_to_proto(s) for s in all_snapshots
-                            ],
-                            timestamp=time.time(),
-                        )
-                        yield state_event
+                        pending_events.append((str(event_type), record_sequence))
+
+            # DB 查询和 yield 都放在条件锁外，保证发布线程不被慢客户端阻塞。
+            for event_type, record_sequence in pending_events:
+                current_sequence = max(current_sequence, record_sequence)
+                all_snapshots = get_all_sessions_snapshot()
+                state_event = control_pb2.PlaybackStateEvent(
+                    event_type=event_type,
+                    sequence=record_sequence,
+                    sessions=[
+                        _snapshot_to_proto(s) for s in all_snapshots
+                    ],
+                    timestamp=time.time(),
+                )
+                yield state_event

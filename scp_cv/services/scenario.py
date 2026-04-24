@@ -16,7 +16,6 @@ from typing import Optional
 
 from scp_cv.apps.playback.models import (
     MediaSource,
-    PlaybackCommand,
     PlaybackState,
     Scenario,
 )

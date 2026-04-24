@@ -97,21 +97,6 @@ function renderSourceList(sourceList) {
   }).join("");
 
   sourceContainer.innerHTML = `<ul class="source-list">${listHtml}</ul>`;
-
-  /* 委托事件：通过 data-action 属性分发按钮点击 */
-  sourceContainer.querySelector(".source-list").addEventListener("click", (clickEvent) => {
-    const actionButton = clickEvent.target.closest("[data-action]");
-    if (!actionButton) return;
-
-    const sourceId = Number(actionButton.dataset.sourceId);
-    const action = actionButton.dataset.action;
-
-    if (action === "open-source") {
-      openSource(sourceId, clickEvent);
-    } else if (action === "remove-source") {
-      removeSource(sourceId, clickEvent);
-    }
-  });
 }
 
 /* ═══════════════════════════════════════════════════════════

@@ -13,7 +13,6 @@ GUI 控制面板（窗口 0）：Fluent 2 风格的多窗口播放控制界面�
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from PySide6.QtCore import Qt, QTimer, Slot
 from PySide6.QtGui import QFont
@@ -576,7 +575,8 @@ class ControlPanel(QWidget):
         for wid in VALID_WINDOW_IDS:
             session = get_or_create_session(wid)
             session.pending_command = PlaybackCommand.SHOW_ID
-            session.save(update_fields=["pending_command"])
+            session.command_args = {}
+            session.save(update_fields=["pending_command", "command_args"])
         logger.info("控制面板：已触发所有窗口显示 ID")
 
     # ═══════════════════ 状态轮询 ═══════════════════

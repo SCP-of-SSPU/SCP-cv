@@ -21,8 +21,6 @@
 '''
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
 import threading
 import time
@@ -30,7 +28,7 @@ from typing import Optional
 
 from PySide6.QtCore import QObject, QRect, Signal, Slot
 
-from scp_cv.player.adapters import AdapterState, SourceAdapter, create_adapter
+from scp_cv.player.adapters import SourceAdapter, create_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -75,8 +73,8 @@ class PlayerController(QObject):
         self._poll_thread: Optional[threading.Thread] = None
         self._poll_running = False
 
-        # 每个窗口的上一次指令 hash（避免重复处理）
-        self._last_command_hashes: dict[int, str] = {}
+        # 每个窗口上一次已上报状态，避免轮询线程无变化时频繁写库。
+        self._last_reported_states: dict[int, tuple[str, int, int, int, int]] = {}
 
         # 连接指令分发信号到主线程处理槽
         self.sig_dispatch_command.connect(self._execute_command_on_main_thread)
@@ -213,13 +211,7 @@ class PlayerController(QObject):
         if not pending or pending == PlaybackCommand.NONE:
             return
 
-        # 构建指令 hash 避免重复处理（按窗口独立追踪）
-        command_args = session.command_args or {}
-        command_key = f"{window_id}:{pending}:{json.dumps(command_args, sort_keys=True)}"
-        command_hash = hashlib.md5(command_key.encode()).hexdigest()
-        if command_hash == self._last_command_hashes.get(window_id, ""):
-            return
-        self._last_command_hashes[window_id] = command_hash
+        command_args = dict(session.command_args or {})
 
         logger.info(
             "窗口 %d 轮询检测到指令：%s，参数=%s，发射到主线程",
@@ -282,6 +274,16 @@ class PlayerController(QObject):
             if adapter is None or not adapter.is_open:
                 continue
             adapter_state = adapter.get_state()
+            state_signature = (
+                adapter_state.playback_state,
+                adapter_state.current_slide,
+                adapter_state.total_slides,
+                adapter_state.position_ms,
+                adapter_state.duration_ms,
+            )
+            if state_signature == self._last_reported_states.get(window_id):
+                continue
+
             update_playback_progress(
                 window_id=window_id,
                 playback_state=adapter_state.playback_state,
@@ -290,6 +292,7 @@ class PlayerController(QObject):
                 position_ms=adapter_state.position_ms,
                 duration_ms=adapter_state.duration_ms,
             )
+            self._last_reported_states[window_id] = state_signature
 
     # ═══════════════════ 指令处理（主线程执行） ═══════════════════
 
@@ -448,6 +451,7 @@ class PlayerController(QObject):
             except Exception as close_error:
                 logger.warning("关闭窗口 %d 适配器异常：%s", window_id, close_error)
         self._adapter_source_types.pop(window_id, None)
+        self._last_reported_states.pop(window_id, None)
 
     def _update_session_state(self, window_id: int, playback_state: str) -> None:
         """

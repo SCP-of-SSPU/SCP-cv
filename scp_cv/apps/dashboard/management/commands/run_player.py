@@ -164,10 +164,6 @@ class Command(BaseCommand):
         # 将控制面板放置到 GUI 屏幕上（若有剩余屏幕）
         gui_display = result.gui_display
         if gui_display is not None:
-            gui_rect = QRect(
-                gui_display.x, gui_display.y,
-                gui_display.width, gui_display.height,
-            )
             # 不全屏，居中显示在 GUI 屏幕上
             panel_width = min(560, gui_display.width - 40)
             panel_height = min(780, gui_display.height - 40)

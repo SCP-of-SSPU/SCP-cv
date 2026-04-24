@@ -22,8 +22,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from PySide6.QtWebEngineWidgets import QWebEngineView
-
 logger = logging.getLogger(__name__)
 
 # 窗口 ID 覆盖层显示时长（毫秒）

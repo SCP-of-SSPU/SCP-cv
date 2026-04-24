@@ -458,7 +458,8 @@ def show_window_ids(request: HttpRequest) -> JsonResponse:
     for wid in VALID_WINDOW_IDS:
         session = get_or_create_session(wid)
         session.pending_command = PlaybackCommand.SHOW_ID
-        session.save(update_fields=["pending_command"])
+        session.command_args = {}
+        session.save(update_fields=["pending_command", "command_args"])
     return JsonResponse({"success": True})
 
 
