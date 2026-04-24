@@ -1415,6 +1415,67 @@ proto.scp_cv.v1.PlaybackControlServicePromiseClient.prototype.activateScenario =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.scp_cv.v1.CaptureScenarioRequest,
+ *   !proto.scp_cv.v1.ScenarioReply>}
+ */
+const methodDescriptor_PlaybackControlService_CaptureScenario = new grpc.web.MethodDescriptor(
+  '/scp_cv.v1.PlaybackControlService/CaptureScenario',
+  grpc.web.MethodType.UNARY,
+  proto.scp_cv.v1.CaptureScenarioRequest,
+  proto.scp_cv.v1.ScenarioReply,
+  /**
+   * @param {!proto.scp_cv.v1.CaptureScenarioRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.scp_cv.v1.ScenarioReply.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.scp_cv.v1.CaptureScenarioRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.scp_cv.v1.ScenarioReply)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.scp_cv.v1.ScenarioReply>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.scp_cv.v1.PlaybackControlServiceClient.prototype.captureScenario =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/scp_cv.v1.PlaybackControlService/CaptureScenario',
+      request,
+      metadata || {},
+      methodDescriptor_PlaybackControlService_CaptureScenario,
+      callback);
+};
+
+
+/**
+ * @param {!proto.scp_cv.v1.CaptureScenarioRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.scp_cv.v1.ScenarioReply>}
+ *     Promise that resolves to the response
+ */
+proto.scp_cv.v1.PlaybackControlServicePromiseClient.prototype.captureScenario =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/scp_cv.v1.PlaybackControlService/CaptureScenario',
+      request,
+      metadata || {},
+      methodDescriptor_PlaybackControlService_CaptureScenario);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.scp_cv.v1.EmptyRequest,
  *   !proto.scp_cv.v1.OperationReply>}
  */

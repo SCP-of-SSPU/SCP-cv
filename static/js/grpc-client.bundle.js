@@ -6931,6 +6931,7 @@ var require_control_pb = __commonJS({
     goog2.exportSymbol("proto.scp_cv.v1.AddLocalPathSourceRequest", null, global);
     goog2.exportSymbol("proto.scp_cv.v1.AddWebUrlSourceRequest", null, global);
     goog2.exportSymbol("proto.scp_cv.v1.AllSessionSnapshotsReply", null, global);
+    goog2.exportSymbol("proto.scp_cv.v1.CaptureScenarioRequest", null, global);
     goog2.exportSymbol("proto.scp_cv.v1.CloseSourceRequest", null, global);
     goog2.exportSymbol("proto.scp_cv.v1.ControlPlaybackRequest", null, global);
     goog2.exportSymbol("proto.scp_cv.v1.DeleteScenarioRequest", null, global);
@@ -7179,6 +7180,13 @@ var require_control_pb = __commonJS({
     goog2.inherits(proto.scp_cv.v1.ActivateScenarioRequest, jspb2.Message);
     if (goog2.DEBUG && !COMPILED) {
       proto.scp_cv.v1.ActivateScenarioRequest.displayName = "proto.scp_cv.v1.ActivateScenarioRequest";
+    }
+    proto.scp_cv.v1.CaptureScenarioRequest = function(opt_data) {
+      jspb2.Message.initialize(this, opt_data, 0, -1, null, null);
+    };
+    goog2.inherits(proto.scp_cv.v1.CaptureScenarioRequest, jspb2.Message);
+    if (goog2.DEBUG && !COMPILED) {
+      proto.scp_cv.v1.CaptureScenarioRequest.displayName = "proto.scp_cv.v1.CaptureScenarioRequest";
     }
     proto.scp_cv.v1.ScenarioReply = function(opt_data) {
       jspb2.Message.initialize(this, opt_data, 0, -1, null, null);
@@ -10421,7 +10429,8 @@ var require_control_pb = __commonJS({
         var f, obj = {
           sourceId: jspb2.Message.getFieldWithDefault(msg, 1, 0),
           autoplay: jspb2.Message.getBooleanFieldWithDefault(msg, 2, false),
-          resume: jspb2.Message.getBooleanFieldWithDefault(msg, 3, false)
+          resume: jspb2.Message.getBooleanFieldWithDefault(msg, 3, false),
+          sourceName: jspb2.Message.getFieldWithDefault(msg, 4, "")
         };
         if (includeInstance) {
           obj.$jspbMessageInstance = msg;
@@ -10462,6 +10471,13 @@ var require_control_pb = __commonJS({
             );
             msg.setResume(value);
             break;
+          case 4:
+            var value = (
+              /** @type {string} */
+              reader.readStringRequireUtf8()
+            );
+            msg.setSourceName(value);
+            break;
           default:
             reader.skipField();
             break;
@@ -10497,6 +10513,13 @@ var require_control_pb = __commonJS({
           f
         );
       }
+      f = message.getSourceName();
+      if (f.length > 0) {
+        writer.writeString(
+          4,
+          f
+        );
+      }
     };
     proto.scp_cv.v1.ScenarioWindowSlot.prototype.getSourceId = function() {
       return (
@@ -10524,6 +10547,15 @@ var require_control_pb = __commonJS({
     };
     proto.scp_cv.v1.ScenarioWindowSlot.prototype.setResume = function(value) {
       return jspb2.Message.setProto3BooleanField(this, 3, value);
+    };
+    proto.scp_cv.v1.ScenarioWindowSlot.prototype.getSourceName = function() {
+      return (
+        /** @type {string} */
+        jspb2.Message.getFieldWithDefault(this, 4, "")
+      );
+    };
+    proto.scp_cv.v1.ScenarioWindowSlot.prototype.setSourceName = function(value) {
+      return jspb2.Message.setProto3StringField(this, 4, value);
     };
     if (jspb2.Message.GENERATE_TO_OBJECT) {
       proto.scp_cv.v1.ScenarioDetail.prototype.toObject = function(opt_includeInstance) {
@@ -11255,6 +11287,118 @@ var require_control_pb = __commonJS({
     };
     proto.scp_cv.v1.ActivateScenarioRequest.prototype.setScenarioId = function(value) {
       return jspb2.Message.setProto3IntField(this, 1, value);
+    };
+    if (jspb2.Message.GENERATE_TO_OBJECT) {
+      proto.scp_cv.v1.CaptureScenarioRequest.prototype.toObject = function(opt_includeInstance) {
+        return proto.scp_cv.v1.CaptureScenarioRequest.toObject(opt_includeInstance, this);
+      };
+      proto.scp_cv.v1.CaptureScenarioRequest.toObject = function(includeInstance, msg) {
+        var f, obj = {
+          name: jspb2.Message.getFieldWithDefault(msg, 1, ""),
+          description: jspb2.Message.getFieldWithDefault(msg, 2, ""),
+          scenarioId: jspb2.Message.getFieldWithDefault(msg, 3, 0)
+        };
+        if (includeInstance) {
+          obj.$jspbMessageInstance = msg;
+        }
+        return obj;
+      };
+    }
+    proto.scp_cv.v1.CaptureScenarioRequest.deserializeBinary = function(bytes) {
+      var reader = new jspb2.BinaryReader(bytes);
+      var msg = new proto.scp_cv.v1.CaptureScenarioRequest();
+      return proto.scp_cv.v1.CaptureScenarioRequest.deserializeBinaryFromReader(msg, reader);
+    };
+    proto.scp_cv.v1.CaptureScenarioRequest.deserializeBinaryFromReader = function(msg, reader) {
+      while (reader.nextField()) {
+        if (reader.isEndGroup()) {
+          break;
+        }
+        var field = reader.getFieldNumber();
+        switch (field) {
+          case 1:
+            var value = (
+              /** @type {string} */
+              reader.readStringRequireUtf8()
+            );
+            msg.setName(value);
+            break;
+          case 2:
+            var value = (
+              /** @type {string} */
+              reader.readStringRequireUtf8()
+            );
+            msg.setDescription(value);
+            break;
+          case 3:
+            var value = (
+              /** @type {number} */
+              reader.readInt64()
+            );
+            msg.setScenarioId(value);
+            break;
+          default:
+            reader.skipField();
+            break;
+        }
+      }
+      return msg;
+    };
+    proto.scp_cv.v1.CaptureScenarioRequest.prototype.serializeBinary = function() {
+      var writer = new jspb2.BinaryWriter();
+      proto.scp_cv.v1.CaptureScenarioRequest.serializeBinaryToWriter(this, writer);
+      return writer.getResultBuffer();
+    };
+    proto.scp_cv.v1.CaptureScenarioRequest.serializeBinaryToWriter = function(message, writer) {
+      var f = void 0;
+      f = message.getName();
+      if (f.length > 0) {
+        writer.writeString(
+          1,
+          f
+        );
+      }
+      f = message.getDescription();
+      if (f.length > 0) {
+        writer.writeString(
+          2,
+          f
+        );
+      }
+      f = message.getScenarioId();
+      if (f !== 0) {
+        writer.writeInt64(
+          3,
+          f
+        );
+      }
+    };
+    proto.scp_cv.v1.CaptureScenarioRequest.prototype.getName = function() {
+      return (
+        /** @type {string} */
+        jspb2.Message.getFieldWithDefault(this, 1, "")
+      );
+    };
+    proto.scp_cv.v1.CaptureScenarioRequest.prototype.setName = function(value) {
+      return jspb2.Message.setProto3StringField(this, 1, value);
+    };
+    proto.scp_cv.v1.CaptureScenarioRequest.prototype.getDescription = function() {
+      return (
+        /** @type {string} */
+        jspb2.Message.getFieldWithDefault(this, 2, "")
+      );
+    };
+    proto.scp_cv.v1.CaptureScenarioRequest.prototype.setDescription = function(value) {
+      return jspb2.Message.setProto3StringField(this, 2, value);
+    };
+    proto.scp_cv.v1.CaptureScenarioRequest.prototype.getScenarioId = function() {
+      return (
+        /** @type {number} */
+        jspb2.Message.getFieldWithDefault(this, 3, 0)
+      );
+    };
+    proto.scp_cv.v1.CaptureScenarioRequest.prototype.setScenarioId = function(value) {
+      return jspb2.Message.setProto3IntField(this, 3, value);
     };
     if (jspb2.Message.GENERATE_TO_OBJECT) {
       proto.scp_cv.v1.ScenarioReply.prototype.toObject = function(opt_includeInstance) {
@@ -12370,6 +12514,37 @@ var require_control_grpc_web_pb = __commonJS({
         methodDescriptor_PlaybackControlService_ActivateScenario
       );
     };
+    var methodDescriptor_PlaybackControlService_CaptureScenario = new grpc.web.MethodDescriptor(
+      "/scp_cv.v1.PlaybackControlService/CaptureScenario",
+      grpc.web.MethodType.UNARY,
+      proto2.scp_cv.v1.CaptureScenarioRequest,
+      proto2.scp_cv.v1.ScenarioReply,
+      /**
+       * @param {!proto.scp_cv.v1.CaptureScenarioRequest} request
+       * @return {!Uint8Array}
+       */
+      function(request) {
+        return request.serializeBinary();
+      },
+      proto2.scp_cv.v1.ScenarioReply.deserializeBinary
+    );
+    proto2.scp_cv.v1.PlaybackControlServiceClient.prototype.captureScenario = function(request, metadata, callback) {
+      return this.client_.rpcCall(
+        this.hostname_ + "/scp_cv.v1.PlaybackControlService/CaptureScenario",
+        request,
+        metadata || {},
+        methodDescriptor_PlaybackControlService_CaptureScenario,
+        callback
+      );
+    };
+    proto2.scp_cv.v1.PlaybackControlServicePromiseClient.prototype.captureScenario = function(request, metadata) {
+      return this.client_.unaryCall(
+        this.hostname_ + "/scp_cv.v1.PlaybackControlService/CaptureScenario",
+        request,
+        metadata || {},
+        methodDescriptor_PlaybackControlService_CaptureScenario
+      );
+    };
     var methodDescriptor_PlaybackControlService_StopCurrentContent = new grpc.web.MethodDescriptor(
       "/scp_cv.v1.PlaybackControlService/StopCurrentContent",
       grpc.web.MethodType.UNARY,
@@ -12427,7 +12602,8 @@ var {
   ScenarioWindowSlot,
   UpdateScenarioRequest,
   DeleteScenarioRequest,
-  ActivateScenarioRequest
+  ActivateScenarioRequest,
+  CaptureScenarioRequest
 } = require_control_pb();
 var GRPC_WEB_PROXY_URL = typeof window !== "undefined" && window.GRPC_WEB_PROXY_URL || "http://localhost:8081";
 var grpcClient = new PlaybackControlServiceClient(GRPC_WEB_PROXY_URL);
@@ -12457,7 +12633,7 @@ function unaryCall(rpcName, rpcMethod, requestMessage) {
         reject(new Error(errorDetail));
         return;
       }
-      resolve(response.toObject());
+      resolve(response);
     });
   });
 }
@@ -12694,11 +12870,22 @@ function activateScenario(scenarioId) {
     request
   );
 }
+function captureScenario(name, description, scenarioId = 0) {
+  const request = new CaptureScenarioRequest();
+  request.setName(name);
+  request.setDescription(description);
+  request.setScenarioId(scenarioId);
+  return unaryCall(
+    "CaptureScenario",
+    grpcClient.captureScenario,
+    request
+  );
+}
 function watchPlaybackState(onEvent, onError, onEnd) {
   const request = new EmptyRequest();
   const stream = grpcClient.watchPlaybackState(request, {});
   stream.on("data", (response) => {
-    onEvent(response.toObject());
+    onEvent(response);
   });
   stream.on("error", (streamError) => {
     if (onError) {
@@ -12718,6 +12905,7 @@ export {
   activateScenario,
   addLocalPathSource,
   addWebUrlSource,
+  captureScenario,
   closeSource,
   controlPlayback,
   createScenario,

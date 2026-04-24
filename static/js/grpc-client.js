@@ -40,6 +40,7 @@ const {
   UpdateScenarioRequest,
   DeleteScenarioRequest,
   ActivateScenarioRequest,
+  CaptureScenarioRequest,
 } = require('./grpc-generated/scp_cv/v1/control_pb.js');
 
 // ────────────────────────────────────────────────────
@@ -100,13 +101,13 @@ const NAVIGATE_ACTIONS = {
 
 /**
  * 将回调风格的 gRPC 一元调用包装为 Promise。
- * 成功时以 response.toObject() 的普通对象 resolve；
+ * 成功时以 protobuf 响应对象 resolve，调用方按需执行 toObject()。
  * 失败时以包含 gRPC 错误码和消息的 Error reject。
  *
  * @param {string} rpcName - RPC 方法名（仅用于错误信息）
  * @param {Function} rpcMethod - 客户端上的原型方法引用
  * @param {Object} requestMessage - 已填充字段的 protobuf 请求消息
- * @returns {Promise<Object>} 解析后的响应普通对象
+ * @returns {Promise<Object>} protobuf 响应对象
  */
 function unaryCall(rpcName, rpcMethod, requestMessage) {
   return new Promise((resolve, reject) => {
@@ -118,7 +119,7 @@ function unaryCall(rpcName, rpcMethod, requestMessage) {
         reject(new Error(errorDetail));
         return;
       }
-      resolve(response.toObject());
+      resolve(response);
     });
   });
 }
@@ -547,6 +548,25 @@ export function activateScenario(scenarioId) {
   );
 }
 
+/**
+ * 从当前窗口 1/2 播放状态捕获预案。
+ * @param {string} name - 预案名称
+ * @param {string} description - 预案描述
+ * @param {number} [scenarioId=0] - 已有预案 ID；0 表示创建新预案
+ * @returns {Promise<Object>} ScenarioReply 对象
+ */
+export function captureScenario(name, description, scenarioId = 0) {
+  const request = new CaptureScenarioRequest();
+  request.setName(name);
+  request.setDescription(description);
+  request.setScenarioId(scenarioId);
+  return unaryCall(
+    'CaptureScenario',
+    grpcClient.captureScenario,
+    request,
+  );
+}
+
 // ────────────────────────────────────────────────────
 // 实时推送：服务端流式 RPC
 // ────────────────────────────────────────────────────
@@ -555,7 +575,7 @@ export function activateScenario(scenarioId) {
  * 订阅播放状态实时事件流（服务端流式 RPC）。
  * 当服务端推送 PlaybackStateEvent 时，onEvent 回调将被调用。
  *
- * @param {Function} onEvent - 每次收到事件时的回调，参数为 PlaybackStateEvent 普通对象
+ * @param {Function} onEvent - 每次收到事件时的回调，参数为 PlaybackStateEvent protobuf 对象
  * @param {Function} [onError] - 流发生错误时的回调，参数为 gRPC Error
  * @param {Function} [onEnd] - 流正常结束时的回调
  * @returns {Function} 取消函数——调用后将关闭流并停止接收事件
@@ -566,9 +586,9 @@ export function watchPlaybackState(onEvent, onError, onEnd) {
   // 发起服务端流式调用，返回 ClientReadableStream
   const stream = grpcClient.watchPlaybackState(request, {});
 
-  // 监听数据事件：将 protobuf 消息转为普通对象后传递给调用方
+  // 监听数据事件：保留 protobuf 对象，由调用方决定如何序列化。
   stream.on('data', (response) => {
-    onEvent(response.toObject());
+    onEvent(response);
   });
 
   // 监听错误事件

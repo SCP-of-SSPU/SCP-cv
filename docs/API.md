@@ -162,6 +162,7 @@
 | `UpdateScenario` | `UpdateScenarioRequest` | `ScenarioReply` | 更新预案 |
 | `DeleteScenario` | `DeleteScenarioRequest` | `OperationReply` | 删除预案 |
 | `ActivateScenario` | `ActivateScenarioRequest` | `ActivateScenarioReply` | 激活预案（一键应用窗口配置） |
+| `CaptureScenario` | `CaptureScenarioRequest` | `ScenarioReply` | 从当前窗口 1/2 状态创建或覆盖预案 |
 
 ### 枚举定义
 
@@ -179,7 +180,7 @@
 |------|-----------|------|
 | 代理 | `npx @grpc-web/proxy --backend http://localhost:50051 --port 8081` | 将 gRPC-Web 请求转为原生 gRPC |
 | JS 桩代码 | `static/js/grpc-generated/scp_cv/v1/` | protoc + grpc-web 生成 |
-| 客户端封装 | `static/js/grpc-client.js` → `grpc-client.bundle.js` | Promise 风格 API，18 个 RPC + 5 个预案 + 1 个流式订阅 |
+| 客户端封装 | `static/js/grpc-client.js` → `grpc-client.bundle.js` | Promise 风格 API，18 个 RPC + 6 个预案 + 1 个流式订阅 |
 | 启动方式 | `uv run python manage.py runall`（自动启动代理） | 可通过 `--skip-grpcweb` 跳过 |
 
 ### 调用示例（Python）

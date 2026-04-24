@@ -16,6 +16,7 @@ from typing import Optional
 
 from scp_cv.apps.playback.models import (
     MediaSource,
+    PlaybackSession,
     PlaybackState,
     Scenario,
 )
@@ -24,6 +25,7 @@ from scp_cv.services.playback import (
     close_source,
     get_all_sessions_snapshot,
     get_or_create_session,
+    is_splice_mode_active,
     open_source,
     set_splice_mode,
 )
@@ -184,6 +186,55 @@ def update_scenario(
     return scenario
 
 
+def capture_scenario_from_current_state(
+    name: str,
+    description: str = "",
+    scenario_id: Optional[int] = None,
+) -> Scenario:
+    """
+    从当前窗口 1/2 的播放会话捕获预案。
+    :param name: 预案名称
+    :param description: 预案描述
+    :param scenario_id: 已有预案 ID；传入时覆盖该预案，否则创建新预案
+    :return: 创建或更新后的 Scenario 实例
+    :raises ScenarioError: 名称为空、目标预案不存在或媒体源引用异常时
+    """
+    session_1 = get_or_create_session(1)
+    session_2 = get_or_create_session(2)
+    splice_active = is_splice_mode_active()
+
+    window2_source_id = None if splice_active else session_2.media_source_id
+    window2_autoplay = False if splice_active else _capture_autoplay(session_2)
+
+    if scenario_id is not None and scenario_id > 0:
+        return update_scenario(
+            scenario_id=scenario_id,
+            name=name,
+            description=description,
+            is_splice_mode=splice_active,
+            window1_source_id=session_1.media_source_id,
+            window1_autoplay=_capture_autoplay(session_1),
+            window1_resume=True,
+            window2_source_id=window2_source_id,
+            window2_autoplay=window2_autoplay,
+            window2_resume=True,
+            _window1_source_provided=True,
+            _window2_source_provided=True,
+        )
+
+    return create_scenario(
+        name=name,
+        description=description,
+        is_splice_mode=splice_active,
+        window1_source_id=session_1.media_source_id,
+        window1_autoplay=_capture_autoplay(session_1),
+        window1_resume=True,
+        window2_source_id=window2_source_id,
+        window2_autoplay=window2_autoplay,
+        window2_resume=True,
+    )
+
+
 def delete_scenario(scenario_id: int) -> None:
     """
     删除指定预案。
@@ -280,6 +331,16 @@ def _scenario_to_dict(scenario: Scenario) -> dict[str, object]:
         "created_at": scenario.created_at.isoformat() if scenario.created_at else "",
         "updated_at": scenario.updated_at.isoformat() if scenario.updated_at else "",
     }
+
+
+def _capture_autoplay(session: PlaybackSession) -> bool:
+    """
+    根据当前会话状态推导预案激活时是否自动播放。
+    :param session: 当前播放会话
+    :return: 正在加载或播放的源再次激活时自动播放
+    """
+    active_states = (PlaybackState.LOADING, PlaybackState.PLAYING)
+    return session.media_source_id is not None and session.playback_state in active_states
 
 
 def _should_reopen_source(

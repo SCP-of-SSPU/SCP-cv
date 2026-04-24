@@ -385,29 +385,40 @@
               {% if sc.is_splice_mode %}拼接{% else %}独立{% endif %}
             </span>
             {% if sc.description %}
-              <small style="display:block; opacity:.7; margin-top:2px;">{{ sc.description }}</small>
+              <small class="source-row__description">{{ sc.description }}</small>
             {% endif %}
-            <small style="display:block; opacity:.5; margin-top:2px;">
+            <small class="source-row__meta">
               W1:
               {% if sc.window1_source_name %}{{ sc.window1_source_name }}{% else %}无{% endif %}
+              {% if sc.window1_source_name %}
+                · {% if sc.window1_autoplay %}自动播放{% else %}手动播放{% endif %}
+                · {% if sc.window1_resume %}保留进度{% else %}重新打开{% endif %}
+              {% endif %}
               {% if not sc.is_splice_mode %}
                 · W2:
                 {% if sc.window2_source_name %}{{ sc.window2_source_name }}{% else %}无{% endif %}
+                {% if sc.window2_source_name %}
+                  · {% if sc.window2_autoplay %}自动播放{% else %}手动播放{% endif %}
+                  · {% if sc.window2_resume %}保留进度{% else %}重新打开{% endif %}
+                {% endif %}
               {% endif %}
             </small>
           </div>
           <div class="source-row__actions">
             <button class="action-button action-button--small action-button--primary"
-                    data-action="activate-scenario" data-scenario-id="{{ sc.id }}" title="激活预案">
-              ▶ 激活
+                    type="button" data-action="activate-scenario" data-scenario-id="{{ sc.id }}" title="激活预案">
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+              激活
             </button>
             <button class="action-button action-button--small"
-                    data-action="edit-scenario" data-scenario-id="{{ sc.id }}" title="编辑预案">
-              ✎ 编辑
+                    type="button" data-action="edit-scenario" data-scenario-id="{{ sc.id }}" title="编辑预案">
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 000-1.42l-2.34-2.34a1.003 1.003 0 00-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z"/></svg>
+              编辑
             </button>
             <button class="action-button action-button--small action-button--danger"
-                    data-action="delete-scenario" data-scenario-id="{{ sc.id }}" title="删除预案">
-              ✕
+                    type="button" data-action="delete-scenario" data-scenario-id="{{ sc.id }}" title="删除预案">
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+              删除
             </button>
           </div>
         </div>
@@ -496,6 +507,11 @@
         <button class="action-button action-button--primary" type="button"
                 data-action="save-scenario" id="scenario-save-btn">
           保存预案
+        </button>
+        <button class="action-button" type="button"
+                data-action="capture-current-scenario" id="scenario-capture-btn">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M17 3H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 1.99 2H19c1.1 0 2-.9 2-2V7l-4-4zM12 19c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zM6 8V5h9v3H6z"/></svg>
+          保存当前状态
         </button>
         <button class="action-button action-button--ghost" type="button"
                 data-action="reset-scenario-form">

@@ -114,6 +114,9 @@ service PlaybackControlService {
   // 激活预案：一键应用预设的窗口配置。
   rpc ActivateScenario(ActivateScenarioRequest) returns (ActivateScenarioReply);
 
+  // 从当前窗口 1/2 播放状态捕获预案；scenario_id > 0 时覆盖已有预案。
+  rpc CaptureScenario(CaptureScenarioRequest) returns (ScenarioReply);
+
   // ── 兼容接口 ──
 
   // 停止当前播放内容（等价于 CloseSource，保留供旧版客户端调用）。
@@ -392,6 +395,7 @@ message ScenarioWindowSlot {
   int64 source_id = 1;    // 媒体源 ID（0 表示无源）
   bool autoplay = 2;      // 是否自动播放
   bool resume = 3;        // 相同源已打开时是否保留进度
+  string source_name = 4; // 媒体源显示名称（列表展示用）
 }
 
 // 预案详细信息（创建 / 更新时发送）。
@@ -435,6 +439,13 @@ message DeleteScenarioRequest {
 // 激活预案请求（ActivateScenario）。
 message ActivateScenarioRequest {
   int64 scenario_id = 1;
+}
+
+// 从当前播放状态捕获预案请求（scenario_id 为 0 时创建新预案）。
+message CaptureScenarioRequest {
+  string name = 1;
+  string description = 2;
+  int64 scenario_id = 3;
 }
 
 // 预案操作响应（CreateScenario、UpdateScenario）。

@@ -525,6 +525,10 @@ select.text-input:focus {
   background: var(--surface-subtle);
 }
 
+.form-fieldset .form-grid {
+  min-width: 0;
+}
+
 /* ═══════════════════════════════════════════════════════════
  * 通用组件：面板 / 卡片
  * ═══════════════════════════════════════════════════════════ */
@@ -1539,5 +1543,15 @@ select.text-input:focus {
 
   .window-status-grid {
     grid-template-columns: 1fr;
+  }
+
+  #scenario-form > .form-grid,
+  #scenario-form .form-fieldset .form-grid {
+    grid-template-columns: 1fr !important;
+    align-items: stretch !important;
+  }
+
+  #scenario-form .form-fieldset label {
+    white-space: normal !important;
   }
 }

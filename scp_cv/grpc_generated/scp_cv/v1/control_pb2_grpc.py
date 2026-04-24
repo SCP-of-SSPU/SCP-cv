@@ -157,6 +157,11 @@ class PlaybackControlServiceStub(object):
                 request_serializer=scp__cv_dot_v1_dot_control__pb2.ActivateScenarioRequest.SerializeToString,
                 response_deserializer=scp__cv_dot_v1_dot_control__pb2.ActivateScenarioReply.FromString,
                 _registered_method=True)
+        self.CaptureScenario = channel.unary_unary(
+                '/scp_cv.v1.PlaybackControlService/CaptureScenario',
+                request_serializer=scp__cv_dot_v1_dot_control__pb2.CaptureScenarioRequest.SerializeToString,
+                response_deserializer=scp__cv_dot_v1_dot_control__pb2.ScenarioReply.FromString,
+                _registered_method=True)
         self.StopCurrentContent = channel.unary_unary(
                 '/scp_cv.v1.PlaybackControlService/StopCurrentContent',
                 request_serializer=scp__cv_dot_v1_dot_control__pb2.EmptyRequest.SerializeToString,
@@ -365,6 +370,13 @@ class PlaybackControlServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def CaptureScenario(self, request, context):
+        """从当前窗口 1/2 播放状态捕获预案；scenario_id > 0 时覆盖已有预案。
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def StopCurrentContent(self, request, context):
         """── 兼容接口 ──
 
@@ -486,6 +498,11 @@ def add_PlaybackControlServiceServicer_to_server(servicer, server):
                     servicer.ActivateScenario,
                     request_deserializer=scp__cv_dot_v1_dot_control__pb2.ActivateScenarioRequest.FromString,
                     response_serializer=scp__cv_dot_v1_dot_control__pb2.ActivateScenarioReply.SerializeToString,
+            ),
+            'CaptureScenario': grpc.unary_unary_rpc_method_handler(
+                    servicer.CaptureScenario,
+                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.CaptureScenarioRequest.FromString,
+                    response_serializer=scp__cv_dot_v1_dot_control__pb2.ScenarioReply.SerializeToString,
             ),
             'StopCurrentContent': grpc.unary_unary_rpc_method_handler(
                     servicer.StopCurrentContent,
@@ -1100,6 +1117,33 @@ class PlaybackControlService(object):
             '/scp_cv.v1.PlaybackControlService/ActivateScenario',
             scp__cv_dot_v1_dot_control__pb2.ActivateScenarioRequest.SerializeToString,
             scp__cv_dot_v1_dot_control__pb2.ActivateScenarioReply.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CaptureScenario(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/scp_cv.v1.PlaybackControlService/CaptureScenario',
+            scp__cv_dot_v1_dot_control__pb2.CaptureScenarioRequest.SerializeToString,
+            scp__cv_dot_v1_dot_control__pb2.ScenarioReply.FromString,
             options,
             channel_credentials,
             insecure,

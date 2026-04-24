@@ -41,6 +41,7 @@ import {
   deleteScenario,
   activateScenario,
   editScenario,
+  captureCurrentScenario,
   resetScenarioForm,
 } from "./scenarios.js";
 
@@ -98,6 +99,7 @@ const ACTION_HANDLERS = {
     deleteScenario(scenarioId, event);
   },
   "save-scenario": (event) => saveScenario(event),
+  "capture-current-scenario": (event) => captureCurrentScenario(event),
   "reset-scenario-form": () => resetScenarioForm(),
   "splice-mode-toggle": () => onSpliceModeToggle(),
 };

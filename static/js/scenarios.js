@@ -11,9 +11,10 @@ import {
   updateScenario as grpcUpdateScenario,
   deleteScenario as grpcDeleteScenario,
   activateScenario as grpcActivateScenario,
+  captureScenario as grpcCaptureScenario,
 } from "./grpc-client.bundle.js";
 
-import { escapeHtml, showBanner, withLoading } from "./utils.js";
+import { confirmAction, escapeHtml, showBanner, withLoading } from "./utils.js";
 
 /* ═══════════════════════════════════════════════════════════
  * DOM 元素缓存
@@ -102,12 +103,48 @@ export async function saveScenario(triggerEvent) {
 }
 
 /**
+ * 从当前窗口 1/2 的播放状态创建或覆盖预案。
+ * @param {Event} triggerEvent - 点击事件
+ */
+export async function captureCurrentScenario(triggerEvent) {
+  const scenarioName = document.getElementById("scenario-name").value.trim();
+  if (!scenarioName) {
+    showBanner("请先填写预案名称", true);
+    return;
+  }
+
+  const description = document.getElementById("scenario-desc").value.trim();
+  const editId = editIdInput ? editIdInput.value : "";
+  const scenarioId = editId ? parseInt(editId, 10) : 0;
+  const isUpdate = scenarioId > 0;
+
+  if (isUpdate) {
+    const confirmed = await confirmAction(
+      "覆盖预案",
+      "将使用当前窗口 1/2 的播放状态覆盖此预案，是否继续？",
+    );
+    if (!confirmed) return;
+  }
+
+  await withLoading(triggerEvent, async () => {
+    const reply = await grpcCaptureScenario(scenarioName, description, scenarioId);
+    const result = reply.toObject();
+    if (result.success) {
+      showBanner(`${isUpdate ? "覆盖" : "创建"}预案「${scenarioName}」成功`);
+      resetScenarioForm();
+      await refreshScenarioList();
+    } else {
+      showBanner(result.message || "保存当前状态失败", true);
+    }
+  });
+}
+
+/**
  * 删除指定预案
  * @param {number} scenarioId - 预案 ID
  * @param {Event} triggerEvent - 点击事件
  */
 export async function deleteScenario(scenarioId, triggerEvent) {
-  const { confirmAction } = await import("./utils.js");
   const confirmed = await confirmAction("确认删除", "确定要删除此预案吗？");
   if (!confirmed) return;
 
@@ -248,14 +285,23 @@ export async function refreshScenarioList() {
       return;
     }
 
+    const buildSlotLabel = (slotConfig) => {
+      if (!slotConfig || !slotConfig.sourceId) {
+        return "无";
+      }
+      const sourceLabel = slotConfig.sourceName || `源 #${slotConfig.sourceId}`;
+      const playbackLabel = slotConfig.autoplay ? "自动播放" : "手动播放";
+      const resumeLabel = slotConfig.resume ? "保留进度" : "重新打开";
+      return `${sourceLabel} · ${playbackLabel} · ${resumeLabel}`;
+    };
+
     scenarioListContainer.innerHTML = scenarios.map((sc) => {
       const modeLabel = sc.isSpliceMode ? "拼接" : "独立";
       const modeClass = sc.isSpliceMode ? "chip--accent" : "chip--neutral";
-      /* gRPC 不返回 source_name，只返回 sourceId；显示 ID */
       const w1 = sc.window1 || {};
       const w2 = sc.window2 || {};
-      const w1Label = w1.sourceId ? `源 #${w1.sourceId}` : "无";
-      const w2Section = sc.isSpliceMode ? "" : ` · W2: ${w2.sourceId ? `源 #${w2.sourceId}` : "无"}`;
+      const w1Label = buildSlotLabel(w1);
+      const w2Section = sc.isSpliceMode ? "" : ` · W2: ${buildSlotLabel(w2)}`;
       const descHtml = sc.description
         ? `<small class="source-row__description">${escapeHtml(sc.description)}</small>`
         : "";
@@ -270,11 +316,20 @@ export async function refreshScenarioList() {
           </div>
           <div class="source-row__actions">
             <button class="action-button action-button--small action-button--primary"
-                    data-action="activate-scenario" data-scenario-id="${sc.id}" title="激活预案">▶ 激活</button>
+                    type="button" data-action="activate-scenario" data-scenario-id="${sc.id}" title="激活预案">
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+              激活
+            </button>
             <button class="action-button action-button--small"
-                    data-action="edit-scenario" data-scenario-id="${sc.id}" title="编辑预案">✎ 编辑</button>
+                    type="button" data-action="edit-scenario" data-scenario-id="${sc.id}" title="编辑预案">
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 000-1.42l-2.34-2.34a1.003 1.003 0 00-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z"/></svg>
+              编辑
+            </button>
             <button class="action-button action-button--small action-button--danger"
-                    data-action="delete-scenario" data-scenario-id="${sc.id}" title="删除预案">✕</button>
+                    type="button" data-action="delete-scenario" data-scenario-id="${sc.id}" title="删除预案">
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+              删除
+            </button>
           </div>
         </div>`;
     }).join("");

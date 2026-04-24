@@ -48,6 +48,7 @@ from scp_cv.services.playback import (
 from scp_cv.services.scenario import (
     ScenarioError,
     activate_scenario,
+    capture_scenario_from_current_state,
     create_scenario,
     delete_scenario,
     list_scenarios,
@@ -167,11 +168,13 @@ def _scenario_dict_to_proto(scenario_dict: dict[str, object]) -> control_pb2.Sce
             source_id=int(scenario_dict.get("window1_source_id") or 0),
             autoplay=bool(scenario_dict.get("window1_autoplay", True)),
             resume=bool(scenario_dict.get("window1_resume", True)),
+            source_name=str(scenario_dict.get("window1_source_name", "")),
         ),
         window2=control_pb2.ScenarioWindowSlot(
             source_id=int(scenario_dict.get("window2_source_id") or 0),
             autoplay=bool(scenario_dict.get("window2_autoplay", True)),
             resume=bool(scenario_dict.get("window2_resume", True)),
+            source_name=str(scenario_dict.get("window2_source_name", "")),
         ),
         created_at=str(scenario_dict.get("created_at", "")),
         updated_at=str(scenario_dict.get("updated_at", "")),
@@ -800,6 +803,44 @@ class PlaybackControlServicer(control_pb2_grpc.PlaybackControlServiceServicer):
             return control_pb2.ActivateScenarioReply(
                 success=False, message=str(act_err),
             )
+
+    def CaptureScenario(
+        self,
+        request: control_pb2.CaptureScenarioRequest,
+        context: grpc.ServicerContext,
+    ) -> control_pb2.ScenarioReply:
+        """
+        从当前窗口状态捕获预案，支持创建或覆盖已有预案。
+        :param request: CaptureScenarioRequest（name, description, scenario_id）
+        :param context: gRPC 服务上下文
+        :return: ScenarioReply
+        """
+        if not request.name.strip():
+            return control_pb2.ScenarioReply(
+                success=False, message="预案名称不能为空",
+            )
+
+        target_scenario_id = (
+            int(request.scenario_id) if request.scenario_id > 0 else None
+        )
+
+        try:
+            scenario = capture_scenario_from_current_state(
+                name=request.name.strip(),
+                description=request.description.strip(),
+                scenario_id=target_scenario_id,
+            )
+        except ScenarioError as capture_err:
+            return control_pb2.ScenarioReply(
+                success=False, message=str(capture_err),
+            )
+
+        from scp_cv.services.scenario import _scenario_to_dict
+        item = _scenario_dict_to_proto(_scenario_to_dict(scenario))
+        operation_label = "覆盖" if target_scenario_id is not None else "创建"
+        return control_pb2.ScenarioReply(
+            success=True, message=f"预案已从当前状态{operation_label}", scenario=item,
+        )
 
     # ------------------------------------------------------------------
     # 服务端流式推送
