@@ -103,10 +103,18 @@ export async function navigateContent(action, triggerEvent) {
  * @param {Event} triggerEvent - 触发事件
  */
 export async function gotoPage(triggerEvent) {
-  const pageInput = document.getElementById("goto-page-input");
+  const inputId = triggerEvent instanceof HTMLElement && triggerEvent.dataset.pageInput
+    ? triggerEvent.dataset.pageInput
+    : "goto-page-input";
+  const pageInput = document.getElementById(inputId);
   const targetPage = pageInput ? parseInt(pageInput.value, 10) : 0;
+  const totalSlides = parseInt(pageInput ? pageInput.max || "0" : "0", 10);
   if (!targetPage || targetPage < 1) {
     showBanner("请输入有效页码", true);
+    return;
+  }
+  if (totalSlides > 0 && targetPage > totalSlides) {
+    showBanner(`页码不能超过 ${totalSlides}`, true);
     return;
   }
 
@@ -120,6 +128,36 @@ export async function gotoPage(triggerEvent) {
     if (!result.success) {
       showBanner(result.message || "跳转失败", true);
     }
+  });
+}
+
+/**
+ * 初始化手机端 PPT 遥控器左右滑动翻页。
+ */
+export function initPptRemote() {
+  const gestureZone = document.getElementById("ppt-remote-gesture-zone");
+  if (!gestureZone) return;
+
+  let pointerStartX = 0;
+  let pointerStartY = 0;
+  let lastGestureAt = 0;
+
+  gestureZone.addEventListener("pointerdown", (pointerEvent) => {
+    pointerStartX = pointerEvent.clientX;
+    pointerStartY = pointerEvent.clientY;
+  });
+
+  gestureZone.addEventListener("pointerup", async (pointerEvent) => {
+    const deltaX = pointerEvent.clientX - pointerStartX;
+    const deltaY = pointerEvent.clientY - pointerStartY;
+    const now = Date.now();
+
+    if (now - lastGestureAt < 350) return;
+    if (Math.abs(deltaX) < 48 || Math.abs(deltaX) < Math.abs(deltaY) * 1.4) return;
+
+    lastGestureAt = now;
+    const action = deltaX < 0 ? "next" : "prev";
+    await navigateContent(action, null);
   });
 }
 

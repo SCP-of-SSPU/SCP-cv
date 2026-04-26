@@ -4,7 +4,7 @@
 启动器 GUI：Fluent 2 风格的多窗口屏幕选择界面。
 四步交互 —— 逐个为窗口 1~4 指定目标显示器，
 选择完成后关闭 GUI，由 run_player 命令创建播放窗口。
-剩余未被占用的屏幕留给 GUI 控制面板。
+播放控制统一在 Web 控制台中完成。
 @Project : SCP-cv
 @File : launcher_gui.py
 @Author : Qintsg
@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Optional
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
@@ -156,11 +155,9 @@ class LauncherResult:
     """
     启动器选择结果：记录每个窗口分配的显示器。
     window_assignments: window_id(1-4) → DisplayTarget
-    gui_display: GUI 控制面板使用的剩余屏幕（可为 None）
     """
 
     window_assignments: dict[int, DisplayTarget] = field(default_factory=dict)
-    gui_display: Optional[DisplayTarget] = None
 
 
 class LauncherWindow(QWidget):
@@ -300,17 +297,6 @@ class LauncherWindow(QWidget):
         """获取已被分配的显示器索引集合。"""
         return {dt.index for dt in self._assignments.values()}
 
-    def _find_gui_display(self) -> Optional[DisplayTarget]:
-        """
-        找到未被分配的显示器作为 GUI 面板屏幕。
-        :return: 剩余可用的 DisplayTarget，若无则 None
-        """
-        assigned_indices = self._assigned_display_indices()
-        for display_target in self._display_targets:
-            if display_target.index not in assigned_indices:
-                return display_target
-        return None
-
     # ═══════════════════ 步骤渲染 ═══════════════════
 
     def _show_no_displays_warning(self) -> None:
@@ -339,7 +325,7 @@ class LauncherWindow(QWidget):
         self._next_button.setEnabled(False)
 
         # 清除该步骤之前可能存在的临时选中状态
-        self._pending_selection: Optional[int] = None
+        self._pending_selection: int | None = None
 
         assigned_indices = self._assigned_display_indices()
 
@@ -407,31 +393,10 @@ class LauncherWindow(QWidget):
             summary_layout.addWidget(display_label, stretch=1)
             self._content_layout.addWidget(summary_frame)
 
-        # GUI 面板屏幕
-        gui_display = self._find_gui_display()
-        if gui_display is not None:
-            gui_frame = QFrame()
-            gui_frame.setObjectName("SummaryCard")
-            gui_layout = QHBoxLayout(gui_frame)
-            gui_layout.setContentsMargins(12, 8, 12, 8)
-
-            gui_label = QLabel("GUI 面板")
-            gui_label.setStyleSheet(
-                "font-size: 16px; font-weight: 600; color: #107c10;"
-            )
-            gui_display_label = QLabel(
-                f"{gui_display.name}  ·  {gui_display.geometry_label}"
-            )
-            gui_display_label.setStyleSheet("font-size: 14px; color: #0f172a;")
-            gui_layout.addWidget(gui_label)
-            gui_layout.addSpacing(16)
-            gui_layout.addWidget(gui_display_label, stretch=1)
-            self._content_layout.addWidget(gui_frame)
-        else:
-            no_gui_label = QLabel("⚠ 没有剩余显示器可用于 GUI 面板（仅使用 Web 前端控制）")
-            no_gui_label.setObjectName("SubtitleLabel")
-            no_gui_label.setWordWrap(True)
-            self._content_layout.addWidget(no_gui_label)
+        web_hint_label = QLabel("启动后请在浏览器打开 Web 控制台完成播放控制。")
+        web_hint_label.setObjectName("SubtitleLabel")
+        web_hint_label.setWordWrap(True)
+        self._content_layout.addWidget(web_hint_label)
 
         self._content_layout.addItem(
             QSpacerItem(0, 0, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
@@ -487,19 +452,16 @@ class LauncherWindow(QWidget):
 
     def _on_launch(self) -> None:
         """点击"启动播放"：构建结果并关闭窗口。"""
-        gui_display = self._find_gui_display()
         launch_result = LauncherResult(
             window_assignments=dict(self._assignments),
-            gui_display=gui_display,
         )
         assignment_summary = ", ".join(
             f"窗口{wid}→{dt.name}"
             for wid, dt in sorted(launch_result.window_assignments.items())
         )
-        gui_summary = gui_display.name if gui_display else "无"
         logger.info(
-            "启动器选择完成：%s，GUI=%s",
-            assignment_summary, gui_summary,
+            "启动器选择完成：%s，控制端=Web 控制台",
+            assignment_summary,
         )
         self.launch_requested.emit(launch_result)
         self.close()

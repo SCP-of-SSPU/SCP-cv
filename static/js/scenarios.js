@@ -15,6 +15,7 @@ import {
 } from "./grpc-client.bundle.js";
 
 import { confirmAction, escapeHtml, showBanner, withLoading } from "./utils.js";
+import { applyWindowSession } from "./windows.js";
 
 /* ═══════════════════════════════════════════════════════════
  * DOM 元素缓存
@@ -171,7 +172,11 @@ export async function activateScenario(scenarioId, triggerEvent) {
     const result = reply.toObject();
     if (result.success) {
       showBanner("预案已激活");
-      /* 窗口状态更新通过 gRPC 流推送 */
+      if (Array.isArray(result.sessionsList)) {
+        result.sessionsList.forEach((snapshot) => {
+          applyWindowSession(snapshot.windowId, snapshot);
+        });
+      }
     } else {
       showBanner(result.message || "激活失败", true);
     }

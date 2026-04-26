@@ -56,8 +56,8 @@ class Command(BaseCommand):
         parser.add_argument(
             "--poll-interval",
             type=float,
-            default=0.5,
-            help="播放器轮询会话状态的间隔秒数（默认 0.5）",
+            default=0.2,
+            help="播放器轮询会话状态的间隔秒数（默认 0.2）",
         )
         parser.add_argument(
             "--skip-mediamtx",
@@ -89,7 +89,7 @@ class Command(BaseCommand):
         host: str = str(options.get("host", "127.0.0.1"))
         port: int = int(options.get("port", 8000))
         grpc_web_port: int = int(options.get("grpc_web_port", 8081))
-        poll_interval: float = float(options.get("poll_interval", 0.5))
+        poll_interval: float = float(options.get("poll_interval", 0.2))
         skip_mediamtx: bool = bool(options.get("skip_mediamtx", False))
         skip_grpcweb: bool = bool(options.get("skip_grpcweb", False))
         dev_mode: bool = settings.DEBUG
@@ -381,6 +381,9 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(
             f"播放器已启动（{len(all_windows)} 窗口），等待播放指令…"
+        ))
+        self.stdout.write(self.style.SUCCESS(
+            "本地控制面板已移除，请使用 Web 控制台完成播放控制"
         ))
 
         # 进入事件循环（阻塞直到用户关闭窗口）

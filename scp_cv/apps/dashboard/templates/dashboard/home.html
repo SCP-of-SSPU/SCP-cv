@@ -216,12 +216,82 @@
     </div>
   </article>
 
+  {# 手机端 PPT 遥控器 #}
+  <article class="ppt-remote" aria-label="手机端 PPT 遥控器">
+    <div class="ppt-remote__status">
+      <span class="ppt-remote__window">窗口 <strong id="ppt-remote-window-id">1</strong></span>
+      <span class="ppt-remote__state" id="ppt-remote-playback-state">—</span>
+    </div>
+    <h3 class="ppt-remote__source" id="ppt-remote-source-name">—</h3>
+    <div class="ppt-remote__counter" role="status" aria-live="polite">
+      <strong id="ppt-remote-current-slide">0</strong>
+      <span>/</span>
+      <span id="ppt-remote-total-slides">0</span>
+      <small>页</small>
+    </div>
+    <div class="ppt-remote__gesture" id="ppt-remote-gesture-zone" aria-label="左右滑动可翻页">
+      <button class="ppt-remote__button ppt-remote__button--prev" type="button"
+              data-action="navigate-content" data-nav-action="prev" aria-label="上一页">
+        <span aria-hidden="true">‹</span>
+        上一页
+      </button>
+      <button class="ppt-remote__button ppt-remote__button--next" type="button"
+              data-action="navigate-content" data-nav-action="next" aria-label="下一页">
+        下一页
+        <span aria-hidden="true">›</span>
+      </button>
+    </div>
+    <p class="ppt-remote__hint">左右滑动空白区域也可翻页</p>
+    <div class="ppt-remote__goto">
+      <label for="ppt-remote-goto-input">跳页</label>
+      <input type="number" id="ppt-remote-goto-input" class="input-field"
+             min="1" value="1" inputmode="numeric" aria-label="手机遥控跳转页码">
+      <button class="action-button action-button--primary" type="button"
+              data-action="goto-page" data-page-input="ppt-remote-goto-input">
+        跳转
+      </button>
+    </div>
+    <div class="ppt-remote__quick-actions">
+      <button class="action-button" type="button"
+              data-action="playback-control" data-playback-action="play">播放</button>
+      <button class="action-button" type="button"
+              data-action="playback-control" data-playback-action="pause">暂停</button>
+      <button class="action-button action-button--danger" type="button"
+              data-action="close-playback">关闭</button>
+    </div>
+  </article>
+
   {# 播放控制按钮 #}
   <article class="panel">
     <div class="panel__header">
       <h3>播放控制 · 窗口 <span id="ctrl-window-id">1</span></h3>
     </div>
     <div class="control-grid">
+      {# 当前窗口打开媒体源 #}
+      <div class="control-group">
+        <h4 class="control-group__title">打开媒体源到当前窗口</h4>
+        <div class="playback-source-bar">
+          <select id="playback-source-select" class="text-input playback-source-bar__select"
+                  aria-label="选择要打开的媒体源">
+            <option value="">— 选择媒体源 —</option>
+            {% for source in media_sources %}
+              {% if source.is_available %}
+                <option value="{{ source.id }}">{{ source.name }}（{{ source.source_type }}）</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+          <button class="action-button action-button--ghost" type="button"
+                  data-action="refresh-playback-sources" aria-label="刷新媒体源下拉列表">
+            刷新源
+          </button>
+          <button class="action-button action-button--primary" type="button"
+                  data-action="open-selected-source" aria-label="打开选中的媒体源">
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+            打开到窗口 <span id="source-target-window-id">1</span>
+          </button>
+        </div>
+      </div>
+
       {# 基本操作 #}
       <div class="control-group">
         <h4 class="control-group__title">基本操作</h4>
@@ -328,6 +398,7 @@
             <span class="chip chip--neutral" id="settings-win-state-{{ wid }}">空闲</span>
           </div>
           <p class="window-status-card__source" id="settings-win-source-{{ wid }}">未打开媒体源</p>
+          <p class="window-status-card__progress" id="settings-win-progress-{{ wid }}">暂无进度</p>
         </div>
       {% endfor %}
     </div>

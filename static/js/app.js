@@ -21,6 +21,8 @@ import {
 } from "./windows.js";
 import {
   refreshSources,
+  refreshPlaybackSourceSelect,
+  openSelectedSource,
   openSource,
   removeSource,
   initSourceForms,
@@ -33,6 +35,7 @@ import {
   navigateContent,
   gotoPage,
   initSeekSlider,
+  initPptRemote,
 } from "./playback.js";
 import { connectStream } from "./streaming.js";
 import {
@@ -52,7 +55,7 @@ import {
 /** data-action 名称 → 处理函数的映射表 */
 const ACTION_HANDLERS = {
   /* 工具栏 */
-  "stop-playback": (event) => stopPlayback(event),
+  "stop-playback": (_event, target) => stopPlayback(target),
   "refresh-page": () => location.reload(),
 
   /* 窗口管理 */
@@ -60,35 +63,37 @@ const ACTION_HANDLERS = {
     const windowId = parseInt(target.dataset.windowId, 10);
     selectWindow(windowId, target);
   },
-  "toggle-splice": (event) => toggleSplice(event),
-  "show-window-ids": (event) => showWindowIds(event),
+  "toggle-splice": (_event, target) => toggleSplice(target),
+  "show-window-ids": (_event, target) => showWindowIds(target),
 
   /* 媒体源 */
   "refresh-sources": () => refreshSources(),
+  "refresh-playback-sources": (_event, target) => refreshPlaybackSourceSelect(target),
+  "open-selected-source": (_event, target) => openSelectedSource(target),
   "open-source": (event, target) => {
     const sourceId = parseInt(target.dataset.sourceId, 10);
-    openSource(sourceId, event);
+    openSource(sourceId, target);
   },
   "remove-source": (event, target) => {
     const sourceId = parseInt(target.dataset.sourceId, 10);
-    removeSource(sourceId, event);
+    removeSource(sourceId, target);
   },
 
   /* 播放控制 */
   "playback-control": (event, target) => {
-    controlPlayback(target.dataset.playbackAction, event);
+    controlPlayback(target.dataset.playbackAction, target);
   },
-  "close-playback": (event) => closePlayback(event),
-  "toggle-loop": (event) => toggleLoop(event),
+  "close-playback": (_event, target) => closePlayback(target),
+  "toggle-loop": (_event, target) => toggleLoop(target),
   "navigate-content": (event, target) => {
-    navigateContent(target.dataset.navAction, event);
+    navigateContent(target.dataset.navAction, target);
   },
-  "goto-page": (event) => gotoPage(event),
+  "goto-page": (_event, target) => gotoPage(target),
 
   /* 预案管理 */
   "activate-scenario": (event, target) => {
     const scenarioId = parseInt(target.dataset.scenarioId, 10);
-    activateScenario(scenarioId, event);
+    activateScenario(scenarioId, target);
   },
   "edit-scenario": (_event, target) => {
     const scenarioId = parseInt(target.dataset.scenarioId, 10);
@@ -96,10 +101,10 @@ const ACTION_HANDLERS = {
   },
   "delete-scenario": (event, target) => {
     const scenarioId = parseInt(target.dataset.scenarioId, 10);
-    deleteScenario(scenarioId, event);
+    deleteScenario(scenarioId, target);
   },
-  "save-scenario": (event) => saveScenario(event),
-  "capture-current-scenario": (event) => captureCurrentScenario(event),
+  "save-scenario": (_event, target) => saveScenario(target),
+  "capture-current-scenario": (_event, target) => captureCurrentScenario(target),
   "reset-scenario-form": () => resetScenarioForm(),
   "splice-mode-toggle": () => onSpliceModeToggle(),
 };
@@ -159,6 +164,9 @@ initSourceForms();
 
 /* Seek 滑块事件绑定 */
 initSeekSlider();
+
+/* 手机端 PPT 遥控手势 */
+initPptRemote();
 
 /* gRPC 流式订阅（替代 SSE） */
 connectStream();

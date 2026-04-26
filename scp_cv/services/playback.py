@@ -370,8 +370,10 @@ def set_splice_mode(enabled: bool) -> tuple[PlaybackSession, PlaybackSession]:
     if enabled:
         session_1.display_mode = PlaybackMode.LEFT_RIGHT_SPLICE
         session_1.is_spliced = True
+        session_1.spliced_display_label = "窗口 1 左半 + 窗口 2 右半"
         session_2.display_mode = PlaybackMode.LEFT_RIGHT_SPLICE
         session_2.is_spliced = True
+        session_2.spliced_display_label = "窗口 1 左半 + 窗口 2 右半"
         logger.info("窗口 1+2 拼接模式已启用")
     else:
         session_1.display_mode = PlaybackMode.SINGLE

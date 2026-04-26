@@ -103,7 +103,7 @@ export function formatDuration(milliseconds) {
  * @param {HTMLButtonElement} buttonElement - 目标按钮
  */
 function setButtonLoading(buttonElement) {
-  if (!buttonElement) return;
+  if (!buttonElement || !buttonElement.classList) return;
   buttonElement.disabled = true;
   buttonElement.classList.add("action-button--loading");
 }
@@ -113,7 +113,7 @@ function setButtonLoading(buttonElement) {
  * @param {HTMLButtonElement} buttonElement - 目标按钮
  */
 function clearButtonLoading(buttonElement) {
-  if (!buttonElement) return;
+  if (!buttonElement || !buttonElement.classList) return;
   buttonElement.disabled = false;
   buttonElement.classList.remove("action-button--loading");
 }
@@ -125,9 +125,12 @@ function clearButtonLoading(buttonElement) {
  */
 export async function withLoading(triggerEvent, asyncCallback) {
   /* 从事件或直接传入的元素中获取按钮 */
-  const buttonElement = triggerEvent instanceof HTMLElement
+  const candidateElement = triggerEvent instanceof HTMLElement
     ? triggerEvent
     : (triggerEvent && triggerEvent.currentTarget) || null;
+  const buttonElement = candidateElement && candidateElement.classList
+    ? candidateElement
+    : null;
 
   setButtonLoading(buttonElement);
   try {

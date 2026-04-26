@@ -12,6 +12,7 @@ gRPC PlaybackControlService 实现，将 proto 定义的 RPC
 '''
 from __future__ import annotations
 
+import json
 import logging
 import time
 
@@ -59,6 +60,10 @@ logger = logging.getLogger(__name__)
 
 # 当 proto 请求中未携带 window_id（int32 默认值 0）时，回退到窗口 1
 _DEFAULT_WINDOW_ID: int = 1
+
+# gRPC 状态流的 DB 快照检测间隔。播放器进程通过 DB 回写状态，
+# Django 进程无法收到进程内事件时仍需用轻量轮询补齐推送。
+_STATE_WATCH_POLL_SECONDS: float = 0.2
 
 # ── Proto Action → PlaybackCommand 映射 ──
 _PLAYBACK_ACTION_MAP: dict[int, str] = {
@@ -153,6 +158,28 @@ def _source_to_proto(source_dict: dict[str, object]) -> control_pb2.SourceItem:
     )
 
 
+def _session_snapshot_signature(snapshots: list[dict[str, object]]) -> str:
+    """
+    构建会话快照签名，用于 gRPC 状态流去重。
+    :param snapshots: get_all_sessions_snapshot() 返回的快照列表
+    :return: 稳定 JSON 字符串签名
+    """
+    return json.dumps(snapshots, ensure_ascii=False, sort_keys=True, default=str)
+
+
+def _publish_playback_state_event() -> None:
+    """
+    发布播放状态变更事件，唤醒 SSE 与 gRPC 流式订阅者。
+    事件载荷保持为全量窗口快照，便于客户端一次性同步 UI。
+    """
+    from scp_cv.services.sse import publish_event
+
+    publish_event("playback_state", {
+        "sessions": get_all_sessions_snapshot(),
+        "splice_active": is_splice_mode_active(),
+    })
+
+
 def _scenario_dict_to_proto(scenario_dict: dict[str, object]) -> control_pb2.ScenarioItem:
     """
     将服务层返回的预案字典转换为 proto ScenarioItem 消息。
@@ -210,6 +237,7 @@ class PlaybackControlServicer(control_pb2_grpc.PlaybackControlServiceServicer):
                 autoplay=request.autoplay,
             )
             source_name = session.media_source.name if session.media_source else "未知"
+            _publish_playback_state_event()
             return _success_reply(
                 message=f"窗口 {window_id} 源已打开",
                 detail=source_name,
@@ -231,6 +259,7 @@ class PlaybackControlServicer(control_pb2_grpc.PlaybackControlServiceServicer):
         window_id = _extract_window_id(request)
         try:
             close_source(window_id)
+            _publish_playback_state_event()
             return _success_reply(message=f"窗口 {window_id} 源已关闭")
         except PlaybackError as playback_err:
             return _error_reply(str(playback_err))
@@ -256,6 +285,7 @@ class PlaybackControlServicer(control_pb2_grpc.PlaybackControlServiceServicer):
 
         try:
             control_playback(window_id, action)
+            _publish_playback_state_event()
             return _success_reply(message=f"窗口 {window_id} 已发送 {action} 指令")
         except PlaybackError as playback_err:
             return _error_reply(str(playback_err))
@@ -286,6 +316,7 @@ class PlaybackControlServicer(control_pb2_grpc.PlaybackControlServiceServicer):
                 target_index=request.target_index,
                 position_ms=request.position_ms,
             )
+            _publish_playback_state_event()
             return _success_reply(message=f"窗口 {window_id} 已发送 {action} 指令")
         except PlaybackError as playback_err:
             return _error_reply(str(playback_err))
@@ -408,6 +439,7 @@ class PlaybackControlServicer(control_pb2_grpc.PlaybackControlServiceServicer):
                 display_mode=display_mode,
                 target_display_name=target_label,
             )
+            _publish_playback_state_event()
             return _success_reply(
                 message=f"窗口 {window_id} 显示目标已切换",
                 detail=f"{session.get_display_mode_display()} — {session.target_display_label}",
@@ -431,6 +463,7 @@ class PlaybackControlServicer(control_pb2_grpc.PlaybackControlServiceServicer):
         """
         try:
             stop_current_content(_DEFAULT_WINDOW_ID)
+            _publish_playback_state_event()
             return _success_reply(message="播放已停止")
         except PlaybackError as playback_err:
             return _error_reply(str(playback_err))
@@ -569,6 +602,7 @@ class PlaybackControlServicer(control_pb2_grpc.PlaybackControlServiceServicer):
         try:
             toggle_loop_playback(window_id, request.enabled)
             state_label = "开启" if request.enabled else "关闭"
+            _publish_playback_state_event()
             return _success_reply(
                 message=f"窗口 {window_id} 循环播放已{state_label}",
             )
@@ -590,6 +624,7 @@ class PlaybackControlServicer(control_pb2_grpc.PlaybackControlServiceServicer):
             set_splice_mode(request.enabled)
             all_snapshots = get_all_sessions_snapshot()
             session_protos = [_snapshot_to_proto(s) for s in all_snapshots]
+            _publish_playback_state_event()
             return control_pb2.SpliceModeReply(
                 success=True,
                 splice_active=request.enabled,
@@ -627,6 +662,7 @@ class PlaybackControlServicer(control_pb2_grpc.PlaybackControlServiceServicer):
             session.pending_command = PBCmd.SHOW_ID
             session.command_args = {}
             session.save(update_fields=["pending_command", "command_args"])
+        _publish_playback_state_event()
         return _success_reply(message="窗口 ID 显示指令已下发")
 
     def GetAllSessionSnapshots(
@@ -794,6 +830,7 @@ class PlaybackControlServicer(control_pb2_grpc.PlaybackControlServiceServicer):
         try:
             session_snapshots = activate_scenario(int(request.scenario_id))
             session_protos = [_snapshot_to_proto(s) for s in session_snapshots]
+            _publish_playback_state_event()
             return control_pb2.ActivateScenarioReply(
                 success=True,
                 message="预案激活成功",
@@ -853,7 +890,7 @@ class PlaybackControlServicer(control_pb2_grpc.PlaybackControlServiceServicer):
         """
         服务端流式推送播放状态变更，替代 SSE。
         客户端发起此调用后持续接收状态变化事件，直到断开连接。
-        使用 SSE 事件总线的 _event_condition 监听新事件，避免轮询。
+        结合事件总线唤醒与 DB 快照对比，兼容播放器独立进程回写状态。
         :param request: EmptyRequest
         :param context: gRPC 服务上下文（客户端取消时 is_active() 返回 False）
         """
@@ -862,10 +899,18 @@ class PlaybackControlServicer(control_pb2_grpc.PlaybackControlServiceServicer):
             _latest_event_data,
         )
 
-        current_sequence: int = 0
+        with _event_condition:
+            current_sequence = max(
+                (
+                    int(event_record.get("sequence", 0))
+                    for event_record in _latest_event_data.values()
+                ),
+                default=0,
+            )
 
         # 先推送当前完整状态作为初始帧
         initial_snapshots = get_all_sessions_snapshot()
+        current_signature = _session_snapshot_signature(initial_snapshots)
         initial_event = control_pb2.PlaybackStateEvent(
             event_type="initial_state",
             sequence=0,
@@ -877,8 +922,8 @@ class PlaybackControlServicer(control_pb2_grpc.PlaybackControlServiceServicer):
         # 持续监听新事件
         while context.is_active():
             with _event_condition:
-                # 等待新事件（30 秒超时发心跳）
-                _event_condition.wait(timeout=30.0)
+                # 等待事件唤醒；超时后检查播放器进程写入 DB 的状态变化。
+                _event_condition.wait(timeout=_STATE_WATCH_POLL_SECONDS)
 
                 pending_events: list[tuple[str, int]] = []
                 for event_type, event_record in _latest_event_data.items():
@@ -887,15 +932,22 @@ class PlaybackControlServicer(control_pb2_grpc.PlaybackControlServiceServicer):
                         pending_events.append((str(event_type), record_sequence))
 
             # DB 查询和 yield 都放在条件锁外，保证发布线程不被慢客户端阻塞。
-            for event_type, record_sequence in pending_events:
-                current_sequence = max(current_sequence, record_sequence)
-                all_snapshots = get_all_sessions_snapshot()
-                state_event = control_pb2.PlaybackStateEvent(
-                    event_type=event_type,
-                    sequence=record_sequence,
-                    sessions=[
-                        _snapshot_to_proto(s) for s in all_snapshots
-                    ],
-                    timestamp=time.time(),
-                )
-                yield state_event
+            all_snapshots = get_all_sessions_snapshot()
+            next_signature = _session_snapshot_signature(all_snapshots)
+            if not pending_events and next_signature == current_signature:
+                continue
+
+            event_type = pending_events[-1][0] if pending_events else "playback_state"
+            if pending_events:
+                current_sequence = max(seq for _event_type, seq in pending_events)
+
+            current_signature = next_signature
+            state_event = control_pb2.PlaybackStateEvent(
+                event_type=event_type,
+                sequence=current_sequence,
+                sessions=[
+                    _snapshot_to_proto(s) for s in all_snapshots
+                ],
+                timestamp=time.time(),
+            )
+            yield state_event

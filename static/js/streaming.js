@@ -12,7 +12,7 @@ import { handlePlaybackStateEvent } from "./windows.js";
  * ═══════════════════════════════════════════════════════════ */
 
 /** 连接状态显示元素 */
-const streamStatusElement = document.getElementById("sse-status");
+const streamStatusElement = document.getElementById("stream-status");
 
 /**
  * 更新连接状态显示

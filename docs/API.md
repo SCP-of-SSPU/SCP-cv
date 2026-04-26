@@ -176,6 +176,8 @@
 
 前端通过 gRPC-Web 代理（端口 8081）访问 gRPC 服务。
 
+Web 控制台通过 `WatchPlaybackState` 订阅全量窗口快照。控制类 RPC 成功下发命令后会发布 `playback_state` 事件；播放器独立进程回写数据库时，服务端流还会以 0.2 秒间隔进行快照签名对比，只在状态变化时推送，避免依赖手动刷新。
+
 | 组件 | 路径/位置 | 说明 |
 |------|-----------|------|
 | 代理 | `npx @grpc-web/proxy --backend http://localhost:50051 --port 8081` | 将 gRPC-Web 请求转为原生 gRPC |

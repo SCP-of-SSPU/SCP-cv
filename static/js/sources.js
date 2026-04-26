@@ -31,7 +31,9 @@ export async function refreshSources() {
     const reply = await listSources();
     const result = reply.toObject();
     if (result.success) {
-      renderSourceList(result.sourcesList || []);
+      const sourceList = result.sourcesList || [];
+      renderSourceList(sourceList);
+      renderPlaybackSourceSelect(sourceList);
     }
   } catch (networkError) {
     /* 网络异常静默处理，避免轮询时大量报错 */
@@ -99,6 +101,28 @@ function renderSourceList(sourceList) {
   sourceContainer.innerHTML = `<ul class="source-list">${listHtml}</ul>`;
 }
 
+/**
+ * 同步播放控制页的源下拉框，只展示当前可用媒体源。
+ * @param {Array<object>} sourceList - 媒体源数据数组
+ */
+function renderPlaybackSourceSelect(sourceList) {
+  const sourceSelect = document.getElementById("playback-source-select");
+  if (!sourceSelect) return;
+
+  const previousValue = sourceSelect.value;
+  const optionHtml = (sourceList || [])
+    .filter((source) => source.isAvailable)
+    .map((source) => (
+      `<option value="${source.id}">${escapeHtml(source.name)}（${escapeHtml(source.sourceType)}）</option>`
+    ))
+    .join("");
+
+  sourceSelect.innerHTML = `<option value="">— 选择媒体源 —</option>${optionHtml}`;
+  if (previousValue) {
+    sourceSelect.value = previousValue;
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════
  * 打开 / 删除媒体源
  * ═══════════════════════════════════════════════════════════ */
@@ -119,6 +143,39 @@ export async function openSource(sourceId, triggerEvent) {
       showBanner(result.message || "打开失败", true);
     }
   });
+}
+
+/**
+ * 刷新播放控制页源下拉框，复用全量源列表刷新逻辑。
+ * @param {Event|HTMLElement|null} triggerEvent - 触发元素
+ */
+export async function refreshPlaybackSourceSelect(triggerEvent) {
+  await withLoading(triggerEvent, async () => {
+    const reply = await listSources();
+    const result = reply.toObject();
+    if (result.success) {
+      const sourceList = result.sourcesList || [];
+      renderSourceList(sourceList);
+      renderPlaybackSourceSelect(sourceList);
+      showBanner("媒体源已刷新");
+    } else {
+      showBanner(result.message || "刷新失败", true);
+    }
+  });
+}
+
+/**
+ * 将播放控制页下拉框选中的媒体源打开到当前窗口。
+ * @param {Event|HTMLElement|null} triggerEvent - 触发元素
+ */
+export async function openSelectedSource(triggerEvent) {
+  const sourceSelect = document.getElementById("playback-source-select");
+  const sourceId = sourceSelect ? parseInt(sourceSelect.value, 10) : 0;
+  if (!sourceId) {
+    showBanner("请先选择媒体源", true);
+    return;
+  }
+  await openSource(sourceId, triggerEvent);
 }
 
 /**

@@ -299,6 +299,15 @@ class TestCloseSource:
 class TestSpliceCommandSync:
     """测试拼接模式下窗口 1/2 的指令同步逻辑。"""
 
+    def test_set_splice_mode_marks_left_right_halves(self) -> None:
+        """启用拼接时会话应标记窗口 1 左半、窗口 2 右半。"""
+        session_1, session_2 = set_splice_mode(True)
+
+        assert session_1.is_spliced is True
+        assert session_2.is_spliced is True
+        assert session_1.spliced_display_label == "窗口 1 左半 + 窗口 2 右半"
+        assert session_2.spliced_display_label == "窗口 1 左半 + 窗口 2 右半"
+
     def test_open_source_syncs_peer_window(self, media_source_video: MediaSource) -> None:
         """拼接模式下打开窗口 1 时应同步窗口 2 的源与 OPEN 指令。"""
         set_splice_mode(True)

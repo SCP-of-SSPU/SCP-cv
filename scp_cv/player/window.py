@@ -62,6 +62,7 @@ class PlayerWindow(QWidget):
         self._window_id = window_id
         self._debug_mode = debug_mode
         self._is_showing_video = False
+        self._splice_side: str | None = None
 
         # ═══ 窗口属性 ═══
         self.setWindowTitle(f"SCP-cv 播放器 [窗口{window_id}]")
@@ -89,23 +90,30 @@ class PlayerWindow(QWidget):
         self._background_label.setStyleSheet("background-color: #000000;")
         self._stacked_layout.addWidget(self._background_label)
 
-        # 视频渲染容器（原生窗口）
-        self._video_container = QWidget()
+        # 视频渲染视口负责裁剪；内部原生容器可扩展为双倍宽以支持 1+2 拼接。
+        self._video_viewport = QWidget()
+        self._video_viewport.setStyleSheet("background-color: #000000;")
+        self._video_viewport.hide()
+        self._stacked_layout.addWidget(self._video_viewport)
+
+        self._video_container = QWidget(self._video_viewport)
         self._video_container.setAttribute(
             Qt.WidgetAttribute.WA_NativeWindow, True,
         )
         self._video_container.setStyleSheet("background-color: #000000;")
-        self._video_container.hide()
-        self._stacked_layout.addWidget(self._video_container)
 
-        # 网页渲染容器（标准 QWidget，不设置 WA_NativeWindow 以支持鼠标交互）
-        self._web_container = QWidget()
+        # 网页渲染容器同样放在裁剪视口内，保证网页/图片/PPT 逻辑一致。
+        self._web_viewport = QWidget()
+        self._web_viewport.setStyleSheet("background-color: #000000;")
+        self._web_viewport.hide()
+        self._stacked_layout.addWidget(self._web_viewport)
+
+        self._web_container = QWidget(self._web_viewport)
         self._web_container.setStyleSheet("background-color: #000000;")
         # 启用鼠标追踪，确保 QWebEngineView 子组件能接收鼠标事件
         self._web_container.setMouseTracking(True)
         self._web_container.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self._web_container.hide()
-        self._stacked_layout.addWidget(self._web_container)
+        self._apply_render_viewport_geometry()
 
         # 主 layout
         main_layout = QVBoxLayout(self)
@@ -178,6 +186,7 @@ class PlayerWindow(QWidget):
         :param geometry: QRect，屏幕的绝对坐标矩形
         """
         self.setGeometry(geometry)
+        self._apply_render_viewport_geometry()
         if not self._debug_mode:
             self.showFullScreen()
         else:
@@ -195,9 +204,10 @@ class PlayerWindow(QWidget):
     def show_video_container(self) -> None:
         """切换到视频显示模式：隐藏黑屏和网页容器，显示视频渲染容器。"""
         self._background_label.hide()
-        self._web_container.hide()
+        self._web_viewport.hide()
+        self._video_viewport.show()
         self._video_container.show()
-        self._stacked_layout.setCurrentWidget(self._video_container)
+        self._stacked_layout.setCurrentWidget(self._video_viewport)
         self._is_showing_video = True
         logger.debug("窗口 [%d] 切换到视频模式", self._window_id)
 
@@ -209,17 +219,18 @@ class PlayerWindow(QWidget):
         鼠标点击、滚动、键盘输入等用户交互事件。
         """
         self._background_label.hide()
-        self._video_container.hide()
+        self._video_viewport.hide()
+        self._web_viewport.show()
         self._web_container.show()
-        self._stacked_layout.setCurrentWidget(self._web_container)
+        self._stacked_layout.setCurrentWidget(self._web_viewport)
         self._is_showing_video = True
         logger.debug("窗口 [%d] 切换到网页模式", self._window_id)
 
     @Slot()
     def show_black_screen(self) -> None:
         """切换到黑屏模式：隐藏视频和网页容器，显示纯黑背景。"""
-        self._video_container.hide()
-        self._web_container.hide()
+        self._video_viewport.hide()
+        self._web_viewport.hide()
         self._background_label.show()
         self._background_label.clear()
         self._background_label.setStyleSheet("background-color: #000000;")
@@ -232,6 +243,23 @@ class PlayerWindow(QWidget):
         """停止所有显示内容并回到黑屏。"""
         self.show_black_screen()
         logger.info("窗口 [%d] 已停止所有内容", self._window_id)
+
+    @Slot(object)
+    def set_splice_side(self, splice_side: object) -> None:
+        """
+        设置当前窗口的拼接裁剪侧。
+        :param splice_side: None/"left"/"right"，分别表示单屏、左半、右半
+        """
+        normalized_side = str(splice_side) if splice_side in {"left", "right"} else None
+        if self._splice_side == normalized_side:
+            return
+        self._splice_side = normalized_side
+        self._apply_render_viewport_geometry()
+        logger.info(
+            "窗口 [%d] 拼接裁剪侧：%s",
+            self._window_id,
+            normalized_side or "单屏",
+        )
 
     @Slot()
     def hide_window(self) -> None:
@@ -267,11 +295,22 @@ class PlayerWindow(QWidget):
         center_y = (self.height() - overlay_height) // 2
         self._overlay_label.move(max(0, center_x), max(0, center_y))
 
+    def _apply_render_viewport_geometry(self) -> None:
+        """根据当前拼接侧更新渲染容器几何，实现左右半画面裁剪。"""
+        viewport_width = max(1, self.width())
+        viewport_height = max(1, self.height())
+        render_width = viewport_width * 2 if self._splice_side in {"left", "right"} else viewport_width
+        render_x = -viewport_width if self._splice_side == "right" else 0
+
+        self._video_container.setGeometry(render_x, 0, render_width, viewport_height)
+        self._web_container.setGeometry(render_x, 0, render_width, viewport_height)
+
     # ═══════════════════ 事件处理 ═══════════════════
 
     def resizeEvent(self, event: object) -> None:
         """窗口尺寸变化时重新居中覆盖层。"""
         super().resizeEvent(event)
+        self._apply_render_viewport_geometry()
         if self._overlay_label.isVisible():
             self._center_overlay()
 

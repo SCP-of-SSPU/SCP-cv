@@ -59,10 +59,14 @@ export function selectWindow(windowId, btnElement) {
   /* 更新各处窗口号显示 */
   const heroWinId = document.getElementById("hero-window-id");
   const ctrlWinId = document.getElementById("ctrl-window-id");
+  const pptRemoteWinId = document.getElementById("ppt-remote-window-id");
   const toolbarWin = document.getElementById("toolbar-active-window");
+  const sourceTargetWinId = document.getElementById("source-target-window-id");
   if (heroWinId) heroWinId.textContent = String(windowId);
   if (ctrlWinId) ctrlWinId.textContent = String(windowId);
+  if (pptRemoteWinId) pptRemoteWinId.textContent = String(windowId);
   if (toolbarWin) toolbarWin.textContent = "窗口 " + windowId;
+  if (sourceTargetWinId) sourceTargetWinId.textContent = String(windowId);
 
   /* 从缓存恢复该窗口的会话状态 */
   const cached = windowSessions[windowId];
@@ -149,6 +153,7 @@ export function applyWindowSession(windowId, sessionData) {
   const stateEl = document.getElementById("win-state-" + windowId);
   const settingsStateEl = document.getElementById("settings-win-state-" + windowId);
   const settingsSourceEl = document.getElementById("settings-win-source-" + windowId);
+  const settingsProgressEl = document.getElementById("settings-win-progress-" + windowId);
   const stateLabel = sessionData.playbackStateLabel || "空闲";
   const sourceName = sessionData.sourceName || "未打开媒体源";
   const stateClassName = STATE_CHIP_CLASS_MAP[sessionData.playbackState] || "chip--neutral";
@@ -161,11 +166,31 @@ export function applyWindowSession(windowId, sessionData) {
     settingsStateEl.className = `chip ${stateClassName}`;
   }
   if (settingsSourceEl) settingsSourceEl.textContent = sourceName;
+  if (settingsProgressEl) settingsProgressEl.textContent = formatSessionProgress(sessionData);
 
   /* 如果是当前活跃窗口，同步到主面板 */
   if (windowId === activeWindowId) {
     applySessionToDOM(sessionData);
   }
+}
+
+/**
+ * 将窗口快照格式化为设置页进度文本。
+ * @param {object} sessionData - gRPC SessionSnapshot.toObject() 快照
+ * @returns {string} 可读进度文本
+ */
+function formatSessionProgress(sessionData) {
+  const totalSlides = sessionData.totalSlides || 0;
+  if (totalSlides > 0) {
+    return `第 ${sessionData.currentSlide || 0} / ${totalSlides} 页`;
+  }
+
+  const durationMs = sessionData.durationMs || 0;
+  if (durationMs > 0) {
+    return `${formatDuration(sessionData.positionMs || 0)} / ${formatDuration(durationMs)}`;
+  }
+
+  return "暂无进度";
 }
 
 /**
@@ -178,16 +203,33 @@ function applySessionToDOM(sessionData) {
   const heroSourceType = document.getElementById("hero-source-type");
   const heroPlaybackState = document.getElementById("hero-playback-state");
   const heroDisplayMode = document.getElementById("hero-display-mode");
+  const pptRemoteSourceName = document.getElementById("ppt-remote-source-name");
+  const pptRemotePlaybackState = document.getElementById("ppt-remote-playback-state");
   if (heroSourceName) heroSourceName.textContent = sessionData.sourceName || "无";
   if (heroSourceType) heroSourceType.textContent = sessionData.sourceTypeLabel || "无";
   if (heroPlaybackState) heroPlaybackState.textContent = sessionData.playbackStateLabel || "—";
   if (heroDisplayMode) heroDisplayMode.textContent = sessionData.displayModeLabel || "—";
+  if (pptRemoteSourceName) pptRemoteSourceName.textContent = sessionData.sourceName || "无";
+  if (pptRemotePlaybackState) {
+    pptRemotePlaybackState.textContent = sessionData.playbackStateLabel || "—";
+  }
 
   /* PPT 翻页状态 */
   const slideCurrent = document.getElementById("slide-current");
   const slideTotal = document.getElementById("slide-total");
+  const pptRemoteCurrent = document.getElementById("ppt-remote-current-slide");
+  const pptRemoteTotal = document.getElementById("ppt-remote-total-slides");
   if (slideCurrent) slideCurrent.textContent = sessionData.currentSlide || 0;
   if (slideTotal) slideTotal.textContent = sessionData.totalSlides || 0;
+  if (pptRemoteCurrent) pptRemoteCurrent.textContent = sessionData.currentSlide || 0;
+  if (pptRemoteTotal) pptRemoteTotal.textContent = sessionData.totalSlides || 0;
+
+  const totalSlides = sessionData.totalSlides || 0;
+  ["goto-page-input", "ppt-remote-goto-input"].forEach((inputId) => {
+    const pageInput = document.getElementById(inputId);
+    if (!pageInput) return;
+    pageInput.max = totalSlides > 0 ? String(totalSlides) : "";
+  });
 
   /* 时间线 */
   const positionLabel = document.getElementById("position-label");

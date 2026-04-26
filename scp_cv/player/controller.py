@@ -119,7 +119,7 @@ class PlayerController(QObject):
 
     # ═══════════════════ 轮询生命周期 ═══════════════════
 
-    def start_polling(self, interval_seconds: float = 0.5) -> None:
+    def start_polling(self, interval_seconds: float = 0.2) -> None:
         """
         启动后台轮询线程。
         :param interval_seconds: 轮询间隔（秒）
@@ -206,6 +206,8 @@ class PlayerController(QObject):
         session = PlaybackSession.objects.filter(window_id=window_id).first()
         if session is None:
             return
+
+        self._apply_splice_view(window_id, session)
 
         pending = session.pending_command
         if not pending or pending == PlaybackCommand.NONE:
@@ -310,6 +312,11 @@ class PlayerController(QObject):
         if not source_type or not uri:
             logger.warning("窗口 %d：OPEN 指令缺少 source_type 或 uri", window_id)
             return
+
+        from scp_cv.apps.playback.models import PlaybackSession
+        session = PlaybackSession.objects.filter(window_id=window_id).first()
+        if session is not None:
+            self._apply_splice_view(window_id, session)
 
         # 关闭该窗口旧适配器
         self._close_adapter(window_id)
@@ -436,6 +443,24 @@ class PlayerController(QObject):
         if window is not None:
             window.show_id_overlay()
             logger.info("窗口 %d 触发 ID 覆盖层显示", window_id)
+
+    def _apply_splice_view(self, window_id: int, session: object) -> None:
+        """
+        根据会话拼接状态调整播放器窗口裁剪侧。
+        :param window_id: 窗口编号
+        :param session: PlaybackSession 实例
+        """
+        window = self.get_window(window_id)
+        if window is None or not hasattr(window, "set_splice_side"):
+            return
+
+        splice_side = None
+        if window_id == 1 and getattr(session, "is_spliced", False):
+            splice_side = "left"
+        elif window_id == 2 and getattr(session, "is_spliced", False):
+            splice_side = "right"
+
+        window.set_splice_side(splice_side)
 
     # ═══════════════════ 适配器管理 ═══════════════════
 

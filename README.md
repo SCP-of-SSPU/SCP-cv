@@ -99,10 +99,11 @@ uv run python manage.py runall --host 0.0.0.0 --port 8080 --skip-mediamtx
 启动后：
 
 1. 浏览器打开 `http://127.0.0.1:8000/` 访问 Web 控制台
-2. 播放器启动器 GUI 弹出，选择显示模式和目标屏幕
-3. 通过控制台上传/添加媒体源，点击播放即可在大屏显示
+2. 播放器启动器 GUI 弹出，选择播放窗口对应的目标屏幕
+3. 通过浏览器 Web 控制台上传/添加媒体源，点击播放即可在大屏显示
 
 > **提示**：`DJANGO_DEBUG=True` 时播放器窗口带标题栏（可拖拽缩放），`False` 时全屏无边框置顶。
+> 手机访问 Web 控制台时会优先进入播放控制页，并提供 PPT 遥控器用于大按钮翻页和左右滑动翻页。
 
 ### 分进程启动（调试用）
 
@@ -151,7 +152,7 @@ SCP-cv/
 
 | 端口 | 服务 | 说明 |
 |------|------|------|
-| 8000 | Django HTTP | Web 控制台 + REST API + SSE |
+| 8000 | Django HTTP | Web 控制台 + REST API + 兼容 SSE |
 | 50051 | gRPC | 播放控制 gRPC 服务 |
 | 8890 | MediaMTX SRT Publish | OBS / 外部设备推流入口 |
 | 8891 | MediaMTX SRT Read | 播放器读取入口 |

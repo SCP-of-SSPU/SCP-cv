@@ -921,6 +921,140 @@ select.text-input:focus {
   font-weight: 600;
 }
 
+.playback-source-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.playback-source-bar__select {
+  flex: 1;
+  min-width: 220px;
+}
+
+.ppt-remote {
+  display: none;
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  background: linear-gradient(180deg, #ffffff 0%, #f3f8ff 100%);
+  box-shadow: var(--shadow-lg);
+}
+
+.ppt-remote__status,
+.ppt-remote__quick-actions,
+.ppt-remote__goto {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ppt-remote__status {
+  justify-content: space-between;
+}
+
+.ppt-remote__window,
+.ppt-remote__state {
+  padding: 6px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-accent);
+  color: var(--accent-strong);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.ppt-remote__source {
+  margin: var(--space-3) 0 var(--space-2);
+  color: var(--text-strong);
+  font-size: clamp(1rem, 5vw, 1.35rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ppt-remote__counter {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  margin: var(--space-3) 0;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.ppt-remote__counter strong {
+  color: var(--accent-strong);
+  font-size: clamp(3.5rem, 22vw, 6rem);
+  line-height: 0.95;
+}
+
+.ppt-remote__gesture {
+  display: grid;
+  grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.22fr);
+  gap: var(--space-3);
+  touch-action: pan-y;
+}
+
+.ppt-remote__button {
+  min-height: 96px;
+  border: 1px solid var(--border-strong);
+  border-radius: 26px;
+  background: var(--surface-strong);
+  color: var(--text-strong);
+  font-size: 1.1rem;
+  font-weight: 800;
+  box-shadow: var(--shadow-sm);
+}
+
+.ppt-remote__button--next {
+  min-height: 136px;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border-color: var(--accent);
+  font-size: 1.35rem;
+}
+
+.ppt-remote__button span {
+  display: block;
+  font-size: 2.4rem;
+  line-height: 1;
+}
+
+.ppt-remote__button:active {
+  transform: scale(0.98);
+}
+
+.ppt-remote__hint {
+  margin: var(--space-2) 0 var(--space-3);
+  color: var(--text-subtle);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.ppt-remote__goto {
+  justify-content: space-between;
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.ppt-remote__goto input {
+  min-width: 0;
+  flex: 1;
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.ppt-remote__quick-actions {
+  justify-content: stretch;
+  margin-top: var(--space-3);
+}
+
+.ppt-remote__quick-actions .action-button {
+  flex: 1;
+  min-height: 48px;
+}
+
 .playback-nav {
   display: flex;
   flex-direction: column;
@@ -1440,6 +1574,13 @@ select.text-input:focus {
   white-space: nowrap;
 }
 
+.window-status-card__progress {
+  margin: 0;
+  color: var(--text-subtle);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ═══════════════════════════════════════════════════════════
  * 工具栏：当前窗口标识
  * ═══════════════════════════════════════════════════════════ */
@@ -1474,7 +1615,7 @@ select.text-input:focus {
 
 @media (max-width: 720px) {
   .app-shell {
-    padding: var(--space-4);
+    padding: var(--space-3) var(--space-3) calc(var(--space-4) + env(safe-area-inset-bottom));
   }
 
   .topbar,
@@ -1510,6 +1651,7 @@ select.text-input:focus {
 
   .source-actions,
   .upload-form__row,
+  .playback-source-bar,
   .source-item,
   .source-row {
     grid-template-columns: 1fr;
@@ -1520,6 +1662,10 @@ select.text-input:focus {
   .source-item__actions,
   .source-row__actions {
     justify-content: flex-start;
+  }
+
+  .playback-source-bar__select {
+    min-width: 0;
   }
 
   .footer {
@@ -1543,6 +1689,47 @@ select.text-input:focus {
 
   .window-status-grid {
     grid-template-columns: 1fr;
+  }
+
+  #tab-playback .panel--hero {
+    display: none;
+  }
+
+  .ppt-remote {
+    display: block;
+    min-height: min(720px, calc(100dvh - 190px));
+    margin-bottom: var(--space-4);
+    padding: var(--space-4);
+  }
+
+  #tab-playback > .panel:not(.panel--hero) {
+    padding: 14px;
+  }
+
+  #tab-playback .control-group {
+    padding: var(--space-3);
+  }
+
+  #tab-playback .control-group:nth-of-type(3),
+  #tab-playback .control-group:nth-of-type(4) {
+    display: none;
+  }
+
+  .button-row .action-button,
+  .playback-source-bar .action-button {
+    min-height: 48px;
+  }
+
+  .window-selector {
+    position: sticky;
+    top: var(--space-2);
+    z-index: 20;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.92);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
   }
 
   #scenario-form > .form-grid,

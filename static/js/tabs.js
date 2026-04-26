@@ -35,8 +35,19 @@ export function initTabNavigation() {
   tabButtons.forEach((tabButton) => {
     tabButton.addEventListener("click", () => {
       activateTab(tabButton, tabButtons);
+      localStorage.setItem("scp-cv-active-tab", tabButton.dataset.tab || "");
     });
   });
+
+  const savedTabId = localStorage.getItem("scp-cv-active-tab");
+  const shouldPreferPlayback = window.matchMedia("(max-width: 720px)").matches;
+  const initialTab = savedTabId || (shouldPreferPlayback ? "playback" : "");
+  const initialButton = initialTab
+    ? document.querySelector(`.tab-bar__item[data-tab="${initialTab}"]`)
+    : null;
+  if (initialButton) {
+    activateTab(initialButton, tabButtons);
+  }
 
   /* 键盘导航：左右方向键在 Tab 之间移动焦点 */
   const tabBar = document.querySelector(".tab-bar");
