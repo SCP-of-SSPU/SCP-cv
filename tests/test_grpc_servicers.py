@@ -11,12 +11,15 @@ gRPC 播放控制服务测试。
 from __future__ import annotations
 
 from collections.abc import Generator
+from concurrent import futures
 from unittest.mock import patch
 
+import grpc
 import pytest
 
 from scp_cv.apps.playback.models import MediaSource, PlaybackState
 from scp_cv.grpc_generated.scp_cv.v1 import control_pb2
+from scp_cv.grpc_generated.scp_cv.v1 import control_pb2_grpc
 from scp_cv.grpc_servicers import PlaybackControlServicer
 from scp_cv.services.playback import get_or_create_session
 
@@ -83,3 +86,52 @@ def test_watch_playback_state_pushes_changed_db_snapshot(
         )
     finally:
         stream_generator.close()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_grpc_real_channel_open_and_read_state(
+    media_source_video: MediaSource,
+) -> None:
+    """保留 gRPC 接口应能通过真实 channel 调用。"""
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=2))
+    control_pb2_grpc.add_PlaybackControlServiceServicer_to_server(
+        PlaybackControlServicer(), server,
+    )
+    port = server.add_insecure_port("127.0.0.1:0")
+    server.start()
+
+    try:
+        with grpc.insecure_channel(f"127.0.0.1:{port}") as channel:
+            stub = control_pb2_grpc.PlaybackControlServiceStub(channel)
+            open_reply = stub.OpenSource(control_pb2.OpenSourceRequest(
+                window_id=1,
+                media_source_id=media_source_video.pk,
+                autoplay=True,
+            ))
+            state_reply = stub.GetPlaybackState(control_pb2.WindowRequest(window_id=1))
+
+        assert open_reply.success is True
+        assert state_reply.source_name == media_source_video.name
+        assert state_reply.playback_state == "loading"
+    finally:
+        server.stop(grace=0)
+
+
+@pytest.mark.django_db
+def test_grpc_display_rpc_uses_display_targets() -> None:
+    """ListDisplayTargets 应返回显示器列表和拼接标签。"""
+    servicer = PlaybackControlServicer()
+    display = type("Display", (), {
+        "index": 1,
+        "name": "Display 1",
+        "width": 1920,
+        "height": 1080,
+        "x": 0,
+        "y": 0,
+        "is_primary": True,
+    })()
+
+    with patch("scp_cv.grpc_servicers.list_display_targets", return_value=[display]):
+        response = servicer.ListDisplayTargets(control_pb2.EmptyRequest(), None)
+
+    assert response.targets[0].name == "Display 1"

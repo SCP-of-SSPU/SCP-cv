@@ -8,9 +8,9 @@
     "test": "tests"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build:grpc": "node static/js/esbuild.config.mjs",
-    "build": "npm run build:grpc"
+    "frontend:dev": "npm --prefix frontend run dev",
+    "frontend:build": "npm --prefix frontend run build",
+    "frontend:typecheck": "npm --prefix frontend run typecheck"
   },
   "repository": {
     "type": "git",
@@ -24,12 +24,7 @@
     "url": "https://github.com/SCP-of-SSPU/SCP-cv/issues"
   },
   "homepage": "https://github.com/SCP-of-SSPU/SCP-cv#readme",
-  "dependencies": {
-    "google-protobuf": "^4.0.2",
-    "grpc-web": "^2.0.2"
-  },
   "devDependencies": {
-    "@grpc-web/proxy": "^0.1.0",
-    "esbuild": "^0.28.0"
+    "@grpc-web/proxy": "^0.1.0"
   }
 }

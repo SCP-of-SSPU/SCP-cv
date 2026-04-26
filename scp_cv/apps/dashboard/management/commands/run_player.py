@@ -11,6 +11,7 @@ Django 管理命令：启动 PySide6 多窗口播放器。
 '''
 from __future__ import annotations
 
+import signal
 import sys
 
 from django.conf import settings
@@ -63,6 +64,19 @@ class Command(BaseCommand):
         qt_app = QApplication.instance()
         if qt_app is None:
             qt_app = QApplication(sys.argv)
+
+        def request_qt_shutdown(signum: int, _frame: object) -> None:
+            """
+            处理 Ctrl+C / SIGTERM，要求 Qt 事件循环尽快退出。
+            :param signum: 信号编号
+            :param _frame: 当前栈帧
+            :return: None
+            """
+            self.stdout.write(self.style.WARNING(f"收到信号 {signum}，正在关闭播放器…"))
+            qt_app.quit()
+
+        signal.signal(signal.SIGINT, request_qt_shutdown)
+        signal.signal(signal.SIGTERM, request_qt_shutdown)
 
         # 显示启动器 GUI，等待用户选择屏幕分配
         from scp_cv.player.launcher_gui import LauncherResult, LauncherWindow
@@ -172,11 +186,14 @@ class Command(BaseCommand):
             f"播放器已启动（{len(all_windows)} 窗口），等待播放指令…"
         ))
 
-        # 进入 Qt 事件循环
-        exit_code = qt_app.exec()
-
-        # 停止轮询
-        controller.stop_polling()
+        try:
+            # 进入 Qt 事件循环；退出时始终停止轮询线程和播放器适配器。
+            exit_code = qt_app.exec()
+        except KeyboardInterrupt:
+            exit_code = 130
+            qt_app.quit()
+        finally:
+            controller.stop_polling()
 
         self.stdout.write(self.style.SUCCESS("播放器窗口已关闭"))
         sys.exit(exit_code)

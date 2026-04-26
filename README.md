@@ -1,6 +1,6 @@
 # SCP-cv
 
-> 面向 **单机大屏** 场景的统一播放控制系统——通过 Web 控制台、gRPC 接口远程操控本地大屏，支持 PPT、视频、音频、图片、网页与 SRT 实时流等多种媒体源。
+> 面向 **单机大屏** 场景的统一播放控制系统——通过 Vue Web 控制台、REST API 与保留 gRPC 接口远程操控本地大屏，支持 PPT、视频、音频、图片、网页与 SRT 实时流等多种媒体源。
 
 ---
 
@@ -10,7 +10,8 @@
 - **PPT 全功能控制**：通过 COM 自动化驱动 PowerPoint，支持翻页、跳转、播放/暂停
 - **mpv/libmpv 低延迟播放**：基于 python-mpv + libmpv 和 MediaMTX 实现低延迟 SRT 直连播放
 - **多显示器拼接**：单屏 / 左右双屏拼接模式，启动时通过 GUI 选择目标屏幕
-- **双协议控制面**：HTTP REST API + gRPC 双通道，适配 Web 前端、中控系统、自动化脚本
+- **前后端分离**：`frontend/` Vue 3 控制台通过 REST + SSE 调用 Django 后端
+- **保留 gRPC 集成**：核心播放控制 gRPC 接口继续服务中控系统和自动化脚本
 - **SSE 实时推送**：播放状态和媒体源变更通过 Server-Sent Events 实时同步到浏览器
 - **一键启动**：`uv run python manage.py runall` 单终端同时启动 MediaMTX、Django、PySide6 播放器
 
@@ -18,14 +19,13 @@
 
 ```
 ┌──────────────────────────────────┐
-│         Web 控制台 (浏览器)        │
-│   Fluent 2 风格 · 四 Tab 布局    │
-│ 媒体源 │ 播放控制 │ 设置 │ 预案     │
+│       Vue Web 控制台 (frontend/) │
+│ REST + SSE · 四路窗口控制          │
 └──────────┬───────────────────────┘
-           │ HTTP / SSE
+           │ REST / SSE
 ┌──────────▼───────────────────────┐
 │        Django 服务端               │
-│  HTTP Views + gRPC (端口 50051)   │
+│  REST API + gRPC (端口 50051)     │
 │  SQLite 播放会话 (单例)            │
 └──────────┬───────────────────────┘
            │ 数据库轮询
@@ -49,6 +49,7 @@
 | 类别 | 技术 | 版本 |
 |------|------|------|
 | 后端框架 | Django | 6.0.3 |
+| 前端框架 | Vue + Vite + TypeScript | 3.x / latest |
 | gRPC 集成 | django-socio-grpc | 0.25.0 |
 | 播放器 GUI | PySide6 (Qt 6) | 6.11.0 |
 | 流媒体服务器 | MediaMTX | — |
@@ -82,6 +83,9 @@ copy .env.example .env
 
 # 初始化数据库
 uv run python manage.py migrate
+
+# 安装 Vue 前端依赖
+npm install --prefix frontend
 ```
 
 > 项目已切换到 `uv` 工作流；根目录的 `requirements*.txt` 仅作为历史兼容清单保留，不再作为推荐安装入口。仅需运行时依赖时，可将 `uv sync` 改为 `uv sync --no-dev`。
@@ -89,7 +93,7 @@ uv run python manage.py migrate
 ### 启动
 
 ```powershell
-# 一键启动（推荐）：MediaMTX + Django + 播放器
+# 一键启动（推荐）：MediaMTX + Django + Vue + 播放器
 uv run python manage.py runall
 
 # 自定义参数
@@ -98,7 +102,7 @@ uv run python manage.py runall --host 0.0.0.0 --port 8080 --skip-mediamtx
 
 启动后：
 
-1. 浏览器打开 `http://127.0.0.1:8000/` 访问 Web 控制台
+1. 浏览器打开 `http://127.0.0.1:5173/` 访问 Vue Web 控制台
 2. 播放器启动器 GUI 弹出，选择播放窗口对应的目标屏幕
 3. 通过浏览器 Web 控制台上传/添加媒体源，点击播放即可在大屏显示
 
@@ -108,13 +112,16 @@ uv run python manage.py runall --host 0.0.0.0 --port 8080 --skip-mediamtx
 ### 分进程启动（调试用）
 
 ```powershell
-# 终端 1：Django 服务端（HTTP + gRPC）
+# 终端 1：Django 服务端（REST + gRPC）
 uv run python manage.py runserver
 
-# 终端 2：PySide6 播放器
+# 终端 2：Vue 前端
+npm --prefix frontend run dev
+
+# 终端 3：PySide6 播放器
 uv run python manage.py run_player
 
-# 终端 3：MediaMTX（可选）
+# 终端 4：MediaMTX（可选）
 .\tools\third_party\mediamtx\mediamtx.exe
 ```
 
@@ -137,8 +144,7 @@ SCP-cv/
 │   └── grpc_generated/         # protoc 生成的 Python 代码
 ├── protos/                     # gRPC Proto 定义
 │   └── scp_cv/v1/control.proto # 统一播放控制服务合约
-├── static/                     # CSS + JavaScript
-├── templates/                  # Django 模板
+├── frontend/                   # Vue 3 + Vite 前端控制台
 ├── tests/                      # pytest 测试套件（65 项）
 ├── tools/                      # 第三方可执行文件（MediaMTX、mpv）
 └── docs/                       # 项目文档
@@ -152,7 +158,8 @@ SCP-cv/
 
 | 端口 | 服务 | 说明 |
 |------|------|------|
-| 8000 | Django HTTP | Web 控制台 + REST API + 兼容 SSE |
+| 5173 | Vue 前端 | Web 控制台开发服务器 |
+| 8000 | Django HTTP | REST API + admin + 媒体文件 |
 | 50051 | gRPC | 播放控制 gRPC 服务 |
 | 8890 | MediaMTX SRT Publish | OBS / 外部设备推流入口 |
 | 8891 | MediaMTX SRT Read | 播放器读取入口 |
@@ -163,6 +170,8 @@ SCP-cv/
 ```powershell
 # 运行全部测试
 uv run pytest tests/ -v
+npm --prefix frontend run typecheck
+npm --prefix frontend run build
 
 # 运行特定测试文件
 uv run pytest tests/test_media_service.py -v

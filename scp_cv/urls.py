@@ -9,6 +9,7 @@ from django.views.static import serve
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("api/", include("scp_cv.apps.dashboard.api_urls")),
     path("", include("scp_cv.apps.dashboard.urls")),
 ]
 
@@ -25,4 +26,3 @@ urlpatterns += [
         {"document_root": settings.MEDIA_ROOT},
     ),
 ]
-

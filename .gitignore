@@ -170,6 +170,12 @@ AGENT_TODO.md
 
 # Local runtime artifacts
 node_modules/
+frontend/dist/
+frontend/**/*.tsbuildinfo
+frontend/src/**/*.js
+frontend/src/**/*.d.ts
+frontend/vite.config.js
+frontend/vite.config.d.ts
 .playwright-mcp/
 media/uploads/
 

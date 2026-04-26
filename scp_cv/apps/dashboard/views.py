@@ -14,19 +14,14 @@ from __future__ import annotations
 import json
 import logging
 
-from django.conf import settings
 from django.http import (
     HttpRequest,
     HttpResponse,
     JsonResponse,
     StreamingHttpResponse,
 )
-from django.shortcuts import render
-from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
-from scp_cv.services.display import list_display_targets
-from scp_cv.services.executables import get_mediamtx_executable
 from scp_cv.services.media import (
     MediaError,
     add_local_path,
@@ -88,35 +83,17 @@ def _parse_window_id(raw_window_id: str) -> int:
 @require_GET
 def home(request: HttpRequest) -> HttpResponse:
     """
-    渲染播放控制台主页面，展示所有窗口状态和源列表。
+    返回前端分离后的后端服务提示。
     :param request: HTTP 请求
-    :return: 渲染后的控制台页面
+    :return: JSON 提示，Vue 控制台由 frontend/ 独立提供
     """
-    display_targets = list_display_targets()
-    all_sessions = get_all_sessions_snapshot()
-
-    # 同步流状态并获取源列表
-    sync_stream_states()
-    sync_streams_to_media_sources()
-    media_sources = list_media_sources()
-
-    context = {
-        # 多窗口会话快照
-        "sessions": all_sessions,
-        "valid_window_ids": sorted(VALID_WINDOW_IDS),
-        "splice_active": is_splice_mode_active(),
-        # 显示器
-        "display_targets": display_targets,
-        # 媒体源
-        "media_sources": media_sources,
-        # 预案列表
-        "scenarios": list_scenarios(),
-        # 外部组件
-        "mediamtx_path": str(get_mediamtx_executable() or "未检测到"),
-        "refresh_timestamp": timezone.localtime(timezone.now()).strftime("%Y-%m-%d %H:%M:%S"),
-        "debug_mode_label": "DEBUG 模式" if settings.DEBUG else "生产模式",
-    }
-    return render(request, "dashboard/home.html", context)
+    return JsonResponse({
+        "success": True,
+        "service": "SCP-cv backend",
+        "frontend": "frontend/ Vue application",
+        "api": "/api/",
+        "admin": "/admin/",
+    })
 
 
 # ══════════════════════════════════════════════════════════════

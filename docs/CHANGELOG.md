@@ -2,6 +2,15 @@
 
 ## 2026-04-26
 
+### 前后端分离与 REST 控制台迁移
+
+- **Vue 前端**：新增 `frontend/`，使用 Vue 3、Vite、TypeScript、Pinia 与 Vue Router 重构控制台
+- **REST API**：新增 `/api/` 控制台接口，覆盖媒体源、播放控制、窗口状态、显示器、预案和 SSE
+- **gRPC 保留**：Vue 前端不再依赖 gRPC-Web，后端保留核心 gRPC 控制和状态接口供外部集成
+- **运行编排**：`runall.py` 改为子进程 supervisor，同时启动 MediaMTX、Django、Vue、gRPC-Web 与 PySide 播放器
+- **退出控制**：`run_player.py` 支持 SIGINT/SIGTERM，Ctrl+C 可触发 Qt 退出和轮询清理
+- **测试覆盖**：新增 REST API 测试和真实 gRPC channel 集成测试，前端通过 TypeScript 检查与 Vite 构建
+
 ### Web 控制台接管本地控制
 
 - **控制窗口移除**：删除 PySide 本地控制面板，`run_player` 和 `runall` 启动后只保留启动器与播放窗口
