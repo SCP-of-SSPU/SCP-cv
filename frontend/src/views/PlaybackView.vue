@@ -22,6 +22,9 @@ const hasAnyPendingAction = computed(() => pendingAction.value.length > 0);
 const activeWindowControlsDisabled = computed(() => appStore.isActiveWindowDisabled);
 const blocksActiveWindowAction = computed(() => hasAnyPendingAction.value || activeWindowControlsDisabled.value);
 const pptSources = computed(() => appStore.availableSources.filter((source) => source.source_type === 'ppt'));
+const canGoPrev = computed(() => canNavigateSlides.value && !blocksActiveWindowAction.value && (totalSlides.value <= 0 || currentSlide.value > 1));
+const canGoNext = computed(() => canNavigateSlides.value && !blocksActiveWindowAction.value && (totalSlides.value <= 0 || currentSlide.value < totalSlides.value));
+const remoteActionLabel = computed(() => pendingAction.value || '待命');
 const slideProgress = computed(() => {
   if (!canNavigateSlides.value || totalSlides.value <= 0) return 0;
   return Math.min(100, Math.max(0, (currentSlide.value / totalSlides.value) * 100));
@@ -36,6 +39,12 @@ const remoteStatusText = computed(() => {
 watch(currentSlide, (slide) => {
   if (slide > 0) targetPage.value = slide;
 });
+
+watch(activeSession, (session) => {
+  if (session?.source_type !== 'ppt') return;
+  const matchedSource = pptSources.value.find((source) => source.uri === session.source_uri);
+  if (matchedSource) selectedSourceId.value = matchedSource.id;
+}, { immediate: true });
 
 function setRemoteHint(message: string): void {
   remoteHint.value = message;
@@ -97,6 +106,16 @@ async function gotoPage(page = targetPage.value): Promise<void> {
 async function jumpRelative(delta: number): Promise<void> {
   const pageBase = currentSlide.value || targetPage.value;
   await gotoPage(pageBase + delta);
+}
+
+async function goPrevSlide(): Promise<void> {
+  if (!canGoPrev.value) return;
+  await appStore.navigate('prev');
+}
+
+async function goNextSlide(): Promise<void> {
+  if (!canGoNext.value) return;
+  await appStore.navigate('next');
 }
 
 function rememberTouchStart(event: TouchEvent): void {
@@ -175,11 +194,23 @@ async function seek(): Promise<void> {
       </div>
       <div class="remote__source-name">
         <strong>{{ activeSession?.source_name || '未打开媒体源' }}</strong>
-        <small>{{ activeSession?.playback_state_label || '待机' }} · {{ pendingAction || '待命' }}</small>
+        <small>{{ activeSession?.playback_state_label || '待机' }} · {{ remoteActionLabel }}</small>
       </div>
       <div class="slide-progress" aria-hidden="true">
         <span :style="slideProgressStyle"></span>
       </div>
+    </div>
+
+    <div class="remote__focus" aria-label="手机 PPT 核心翻页区">
+      <button type="button" class="remote__prev" :disabled="!canGoPrev" @click="runAction(goPrevSlide, '上一页')">
+        <span>上一页</span>
+        <small>右滑同效</small>
+      </button>
+      <button type="button" class="remote__next" :disabled="!canGoNext" @click="runAction(goNextSlide, '下一页')">
+        <span>下一页</span>
+        <strong>{{ currentSlide || '-' }} / {{ totalSlides || '-' }}</strong>
+        <small>左滑同效</small>
+      </button>
     </div>
 
     <div class="remote__source-picker">
@@ -193,11 +224,11 @@ async function seek(): Promise<void> {
     </div>
 
     <div class="remote__buttons remote__buttons--pager">
-      <button type="button" :disabled="!canNavigateSlides || blocksActiveWindowAction || (totalSlides > 0 && currentSlide <= 1)" @click="runAction(() => appStore.navigate('prev'), '上一页')">
+      <button type="button" :disabled="!canGoPrev" @click="runAction(goPrevSlide, '上一页')">
         上一页
         <small>向右滑也可返回</small>
       </button>
-      <button type="button" class="primary" :disabled="!canNavigateSlides || blocksActiveWindowAction || (totalSlides > 0 && currentSlide >= totalSlides)" @click="runAction(() => appStore.navigate('next'), '下一页')">
+      <button type="button" class="primary" :disabled="!canGoNext" @click="runAction(goNextSlide, '下一页')">
         下一页
         <small>向左滑也可前进</small>
       </button>
@@ -205,8 +236,8 @@ async function seek(): Promise<void> {
 
     <div class="remote__quick-jump">
       <button type="button" :disabled="!canNavigateSlides || blocksActiveWindowAction" @click="runAction(() => gotoPage(1), '跳到首页')">首页</button>
-      <button type="button" :disabled="!canNavigateSlides || blocksActiveWindowAction" @click="runAction(() => jumpRelative(-5), '后退 5 页')">-5</button>
-      <button type="button" :disabled="!canNavigateSlides || blocksActiveWindowAction" @click="runAction(() => jumpRelative(5), '前进 5 页')">+5</button>
+      <button type="button" :disabled="!canNavigateSlides || blocksActiveWindowAction" @click="runAction(() => jumpRelative(-10), '后退 10 页')">-10</button>
+      <button type="button" :disabled="!canNavigateSlides || blocksActiveWindowAction" @click="runAction(() => jumpRelative(10), '前进 10 页')">+10</button>
       <button type="button" :disabled="!canNavigateSlides || !totalSlides || blocksActiveWindowAction" @click="runAction(() => gotoPage(totalSlides), '跳到末页')">末页</button>
     </div>
 
@@ -219,7 +250,7 @@ async function seek(): Promise<void> {
     <p class="remote__hint">{{ remoteStatusText }}</p>
   </section>
 
-  <section class="grid two">
+  <section class="grid two desktop-controls">
     <article class="panel">
       <h2>打开媒体源</h2>
       <select v-model="selectedSourceId">

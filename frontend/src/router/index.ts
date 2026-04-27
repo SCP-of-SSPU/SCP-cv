@@ -5,10 +5,15 @@ import ScenariosView from '@/views/ScenariosView.vue';
 import SettingsView from '@/views/SettingsView.vue';
 import SourcesView from '@/views/SourcesView.vue';
 
+function getDefaultRoute(): string {
+  if (window.matchMedia('(max-width: 760px)').matches) return '/playback';
+  return '/sources';
+}
+
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/', redirect: '/sources' },
+    { path: '/', redirect: getDefaultRoute },
     { path: '/sources', component: SourcesView },
     { path: '/playback', component: PlaybackView },
     { path: '/settings', component: SettingsView },
