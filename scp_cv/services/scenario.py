@@ -26,6 +26,7 @@ from scp_cv.services.playback import (
     get_all_sessions_snapshot,
     get_or_create_session,
     open_source,
+    set_window1_fullscreen_to_window2,
 )
 
 logger = logging.getLogger(__name__)
@@ -79,6 +80,7 @@ def create_scenario(
     window2_source_id: Optional[int] = None,
     window2_autoplay: bool = True,
     window2_resume: bool = True,
+    window1_fullscreen_to_window2: bool = False,
 ) -> Scenario:
     """
     创建新预案。
@@ -90,6 +92,7 @@ def create_scenario(
     :param window2_source_id: 窗口 2 媒体源 ID
     :param window2_autoplay: 窗口 2 是否自动播放
     :param window2_resume: 窗口 2 是否保留进度
+    :param window1_fullscreen_to_window2: 是否启用窗口 1 填充窗口 2
     :return: 创建后的 Scenario 实例
     :raises ScenarioError: 名称为空或媒体源不存在时
     """
@@ -109,6 +112,7 @@ def create_scenario(
         window2_source=window2_source,
         window2_autoplay=window2_autoplay,
         window2_resume=window2_resume,
+        window1_fullscreen_to_window2=window1_fullscreen_to_window2,
     )
     logger.info("创建预案「%s」(id=%d)", scenario.name, scenario.pk)
     return scenario
@@ -124,6 +128,7 @@ def update_scenario(
     window2_source_id: Optional[int] = None,
     window2_autoplay: Optional[bool] = None,
     window2_resume: Optional[bool] = None,
+    window1_fullscreen_to_window2: Optional[bool] = None,
     # 用于区分"未传入"和"显式传入 None"
     _window1_source_provided: bool = False,
     _window2_source_provided: bool = False,
@@ -139,6 +144,7 @@ def update_scenario(
     :param window2_source_id: 窗口 2 新媒体源 ID
     :param window2_autoplay: 窗口 2 自动播放
     :param window2_resume: 窗口 2 保留进度
+    :param window1_fullscreen_to_window2: 窗口 1 是否填充窗口 2
     :param _window1_source_provided: 内部标记：是否显式设置窗口 1 源
     :param _window2_source_provided: 内部标记：是否显式设置窗口 2 源
     :return: 更新后的 Scenario 实例
@@ -170,6 +176,8 @@ def update_scenario(
         scenario.window2_autoplay = window2_autoplay
     if window2_resume is not None:
         scenario.window2_resume = window2_resume
+    if window1_fullscreen_to_window2 is not None:
+        scenario.window1_fullscreen_to_window2 = window1_fullscreen_to_window2
 
     scenario.save()
     logger.info("更新预案「%s」(id=%d)", scenario.name, scenario.pk)
@@ -203,6 +211,7 @@ def capture_scenario_from_current_state(
             window2_source_id=session_2.media_source_id,
             window2_autoplay=_capture_autoplay(session_2),
             window2_resume=True,
+            window1_fullscreen_to_window2=session_1.window1_fullscreen_to_window2,
             _window1_source_provided=True,
             _window2_source_provided=True,
         )
@@ -216,6 +225,7 @@ def capture_scenario_from_current_state(
         window2_source_id=session_2.media_source_id,
         window2_autoplay=_capture_autoplay(session_2),
         window2_resume=True,
+        window1_fullscreen_to_window2=session_1.window1_fullscreen_to_window2,
     )
 
 
@@ -259,6 +269,7 @@ def activate_scenario(scenario_id: int) -> list[dict[str, object]]:
     logger.info("开始激活预案「%s」(id=%d)", scenario.name, scenario.pk)
 
     try:
+        set_window1_fullscreen_to_window2(scenario.window1_fullscreen_to_window2)
         _activate_independent_mode(scenario)
     except PlaybackError as playback_err:
         raise ScenarioError(f"激活预案失败：{playback_err}") from playback_err
@@ -306,6 +317,7 @@ def _scenario_to_dict(scenario: Scenario) -> dict[str, object]:
         "window2_source_name": scenario.window2_source.name if scenario.window2_source else "",
         "window2_autoplay": scenario.window2_autoplay,
         "window2_resume": scenario.window2_resume,
+        "window1_fullscreen_to_window2": scenario.window1_fullscreen_to_window2,
         # 时间戳
         "created_at": scenario.created_at.isoformat() if scenario.created_at else "",
         "updated_at": scenario.updated_at.isoformat() if scenario.updated_at else "",

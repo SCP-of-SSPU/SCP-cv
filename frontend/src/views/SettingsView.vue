@@ -16,6 +16,10 @@ async function runAction(action: () => Promise<void>): Promise<void> {
 }
 
 async function selectDisplay(): Promise<void> {
+  if (appStore.isActiveWindowDisabled) {
+    appStore.notify('窗口 1 填充窗口 2 时，窗口 2 显示设置已禁用', true);
+    return;
+  }
   const payload = {
     window_id: appStore.activeWindowId,
     display_mode: 'single',
@@ -37,7 +41,7 @@ async function selectDisplay(): Promise<void> {
           {{ display.name }} · {{ display.width }}×{{ display.height }} · ({{ display.x }}, {{ display.y }})
         </option>
       </select>
-      <button type="button" @click="runAction(selectDisplay)">应用到窗口 {{ appStore.activeWindowId }}</button>
+      <button type="button" :disabled="appStore.isActiveWindowDisabled" @click="runAction(selectDisplay)">应用到窗口 {{ appStore.activeWindowId }}</button>
       <button type="button" @click="runAction(appStore.refreshDisplays)">刷新显示器</button>
     </article>
 

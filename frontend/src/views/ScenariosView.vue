@@ -15,6 +15,7 @@ const form = reactive({
   window2_source_id: 0,
   window2_autoplay: true,
   window2_resume: true,
+  window1_fullscreen_to_window2: false,
 });
 
 async function runAction(action: () => Promise<void>): Promise<void> {
@@ -35,6 +36,7 @@ function resetForm(): void {
   form.window2_source_id = 0;
   form.window2_autoplay = true;
   form.window2_resume = true;
+  form.window1_fullscreen_to_window2 = false;
 }
 
 function editScenario(scenario: ScenarioItem): void {
@@ -47,6 +49,7 @@ function editScenario(scenario: ScenarioItem): void {
   form.window2_source_id = scenario.window2_source_id || 0;
   form.window2_autoplay = scenario.window2_autoplay;
   form.window2_resume = scenario.window2_resume;
+  form.window1_fullscreen_to_window2 = scenario.window1_fullscreen_to_window2;
 }
 
 async function saveScenario(): Promise<void> {
@@ -108,6 +111,10 @@ async function captureCurrent(): Promise<void> {
           <option v-for="source in appStore.availableSources" :key="source.id" :value="source.id">{{ source.name }}</option>
         </select>
       </label>
+      <label class="checkbox-line">
+        <input v-model="form.window1_fullscreen_to_window2" type="checkbox" />
+        激活时窗口 1 全屏填充窗口 2，并隐藏窗口 2
+      </label>
       <div class="button-grid">
         <button type="button" @click="runAction(saveScenario)">保存</button>
         <button type="button" @click="runAction(captureCurrent)">保存当前状态</button>
@@ -126,6 +133,7 @@ async function captureCurrent(): Promise<void> {
             <strong>{{ scenario.name }}</strong>
             <small>{{ scenario.description || '无描述' }}</small>
             <small>窗口1：{{ scenario.window1_source_name || '无' }} · 窗口2：{{ scenario.window2_source_name || '无' }}</small>
+            <small>布局：{{ scenario.window1_fullscreen_to_window2 ? '窗口1填充窗口2' : '窗口1/2独立' }}</small>
           </div>
           <div class="row-actions">
             <button type="button" @click="runAction(() => activateScenario(scenario.id))">激活</button>

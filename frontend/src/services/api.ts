@@ -29,6 +29,7 @@ export interface SessionSnapshot {
   pending_command: string;
   last_updated_at: string;
   loop_enabled: boolean;
+  window1_fullscreen_to_window2: boolean;
 }
 
 export interface ScenarioItem {
@@ -43,6 +44,7 @@ export interface ScenarioItem {
   window2_source_name: string;
   window2_autoplay: boolean;
   window2_resume: boolean;
+  window1_fullscreen_to_window2: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -89,6 +91,7 @@ export const api = {
   navigateContent: (windowId: number, action: string, targetIndex = 0, positionMs = 0) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/navigate/`, { method: 'POST', body: JSON.stringify({ action, target_index: targetIndex, position_ms: positionMs }) }),
   closeSource: (windowId: number) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/close/`, { method: 'POST' }),
   setLoop: (windowId: number, enabled: boolean) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/loop/`, { method: 'PATCH', body: JSON.stringify({ enabled }) }),
+  setWindow1Fullscreen: (enabled: boolean) => requestJson<ApiStatePayload>('/api/playback/window1-fullscreen/', { method: 'PATCH', body: JSON.stringify({ enabled }) }),
   showWindowIds: () => requestJson<ApiStatePayload>('/api/playback/show-ids/', { method: 'POST' }),
   listDisplays: () => requestJson<{ success: boolean; targets: DisplayTargetItem[]; splice_label: string }>('/api/displays/'),
   selectDisplay: (payload: { window_id: number; display_mode: string; target_label: string }) => requestJson<ApiStatePayload>('/api/displays/select/', { method: 'POST', body: JSON.stringify(payload) }),

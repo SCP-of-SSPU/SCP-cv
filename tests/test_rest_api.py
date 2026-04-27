@@ -98,7 +98,7 @@ def test_displays_api_uses_display_service() -> None:
         _DisplayStub(2, "Display 2", 1920, 1080, 1920, 0, False),
     ]
 
-    with patch("scp_cv.apps.dashboard.api_views.list_display_targets", return_value=displays):
+    with patch("scp_cv.apps.dashboard.api_playback_views.list_display_targets", return_value=displays):
         response = client.get("/api/displays/")
 
     assert response.status_code == 200

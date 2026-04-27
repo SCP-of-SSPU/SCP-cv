@@ -62,6 +62,14 @@ async function deleteSource(sourceId: number): Promise<void> {
   await appStore.refreshSources();
   appStore.notify('媒体源已删除');
 }
+
+async function openSource(sourceId: number): Promise<void> {
+  if (appStore.isActiveWindowDisabled) {
+    appStore.notify('窗口 1 填充窗口 2 时，窗口 2 打开操作已禁用', true);
+    return;
+  }
+  await appStore.openSource(sourceId);
+}
 </script>
 
 <template>
@@ -99,7 +107,7 @@ async function deleteSource(sourceId: number): Promise<void> {
           <small>{{ source.uri }}</small>
         </div>
         <div class="row-actions">
-          <button type="button" :disabled="!source.is_available" @click="runAction(() => appStore.openSource(source.id))">打开</button>
+          <button type="button" :disabled="!source.is_available || appStore.isActiveWindowDisabled" @click="runAction(() => openSource(source.id))">打开</button>
           <button type="button" class="danger" @click="runAction(() => deleteSource(source.id))">删除</button>
         </div>
       </li>

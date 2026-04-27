@@ -104,6 +104,7 @@ def get_session_snapshot(window_id: int) -> dict[str, object]:
         "target_display_label": session.target_display_label or "未选择",
         "spliced_display_label": session.spliced_display_label or "无",
         "is_spliced": session.is_spliced,
+        "window1_fullscreen_to_window2": session.window1_fullscreen_to_window2,
         # PPT 状态
         "current_slide": session.current_slide,
         "total_slides": session.total_slides,
@@ -348,6 +349,20 @@ def select_display_target(
         window_id, session.get_display_mode_display(), session.target_display_label,
     )
     return session
+
+
+def set_window1_fullscreen_to_window2(enabled: bool) -> PlaybackSession:
+    """
+    切换窗口 1 跨窗口 1/2 区域显示状态，并通知播放器重排窗口。
+    :param enabled: True 时窗口 1 拉伸覆盖窗口 2 区域，False 时恢复双窗口
+    :return: 更新后的窗口 1 播放会话
+    """
+    session_1 = get_or_create_session(1)
+    session_1.window1_fullscreen_to_window2 = enabled
+    session_1.save(update_fields=["window1_fullscreen_to_window2"])
+
+    logger.info("窗口 1 填充窗口 2 已%s", "开启" if enabled else "关闭")
+    return session_1
 
 
 def toggle_loop_playback(window_id: int, enabled: bool) -> PlaybackSession:

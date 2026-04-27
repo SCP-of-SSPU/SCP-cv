@@ -164,6 +164,9 @@ class Command(BaseCommand):
                 f"({display_target.geometry_label})"
             ))
 
+        # 启动时恢复上次保存的跨屏布局状态，避免重启播放器后前端状态失效。
+        controller.apply_current_layout()
+
         # 启动轮询
         controller.start_polling(interval_seconds=poll_interval)
 

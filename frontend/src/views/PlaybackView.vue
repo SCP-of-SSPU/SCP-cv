@@ -19,6 +19,8 @@ const currentSlide = computed(() => activeSession.value?.current_slide || 0);
 const totalSlides = computed(() => activeSession.value?.total_slides || 0);
 const canNavigateSlides = computed(() => isPresentation.value && Boolean(activeSession.value?.source_name));
 const hasAnyPendingAction = computed(() => pendingAction.value.length > 0);
+const activeWindowControlsDisabled = computed(() => appStore.isActiveWindowDisabled);
+const blocksActiveWindowAction = computed(() => hasAnyPendingAction.value || activeWindowControlsDisabled.value);
 const pptSources = computed(() => appStore.availableSources.filter((source) => source.source_type === 'ppt'));
 const slideProgress = computed(() => {
   if (!canNavigateSlides.value || totalSlides.value <= 0) return 0;
@@ -45,6 +47,10 @@ function setRemoteHint(message: string): void {
 
 async function runAction(action: () => Promise<void>, actionLabel = '操作'): Promise<void> {
   if (pendingAction.value) return;
+  if (activeWindowControlsDisabled.value) {
+    appStore.notify('窗口 1 填充窗口 2 时，窗口 2 操作已禁用', true);
+    return;
+  }
   pendingAction.value = actionLabel;
   try {
     await action();
@@ -123,10 +129,13 @@ async function seek(): Promise<void> {
       :key="windowId"
       type="button"
       :class="{ active: appStore.activeWindowId === windowId }"
-      :disabled="hasAnyPendingAction"
+      :disabled="hasAnyPendingAction || (appStore.isWindow1FullscreenToWindow2 && windowId === 2)"
       @click="appStore.activeWindowId = windowId"
     >
       窗口 {{ windowId }}
+    </button>
+    <button type="button" class="primary" :class="{ active: appStore.isWindow1FullscreenToWindow2 }" :disabled="hasAnyPendingAction" @click="runAction(appStore.toggleWindow1Fullscreen, '窗口 1 填充窗口 2')">
+      {{ appStore.isWindow1FullscreenToWindow2 ? '恢复窗口 1/2' : '窗口 1 全屏显示' }}
     </button>
     <button type="button" :disabled="hasAnyPendingAction" @click="runAction(appStore.showWindowIds, '显示窗口 ID')">显示窗口 ID</button>
   </nav>
@@ -138,6 +147,7 @@ async function seek(): Promise<void> {
       <span>类型：{{ activeSession?.source_type_label || '无' }}</span>
       <span>显示：{{ activeSession?.display_mode_label || '无' }}</span>
       <span>循环：{{ activeSession?.loop_enabled ? '开启' : '关闭' }}</span>
+      <span>跨屏：{{ appStore.isWindow1FullscreenToWindow2 ? '窗口 1 填充窗口 2' : '独立窗口' }}</span>
     </div>
   </section>
 
@@ -179,32 +189,32 @@ async function seek(): Promise<void> {
           {{ source.name }}
         </option>
       </select>
-      <button type="button" :disabled="!selectedSourceId || hasAnyPendingAction" @click="runAction(openSelected, '打开 PPT')">打开</button>
+      <button type="button" :disabled="!selectedSourceId || blocksActiveWindowAction" @click="runAction(openSelected, '打开 PPT')">打开</button>
     </div>
 
     <div class="remote__buttons remote__buttons--pager">
-      <button type="button" :disabled="!canNavigateSlides || hasAnyPendingAction || (totalSlides > 0 && currentSlide <= 1)" @click="runAction(() => appStore.navigate('prev'), '上一页')">
+      <button type="button" :disabled="!canNavigateSlides || blocksActiveWindowAction || (totalSlides > 0 && currentSlide <= 1)" @click="runAction(() => appStore.navigate('prev'), '上一页')">
         上一页
         <small>向右滑也可返回</small>
       </button>
-      <button type="button" class="primary" :disabled="!canNavigateSlides || hasAnyPendingAction || (totalSlides > 0 && currentSlide >= totalSlides)" @click="runAction(() => appStore.navigate('next'), '下一页')">
+      <button type="button" class="primary" :disabled="!canNavigateSlides || blocksActiveWindowAction || (totalSlides > 0 && currentSlide >= totalSlides)" @click="runAction(() => appStore.navigate('next'), '下一页')">
         下一页
         <small>向左滑也可前进</small>
       </button>
     </div>
 
     <div class="remote__quick-jump">
-      <button type="button" :disabled="!canNavigateSlides || hasAnyPendingAction" @click="runAction(() => gotoPage(1), '跳到首页')">首页</button>
-      <button type="button" :disabled="!canNavigateSlides || hasAnyPendingAction" @click="runAction(() => jumpRelative(-5), '后退 5 页')">-5</button>
-      <button type="button" :disabled="!canNavigateSlides || hasAnyPendingAction" @click="runAction(() => jumpRelative(5), '前进 5 页')">+5</button>
-      <button type="button" :disabled="!canNavigateSlides || !totalSlides || hasAnyPendingAction" @click="runAction(() => gotoPage(totalSlides), '跳到末页')">末页</button>
+      <button type="button" :disabled="!canNavigateSlides || blocksActiveWindowAction" @click="runAction(() => gotoPage(1), '跳到首页')">首页</button>
+      <button type="button" :disabled="!canNavigateSlides || blocksActiveWindowAction" @click="runAction(() => jumpRelative(-5), '后退 5 页')">-5</button>
+      <button type="button" :disabled="!canNavigateSlides || blocksActiveWindowAction" @click="runAction(() => jumpRelative(5), '前进 5 页')">+5</button>
+      <button type="button" :disabled="!canNavigateSlides || !totalSlides || blocksActiveWindowAction" @click="runAction(() => gotoPage(totalSlides), '跳到末页')">末页</button>
     </div>
 
     <div class="remote__goto">
-      <button type="button" :disabled="hasAnyPendingAction" aria-label="目标页减一" @click="adjustTargetPage(-1)">-</button>
+      <button type="button" :disabled="blocksActiveWindowAction" aria-label="目标页减一" @click="adjustTargetPage(-1)">-</button>
       <input v-model.number="targetPage" type="number" inputmode="numeric" pattern="[0-9]*" min="1" :max="totalSlides || undefined" aria-label="目标页码" @blur="normalizeTargetPage" />
-      <button type="button" :disabled="hasAnyPendingAction" aria-label="目标页加一" @click="adjustTargetPage(1)">+</button>
-      <button type="button" class="primary" :disabled="!canNavigateSlides || hasAnyPendingAction" @click="runAction(gotoPage, '跳页')">跳页</button>
+      <button type="button" :disabled="blocksActiveWindowAction" aria-label="目标页加一" @click="adjustTargetPage(1)">+</button>
+      <button type="button" class="primary" :disabled="!canNavigateSlides || blocksActiveWindowAction" @click="runAction(gotoPage, '跳页')">跳页</button>
     </div>
     <p class="remote__hint">{{ remoteStatusText }}</p>
   </section>
@@ -218,36 +228,36 @@ async function seek(): Promise<void> {
           {{ source.name }}（{{ source.source_type }}）
         </option>
       </select>
-      <button type="button" :disabled="hasAnyPendingAction" @click="runAction(openSelected, '打开媒体源')">打开到窗口 {{ appStore.activeWindowId }}</button>
+      <button type="button" :disabled="blocksActiveWindowAction" @click="runAction(openSelected, '打开媒体源')">打开到窗口 {{ appStore.activeWindowId }}</button>
     </article>
 
     <article class="panel">
       <h2>基本控制</h2>
       <div class="button-grid">
-        <button type="button" :disabled="hasAnyPendingAction" @click="runAction(() => appStore.control('play'), '播放')">播放</button>
-        <button type="button" :disabled="hasAnyPendingAction" @click="runAction(() => appStore.control('pause'), '暂停')">暂停</button>
-        <button type="button" :disabled="hasAnyPendingAction" @click="runAction(() => appStore.control('stop'), '停止')">停止</button>
-        <button type="button" class="danger" :disabled="hasAnyPendingAction" @click="runAction(appStore.closeActive, '关闭')">关闭</button>
-        <button type="button" :disabled="hasAnyPendingAction" @click="runAction(appStore.toggleLoop, '循环切换')">切换循环</button>
+        <button type="button" :disabled="blocksActiveWindowAction" @click="runAction(() => appStore.control('play'), '播放')">播放</button>
+        <button type="button" :disabled="blocksActiveWindowAction" @click="runAction(() => appStore.control('pause'), '暂停')">暂停</button>
+        <button type="button" :disabled="blocksActiveWindowAction" @click="runAction(() => appStore.control('stop'), '停止')">停止</button>
+        <button type="button" class="danger" :disabled="blocksActiveWindowAction" @click="runAction(appStore.closeActive, '关闭')">关闭</button>
+        <button type="button" :disabled="blocksActiveWindowAction" @click="runAction(appStore.toggleLoop, '循环切换')">切换循环</button>
       </div>
     </article>
 
     <article class="panel">
       <h2>内容导航</h2>
       <div class="button-grid">
-        <button type="button" :disabled="!canNavigateSlides || hasAnyPendingAction" @click="runAction(() => appStore.navigate('prev'), '上一页')">上一页</button>
-        <button type="button" :disabled="!canNavigateSlides || hasAnyPendingAction" @click="runAction(() => appStore.navigate('next'), '下一页')">下一页</button>
+        <button type="button" :disabled="!canNavigateSlides || blocksActiveWindowAction" @click="runAction(() => appStore.navigate('prev'), '上一页')">上一页</button>
+        <button type="button" :disabled="!canNavigateSlides || blocksActiveWindowAction" @click="runAction(() => appStore.navigate('next'), '下一页')">下一页</button>
       </div>
       <div class="inline-form">
         <input v-model.number="targetPage" type="number" min="1" :max="totalSlides || undefined" @blur="normalizeTargetPage" />
-        <button type="button" :disabled="!canNavigateSlides || hasAnyPendingAction" @click="runAction(gotoPage, '跳页')">跳页</button>
+        <button type="button" :disabled="!canNavigateSlides || blocksActiveWindowAction" @click="runAction(gotoPage, '跳页')">跳页</button>
       </div>
     </article>
 
     <article class="panel">
       <h2>视频进度</h2>
       <p>{{ formatDuration(activeSession?.position_ms || 0) }} / {{ formatDuration(activeSession?.duration_ms || 0) }}</p>
-      <input v-model.number="seekPercent" type="range" min="0" max="1000" :disabled="!activeSession?.duration_ms || hasAnyPendingAction" @change="runAction(seek, '视频跳转')" />
+      <input v-model.number="seekPercent" type="range" min="0" max="1000" :disabled="!activeSession?.duration_ms || blocksActiveWindowAction" @change="runAction(seek, '视频跳转')" />
     </article>
   </section>
 </template>
