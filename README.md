@@ -102,7 +102,7 @@ uv run python manage.py runall --host 0.0.0.0 --port 8080 --skip-mediamtx
 
 启动后：
 
-1. 浏览器打开 `http://127.0.0.1:5173/` 访问 Vue Web 控制台
+1. 本机浏览器打开 `http://127.0.0.1:5173/` 访问 Vue Web 控制台，手机访问时使用 `http://<本机局域网IP>:5173/`
 2. 播放器启动器 GUI 弹出，选择播放窗口对应的目标屏幕
 3. 通过浏览器 Web 控制台上传/添加媒体源，点击播放即可在大屏显示
 
@@ -124,6 +124,8 @@ uv run python manage.py run_player
 # 终端 4：MediaMTX（可选）
 .\tools\third_party\mediamtx\mediamtx.exe
 ```
+
+Vue 前端默认监听 `0.0.0.0:5173`，便于手机和同一局域网设备访问；如仅允许本机访问，可运行 `npm --prefix frontend run dev -- --host 127.0.0.1`。
 
 ## 目录结构
 

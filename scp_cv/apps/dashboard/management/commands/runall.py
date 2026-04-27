@@ -54,7 +54,7 @@ class Command(BaseCommand):
         """
         parser.add_argument("--backend-host", "--host", type=str, default="127.0.0.1", help="Django 监听地址")
         parser.add_argument("--backend-port", "--port", type=int, default=8000, help="Django 监听端口")
-        parser.add_argument("--frontend-host", type=str, default="127.0.0.1", help="Vue 前端监听地址")
+        parser.add_argument("--frontend-host", type=str, default="0.0.0.0", help="Vue 前端监听地址")
         parser.add_argument("--frontend-port", type=int, default=5173, help="Vue 前端监听端口")
         parser.add_argument("--grpc-web-port", type=int, default=8081, help="gRPC-Web 代理监听端口")
         parser.add_argument("--poll-interval", type=float, default=0.2, help="播放器轮询间隔秒数")
@@ -75,7 +75,7 @@ class Command(BaseCommand):
 
         backend_host = str(options.get("backend_host", "127.0.0.1"))
         backend_port = int(options.get("backend_port", 8000))
-        frontend_host = str(options.get("frontend_host", "127.0.0.1"))
+        frontend_host = str(options.get("frontend_host", "0.0.0.0"))
         frontend_port = int(options.get("frontend_port", 5173))
         grpc_web_port = int(options.get("grpc_web_port", 8081))
         poll_interval = float(options.get("poll_interval", 0.2))
@@ -92,7 +92,7 @@ class Command(BaseCommand):
 
         self._wait_for_port("Django", backend_host, backend_port, required=True)
         if not bool(options.get("skip_frontend", False)):
-            self._wait_for_port("Vue 前端", frontend_host, frontend_port, required=False)
+            self._wait_for_port("Vue 前端", self._connect_host(frontend_host), frontend_port, required=False)
         if not bool(options.get("skip_grpcweb", False)):
             self._wait_for_port("gRPC-Web", "127.0.0.1", grpc_web_port, required=False)
 
@@ -236,6 +236,16 @@ class Command(BaseCommand):
             self._cleanup_processes()
             sys.exit(1)
         self.stderr.write(self.style.WARNING(message))
+
+    def _connect_host(self, listen_host: str) -> str:
+        """
+        将通配监听地址转换为本机健康检查可连接地址。
+        :param listen_host: 服务监听地址
+        :return: 用于 socket 连接探测的主机地址
+        """
+        if listen_host in {"0.0.0.0", "::"}:
+            return "127.0.0.1"
+        return listen_host
 
     def _monitor_processes(self) -> None:
         """监控关键子进程，任一关键进程退出时清理所有服务。"""

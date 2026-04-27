@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 127.0.0.1 --port 5173",
+    "dev": "vite --host 0.0.0.0 --port 5173",
     "build": "vue-tsc --noEmit -p tsconfig.json && vite build",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
-    "preview": "vite preview --host 127.0.0.1 --port 4173"
+    "preview": "vite preview --host 0.0.0.0 --port 4173"
   },
   "dependencies": {
     "@vitejs/plugin-vue": "latest",
