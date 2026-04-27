@@ -246,13 +246,6 @@ class Scenario(models.Model):
         verbose_name="描述",
     )
 
-    # ── 显示模式 ──
-    is_splice_mode = models.BooleanField(
-        default=False,
-        verbose_name="拼接模式",
-        help_text="启用后窗口 1+2 拼接显示同一源，窗口 2 配置被忽略",
-    )
-
     # ── 窗口 1 配置 ──
     window1_source = models.ForeignKey(
         MediaSource,
@@ -272,7 +265,7 @@ class Scenario(models.Model):
         help_text="相同源已打开时保留当前进度，否则从头播放",
     )
 
-    # ── 窗口 2 配置（拼接模式下忽略） ──
+    # ── 窗口 2 配置 ──
     window2_source = models.ForeignKey(
         MediaSource,
         null=True,
@@ -307,5 +300,4 @@ class Scenario(models.Model):
         verbose_name_plural = "预案"
 
     def __str__(self) -> str:
-        mode_label = "拼接" if self.is_splice_mode else "独立"
-        return f"[{mode_label}] {self.name}"
+        return self.name

@@ -38,11 +38,9 @@ from scp_cv.services.playback import (
     get_all_sessions_snapshot,
     get_or_create_session,
     get_session_snapshot,
-    is_splice_mode_active,
     navigate_content,
     open_source,
     select_display_target,
-    set_splice_mode,
     toggle_loop_playback,
 )
 from scp_cv.services.scenario import (
@@ -164,7 +162,7 @@ def _mutate_playback(operation: Callable[[], Any]) -> JsonResponse:
     """
     operation()
     sessions = get_all_sessions_snapshot()
-    payload = {"sessions": sessions, "splice_active": is_splice_mode_active()}
+    payload = {"sessions": sessions}
     publish_event("playback_state", payload)
     return _json_response({"success": True, **payload})
 
@@ -303,7 +301,6 @@ def list_sessions_api(request: HttpRequest) -> JsonResponse:
     return _json_response({
         "success": True,
         "sessions": get_all_sessions_snapshot(),
-        "splice_active": is_splice_mode_active(),
     })
 
 
@@ -430,23 +427,6 @@ def toggle_loop_api(request: HttpRequest, window_id: int) -> JsonResponse:
 
 @csrf_exempt
 @require_http_methods(["POST"])
-def set_splice_mode_api(request: HttpRequest) -> JsonResponse:
-    """
-    设置窗口 1+2 拼接模式。
-    :param request: HTTP 请求
-    :return: 操作后的会话状态
-    """
-    body, error = _body_or_error(request)
-    if error is not None:
-        return error
-    try:
-        return _mutate_playback(lambda: set_splice_mode(_bool_value(body, "enabled")))
-    except PlaybackError as playback_error:
-        return _error_response(str(playback_error), code="playback_error")
-
-
-@csrf_exempt
-@require_http_methods(["POST"])
 def show_window_ids_api(request: HttpRequest) -> JsonResponse:
     """
     下发所有窗口显示 ID 指令。
@@ -534,7 +514,6 @@ def create_scenario_api(request: HttpRequest) -> JsonResponse:
         scenario = create_scenario(
             name=name,
             description=str(body.get("description", "")),
-            is_splice_mode=_bool_value(body, "is_splice_mode"),
             window1_source_id=_int_value(body, "window1_source_id") or None,
             window1_autoplay=_bool_value(body, "window1_autoplay", True),
             window1_resume=_bool_value(body, "window1_resume", True),
@@ -571,7 +550,6 @@ def scenario_detail_api(request: HttpRequest, scenario_id: int) -> JsonResponse:
             scenario_id=int(scenario_id),
             name=body.get("name") if "name" in body else None,
             description=body.get("description") if "description" in body else None,
-            is_splice_mode=_bool_value(body, "is_splice_mode") if "is_splice_mode" in body else None,
             window1_source_id=_int_value(body, "window1_source_id") or None,
             window1_autoplay=_bool_value(body, "window1_autoplay", True) if "window1_autoplay" in body else None,
             window1_resume=_bool_value(body, "window1_resume", True) if "window1_resume" in body else None,
@@ -597,7 +575,7 @@ def activate_scenario_api(request: HttpRequest, scenario_id: int) -> JsonRespons
     """
     try:
         sessions = activate_scenario(int(scenario_id))
-        payload = {"sessions": sessions, "splice_active": is_splice_mode_active()}
+        payload = {"sessions": sessions}
         publish_event("playback_state", payload)
         return _json_response({"success": True, **payload})
     except ScenarioError as scenario_error:

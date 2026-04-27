@@ -9,7 +9,6 @@ const editingId = ref<number | null>(null);
 const form = reactive({
   name: '',
   description: '',
-  is_splice_mode: false,
   window1_source_id: 0,
   window1_autoplay: true,
   window1_resume: true,
@@ -30,7 +29,6 @@ function resetForm(): void {
   editingId.value = null;
   form.name = '';
   form.description = '';
-  form.is_splice_mode = false;
   form.window1_source_id = 0;
   form.window1_autoplay = true;
   form.window1_resume = true;
@@ -43,7 +41,6 @@ function editScenario(scenario: ScenarioItem): void {
   editingId.value = scenario.id;
   form.name = scenario.name;
   form.description = scenario.description;
-  form.is_splice_mode = scenario.is_splice_mode;
   form.window1_source_id = scenario.window1_source_id || 0;
   form.window1_autoplay = scenario.window1_autoplay;
   form.window1_resume = scenario.window1_resume;
@@ -77,7 +74,7 @@ async function deleteScenario(scenarioId: number): Promise<void> {
 
 async function activateScenario(scenarioId: number): Promise<void> {
   const payload = await api.activateScenario(scenarioId);
-  appStore.applySessions(payload.sessions, payload.splice_active);
+  appStore.applySessions(payload.sessions);
   appStore.notify('预案已激活');
 }
 
@@ -99,7 +96,6 @@ async function captureCurrent(): Promise<void> {
       <h2>{{ editingId ? '编辑预案' : '创建预案' }}</h2>
       <input v-model="form.name" placeholder="预案名称" />
       <textarea v-model="form.description" placeholder="描述"></textarea>
-      <label><input v-model="form.is_splice_mode" type="checkbox" /> 拼接模式</label>
       <label>窗口 1 源
         <select v-model.number="form.window1_source_id">
           <option :value="0">无</option>
@@ -107,7 +103,7 @@ async function captureCurrent(): Promise<void> {
         </select>
       </label>
       <label>窗口 2 源
-        <select v-model.number="form.window2_source_id" :disabled="form.is_splice_mode">
+        <select v-model.number="form.window2_source_id">
           <option :value="0">无</option>
           <option v-for="source in appStore.availableSources" :key="source.id" :value="source.id">{{ source.name }}</option>
         </select>

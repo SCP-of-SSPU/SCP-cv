@@ -81,9 +81,6 @@ service PlaybackControlService {
   // 切换指定窗口的循环播放模式。
   rpc ToggleLoop(ToggleLoopRequest) returns (OperationReply);
 
-  // 设置窗口 1+2 的左右拼接模式。
-  rpc SetSpliceMode(SetSpliceModeRequest) returns (SpliceModeReply);
-
   // 触发所有窗口显示 5 秒窗口 ID 叠加标识。
   rpc ShowWindowIds(EmptyRequest) returns (OperationReply);
 
@@ -337,24 +334,11 @@ message ToggleLoopRequest {
   bool enabled = 2;      // 是否启用循环播放
 }
 
-// 设置拼接模式请求（SetSpliceMode）。
-message SetSpliceModeRequest {
-  bool enabled = 1;  // 是否启用窗口 1+2 拼接模式
-}
-
-// 拼接模式操作响应（SetSpliceMode）。
-message SpliceModeReply {
-  bool success = 1;
-  bool splice_active = 2;
-  repeated SessionSnapshot sessions = 3;  // 所有窗口更新后的快照
-}
-
-
 // ══════════════════════════════════════════════════════════════
 // 扩展状态查询消息
 // ══════════════════════════════════════════════════════════════
 
-// 单窗口播放会话快照（AllSessionSnapshotsReply、SpliceModeReply 等中的重复元素）。
+// 单窗口播放会话快照（AllSessionSnapshotsReply 中的重复元素）。
 message SessionSnapshot {
   int32 window_id = 1;
   int64 session_id = 2;
@@ -381,8 +365,7 @@ message SessionSnapshot {
 // 所有窗口播放会话快照列表响应（GetAllSessionSnapshots）。
 message AllSessionSnapshotsReply {
   bool success = 1;
-  bool splice_active = 2;
-  repeated SessionSnapshot sessions = 3;
+  repeated SessionSnapshot sessions = 2;
 }
 
 
@@ -402,9 +385,8 @@ message ScenarioWindowSlot {
 message ScenarioDetail {
   string name = 1;                    // 预案名称（必填）
   string description = 2;            // 描述（可选）
-  bool is_splice_mode = 3;           // 拼接模式
   ScenarioWindowSlot window1 = 4;    // 窗口 1 配置
-  ScenarioWindowSlot window2 = 5;    // 窗口 2 配置（拼接模式下忽略）
+  ScenarioWindowSlot window2 = 5;    // 窗口 2 配置
 }
 
 // 预案摘要项（列表响应中的重复元素）。
@@ -412,7 +394,6 @@ message ScenarioItem {
   int64 id = 1;
   string name = 2;
   string description = 3;
-  bool is_splice_mode = 4;
   ScenarioWindowSlot window1 = 5;
   ScenarioWindowSlot window2 = 6;
   string created_at = 7;     // ISO 8601 时间戳

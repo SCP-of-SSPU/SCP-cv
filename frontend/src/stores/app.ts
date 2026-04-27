@@ -8,7 +8,6 @@ interface AppState {
   sessions: SessionSnapshot[];
   scenarios: ScenarioItem[];
   displays: DisplayTargetItem[];
-  spliceActive: boolean;
   connectionStatus: string;
   message: string;
   isError: boolean;
@@ -22,7 +21,6 @@ export const useAppStore = defineStore('app', {
     sessions: [],
     scenarios: [],
     displays: [],
-    spliceActive: false,
     connectionStatus: 'SSE: 连接中',
     message: '',
     isError: false,
@@ -44,9 +42,8 @@ export const useAppStore = defineStore('app', {
         }, 3200);
       }
     },
-    applySessions(sessions: SessionSnapshot[], spliceActive?: boolean): void {
+    applySessions(sessions: SessionSnapshot[]): void {
       this.sessions = sessions;
-      if (typeof spliceActive === 'boolean') this.spliceActive = spliceActive;
     },
     async bootstrap(): Promise<void> {
       await Promise.all([this.refreshSources(), this.refreshSessions(), this.refreshScenarios(), this.refreshDisplays()]);
@@ -58,7 +55,7 @@ export const useAppStore = defineStore('app', {
     },
     async refreshSessions(): Promise<void> {
       const payload = await api.listSessions();
-      this.applySessions(payload.sessions, payload.splice_active);
+      this.applySessions(payload.sessions);
     },
     async refreshScenarios(): Promise<void> {
       const payload = await api.listScenarios();
@@ -79,42 +76,37 @@ export const useAppStore = defineStore('app', {
         this.connectionStatus = 'SSE: 重连中';
       };
       source.addEventListener('playback_state', (event) => {
-        const payload = JSON.parse(event.data) as { sessions?: SessionSnapshot[]; splice_active?: boolean };
-        if (Array.isArray(payload.sessions)) this.applySessions(payload.sessions, payload.splice_active);
+        const payload = JSON.parse(event.data) as { sessions?: SessionSnapshot[] };
+        if (Array.isArray(payload.sessions)) this.applySessions(payload.sessions);
       });
     },
     async openSource(sourceId: number): Promise<void> {
       const payload = await api.openSource(this.activeWindowId, sourceId, true);
-      this.applySessions(payload.sessions, payload.splice_active);
+      this.applySessions(payload.sessions);
       this.notify('已打开媒体源');
     },
     async control(action: string): Promise<void> {
       const payload = await api.controlPlayback(this.activeWindowId, action);
-      this.applySessions(payload.sessions, payload.splice_active);
+      this.applySessions(payload.sessions);
     },
     async navigate(action: string, targetIndex = 0, positionMs = 0): Promise<void> {
       const payload = await api.navigateContent(this.activeWindowId, action, targetIndex, positionMs);
-      this.applySessions(payload.sessions, payload.splice_active);
+      this.applySessions(payload.sessions);
     },
     async closeActive(): Promise<void> {
       const payload = await api.closeSource(this.activeWindowId);
-      this.applySessions(payload.sessions, payload.splice_active);
+      this.applySessions(payload.sessions);
       this.notify('已关闭播放');
     },
     async toggleLoop(): Promise<void> {
       const enabled = !(this.activeSession?.loop_enabled || false);
       const payload = await api.setLoop(this.activeWindowId, enabled);
-      this.applySessions(payload.sessions, payload.splice_active);
+      this.applySessions(payload.sessions);
       this.notify(enabled ? '循环播放已开启' : '循环播放已关闭');
-    },
-    async toggleSplice(): Promise<void> {
-      const payload = await api.setSplice(!this.spliceActive);
-      this.applySessions(payload.sessions, payload.splice_active);
-      this.notify(payload.splice_active ? '拼接模式已开启' : '拼接模式已关闭');
     },
     async showWindowIds(): Promise<void> {
       const payload = await api.showWindowIds();
-      this.applySessions(payload.sessions, payload.splice_active);
+      this.applySessions(payload.sessions);
       this.notify('已触发窗口 ID 显示');
     },
   },

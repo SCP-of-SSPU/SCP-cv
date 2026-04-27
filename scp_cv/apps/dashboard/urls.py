@@ -31,9 +31,6 @@ urlpatterns = [
     path("playback/<str:window_id>/close/", views.close_current, name="close_current"),
     path("playback/<str:window_id>/toggle-loop/", views.toggle_loop, name="toggle_loop"),
 
-    # ── 拼接模式（窗口 1+2） ──
-    path("playback/splice/", views.toggle_splice, name="toggle_splice"),
-
     # ── 窗口 ID 叠加显示 ──
     path("playback/show-ids/", views.show_window_ids, name="show_window_ids"),
 

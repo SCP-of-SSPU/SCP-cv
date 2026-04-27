@@ -17,7 +17,7 @@ from scp_cv.apps.playback.models import (
     PlaybackState,
     Scenario,
 )
-from scp_cv.services.playback import get_or_create_session, set_splice_mode
+from scp_cv.services.playback import get_or_create_session
 from scp_cv.services.scenario import (
     ScenarioError,
     capture_scenario_from_current_state,
@@ -52,39 +52,12 @@ class TestCaptureScenarioFromCurrentState:
 
         assert scenario.name == "当前双窗口"
         assert scenario.description == "从播放状态捕获"
-        assert scenario.is_splice_mode is False
         assert scenario.window1_source == media_source_ppt
         assert scenario.window1_autoplay is True
         assert scenario.window1_resume is True
         assert scenario.window2_source == media_source_video
         assert scenario.window2_autoplay is False
         assert scenario.window2_resume is True
-
-    def test_capture_splice_mode_ignores_window2(
-        self,
-        media_source_ppt: MediaSource,
-        media_source_video: MediaSource,
-    ) -> None:
-        """拼接模式只保存窗口 1 源，窗口 2 由拼接逻辑同步。"""
-        set_splice_mode(True)
-
-        session_1 = get_or_create_session(1)
-        session_1.media_source = media_source_ppt
-        session_1.playback_state = PlaybackState.LOADING
-        session_1.save(update_fields=["media_source", "playback_state"])
-
-        session_2 = get_or_create_session(2)
-        session_2.media_source = media_source_video
-        session_2.playback_state = PlaybackState.PLAYING
-        session_2.save(update_fields=["media_source", "playback_state"])
-
-        scenario = capture_scenario_from_current_state(name="拼接当前状态")
-
-        assert scenario.is_splice_mode is True
-        assert scenario.window1_source == media_source_ppt
-        assert scenario.window1_autoplay is True
-        assert scenario.window2_source is None
-        assert scenario.window2_autoplay is False
 
     def test_capture_overwrites_existing_scenario(
         self,

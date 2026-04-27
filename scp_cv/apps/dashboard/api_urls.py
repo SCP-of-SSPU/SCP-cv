@@ -27,7 +27,6 @@ urlpatterns = [
     path("playback/<int:window_id>/navigate/", api_views.navigate_content_api, name="navigate_content"),
     path("playback/<int:window_id>/close/", api_views.close_source_api, name="close_source"),
     path("playback/<int:window_id>/loop/", api_views.toggle_loop_api, name="toggle_loop"),
-    path("playback/splice/", api_views.set_splice_mode_api, name="set_splice_mode"),
     path("playback/show-ids/", api_views.show_window_ids_api, name="show_window_ids"),
     path("displays/", api_views.list_displays_api, name="list_displays"),
     path("displays/select/", api_views.select_display_api, name="select_display"),

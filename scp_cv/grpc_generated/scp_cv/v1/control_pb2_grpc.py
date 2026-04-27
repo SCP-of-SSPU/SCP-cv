@@ -112,11 +112,6 @@ class PlaybackControlServiceStub(object):
                 request_serializer=scp__cv_dot_v1_dot_control__pb2.ToggleLoopRequest.SerializeToString,
                 response_deserializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
                 _registered_method=True)
-        self.SetSpliceMode = channel.unary_unary(
-                '/scp_cv.v1.PlaybackControlService/SetSpliceMode',
-                request_serializer=scp__cv_dot_v1_dot_control__pb2.SetSpliceModeRequest.SerializeToString,
-                response_deserializer=scp__cv_dot_v1_dot_control__pb2.SpliceModeReply.FromString,
-                _registered_method=True)
         self.ShowWindowIds = channel.unary_unary(
                 '/scp_cv.v1.PlaybackControlService/ShowWindowIds',
                 request_serializer=scp__cv_dot_v1_dot_control__pb2.EmptyRequest.SerializeToString,
@@ -301,13 +296,6 @@ class PlaybackControlServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def SetSpliceMode(self, request, context):
-        """设置窗口 1+2 的左右拼接模式。
-        """
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
     def ShowWindowIds(self, request, context):
         """触发所有窗口显示 5 秒窗口 ID 叠加标识。
         """
@@ -453,11 +441,6 @@ def add_PlaybackControlServiceServicer_to_server(servicer, server):
                     servicer.ToggleLoop,
                     request_deserializer=scp__cv_dot_v1_dot_control__pb2.ToggleLoopRequest.FromString,
                     response_serializer=scp__cv_dot_v1_dot_control__pb2.OperationReply.SerializeToString,
-            ),
-            'SetSpliceMode': grpc.unary_unary_rpc_method_handler(
-                    servicer.SetSpliceMode,
-                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.SetSpliceModeRequest.FromString,
-                    response_serializer=scp__cv_dot_v1_dot_control__pb2.SpliceModeReply.SerializeToString,
             ),
             'ShowWindowIds': grpc.unary_unary_rpc_method_handler(
                     servicer.ShowWindowIds,
@@ -874,33 +857,6 @@ class PlaybackControlService(object):
             '/scp_cv.v1.PlaybackControlService/ToggleLoop',
             scp__cv_dot_v1_dot_control__pb2.ToggleLoopRequest.SerializeToString,
             scp__cv_dot_v1_dot_control__pb2.OperationReply.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def SetSpliceMode(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/scp_cv.v1.PlaybackControlService/SetSpliceMode',
-            scp__cv_dot_v1_dot_control__pb2.SetSpliceModeRequest.SerializeToString,
-            scp__cv_dot_v1_dot_control__pb2.SpliceModeReply.FromString,
             options,
             channel_credentials,
             insecure,

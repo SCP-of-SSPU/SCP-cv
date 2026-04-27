@@ -35,7 +35,6 @@ export interface ScenarioItem {
   id: number;
   name: string;
   description: string;
-  is_splice_mode: boolean;
   window1_source_id: number | null;
   window1_source_name: string;
   window1_autoplay: boolean;
@@ -61,7 +60,6 @@ export interface DisplayTargetItem {
 export interface ApiStatePayload {
   success: boolean;
   sessions: SessionSnapshot[];
-  splice_active: boolean;
 }
 
 async function requestJson<T>(url: string, init: RequestInit = {}): Promise<T> {
@@ -91,7 +89,6 @@ export const api = {
   navigateContent: (windowId: number, action: string, targetIndex = 0, positionMs = 0) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/navigate/`, { method: 'POST', body: JSON.stringify({ action, target_index: targetIndex, position_ms: positionMs }) }),
   closeSource: (windowId: number) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/close/`, { method: 'POST' }),
   setLoop: (windowId: number, enabled: boolean) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/loop/`, { method: 'PATCH', body: JSON.stringify({ enabled }) }),
-  setSplice: (enabled: boolean) => requestJson<ApiStatePayload>('/api/playback/splice/', { method: 'POST', body: JSON.stringify({ enabled }) }),
   showWindowIds: () => requestJson<ApiStatePayload>('/api/playback/show-ids/', { method: 'POST' }),
   listDisplays: () => requestJson<{ success: boolean; targets: DisplayTargetItem[]; splice_label: string }>('/api/displays/'),
   selectDisplay: (payload: { window_id: number; display_mode: string; target_label: string }) => requestJson<ApiStatePayload>('/api/displays/select/', { method: 'POST', body: JSON.stringify(payload) }),

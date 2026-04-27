@@ -31,7 +31,6 @@ from scp_cv.services.playback import (
     navigate_content,
     open_source,
     select_display_target,
-    set_splice_mode,
     stop_current_content,
     toggle_loop_playback,
     update_playback_progress,
@@ -253,6 +252,20 @@ class TestNavigateContent:
         with pytest.raises(PlaybackError, match="无效"):
             navigate_content(1, "fast_forward")
 
+    def test_repeated_same_navigation_is_not_suppressed(
+        self,
+        media_source_ppt: MediaSource,
+    ) -> None:
+        """相同翻页指令连续写入时仍应保持为待消费指令。"""
+        open_source(1, media_source_ppt.pk)
+        first_session = navigate_content(1, PlaybackCommand.NEXT)
+        clear_pending_command(1)
+
+        second_session = navigate_content(1, PlaybackCommand.NEXT)
+
+        assert first_session.pending_command == PlaybackCommand.NEXT
+        assert second_session.pending_command == PlaybackCommand.NEXT
+
     def test_no_source_raises(self) -> None:
         """没有打开源时发送导航指令应抛出 PlaybackError。"""
         get_or_create_session(1)
@@ -289,62 +302,6 @@ class TestCloseSource:
         session = stop_current_content(1)
 
         assert session.pending_command == PlaybackCommand.CLOSE
-
-
-# ══════════════════════════════════════════════════════════════
-# splice command sync
-# ══════════════════════════════════════════════════════════════
-
-@pytest.mark.django_db
-class TestSpliceCommandSync:
-    """测试拼接模式下窗口 1/2 的指令同步逻辑。"""
-
-    def test_set_splice_mode_marks_left_right_halves(self) -> None:
-        """启用拼接时会话应标记窗口 1 左半、窗口 2 右半。"""
-        session_1, session_2 = set_splice_mode(True)
-
-        assert session_1.is_spliced is True
-        assert session_2.is_spliced is True
-        assert session_1.spliced_display_label == "窗口 1 左半 + 窗口 2 右半"
-        assert session_2.spliced_display_label == "窗口 1 左半 + 窗口 2 右半"
-
-    def test_open_source_syncs_peer_window(self, media_source_video: MediaSource) -> None:
-        """拼接模式下打开窗口 1 时应同步窗口 2 的源与 OPEN 指令。"""
-        set_splice_mode(True)
-        open_source(1, media_source_video.pk)
-
-        peer_session = get_or_create_session(2)
-        assert peer_session.media_source_id == media_source_video.pk
-        assert peer_session.pending_command == PlaybackCommand.OPEN
-        assert peer_session.command_args["uri"] == media_source_video.uri
-
-    def test_repeated_same_navigation_is_not_suppressed(
-        self,
-        media_source_ppt: MediaSource,
-    ) -> None:
-        """相同翻页指令连续写入时仍应保持为待消费指令。"""
-        open_source(1, media_source_ppt.pk)
-        first_session = navigate_content(1, PlaybackCommand.NEXT)
-        clear_pending_command(1)
-
-        second_session = navigate_content(1, PlaybackCommand.NEXT)
-
-        assert first_session.pending_command == PlaybackCommand.NEXT
-        assert second_session.pending_command == PlaybackCommand.NEXT
-
-    def test_control_and_loop_sync_peer_window(self, media_source_video: MediaSource) -> None:
-        """拼接模式下播放控制和循环设置应同步给另一个窗口。"""
-        set_splice_mode(True)
-        open_source(1, media_source_video.pk)
-
-        control_playback(1, PlaybackCommand.PLAY)
-        peer_session = get_or_create_session(2)
-        assert peer_session.pending_command == PlaybackCommand.PLAY
-
-        toggle_loop_playback(1, True)
-        peer_session.refresh_from_db()
-        assert peer_session.pending_command == PlaybackCommand.SET_LOOP
-        assert peer_session.command_args["enabled"] is True
 
 
 # ══════════════════════════════════════════════════════════════

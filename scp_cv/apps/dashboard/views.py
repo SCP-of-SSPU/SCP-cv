@@ -41,10 +41,8 @@ from scp_cv.services.playback import (
     get_all_sessions_snapshot,
     get_or_create_session,
     get_session_snapshot,
-    is_splice_mode_active,
     navigate_content,
     open_source,
-    set_splice_mode,
     toggle_loop_playback,
 )
 from scp_cv.services.scenario import (
@@ -392,34 +390,6 @@ def toggle_loop(request: HttpRequest, window_id: str) -> JsonResponse:
 
 
 # ══════════════════════════════════════════════════════════════
-# 拼接模式 API
-# ══════════════════════════════════════════════════════════════
-
-@require_POST
-def toggle_splice(request: HttpRequest) -> JsonResponse:
-    """
-    切换窗口 1+2 的拼接模式。
-    :param request: HTTP 请求（POST form，包含 enabled 字段）
-    :return: JSON 响应
-    """
-    enabled_raw = request.POST.get("enabled", "false").strip().lower()
-    splice_enabled = enabled_raw in ("true", "1", "yes")
-
-    try:
-        set_splice_mode(splice_enabled)
-    except PlaybackError as splice_err:
-        return JsonResponse({"success": False, "error": str(splice_err)}, status=400)
-
-    all_snapshots = get_all_sessions_snapshot()
-    publish_event("playback_state", {"sessions": all_snapshots})
-    return JsonResponse({
-        "success": True,
-        "splice_active": splice_enabled,
-        "sessions": all_snapshots,
-    })
-
-
-# ══════════════════════════════════════════════════════════════
 # 窗口 ID 叠加显示
 # ══════════════════════════════════════════════════════════════
 
@@ -465,7 +435,6 @@ def api_session_state(request: HttpRequest) -> JsonResponse:
     return JsonResponse({
         "success": True,
         "sessions": all_snapshots,
-        "splice_active": is_splice_mode_active(),
     })
 
 
@@ -571,7 +540,6 @@ def create_scenario_view(request: HttpRequest) -> JsonResponse:
         scenario = create_scenario(
             name=name,
             description=str(body.get("description", "")),
-            is_splice_mode=_extract_bool(body.get("is_splice_mode"), default=False),
             window1_source_id=_extract_int(body.get("window1_source_id")) or None,
             window1_autoplay=_extract_bool(body.get("window1_autoplay"), default=True),
             window1_resume=_extract_bool(body.get("window1_resume"), default=True),
@@ -610,7 +578,6 @@ def update_scenario_view(request: HttpRequest, scenario_id: str) -> JsonResponse
             scenario_id=sid,
             name=body.get("name") if "name" in body else None,
             description=body.get("description") if "description" in body else None,
-            is_splice_mode=_extract_bool(body.get("is_splice_mode"), default=False) if "is_splice_mode" in body else None,
             window1_source_id=_extract_int(body.get("window1_source_id")) or None,
             window1_autoplay=_extract_bool(body.get("window1_autoplay")) if "window1_autoplay" in body else None,
             window1_resume=_extract_bool(body.get("window1_resume")) if "window1_resume" in body else None,
@@ -671,5 +638,4 @@ def activate_scenario_view(request: HttpRequest, scenario_id: str) -> JsonRespon
     return JsonResponse({
         "success": True,
         "sessions": session_snapshots,
-        "splice_active": is_splice_mode_active(),
     })

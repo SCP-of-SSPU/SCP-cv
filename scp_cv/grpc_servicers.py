@@ -38,11 +38,9 @@ from scp_cv.services.playback import (
     control_playback,
     get_all_sessions_snapshot,
     get_session_snapshot,
-    is_splice_mode_active,
     navigate_content,
     open_source,
     select_display_target,
-    set_splice_mode,
     stop_current_content,
     toggle_loop_playback,
 )
@@ -176,7 +174,6 @@ def _publish_playback_state_event() -> None:
 
     publish_event("playback_state", {
         "sessions": get_all_sessions_snapshot(),
-        "splice_active": is_splice_mode_active(),
     })
 
 
@@ -190,7 +187,6 @@ def _scenario_dict_to_proto(scenario_dict: dict[str, object]) -> control_pb2.Sce
         id=int(scenario_dict["id"]),
         name=str(scenario_dict["name"]),
         description=str(scenario_dict.get("description", "")),
-        is_splice_mode=bool(scenario_dict["is_splice_mode"]),
         window1=control_pb2.ScenarioWindowSlot(
             source_id=int(scenario_dict.get("window1_source_id") or 0),
             autoplay=bool(scenario_dict.get("window1_autoplay", True)),
@@ -609,36 +605,6 @@ class PlaybackControlServicer(control_pb2_grpc.PlaybackControlServiceServicer):
         except PlaybackError as playback_err:
             return _error_reply(str(playback_err))
 
-    def SetSpliceMode(
-        self,
-        request: control_pb2.SetSpliceModeRequest,
-        context: grpc.ServicerContext,
-    ) -> control_pb2.SpliceModeReply:
-        """
-        设置窗口 1+2 的左右拼接模式。
-        :param request: SetSpliceModeRequest（enabled）
-        :param context: gRPC 服务上下文
-        :return: SpliceModeReply
-        """
-        try:
-            set_splice_mode(request.enabled)
-            all_snapshots = get_all_sessions_snapshot()
-            session_protos = [_snapshot_to_proto(s) for s in all_snapshots]
-            _publish_playback_state_event()
-            return control_pb2.SpliceModeReply(
-                success=True,
-                splice_active=request.enabled,
-                sessions=session_protos,
-            )
-        except PlaybackError as playback_err:
-            logger.warning("设置拼接模式失败：%s", playback_err)
-            # 拼接模式失败时仍返回当前状态
-            return control_pb2.SpliceModeReply(
-                success=False,
-                splice_active=is_splice_mode_active(),
-                sessions=[],
-            )
-
     # ------------------------------------------------------------------
     # 窗口与会话查询
     # ------------------------------------------------------------------
@@ -680,7 +646,6 @@ class PlaybackControlServicer(control_pb2_grpc.PlaybackControlServiceServicer):
         session_protos = [_snapshot_to_proto(s) for s in all_snapshots]
         return control_pb2.AllSessionSnapshotsReply(
             success=True,
-            splice_active=is_splice_mode_active(),
             sessions=session_protos,
         )
 
@@ -709,7 +674,7 @@ class PlaybackControlServicer(control_pb2_grpc.PlaybackControlServiceServicer):
     ) -> control_pb2.ScenarioReply:
         """
         创建新预案。
-        :param request: ScenarioDetail（名称、描述、拼接模式、窗口配置）
+        :param request: ScenarioDetail（名称、描述、窗口配置）
         :param context: gRPC 服务上下文
         :return: ScenarioReply
         """
@@ -726,7 +691,6 @@ class PlaybackControlServicer(control_pb2_grpc.PlaybackControlServiceServicer):
             scenario = create_scenario(
                 name=request.name.strip(),
                 description=request.description.strip(),
-                is_splice_mode=request.is_splice_mode,
                 window1_source_id=int(w1.source_id) if w1 and w1.source_id else None,
                 window1_autoplay=w1.autoplay if w1 else True,
                 window1_resume=w1.resume if w1 else True,
@@ -770,7 +734,6 @@ class PlaybackControlServicer(control_pb2_grpc.PlaybackControlServiceServicer):
                 scenario_id=int(request.scenario_id),
                 name=detail.name.strip() if detail and detail.name else None,
                 description=detail.description if detail else None,
-                is_splice_mode=detail.is_splice_mode if detail else None,
                 window1_source_id=int(w1.source_id) if w1 and w1.source_id else None,
                 window1_autoplay=w1.autoplay if w1 else None,
                 window1_resume=w1.resume if w1 else None,

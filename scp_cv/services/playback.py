@@ -153,8 +153,6 @@ def open_source(window_id: int, media_source_id: int, autoplay: bool = True) -> 
         "autoplay": autoplay,
     }
     session.save()
-    sync_splice_command(window_id, session)
-
     logger.info("窗口 %d 打开媒体源「%s」（%s: %s）", window_id, source.name, source.source_type, source.uri)
     return session
 
@@ -178,8 +176,6 @@ def control_playback(window_id: int, action: str) -> PlaybackSession:
     session.pending_command = action
     session.command_args = {}
     session.save()
-    sync_splice_command(window_id, session)
-
     logger.info("窗口 %d 发送播放控制指令：%s", window_id, action)
     return session
 
@@ -216,8 +212,6 @@ def navigate_content(
         command_args["position_ms"] = position_ms
     session.command_args = command_args
     session.save()
-    sync_splice_command(window_id, session)
-
     logger.info("窗口 %d 发送导航指令：%s，参数=%s", window_id, action, command_args)
     return session
 
@@ -235,7 +229,6 @@ def close_source(window_id: int) -> PlaybackSession:
         session.pending_command = PlaybackCommand.CLOSE
         session.command_args = {}
         session.save()
-        sync_splice_command(window_id, session)
         logger.info("窗口 %d 发送关闭指令", window_id)
     else:
         # 无源则直接重置
@@ -357,76 +350,6 @@ def select_display_target(
     return session
 
 
-def set_splice_mode(enabled: bool) -> tuple[PlaybackSession, PlaybackSession]:
-    """
-    设置窗口1和窗口2的拼接模式。
-    启用拼接时，两个窗口播放同一源的左右半画面，控制指令自动同步。
-    :param enabled: 是否启用拼接模式
-    :return: 窗口1和窗口2的会话元组
-    """
-    session_1 = get_or_create_session(1)
-    session_2 = get_or_create_session(2)
-
-    if enabled:
-        session_1.display_mode = PlaybackMode.LEFT_RIGHT_SPLICE
-        session_1.is_spliced = True
-        session_1.spliced_display_label = "窗口 1 左半 + 窗口 2 右半"
-        session_2.display_mode = PlaybackMode.LEFT_RIGHT_SPLICE
-        session_2.is_spliced = True
-        session_2.spliced_display_label = "窗口 1 左半 + 窗口 2 右半"
-        logger.info("窗口 1+2 拼接模式已启用")
-    else:
-        session_1.display_mode = PlaybackMode.SINGLE
-        session_1.is_spliced = False
-        session_1.spliced_display_label = ""
-        session_2.display_mode = PlaybackMode.SINGLE
-        session_2.is_spliced = False
-        session_2.spliced_display_label = ""
-        logger.info("窗口 1+2 拼接模式已关闭")
-
-    session_1.save()
-    session_2.save()
-    return session_1, session_2
-
-
-def is_splice_mode_active() -> bool:
-    """
-    检查窗口1和2是否处于拼接模式。
-    :return: 拼接模式是否激活
-    """
-    session_1 = get_or_create_session(1)
-    return session_1.is_spliced
-
-
-def sync_splice_command(source_window_id: int, target_session: PlaybackSession) -> None:
-    """
-    拼接模式下，将源窗口的指令同步到另一个窗口。
-    当窗口1或2在拼接模式下收到指令时，自动同步到另一方。
-    :param source_window_id: 发出指令的窗口编号（1 或 2）
-    :param target_session: 作为同步目标的会话实例
-    """
-    if source_window_id not in {1, 2}:
-        return
-
-    peer_window_id = 2 if source_window_id == 1 else 1
-    peer_session = get_or_create_session(peer_window_id)
-
-    # 仅当双方都处于拼接模式时才同步
-    if not (target_session.is_spliced and peer_session.is_spliced):
-        return
-
-    peer_session.pending_command = target_session.pending_command
-    peer_session.command_args = target_session.command_args
-    # 如果源窗口绑定了新媒体源，peer 也同步绑定
-    if target_session.media_source is not None:
-        peer_session.media_source = target_session.media_source
-    peer_session.save()
-    logger.info(
-        "拼接同步：窗口 %d → 窗口 %d，指令=%s",
-        source_window_id, peer_window_id, target_session.pending_command,
-    )
-
-
 def toggle_loop_playback(window_id: int, enabled: bool) -> PlaybackSession:
     """
     切换指定窗口的循环播放状态，同时下发 SET_LOOP 指令给播放器进程。
@@ -443,7 +366,6 @@ def toggle_loop_playback(window_id: int, enabled: bool) -> PlaybackSession:
     session.pending_command = PlaybackCommand.SET_LOOP
     session.command_args = {"enabled": enabled}
     session.save()
-    sync_splice_command(window_id, session)
 
     logger.info("窗口 %d 循环播放已%s", window_id, "开启" if enabled else "关闭")
     return session

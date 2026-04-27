@@ -2,7 +2,7 @@
 # -*- coding: UTF-8 -*-
 '''
 预案管理服务，负责预案的 CRUD 以及激活（一键应用窗口配置）。
-预案是窗口 1/2 播放配置的快照，支持独立双窗口和拼接两种模式。
+预案是窗口 1/2 播放配置的快照，支持一键恢复双窗口源配置。
 激活预案时根据 resume 策略决定是否保留已有播放进度。
 @Project : SCP-cv
 @File : scenario.py
@@ -25,9 +25,7 @@ from scp_cv.services.playback import (
     close_source,
     get_all_sessions_snapshot,
     get_or_create_session,
-    is_splice_mode_active,
     open_source,
-    set_splice_mode,
 )
 
 logger = logging.getLogger(__name__)
@@ -75,7 +73,6 @@ def get_scenario(scenario_id: int) -> dict[str, object]:
 def create_scenario(
     name: str,
     description: str = "",
-    is_splice_mode: bool = False,
     window1_source_id: Optional[int] = None,
     window1_autoplay: bool = True,
     window1_resume: bool = True,
@@ -87,7 +84,6 @@ def create_scenario(
     创建新预案。
     :param name: 预案名称
     :param description: 描述（可选）
-    :param is_splice_mode: 是否启用拼接模式
     :param window1_source_id: 窗口 1 媒体源 ID（None 表示不绑定）
     :param window1_autoplay: 窗口 1 是否自动播放
     :param window1_resume: 窗口 1 是否保留进度
@@ -107,7 +103,6 @@ def create_scenario(
     scenario = Scenario.objects.create(
         name=name.strip(),
         description=description.strip(),
-        is_splice_mode=is_splice_mode,
         window1_source=window1_source,
         window1_autoplay=window1_autoplay,
         window1_resume=window1_resume,
@@ -123,7 +118,6 @@ def update_scenario(
     scenario_id: int,
     name: Optional[str] = None,
     description: Optional[str] = None,
-    is_splice_mode: Optional[bool] = None,
     window1_source_id: Optional[int] = None,
     window1_autoplay: Optional[bool] = None,
     window1_resume: Optional[bool] = None,
@@ -139,7 +133,6 @@ def update_scenario(
     :param scenario_id: 预案主键
     :param name: 新名称（None 表示不修改）
     :param description: 新描述
-    :param is_splice_mode: 新拼接模式设置
     :param window1_source_id: 窗口 1 新媒体源 ID
     :param window1_autoplay: 窗口 1 自动播放
     :param window1_resume: 窗口 1 保留进度
@@ -162,9 +155,6 @@ def update_scenario(
         scenario.name = name.strip()
     if description is not None:
         scenario.description = description.strip()
-    if is_splice_mode is not None:
-        scenario.is_splice_mode = is_splice_mode
-
     # 窗口 1 配置
     if _window1_source_provided:
         scenario.window1_source = _resolve_source(window1_source_id)
@@ -201,22 +191,17 @@ def capture_scenario_from_current_state(
     """
     session_1 = get_or_create_session(1)
     session_2 = get_or_create_session(2)
-    splice_active = is_splice_mode_active()
-
-    window2_source_id = None if splice_active else session_2.media_source_id
-    window2_autoplay = False if splice_active else _capture_autoplay(session_2)
 
     if scenario_id is not None and scenario_id > 0:
         return update_scenario(
             scenario_id=scenario_id,
             name=name,
             description=description,
-            is_splice_mode=splice_active,
             window1_source_id=session_1.media_source_id,
             window1_autoplay=_capture_autoplay(session_1),
             window1_resume=True,
-            window2_source_id=window2_source_id,
-            window2_autoplay=window2_autoplay,
+            window2_source_id=session_2.media_source_id,
+            window2_autoplay=_capture_autoplay(session_2),
             window2_resume=True,
             _window1_source_provided=True,
             _window2_source_provided=True,
@@ -225,12 +210,11 @@ def capture_scenario_from_current_state(
     return create_scenario(
         name=name,
         description=description,
-        is_splice_mode=splice_active,
         window1_source_id=session_1.media_source_id,
         window1_autoplay=_capture_autoplay(session_1),
         window1_resume=True,
-        window2_source_id=window2_source_id,
-        window2_autoplay=window2_autoplay,
+        window2_source_id=session_2.media_source_id,
+        window2_autoplay=_capture_autoplay(session_2),
         window2_resume=True,
     )
 
@@ -261,7 +245,6 @@ def activate_scenario(scenario_id: int) -> list[dict[str, object]]:
     根据每个窗口的 resume 策略决定是否保留已有进度：
     - resume=True 且当前窗口已打开相同源 → 跳过重新打开（保持进度）
     - resume=False 或源不同 → 关闭后重新打开
-    拼接模式下窗口 2 由拼接逻辑自动同步，不单独配置。
     :param scenario_id: 预案主键
     :return: 激活后所有窗口的状态快照列表
     :raises ScenarioError: 预案不存在或激活失败时
@@ -276,10 +259,7 @@ def activate_scenario(scenario_id: int) -> list[dict[str, object]]:
     logger.info("开始激活预案「%s」(id=%d)", scenario.name, scenario.pk)
 
     try:
-        if scenario.is_splice_mode:
-            _activate_splice_mode(scenario)
-        else:
-            _activate_independent_mode(scenario)
+        _activate_independent_mode(scenario)
     except PlaybackError as playback_err:
         raise ScenarioError(f"激活预案失败：{playback_err}") from playback_err
 
@@ -316,7 +296,6 @@ def _scenario_to_dict(scenario: Scenario) -> dict[str, object]:
         "id": scenario.pk,
         "name": scenario.name,
         "description": scenario.description,
-        "is_splice_mode": scenario.is_splice_mode,
         # 窗口 1
         "window1_source_id": scenario.window1_source_id,
         "window1_source_name": scenario.window1_source.name if scenario.window1_source else "",
@@ -405,36 +384,11 @@ def _apply_window_source(
     open_source(window_id, source.pk, autoplay=autoplay)
 
 
-def _activate_splice_mode(scenario: Scenario) -> None:
-    """
-    拼接模式激活：启用拼接后打开窗口 1 的源，窗口 2 自动同步。
-    :param scenario: 预案实例
-    """
-    # 先启用拼接模式
-    set_splice_mode(True)
-
-    # 打开窗口 1 的源（拼接逻辑会自动同步到窗口 2）
-    if scenario.window1_source is not None:
-        _apply_window_source(
-            window_id=1,
-            source=scenario.window1_source,
-            autoplay=scenario.window1_autoplay,
-            resume=scenario.window1_resume,
-        )
-    else:
-        # 无源则关闭两个窗口
-        close_source(1)
-
-
 def _activate_independent_mode(scenario: Scenario) -> None:
     """
-    独立模式激活：关闭拼接后分别配置窗口 1 和窗口 2。
+    分别配置窗口 1 和窗口 2。
     :param scenario: 预案实例
     """
-    # 先关闭拼接模式
-    set_splice_mode(False)
-
-    # 分别配置两个窗口
     _apply_window_source(
         window_id=1,
         source=scenario.window1_source,

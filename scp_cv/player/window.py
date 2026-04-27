@@ -62,7 +62,6 @@ class PlayerWindow(QWidget):
         self._window_id = window_id
         self._debug_mode = debug_mode
         self._is_showing_video = False
-        self._splice_side: str | None = None
 
         # ═══ 窗口属性 ═══
         self.setWindowTitle(f"SCP-cv 播放器 [窗口{window_id}]")
@@ -90,7 +89,6 @@ class PlayerWindow(QWidget):
         self._background_label.setStyleSheet("background-color: #000000;")
         self._stacked_layout.addWidget(self._background_label)
 
-        # 视频渲染视口负责裁剪；内部原生容器可扩展为双倍宽以支持 1+2 拼接。
         self._video_viewport = QWidget()
         self._video_viewport.setStyleSheet("background-color: #000000;")
         self._video_viewport.hide()
@@ -244,23 +242,6 @@ class PlayerWindow(QWidget):
         self.show_black_screen()
         logger.info("窗口 [%d] 已停止所有内容", self._window_id)
 
-    @Slot(object)
-    def set_splice_side(self, splice_side: object) -> None:
-        """
-        设置当前窗口的拼接裁剪侧。
-        :param splice_side: None/"left"/"right"，分别表示单屏、左半、右半
-        """
-        normalized_side = str(splice_side) if splice_side in {"left", "right"} else None
-        if self._splice_side == normalized_side:
-            return
-        self._splice_side = normalized_side
-        self._apply_render_viewport_geometry()
-        logger.info(
-            "窗口 [%d] 拼接裁剪侧：%s",
-            self._window_id,
-            normalized_side or "单屏",
-        )
-
     @Slot()
     def hide_window(self) -> None:
         """隐藏窗口但不销毁。"""
@@ -296,14 +277,11 @@ class PlayerWindow(QWidget):
         self._overlay_label.move(max(0, center_x), max(0, center_y))
 
     def _apply_render_viewport_geometry(self) -> None:
-        """根据当前拼接侧更新渲染容器几何，实现左右半画面裁剪。"""
+        """根据当前窗口尺寸更新渲染容器几何。"""
         viewport_width = max(1, self.width())
         viewport_height = max(1, self.height())
-        render_width = viewport_width * 2 if self._splice_side in {"left", "right"} else viewport_width
-        render_x = -viewport_width if self._splice_side == "right" else 0
-
-        self._video_container.setGeometry(render_x, 0, render_width, viewport_height)
-        self._web_container.setGeometry(render_x, 0, render_width, viewport_height)
+        self._video_container.setGeometry(0, 0, viewport_width, viewport_height)
+        self._web_container.setGeometry(0, 0, viewport_width, viewport_height)
 
     # ═══════════════════ 事件处理 ═══════════════════
 

@@ -22,7 +22,7 @@ async function selectDisplay(): Promise<void> {
     target_label: selectedDisplay.value,
   };
   const state = await api.selectDisplay(payload);
-  appStore.applySessions(state.sessions, state.splice_active);
+  appStore.applySessions(state.sessions);
   appStore.notify('显示目标已切换');
 }
 </script>
@@ -45,7 +45,6 @@ async function selectDisplay(): Promise<void> {
       <h2>运行状态</h2>
       <p>前端通信：REST API</p>
       <p>状态通道：{{ appStore.connectionStatus }}</p>
-      <p>拼接模式：{{ appStore.spliceActive ? '开启' : '关闭' }}</p>
     </article>
   </section>
 

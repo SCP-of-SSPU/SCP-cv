@@ -4,6 +4,7 @@
 
 ### 前后端分离与 REST 控制台迁移
 
+- **拼接下线**：移除窗口 1+2 拼接控制入口、REST 路由、服务同步逻辑和预案拼接字段
 - **Vue 前端**：新增 `frontend/`，使用 Vue 3、Vite、TypeScript、Pinia 与 Vue Router 重构控制台
 - **REST API**：新增 `/api/` 控制台接口，覆盖媒体源、播放控制、窗口状态、显示器、预案和 SSE
 - **gRPC 保留**：Vue 前端不再依赖 gRPC-Web，后端保留核心 gRPC 控制和状态接口供外部集成
@@ -11,12 +12,17 @@
 - **退出控制**：`run_player.py` 支持 SIGINT/SIGTERM，Ctrl+C 可触发 Qt 退出和轮询清理
 - **测试覆盖**：新增 REST API 测试和真实 gRPC channel 集成测试，前端通过 TypeScript 检查与 Vite 构建
 
+### Vue 控制台操作优化
+
+- **手机 PPT 遥控增强**：移动端播放页新增当前页进度、PPT 源快速打开、首页 / 末页、±5 页快跳、页码步进和操作发送反馈
+- **触控防误操作**：播放控制页对连续点击进行操作去重，翻页按钮按当前页边界禁用，遥控卡片支持左右滑动翻页
+- **移动入口优化**：手机访问根路径时默认进入播放控制页，顶部导航和窗口选择器改为触控友好的横向 / 网格布局
+
 ### Web 控制台接管本地控制
 
 - **控制窗口移除**：删除 PySide 本地控制面板，`run_player` 和 `runall` 启动后只保留启动器与播放窗口
 - **Web 操作补齐**：播放控制页新增媒体源下拉打开入口，设置页窗口卡片新增 PPT/视频进度展示
 - **手机 PPT 遥控**：手机端播放控制页新增 PPT 遥控器，支持大按钮翻页、左右滑动翻页和页码跳转
-- **拼接显示修复**：窗口 1+2 拼接改为窗口 1 裁剪左半、窗口 2 裁剪右半，避免两个窗口各自显示完整页面
 - **前端修复**：修复事件委托下按钮加载态绑定到 `document` 的问题，预案激活后立即应用返回的窗口快照
 - **低延迟状态**：播放器默认轮询间隔降至 `0.2s`，gRPC 状态流增加事件唤醒与 DB 快照去重推送
 - **文档同步**：使用文档和 API 文档更新为 Web 控制台统一控制流程
@@ -29,7 +35,7 @@
 - **前端入口**：预案编辑器新增“保存当前状态”操作，编辑模式下覆盖前会二次确认
 - **列表可读性**：gRPC 预案列表补充窗口源名称，前端摘要显示源名、自动播放和进度策略
 - **客户端修复**：修复 gRPC-Web 一元调用和流式事件返回值与调用方 `toObject()` 使用不一致的问题
-- **测试覆盖**：补充预案捕获、拼接模式捕获、覆盖已有预案和源名称序列化测试
+- **测试覆盖**：补充预案捕获、覆盖已有预案和源名称序列化测试
 
 ### Fluent 2 前端视觉与交互优化
 
@@ -44,7 +50,6 @@
 - **启动器修复**：修复 `launcher_gui.py` 中 DEBUG 文案读取未定义变量导致启动器构建失败的问题
 - **前端操作去重**：移除源列表刷新时重复注册的点击委托，避免刷新次数增加后一次点击触发多次打开或删除请求
 - **状态推送解锁**：调整 SSE 与 gRPC 流式推送逻辑，避免在持有事件锁时向客户端 `yield`，降低慢客户端阻塞后续状态发布的风险
-- **拼接模式同步**：窗口 1/2 处于拼接模式时，打开、控制、导航、关闭和循环指令会同步到另一侧窗口
 - **播放器轮询优化**：移除会吞掉连续相同指令的 hash 去重逻辑，并跳过无变化状态的重复 DB 上报
 - **质量检查**：补充 SSE 锁释放与拼接同步回归测试，配置 Ruff 忽略生成代码并清理未使用导入
 
@@ -69,7 +74,7 @@
 - **HTML 重构**：移除所有内联 `onclick`/`onchange` 处理器（27 处），改用 `data-action` 声明式属性 + 事件委托；修复模板变量 Bug（`session.loop_enabled` 等未定义、硬编码窗口数）
 - **JS 重构**：
   - `app.js`：移除 `window.*` 全局注册，改用 `ACTION_HANDLERS` 事件委托
-  - `windows.js`：`fetchAllSessions()` / `toggleSplice()` / `showWindowIds()` 改用 gRPC 调用，字段名从 snake_case 迁移至 camelCase
+  - `windows.js`：`fetchAllSessions()` / `showWindowIds()` 改用 gRPC 调用，字段名从 snake_case 迁移至 camelCase
   - `sources.js`：列表刷新、打开/删除源改用 gRPC，文件上传保留 HTTP，修复拖拽文件赋值兼容性
   - `playback.js`：全部控制操作改用 gRPC，状态更新依赖流式推送
   - `scenarios.js`：预案 CRUD 改用 gRPC（`listScenarios` / `createScenario` / `updateScenario` / `deleteScenario` / `activateScenario`）
@@ -83,7 +88,7 @@
 
 ### 预案系统
 
-- **数据模型**：新增 `PlaybackScenario` 模型，包含窗口 1/2 源绑定、拼接模式、自动播放、保留进度等字段
+- **数据模型**：新增 `PlaybackScenario` 模型，包含窗口 1/2 源绑定、自动播放、保留进度等字段
 - **服务层**：新增 `scp_cv.services.scenario` 模块，提供预案的 CRUD 和一键激活逻辑
 - **HTTP 接口**：新增 5 个预案管理端点（列表 / 创建 / 更新 / 删除 / 激活）
 - **gRPC 接口**：proto 新增 `ListScenarios` / `CreateScenario` / `UpdateScenario` / `DeleteScenario` / `ActivateScenario` 五个 RPC 方法及对应消息类型
@@ -103,7 +108,7 @@
 ### 前端 JS 模块化拆分 & 多窗口 UI
 
 - **JS 模块化**：app.js 拆分为 7 个 ES 模块（utils / tabs / windows / sources / playback / sse / app），base.html 改为 `type="module"` 加载
-- **多窗口 UI**：播放 Tab 新增窗口选择器导航（4 窗口按钮 + 拼接开关 + 显示 ID 按钮），设置 Tab 新增窗口状态网格卡片
+- **多窗口 UI**：播放 Tab 新增窗口选择器导航（4 窗口按钮 + 显示 ID 按钮），设置 Tab 新增窗口状态网格卡片
 - **CSS**：新增 `.window-selector` / `.window-status-grid` / `.window-status-card` / `.toolbar__active-window` 组件样式及响应式规则
 - **多窗口播放 URL**：所有前端播放/源操作 URL 改为 `/playback/${windowId}/xxx/` 动态路径
 - **SSE 适配**：事件处理兼容 `{sessions:[...]}` 多窗口快照格式
@@ -120,18 +125,18 @@
   - 4 窗口状态卡片（状态/源名/进度实时刷新）
   - 源选择下拉框 + 打开/关闭
   - 播放/暂停/停止/翻页/循环控制
-  - 拼接模式切换 + 显示窗口 ID
+  - 显示窗口 ID
   - QTimer 定时轮询 DB 状态更新 UI
 - **run_player.py 集成**：启动器分配屏幕后自动在 GUI 屏幕居中显示控制面板
 
 ### 多窗口输出架构改造
 
 - **数据模型**：`PlaybackSession` 新增 `window_id` 字段（PositiveSmallIntegerField, unique），标识所属输出窗口
-- **服务层**：所有 playback 函数增加 `window_id` 参数，新增 `get_all_sessions()`、`get_all_sessions_snapshot()`、`set_splice_mode()`、`is_splice_mode_active()`、`sync_splice_command()` 等多窗口/拼接相关函数
+- **服务层**：所有 playback 函数增加 `window_id` 参数，新增 `get_all_sessions()`、`get_all_sessions_snapshot()` 等多窗口相关函数
 - **播放控制器**：改为多适配器架构（`_adapters: dict[int, SourceAdapter]`），按 window_id 分别创建、轮询、销毁适配器
 - **播放窗口**：`window_id` 改为 int 类型，启动时 5 秒显示窗口编号 Overlay
 - **启动器 GUI**：逐窗口弹出屏幕选择对话框，支持 4 个独立输出窗口分配到不同屏幕
-- **HTTP 路由**：播放控制接口路径改为 `/playback/<window_id>/xxx/`，新增 `/playback/splice/` 拼接控制端点，移除旧 `/display/switch/`
+- **HTTP 路由**：播放控制接口路径改为 `/playback/<window_id>/xxx/`，移除旧 `/display/switch/`
 - **gRPC**：`_extract_window_id()` 从请求中提取 window_id，缺省回退到窗口 1 保持向后兼容
 - **测试**：全部播放服务测试用例更新为传递 `window_id=1`
 - **迁移**：`0007_add_window_id` 添加窗口编号字段
