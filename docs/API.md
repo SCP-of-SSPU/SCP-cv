@@ -187,7 +187,7 @@ print(reply.success, reply.message)
 | Django REST | 8000 | `/api/`、`/admin/`、媒体文件 |
 | gRPC | 50051 | 外部控制接口 |
 | gRPC-Web | 8081 | 兼容代理 |
-| MediaMTX SRT | 8890 | 推流入口 |
+| MediaMTX SRT | 8890 | 推流与读取入口 |
 | MediaMTX API | 9997 | 流管理 |
 
 ## 验证命令

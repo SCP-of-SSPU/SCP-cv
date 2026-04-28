@@ -17,6 +17,7 @@ env = environ.Env(
     GRPC_PORT=(int, 50051),
     MEDIAMTX_SRT_PORT=(int, 8890),
     MEDIAMTX_RTSP_PORT=(int, 8554),
+    MEDIAMTX_SRT_READ_HOST=(str, ""),
 )
 environ.Env.read_env(BASE_DIR / ".env")
 
@@ -125,6 +126,7 @@ MEDIAMTX_API_BASE = env("MEDIAMTX_API_BASE", default="http://127.0.0.1:9997")
 MEDIAMTX_SRT_PORT = env.int("MEDIAMTX_SRT_PORT")
 MEDIAMTX_RTSP_PORT = env.int("MEDIAMTX_RTSP_PORT")
 MEDIAMTX_SRT_PUBLIC_HOST = env("MEDIAMTX_SRT_PUBLIC_HOST", default="")
+MEDIAMTX_SRT_READ_HOST = env("MEDIAMTX_SRT_READ_HOST", default="")
 
 LOGGING = {
     "version": 1,

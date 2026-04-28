@@ -12,6 +12,7 @@ interface AppState {
   message: string;
   isError: boolean;
   eventSource: EventSource | null;
+  eventReconnectTimer: number | null;
 }
 
 export const useAppStore = defineStore('app', {
@@ -25,6 +26,7 @@ export const useAppStore = defineStore('app', {
     message: '',
     isError: false,
     eventSource: null,
+    eventReconnectTimer: null,
   }),
   getters: {
     activeSession: (state) => (
@@ -67,6 +69,10 @@ export const useAppStore = defineStore('app', {
     },
     connectEvents(): void {
       if (this.eventSource) this.eventSource.close();
+      if (this.eventReconnectTimer !== null) {
+        window.clearTimeout(this.eventReconnectTimer);
+        this.eventReconnectTimer = null;
+      }
       const source = new EventSource('/api/events/');
       this.eventSource = source;
       source.onopen = () => {
@@ -74,10 +80,20 @@ export const useAppStore = defineStore('app', {
       };
       source.onerror = () => {
         this.connectionStatus = 'SSE: 重连中';
+        if (source.readyState === EventSource.CLOSED && this.eventReconnectTimer === null) {
+          this.eventReconnectTimer = window.setTimeout(() => {
+            this.eventReconnectTimer = null;
+            this.connectEvents();
+          }, 2000);
+        }
       };
       source.addEventListener('playback_state', (event) => {
-        const payload = JSON.parse(event.data) as { sessions?: SessionSnapshot[] };
-        if (Array.isArray(payload.sessions)) this.applySessions(payload.sessions);
+        try {
+          const payload = JSON.parse(event.data) as { sessions?: SessionSnapshot[] };
+          if (Array.isArray(payload.sessions)) this.applySessions(payload.sessions);
+        } catch (error) {
+          this.notify('状态推送解析失败，请刷新页面重试', true);
+        }
       });
     },
     async openSource(sourceId: number): Promise<void> {

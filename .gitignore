@@ -183,19 +183,12 @@ logs/*
 
 # Third-party download caches and extracted binaries
 tools/third_party/*.zip
-tools/third_party/*.msi
-tools/third_party/**/*.exe
-tools/third_party/**/*.msi
-tools/third_party/**/*.dll
-tools/third_party/**/*.com
 tools/third_party/mpv/doc/
 tools/third_party/mpv/installer/
 tools/third_party/mpv/mpv/
 tools/third_party/mpv/include/
 tools/third_party/mpv/*.a
 tools/third_party/mpv/*.dat
-tools/third_party/mpv/*.bat
-tools/third_party/mpv/*.ps1
 tools/third_party/mpv/*.pdf
 tools/third_party/mpv/*.png
 tools/third_party/mpv/*.ico

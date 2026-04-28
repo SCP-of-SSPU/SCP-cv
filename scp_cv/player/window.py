@@ -14,7 +14,7 @@ import logging
 from typing import Optional
 
 from PySide6.QtCore import QRect, QTimer, Qt, Signal, Slot
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QGuiApplication, QScreen
 from PySide6.QtWidgets import (
     QLabel,
     QStackedLayout,
@@ -183,18 +183,63 @@ class PlayerWindow(QWidget):
         将窗口定位到指定的屏幕矩形区域。
         :param geometry: QRect，屏幕的绝对坐标矩形
         """
-        self.setGeometry(geometry)
+        target_geometry = self._normalize_qt_geometry(geometry)
+        window_handle = self.windowHandle()
+        target_screen = self._screen_for_geometry(target_geometry)
+        if window_handle is not None and target_screen is not None:
+            window_handle.setScreen(target_screen)
+
+        self.setGeometry(target_geometry)
         self._apply_render_viewport_geometry()
         if not self._debug_mode:
-            self.showFullScreen()
+            self.show()
+            self.raise_()
         else:
             self.show()
         logger.info(
             "窗口 [%d] 定位到 (%d, %d) %dx%d",
             self._window_id,
-            geometry.x(), geometry.y(),
-            geometry.width(), geometry.height(),
+            target_geometry.x(), target_geometry.y(),
+            target_geometry.width(), target_geometry.height(),
         )
+
+    @staticmethod
+    def _normalize_qt_geometry(requested_geometry: QRect) -> QRect:
+        """
+        将外部显示器坐标归一到 Qt 坐标系，避免高 DPI 下窗口跨屏放大。
+        :param requested_geometry: 外部检测到的目标几何
+        :return: 更适合 Qt 窗口定位的几何
+        """
+        matched_screen = PlayerWindow._screen_for_geometry(requested_geometry)
+        if matched_screen is not None:
+            return QRect(matched_screen.geometry())
+
+        screens = QGuiApplication.screens()
+        if not screens:
+            return QRect(requested_geometry)
+
+        requested_center = requested_geometry.center()
+        closest_screen = min(
+            screens,
+            key=lambda screen: (
+                abs(screen.geometry().center().x() - requested_center.x())
+                + abs(screen.geometry().center().y() - requested_center.y())
+            ),
+        )
+        return QRect(closest_screen.geometry())
+
+    @staticmethod
+    def _screen_for_geometry(geometry: QRect) -> QScreen | None:
+        """
+        按中心点查找 Qt 屏幕，找不到时返回 None。
+        :param geometry: 待匹配的窗口几何
+        :return: QScreen 或 None
+        """
+        geometry_center = geometry.center()
+        for screen in QGuiApplication.screens():
+            if screen.geometry().contains(geometry_center):
+                return screen
+        return None
 
     # ═══════════════════ 视频显示控制 ═══════════════════
 

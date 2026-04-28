@@ -11,6 +11,7 @@ Django 管理命令：一键启动 SCP-cv 所有本地服务。
 from __future__ import annotations
 
 import atexit
+import os
 import signal
 import socket
 import subprocess
@@ -88,7 +89,7 @@ class Command(BaseCommand):
             self._start_grpcweb_proxy(grpc_web_port)
         self._start_django_server(backend_host, backend_port)
         if not bool(options.get("skip_frontend", False)):
-            self._start_frontend(frontend_host, frontend_port)
+            self._start_frontend(frontend_host, frontend_port, backend_host, backend_port)
         if not bool(options.get("skip_player", False)):
             self._start_player(poll_interval)
 
@@ -149,11 +150,13 @@ class Command(BaseCommand):
             required=True,
         )
 
-    def _start_frontend(self, host: str, port: int) -> None:
+    def _start_frontend(self, host: str, port: int, backend_host: str, backend_port: int) -> None:
         """
         启动 Vue Vite 开发服务器。
         :param host: 监听地址
         :param port: 监听端口
+        :param backend_host: Django 监听地址
+        :param backend_port: Django 监听端口
         :return: None
         """
         import shutil
@@ -163,11 +166,13 @@ class Command(BaseCommand):
         if npm_path is None or not frontend_dir.exists():
             self.stderr.write(self.style.WARNING("未找到 npm 或 frontend/，跳过 Vue 前端"))
             return
+        backend_target_host = self._connect_host(backend_host)
         self._spawn(
             "Vue 前端",
             [npm_path, "run", "dev", "--", "--host", host, "--port", str(port)],
             cwd=frontend_dir,
             required=True,
+            extra_env={"VITE_BACKEND_TARGET": f"http://{backend_target_host}:{backend_port}"},
         )
 
     def _start_player(self, poll_interval: float) -> None:
@@ -193,6 +198,7 @@ class Command(BaseCommand):
         command_args: list[str],
         cwd: Path | None = None,
         required: bool = True,
+        extra_env: dict[str, str] | None = None,
     ) -> None:
         """
         启动子进程并继承控制台输出，避免 PIPE 缓冲区导致阻塞。
@@ -200,14 +206,19 @@ class Command(BaseCommand):
         :param command_args: 命令参数列表
         :param cwd: 工作目录
         :param required: 是否关键服务
+        :param extra_env: 追加传给子进程的环境变量
         :return: None
         """
         log_handle: BinaryIO | None = None
         try:
+            process_env = os.environ.copy()
+            if extra_env:
+                process_env.update(extra_env)
             log_handle = self._open_process_log(name)
             process = subprocess.Popen(
                 command_args,
                 cwd=str(cwd) if cwd else None,
+                env=process_env,
                 stdout=log_handle,
                 stderr=subprocess.STDOUT,
             )

@@ -1,0 +1,2 @@
+tools/third_party/**/*.exe filter=lfs diff=lfs merge=lfs -text
+tools/third_party/**/*.dll filter=lfs diff=lfs merge=lfs -text

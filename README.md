@@ -40,7 +40,7 @@
            │ 拉流 (SRT)
 ┌──────────▼───────────────────────┐
 │       MediaMTX 流服务器             │
-│ SRT 推流 (8890) / 读取 (8891)    │
+│ SRT 推流 / 读取 (8890)           │
 └──────────────────────────────────┘
 ```
 
@@ -163,8 +163,7 @@ SCP-cv/
 | 5173 | Vue 前端 | Web 控制台开发服务器 |
 | 8000 | Django HTTP | REST API + admin + 媒体文件 |
 | 50051 | gRPC | 播放控制 gRPC 服务 |
-| 8890 | MediaMTX SRT Publish | OBS / 外部设备推流入口 |
-| 8891 | MediaMTX SRT Read | 播放器读取入口 |
+| 8890 | MediaMTX SRT Publish/Read | OBS / 外部设备推流入口与播放器读取入口 |
 | 9997 | MediaMTX API | 流管理 REST API |
 
 ## 测试

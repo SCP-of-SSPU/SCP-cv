@@ -53,6 +53,17 @@ def _detect_lan_host() -> str:
         return "127.0.0.1"
 
 
+def _detect_read_host() -> str:
+    """
+    获取拉流地址主机名，默认使用局域网地址以支持其它设备读取。
+    :return: SRT/RTSP 读取入口主机名
+    """
+    configured_host = str(getattr(settings, "MEDIAMTX_SRT_READ_HOST", "")).strip()
+    if configured_host:
+        return configured_host
+    return _detect_lan_host()
+
+
 def get_srt_publish_url(stream_identifier: str) -> str:
     """
     获取 SRT 推流地址（供 OBS 等外部设备通过 SRT 推送使用）。
@@ -71,7 +82,8 @@ def get_srt_read_url(stream_identifier: str) -> str:
     :param stream_identifier: 流标识符（路径名）
     :return: SRT 拉流 URL
     """
-    return f"srt://127.0.0.1:{_SRT_PORT}?streamid=read:{stream_identifier}&latency=30000"
+    read_host = _detect_read_host()
+    return f"srt://{read_host}:{_SRT_PORT}?streamid=read:{stream_identifier}&latency=30000"
 
 
 def get_rtsp_read_url(stream_identifier: str) -> str:
@@ -81,7 +93,8 @@ def get_rtsp_read_url(stream_identifier: str) -> str:
     :param stream_identifier: 流标识符（路径名）
     :return: RTSP 拉流 URL
     """
-    return f"rtsp://127.0.0.1:{_RTSP_PORT}/{stream_identifier}"
+    read_host = _detect_read_host()
+    return f"rtsp://{read_host}:{_RTSP_PORT}/{stream_identifier}"
 
 
 def start_mediamtx() -> bool:

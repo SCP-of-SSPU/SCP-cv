@@ -66,6 +66,29 @@ export interface UploadOptions {
   onProgress?: (percent: number) => void;
 }
 
+interface ApiDetailPayload {
+  detail?: string;
+}
+
+function buildNonJsonError(statusCode: number, responseText: string): Error {
+  const normalizedText = responseText.trim().replace(/\s+/g, ' ');
+  const previewText = normalizedText.slice(0, 120) || '空响应';
+  return new Error(`服务返回非 JSON 响应（HTTP ${statusCode}）：${previewText}`);
+}
+
+function parseJsonText<T>(responseText: string, statusCode: number, contentType = ''): T & ApiDetailPayload {
+  const trimmedText = responseText.trim();
+  if (!trimmedText) return {} as T & ApiDetailPayload;
+  if (contentType && !contentType.includes('application/json')) {
+    throw buildNonJsonError(statusCode, trimmedText);
+  }
+  try {
+    return JSON.parse(trimmedText) as T & ApiDetailPayload;
+  } catch (error) {
+    throw buildNonJsonError(statusCode, trimmedText);
+  }
+}
+
 async function requestJson<T>(url: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(url, {
     ...init,
@@ -74,7 +97,8 @@ async function requestJson<T>(url: string, init: RequestInit = {}): Promise<T> {
       ...(init.headers || {}),
     },
   });
-  const payload = (await response.json()) as T & { detail?: string };
+  const responseText = await response.text();
+  const payload = parseJsonText<T>(responseText, response.status, response.headers.get('Content-Type') || '');
   if (!response.ok) {
     throw new Error(payload.detail || `请求失败：${response.status}`);
   }
@@ -91,9 +115,13 @@ function uploadFormData<T>(url: string, formData: FormData, options: UploadOptio
       options.onProgress?.(percent);
     };
     request.onload = () => {
-      const payload = (request.responseText
-        ? JSON.parse(request.responseText)
-        : {}) as T & { detail?: string };
+      let payload: T & ApiDetailPayload;
+      try {
+        payload = parseJsonText<T>(request.responseText, request.status, request.getResponseHeader('Content-Type') || '');
+      } catch (error) {
+        reject(error instanceof Error ? error : new Error('响应解析失败'));
+        return;
+      }
       if (request.status < 200 || request.status >= 300) {
         reject(new Error(payload.detail || `请求失败：${request.status}`));
         return;

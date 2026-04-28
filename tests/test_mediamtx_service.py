@@ -24,9 +24,12 @@ def test_publish_url_uses_configured_public_host(settings: object) -> None:
     assert get_srt_publish_url("camera-a") == "srt://192.168.1.100:8890?streamid=publish:camera-a&latency=30000"
 
 
-def test_read_url_stays_localhost_for_local_player() -> None:
+def test_read_url_uses_configured_read_host(settings: object) -> None:
     """
-    SRT 拉流地址保持本机地址，避免播放器误走外部网络。
+    SRT 拉流地址支持配置局域网主机，供其它设备读取。
+    :param settings: pytest-django settings fixture
     :return: None
     """
-    assert get_srt_read_url("camera-a") == "srt://127.0.0.1:8890?streamid=read:camera-a&latency=30000"
+    settings.MEDIAMTX_SRT_READ_HOST = "192.168.1.100"
+
+    assert get_srt_read_url("camera-a") == "srt://192.168.1.100:8890?streamid=read:camera-a&latency=30000"
