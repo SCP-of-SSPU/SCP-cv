@@ -11,6 +11,11 @@ const webUrl = ref('');
 const webName = ref('');
 const uploadName = ref('');
 const uploadFile = ref<File | null>(null);
+const uploadInputKey = ref(0);
+const uploadProgress = ref(0);
+const isUploading = ref(false);
+const isAddingLocal = ref(false);
+const isAddingWeb = ref(false);
 
 async function runAction(action: () => Promise<void>): Promise<void> {
   try {
@@ -33,27 +38,48 @@ async function uploadSource(): Promise<void> {
   const formData = new FormData();
   formData.append('file', uploadFile.value);
   if (uploadName.value) formData.append('name', uploadName.value);
-  await api.uploadSource(formData);
-  uploadFile.value = null;
-  uploadName.value = '';
-  await appStore.refreshSources();
-  appStore.notify('文件已上传');
+  isUploading.value = true;
+  uploadProgress.value = 0;
+  try {
+    await api.uploadSource(formData, {
+      onProgress: (percent: number) => {
+        uploadProgress.value = percent;
+      },
+    });
+    uploadFile.value = null;
+    uploadName.value = '';
+    uploadInputKey.value += 1;
+    await appStore.refreshSources();
+    appStore.notify('文件已上传');
+  } finally {
+    isUploading.value = false;
+  }
 }
 
 async function addLocalSource(): Promise<void> {
-  await api.addLocalSource({ path: localPath.value, name: localName.value });
-  localPath.value = '';
-  localName.value = '';
-  await appStore.refreshSources();
-  appStore.notify('本地源已添加');
+  isAddingLocal.value = true;
+  try {
+    await api.addLocalSource({ path: localPath.value, name: localName.value });
+    localPath.value = '';
+    localName.value = '';
+    await appStore.refreshSources();
+    appStore.notify('本地源已添加');
+  } finally {
+    isAddingLocal.value = false;
+  }
 }
 
 async function addWebSource(): Promise<void> {
-  await api.addWebSource({ url: webUrl.value, name: webName.value });
-  webUrl.value = '';
-  webName.value = '';
-  await appStore.refreshSources();
-  appStore.notify('网页源已添加');
+  isAddingWeb.value = true;
+  try {
+    await api.addWebSource({ url: webUrl.value, name: webName.value });
+    webUrl.value = '';
+    webName.value = '';
+    await appStore.refreshSources();
+    appStore.notify('网页源已添加');
+  } finally {
+    isAddingWeb.value = false;
+  }
 }
 
 async function deleteSource(sourceId: number): Promise<void> {
@@ -64,10 +90,6 @@ async function deleteSource(sourceId: number): Promise<void> {
 }
 
 async function openSource(sourceId: number): Promise<void> {
-  if (appStore.isActiveWindowDisabled) {
-    appStore.notify('窗口 1 填充窗口 2 时，窗口 2 打开操作已禁用', true);
-    return;
-  }
   await appStore.openSource(sourceId);
 }
 </script>
@@ -76,21 +98,25 @@ async function openSource(sourceId: number): Promise<void> {
   <section class="grid two">
     <article class="panel">
       <h2>上传文件</h2>
-      <input type="file" @change="onFileSelected" />
-      <input v-model="uploadName" placeholder="显示名称（可选）" />
-      <button type="button" @click="runAction(uploadSource)">上传</button>
+      <input :key="uploadInputKey" type="file" :disabled="isUploading" @change="onFileSelected" />
+      <input v-model="uploadName" placeholder="显示名称（可选）" :disabled="isUploading" />
+      <div v-if="isUploading" class="upload-progress" role="progressbar" :aria-valuenow="uploadProgress" aria-valuemin="0" aria-valuemax="100">
+        <span :style="{ width: `${uploadProgress}%` }"></span>
+        <strong>{{ uploadProgress }}%</strong>
+      </div>
+      <button type="button" :disabled="isUploading || !uploadFile" @click="runAction(uploadSource)">{{ isUploading ? '上传中...' : '上传' }}</button>
     </article>
     <article class="panel">
       <h2>添加本地路径</h2>
-      <input v-model="localPath" placeholder="本地文件绝对路径" />
-      <input v-model="localName" placeholder="显示名称（可选）" />
-      <button type="button" @click="runAction(addLocalSource)">添加</button>
+      <input v-model="localPath" placeholder="本地文件绝对路径" :disabled="isAddingLocal" />
+      <input v-model="localName" placeholder="显示名称（可选）" :disabled="isAddingLocal" />
+      <button type="button" :disabled="isAddingLocal || !localPath.trim()" @click="runAction(addLocalSource)">{{ isAddingLocal ? '添加中...' : '添加' }}</button>
     </article>
     <article class="panel">
       <h2>添加网页</h2>
-      <input v-model="webUrl" placeholder="https://example.com" />
-      <input v-model="webName" placeholder="显示名称（可选）" />
-      <button type="button" @click="runAction(addWebSource)">添加</button>
+      <input v-model="webUrl" placeholder="192.168.1.10:3000 或 https://example.com" :disabled="isAddingWeb" />
+      <input v-model="webName" placeholder="显示名称（可选）" :disabled="isAddingWeb" />
+      <button type="button" :disabled="isAddingWeb || !webUrl.trim()" @click="runAction(addWebSource)">{{ isAddingWeb ? '添加中...' : '添加' }}</button>
     </article>
   </section>
 
@@ -107,7 +133,7 @@ async function openSource(sourceId: number): Promise<void> {
           <small>{{ source.uri }}</small>
         </div>
         <div class="row-actions">
-          <button type="button" :disabled="!source.is_available || appStore.isActiveWindowDisabled" @click="runAction(() => openSource(source.id))">打开</button>
+          <button type="button" :disabled="!source.is_available" @click="runAction(() => openSource(source.id))">打开</button>
           <button type="button" class="danger" @click="runAction(() => deleteSource(source.id))">删除</button>
         </div>
       </li>

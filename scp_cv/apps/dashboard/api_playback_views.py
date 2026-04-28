@@ -35,7 +35,6 @@ from scp_cv.services.playback import (
     navigate_content,
     open_source,
     select_display_target,
-    set_window1_fullscreen_to_window2,
     toggle_loop_playback,
 )
 
@@ -187,22 +186,6 @@ def show_window_ids_api(request: HttpRequest) -> JsonResponse:
             session.save(update_fields=["pending_command", "command_args"])
 
     return mutate_playback(apply_show_id)
-
-
-@csrf_exempt
-@require_http_methods(["PATCH"])
-def window1_fullscreen_api(request: HttpRequest) -> JsonResponse:
-    """
-    切换窗口 1 填充窗口 2 的布局状态。
-    :param request: HTTP 请求
-    :return: 操作后的会话状态
-    """
-    body, error = body_or_error(request)
-    if error is not None:
-        return error
-    return mutate_playback(lambda: set_window1_fullscreen_to_window2(
-        bool_value(body, "enabled", False),
-    ))
 
 
 @require_GET

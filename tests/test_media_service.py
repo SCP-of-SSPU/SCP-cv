@@ -24,6 +24,7 @@ from scp_cv.services.media import (
     delete_media_source,
     detect_source_type,
     list_media_sources,
+    normalize_web_url,
     sync_streams_to_media_sources,
 )
 
@@ -157,6 +158,37 @@ class TestAddLocalPath:
 
         with pytest.raises(MediaError, match="无法识别"):
             add_local_path(str(unknown_file))
+
+
+# ══════════════════════════════════════════════════════════════
+# normalize_web_url / add_web_url
+# ══════════════════════════════════════════════════════════════
+
+class TestWebUrlNormalization:
+    """测试网页源 URL 规范化规则。"""
+
+    def test_default_protocol_is_http(self) -> None:
+        """未填写协议的局域网地址应默认使用 http。"""
+        assert normalize_web_url("192.168.1.20:3000") == "http://192.168.1.20:3000"
+
+    def test_keeps_existing_protocol(self) -> None:
+        """显式协议应保持不变。"""
+        assert normalize_web_url("https://example.com") == "https://example.com"
+
+    def test_windows_path_uses_file_protocol(self) -> None:
+        """Windows 本地路径应转成 file URL。"""
+        assert normalize_web_url("D:/demo/index.html") == "file:///D:/demo/index.html"
+
+
+@pytest.mark.django_db
+def test_add_web_url_stores_normalized_http_url() -> None:
+    """添加网页源时应保存规范化后的局域网 URL。"""
+    from scp_cv.services.media import add_web_url
+
+    source = add_web_url("192.168.1.20:3000", display_name="内网页面")
+
+    assert source.source_type == SourceType.WEB
+    assert source.uri == "http://192.168.1.20:3000"
 
 
 # ══════════════════════════════════════════════════════════════

@@ -11,10 +11,12 @@ MediaMTX 集成服务：管理 MediaMTX 进程、检测流状态、提供 SRT/RT
 from __future__ import annotations
 
 import logging
+import socket
 import subprocess
 from typing import Optional
 
 import requests
+from django.conf import settings
 from django.utils import timezone
 
 from scp_cv.apps.streams.models import StreamSource, StreamState
@@ -22,17 +24,33 @@ from scp_cv.services.executables import get_mediamtx_executable
 
 logger = logging.getLogger(__name__)
 
-# MediaMTX API 默认地址（与 mediamtx.yml 中 api 配置一致）
-_MEDIAMTX_API_BASE = "http://127.0.0.1:9997"
+# MediaMTX 连接参数默认读取 Django settings，便于部署时按局域网环境覆盖。
+_MEDIAMTX_API_BASE = str(getattr(settings, "MEDIAMTX_API_BASE", "http://127.0.0.1:9997"))
 
 # RTSP 服务端口（与 mediamtx.yml 中 rtspAddress 一致）
-_RTSP_PORT = 8554
+_RTSP_PORT = int(getattr(settings, "MEDIAMTX_RTSP_PORT", 8554))
 
 # SRT 服务端口（与 mediamtx.yml 中 srtAddress 一致）
-_SRT_PORT = 8890
+_SRT_PORT = int(getattr(settings, "MEDIAMTX_SRT_PORT", 8890))
 
 # MediaMTX 进程引用
 _mediamtx_process: Optional[subprocess.Popen[bytes]] = None
+
+
+def _detect_lan_host() -> str:
+    """
+    推断本机局域网地址，用于给 OBS / 外部设备展示可连接的推流入口。
+    :return: 优先返回显式配置，其次返回当前默认网卡 IP，失败时回退 127.0.0.1
+    """
+    configured_host = str(getattr(settings, "MEDIAMTX_SRT_PUBLIC_HOST", "")).strip()
+    if configured_host:
+        return configured_host
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
+            udp_socket.connect(("8.8.8.8", 80))
+            return str(udp_socket.getsockname()[0])
+    except OSError:
+        return "127.0.0.1"
 
 
 def get_srt_publish_url(stream_identifier: str) -> str:
@@ -42,7 +60,8 @@ def get_srt_publish_url(stream_identifier: str) -> str:
     :param stream_identifier: 流标识符（路径名）
     :return: SRT 推流 URL
     """
-    return f"srt://127.0.0.1:{_SRT_PORT}?streamid=publish:{stream_identifier}&latency=30000"
+    public_host = _detect_lan_host()
+    return f"srt://{public_host}:{_SRT_PORT}?streamid=publish:{stream_identifier}&latency=30000"
 
 
 def get_srt_read_url(stream_identifier: str) -> str:

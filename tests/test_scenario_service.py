@@ -19,7 +19,6 @@ from scp_cv.apps.playback.models import (
 )
 from scp_cv.services.playback import get_or_create_session
 from scp_cv.services.scenario import (
-    activate_scenario,
     ScenarioError,
     capture_scenario_from_current_state,
     list_scenarios,
@@ -39,8 +38,7 @@ class TestCaptureScenarioFromCurrentState:
         session_1 = get_or_create_session(1)
         session_1.media_source = media_source_ppt
         session_1.playback_state = PlaybackState.PLAYING
-        session_1.window1_fullscreen_to_window2 = True
-        session_1.save(update_fields=["media_source", "playback_state", "window1_fullscreen_to_window2"])
+        session_1.save(update_fields=["media_source", "playback_state"])
 
         session_2 = get_or_create_session(2)
         session_2.media_source = media_source_video
@@ -60,7 +58,6 @@ class TestCaptureScenarioFromCurrentState:
         assert scenario.window2_source == media_source_video
         assert scenario.window2_autoplay is False
         assert scenario.window2_resume is True
-        assert scenario.window1_fullscreen_to_window2 is True
 
     def test_capture_overwrites_existing_scenario(
         self,
@@ -115,23 +112,3 @@ class TestScenarioList:
 
         assert scenario_dict["window1_source_name"] == "测试演示文稿"
         assert scenario_dict["window2_source_name"] == "测试视频"
-        assert scenario_dict["window1_fullscreen_to_window2"] is False
-
-
-@pytest.mark.django_db
-class TestActivateScenarioLayout:
-    """测试预案激活时恢复窗口布局状态。"""
-
-    def test_activate_applies_window1_fullscreen_state(self, media_source_ppt: MediaSource) -> None:
-        """激活带跨屏状态的预案时应写入窗口 1 会话并返回快照。"""
-        scenario = Scenario.objects.create(
-            name="跨屏预案",
-            window1_source=media_source_ppt,
-            window1_fullscreen_to_window2=True,
-        )
-
-        snapshots = activate_scenario(scenario.pk)
-        session_1 = get_or_create_session(1)
-
-        assert session_1.window1_fullscreen_to_window2 is True
-        assert snapshots[0]["window1_fullscreen_to_window2"] is True

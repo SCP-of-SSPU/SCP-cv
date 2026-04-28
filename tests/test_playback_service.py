@@ -110,7 +110,6 @@ class TestGetSessionSnapshot:
             "playback_state", "playback_state_label",
             "display_mode", "display_mode_label",
             "target_display_label", "spliced_display_label", "is_spliced",
-            "window1_fullscreen_to_window2",
             "current_slide", "total_slides", "position_ms", "duration_ms",
             "pending_command", "last_updated_at", "loop_enabled",
         }

@@ -19,8 +19,7 @@ const currentSlide = computed(() => activeSession.value?.current_slide || 0);
 const totalSlides = computed(() => activeSession.value?.total_slides || 0);
 const canNavigateSlides = computed(() => isPresentation.value && Boolean(activeSession.value?.source_name));
 const hasAnyPendingAction = computed(() => pendingAction.value.length > 0);
-const activeWindowControlsDisabled = computed(() => appStore.isActiveWindowDisabled);
-const blocksActiveWindowAction = computed(() => hasAnyPendingAction.value || activeWindowControlsDisabled.value);
+const blocksActiveWindowAction = computed(() => hasAnyPendingAction.value);
 const pptSources = computed(() => appStore.availableSources.filter((source) => source.source_type === 'ppt'));
 const canGoPrev = computed(() => canNavigateSlides.value && !blocksActiveWindowAction.value && (totalSlides.value <= 0 || currentSlide.value > 1));
 const canGoNext = computed(() => canNavigateSlides.value && !blocksActiveWindowAction.value && (totalSlides.value <= 0 || currentSlide.value < totalSlides.value));
@@ -56,10 +55,6 @@ function setRemoteHint(message: string): void {
 
 async function runAction(action: () => Promise<void>, actionLabel = '操作'): Promise<void> {
   if (pendingAction.value) return;
-  if (activeWindowControlsDisabled.value) {
-    appStore.notify('窗口 1 填充窗口 2 时，窗口 2 操作已禁用', true);
-    return;
-  }
   pendingAction.value = actionLabel;
   try {
     await action();
@@ -148,13 +143,10 @@ async function seek(): Promise<void> {
       :key="windowId"
       type="button"
       :class="{ active: appStore.activeWindowId === windowId }"
-      :disabled="hasAnyPendingAction || (appStore.isWindow1FullscreenToWindow2 && windowId === 2)"
+      :disabled="hasAnyPendingAction"
       @click="appStore.activeWindowId = windowId"
     >
       窗口 {{ windowId }}
-    </button>
-    <button type="button" class="primary" :class="{ active: appStore.isWindow1FullscreenToWindow2 }" :disabled="hasAnyPendingAction" @click="runAction(appStore.toggleWindow1Fullscreen, '窗口 1 填充窗口 2')">
-      {{ appStore.isWindow1FullscreenToWindow2 ? '恢复窗口 1/2' : '窗口 1 全屏显示' }}
     </button>
     <button type="button" :disabled="hasAnyPendingAction" @click="runAction(appStore.showWindowIds, '显示窗口 ID')">显示窗口 ID</button>
   </nav>
@@ -166,7 +158,6 @@ async function seek(): Promise<void> {
       <span>类型：{{ activeSession?.source_type_label || '无' }}</span>
       <span>显示：{{ activeSession?.display_mode_label || '无' }}</span>
       <span>循环：{{ activeSession?.loop_enabled ? '开启' : '关闭' }}</span>
-      <span>跨屏：{{ appStore.isWindow1FullscreenToWindow2 ? '窗口 1 填充窗口 2' : '独立窗口' }}</span>
     </div>
   </section>
 

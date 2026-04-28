@@ -164,16 +164,6 @@ class Command(BaseCommand):
                 f"({display_target.geometry_label})"
             ))
 
-        # 启动时恢复上次保存的跨屏布局状态，避免重启播放器后前端状态失效。
-        controller.apply_current_layout()
-
-        # 启动轮询
-        controller.start_polling(interval_seconds=poll_interval)
-
-        self.stdout.write(self.style.SUCCESS(
-            "本地控制面板已移除，请使用 Web 控制台完成播放控制"
-        ))
-
         # 任意窗口关闭时退出应用（仅非 dev 模式）
         if not dev_mode:
             for player_window in all_windows:
@@ -184,6 +174,16 @@ class Command(BaseCommand):
             for player_window in all_windows:
                 player_window.resize(960, 540)
                 player_window.show()
+
+        # 启动时恢复上次保存的显示器目标，确保播放器窗口与 Web 控制台一致。
+        controller.apply_current_layout()
+
+        # 启动轮询
+        controller.start_polling(interval_seconds=poll_interval)
+
+        self.stdout.write(self.style.SUCCESS(
+            "本地控制面板已移除，请使用 Web 控制台完成播放控制"
+        ))
 
         self.stdout.write(self.style.SUCCESS(
             f"播放器已启动（{len(all_windows)} 窗口），等待播放指令…"

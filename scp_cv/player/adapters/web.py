@@ -18,6 +18,7 @@ from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
 from scp_cv.player.adapters.base import AdapterState, SourceAdapter
+from scp_cv.services.media import normalize_web_url
 
 logger = logging.getLogger(__name__)
 
@@ -63,12 +64,11 @@ class WebSourceAdapter(SourceAdapter):
         :param window_handle: 渲染目标窗口的原生句柄（备用，优先使用注入的容器）
         :param autoplay: 忽略（网页无播放概念）
         """
-        self._url = uri
-        self._has_error = False
-        self._error_message = ""
-
         # 补全 URL 协议前缀
         normalized_url = self._normalize_url(uri)
+        self._url = normalized_url
+        self._has_error = False
+        self._error_message = ""
 
         # 如果未通过 set_parent_container() 注入，则回退到句柄查找
         if not self._container_injected:
@@ -145,24 +145,14 @@ class WebSourceAdapter(SourceAdapter):
     @staticmethod
     def _normalize_url(url_string: str) -> str:
         """
-        补全 URL 协议前缀。无协议的 URL 默认添加 https://。
+        补全 URL 协议前缀。无协议的 URL 默认添加 http://，优先兼容局域网网页源。
         :param url_string: 原始 URL 字符串
         :return: 规范化的 URL
         """
-        stripped_url = url_string.strip()
-        if not stripped_url:
+        normalized_url = normalize_web_url(url_string)
+        if not normalized_url:
             return "about:blank"
-
-        # 已有协议前缀则直接返回
-        if stripped_url.startswith(("http://", "https://", "file://")):
-            return stripped_url
-
-        # 本地文件路径（Windows 驱动器号开头）
-        if len(stripped_url) > 2 and stripped_url[1] == ":":
-            return f"file:///{stripped_url}"
-
-        # 默认使用 https
-        return f"https://{stripped_url}"
+        return normalized_url
 
     @staticmethod
     def _find_widget_by_handle(window_handle: int) -> Optional[QWidget]:
@@ -192,7 +182,7 @@ class WebSourceAdapter(SourceAdapter):
             self._logger.info("网页加载完成：%s", self._url)
         else:
             self._has_error = True
-            self._error_message = f"网页加载失败：{self._url}"
+            self._error_message = f"网页加载失败：{self._url}，请确认地址、协议和局域网可达性"
             self._logger.error(self._error_message)
 
     def close(self) -> None:

@@ -60,7 +60,6 @@ class PlaybackCommand(models.TextChoices):
     GOTO = "goto", "跳转到指定页"
     SET_LOOP = "set_loop", "设置循环播放"
     SHOW_ID = "show_id", "显示窗口 ID"
-    APPLY_LAYOUT = "apply_layout", "应用窗口布局"
 
 
 class MediaSource(models.Model):
@@ -171,12 +170,6 @@ class PlaybackSession(models.Model):
         default=False,
         verbose_name="是否拼接",
     )
-    window1_fullscreen_to_window2 = models.BooleanField(
-        default=False,
-        verbose_name="窗口 1 填充窗口 2",
-        help_text="启用后窗口 1 跨窗口 1/2 显示区域，窗口 2 隐藏",
-    )
-
     # ── PPT / 翻页型源状态 ──
     current_slide = models.IntegerField(
         default=0,
@@ -289,12 +282,6 @@ class Scenario(models.Model):
         verbose_name="窗口 2 保留进度",
         help_text="相同源已打开时保留当前进度，否则从头播放",
     )
-    window1_fullscreen_to_window2 = models.BooleanField(
-        default=False,
-        verbose_name="窗口 1 填充窗口 2",
-        help_text="激活预案时恢复窗口 1 跨窗口 1/2 区域显示的布局状态",
-    )
-
     # ── 时间戳 ──
     created_at = models.DateTimeField(
         auto_now_add=True,

@@ -178,6 +178,8 @@ frontend/vite.config.js
 frontend/vite.config.d.ts
 .playwright-mcp/
 media/uploads/
+logs/*
+!logs/.gitkeep
 
 # Third-party download caches and extracted binaries
 tools/third_party/*.zip

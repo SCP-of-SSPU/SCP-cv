@@ -24,7 +24,6 @@ from .playback import (
 	navigate_content,
 	open_source,
 	select_display_target,
-	set_window1_fullscreen_to_window2,
 	stop_current_content,
 	update_playback_progress,
 )
@@ -66,7 +65,6 @@ __all__ = [
 	"navigate_content",
 	"open_source",
 	"select_display_target",
-	"set_window1_fullscreen_to_window2",
 	"stop_current_content",
 	"update_playback_progress",
 	"event_stream",

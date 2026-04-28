@@ -31,12 +31,6 @@ export const useAppStore = defineStore('app', {
       state.sessions.find((session) => session.window_id === state.activeWindowId) || null
     ),
     availableSources: (state) => state.sources.filter((source) => source.is_available),
-    isWindow1FullscreenToWindow2: (state) => Boolean(
-      state.sessions.find((session) => session.window_id === 1)?.window1_fullscreen_to_window2,
-    ),
-    isActiveWindowDisabled: (state) => Boolean(
-      state.sessions.find((session) => session.window_id === 1)?.window1_fullscreen_to_window2,
-    ) && state.activeWindowId === 2,
   },
   actions: {
     notify(message: string, isError = false): void {
@@ -50,9 +44,6 @@ export const useAppStore = defineStore('app', {
     },
     applySessions(sessions: SessionSnapshot[]): void {
       this.sessions = sessions;
-      if (this.isWindow1FullscreenToWindow2 && this.activeWindowId === 2) {
-        this.activeWindowId = 1;
-      }
     },
     async bootstrap(): Promise<void> {
       await Promise.all([this.refreshSources(), this.refreshSessions(), this.refreshScenarios(), this.refreshDisplays()]);
@@ -117,12 +108,6 @@ export const useAppStore = defineStore('app', {
       const payload = await api.showWindowIds();
       this.applySessions(payload.sessions);
       this.notify('已触发窗口 ID 显示');
-    },
-    async toggleWindow1Fullscreen(): Promise<void> {
-      const enabled = !this.isWindow1FullscreenToWindow2;
-      const payload = await api.setWindow1Fullscreen(enabled);
-      this.applySessions(payload.sessions);
-      this.notify(enabled ? '窗口 1 已填充窗口 2' : '窗口 1/2 已恢复独立显示');
     },
   },
 });

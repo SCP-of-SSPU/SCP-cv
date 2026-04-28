@@ -43,7 +43,7 @@ onMounted(async () => {
     <RouterLink to="/playback">播放控制</RouterLink>
     <RouterLink to="/settings">系统设置</RouterLink>
     <RouterLink to="/scenarios">预案管理</RouterLink>
-    <button type="button" class="danger" :disabled="appStore.isActiveWindowDisabled" @click="runAction(appStore.closeActive)">停止当前窗口</button>
+    <button type="button" class="danger" @click="runAction(appStore.closeActive)">停止当前窗口</button>
   </nav>
 
   <main class="content">

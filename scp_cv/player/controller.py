@@ -75,7 +75,6 @@ class PlayerController(QObject):
 
         # 每个窗口上一次已上报状态，避免轮询线程无变化时频繁写库。
         self._last_reported_states: dict[int, tuple[str, int, int, int, int]] = {}
-        self._last_layout_state: Optional[bool] = None
 
         # 连接指令分发信号到主线程处理槽
         self.sig_dispatch_command.connect(self._execute_command_on_main_thread)
@@ -177,16 +176,8 @@ class PlayerController(QObject):
                 window.position_on_display(rect)
 
     def apply_current_layout(self) -> None:
-        """按数据库中持久化的窗口布局状态恢复播放器窗口位置。"""
-        from scp_cv.services.playback import get_or_create_session
-
-        session_1 = get_or_create_session(1)
-        if session_1.window1_fullscreen_to_window2:
-            self._stretch_window1_over_window2()
-            self._last_layout_state = True
-            return
+        """按数据库中持久化的显示器目标恢复播放器窗口位置。"""
         self.apply_display_positions()
-        self._last_layout_state = False
 
     # ═══════════════════ 轮询逻辑 ═══════════════════
 
@@ -203,7 +194,6 @@ class PlayerController(QObject):
                 # 轮询所有已注册窗口的指令
                 for window_id in self.registered_window_ids:
                     self._check_and_dispatch_command(window_id)
-                self._sync_layout_state()
                 # 上报所有活跃适配器的状态
                 self._report_all_adapter_states()
             except Exception as poll_error:
@@ -239,19 +229,6 @@ class PlayerController(QObject):
         from scp_cv.services.playback import clear_pending_command
         clear_pending_command(window_id)
 
-    def _sync_layout_state(self) -> None:
-        """轮询持久化布局状态，并在变化时重排播放器窗口。"""
-        from scp_cv.services.playback import get_or_create_session
-
-        enabled = bool(get_or_create_session(1).window1_fullscreen_to_window2)
-        if enabled == self._last_layout_state:
-            return
-        self._last_layout_state = enabled
-        if enabled:
-            self._stretch_window1_over_window2()
-            return
-        self.apply_display_positions()
-
     @Slot(int, str, dict)
     def _execute_command_on_main_thread(
         self,
@@ -283,7 +260,6 @@ class PlayerController(QObject):
             PlaybackCommand.SEEK: self._handle_seek,
             PlaybackCommand.SET_LOOP: self._handle_set_loop,
             PlaybackCommand.SHOW_ID: self._handle_show_id,
-            PlaybackCommand.APPLY_LAYOUT: self._handle_apply_layout,
         }
 
         handler = command_dispatch.get(command)
@@ -464,57 +440,6 @@ class PlayerController(QObject):
         if window is not None:
             window.show_id_overlay()
             logger.info("窗口 %d 触发 ID 覆盖层显示", window_id)
-
-    def _handle_apply_layout(self, window_id: int, command_args: dict[str, object]) -> None:
-        """
-        应用窗口 1 填充窗口 2 的显示布局或恢复独立窗口布局。
-        :param window_id: 发起布局指令的窗口编号，仅窗口 1 生效
-        :param command_args: 包含 window1_fullscreen_to_window2 布尔状态
-        """
-        if window_id != 1:
-            return
-
-        enabled = bool(command_args.get("window1_fullscreen_to_window2", False))
-        if enabled:
-            self._stretch_window1_over_window2()
-            return
-
-        self.apply_display_positions()
-        logger.info("窗口 1 填充窗口 2 已恢复为独立窗口布局")
-
-    def _stretch_window1_over_window2(self) -> None:
-        """把窗口 1 拉伸覆盖窗口 1/2 对应显示区域，并隐藏窗口 2。"""
-        from PySide6.QtCore import QRect
-
-        from scp_cv.services.display import list_display_targets
-        from scp_cv.services.playback import get_or_create_session
-
-        window_1 = self.get_window(1)
-        if window_1 is None:
-            return
-
-        display_targets = list_display_targets()
-        session_1 = get_or_create_session(1)
-        session_2 = get_or_create_session(2)
-        target_names = [session_1.target_display_label, session_2.target_display_label]
-        matched_targets = [
-            display_target for display_target in display_targets
-            if display_target.name in target_names
-        ]
-        if not matched_targets:
-            self.apply_display_positions()
-            return
-
-        left = min(display_target.x for display_target in matched_targets)
-        top = min(display_target.y for display_target in matched_targets)
-        right = max(display_target.x + display_target.width for display_target in matched_targets)
-        bottom = max(display_target.y + display_target.height for display_target in matched_targets)
-        window_1.position_on_display(QRect(left, top, right - left, bottom - top))
-
-        window_2 = self.get_window(2)
-        if window_2 is not None:
-            window_2.hide_window()
-        logger.info("窗口 1 已拉伸覆盖窗口 1/2 区域，窗口 2 已隐藏")
 
     # ═══════════════════ 适配器管理 ═══════════════════
 

@@ -70,7 +70,6 @@ def create_scenario_api(request: HttpRequest) -> JsonResponse:
             window2_source_id=int_value(body, "window2_source_id") or None,
             window2_autoplay=bool_value(body, "window2_autoplay", True),
             window2_resume=bool_value(body, "window2_resume", True),
-            window1_fullscreen_to_window2=bool_value(body, "window1_fullscreen_to_window2", False),
         )
     except ScenarioError as scenario_error:
         return error_response(str(scenario_error), code="scenario_error")
@@ -107,10 +106,6 @@ def scenario_detail_api(request: HttpRequest, scenario_id: int) -> JsonResponse:
             window2_source_id=int_value(body, "window2_source_id") or None,
             window2_autoplay=bool_value(body, "window2_autoplay", True) if "window2_autoplay" in body else None,
             window2_resume=bool_value(body, "window2_resume", True) if "window2_resume" in body else None,
-            window1_fullscreen_to_window2=(
-                bool_value(body, "window1_fullscreen_to_window2", False)
-                if "window1_fullscreen_to_window2" in body else None
-            ),
             _window1_source_provided="window1_source_id" in body,
             _window2_source_provided="window2_source_id" in body,
         )

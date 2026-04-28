@@ -17,6 +17,7 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass
+from typing import BinaryIO
 from pathlib import Path
 
 from django.conf import settings
@@ -30,6 +31,7 @@ class ManagedProcess:
     name: str
     process: subprocess.Popen[bytes]
     required: bool = True
+    log_handle: BinaryIO | None = None
 
 
 class Command(BaseCommand):
@@ -200,9 +202,18 @@ class Command(BaseCommand):
         :param required: 是否关键服务
         :return: None
         """
+        log_handle: BinaryIO | None = None
         try:
-            process = subprocess.Popen(command_args, cwd=str(cwd) if cwd else None)
+            log_handle = self._open_process_log(name)
+            process = subprocess.Popen(
+                command_args,
+                cwd=str(cwd) if cwd else None,
+                stdout=log_handle,
+                stderr=subprocess.STDOUT,
+            )
         except OSError as start_error:
+            if log_handle is not None:
+                log_handle.close()
             message = f"{name} 启动失败：{start_error}"
             if required:
                 self.stderr.write(self.style.ERROR(message))
@@ -210,8 +221,18 @@ class Command(BaseCommand):
                 sys.exit(1)
             self.stderr.write(self.style.WARNING(message))
             return
-        self._processes.append(ManagedProcess(name=name, process=process, required=required))
-        self.stdout.write(self.style.SUCCESS(f"{name} 已启动（pid={process.pid}）"))
+        self._processes.append(ManagedProcess(name=name, process=process, required=required, log_handle=log_handle))
+        self.stdout.write(self.style.SUCCESS(f"{name} 已启动（pid={process.pid}，日志={log_handle.name}）"))
+
+    def _open_process_log(self, process_name: str) -> BinaryIO:
+        """
+        为子进程打开独立日志文件，避免 stdout PIPE 阻塞并保留启动诊断信息。
+        :param process_name: 服务名称
+        :return: 二进制追加模式文件句柄
+        """
+        safe_name = process_name.lower().replace(" ", "-").replace("/", "-")
+        log_path = Path(settings.LOG_DIR) / f"{safe_name}.log"
+        return log_path.open("ab")
 
     def _wait_for_port(self, name: str, host: str, port: int, required: bool) -> None:
         """
@@ -258,6 +279,8 @@ class Command(BaseCommand):
                     self.stdout.write(self.style.WARNING(
                         f"{managed_process.name} 已退出（pid={managed_process.process.pid}, code={exit_code}）"
                     ))
+                    if managed_process.log_handle is not None:
+                        managed_process.log_handle.close()
                     self._processes.remove(managed_process)
                     if managed_process.required:
                         self._cleanup_processes()
@@ -284,6 +307,9 @@ class Command(BaseCommand):
                 process.kill()
                 process.wait(timeout=3)
                 self.stdout.write(self.style.WARNING(f"{managed_process.name} 已强制终止"))
+            finally:
+                if managed_process.log_handle is not None:
+                    managed_process.log_handle.close()
         self._processes.clear()
 
     def _signal_handler(self, signum: int, _frame: object) -> None:

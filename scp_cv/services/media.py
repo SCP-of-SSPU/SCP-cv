@@ -156,22 +156,39 @@ def add_web_url(
     :return: 创建的 MediaSource 实例
     :raises MediaError: URL 为空时
     """
-    stripped_url = url.strip()
-    if not stripped_url:
+    normalized_url = normalize_web_url(url)
+    if not normalized_url:
         raise MediaError("URL 不能为空")
 
     if display_name is None:
-        display_name = stripped_url[:80]
+        display_name = normalized_url[:80]
 
     media_source = MediaSource.objects.create(
         source_type=SourceType.WEB,
         name=display_name,
-        uri=stripped_url,
+        uri=normalized_url,
         is_available=True,
     )
 
-    logger.info("通过 URL 添加网页媒体源「%s」→ %s", display_name, stripped_url)
+    logger.info("通过 URL 添加网页媒体源「%s」→ %s", display_name, normalized_url)
     return media_source
+
+
+def normalize_web_url(url: str) -> str:
+    """
+    规范化网页源 URL，未写协议时默认使用 http 以兼容局域网设备。
+    :param url: 用户输入的网页地址
+    :return: 可交给 QWebEngineView 加载的 URL，空输入返回空字符串
+    """
+    stripped_url = url.strip()
+    if not stripped_url:
+        return ""
+    lower_url = stripped_url.lower()
+    if lower_url.startswith(("http://", "https://", "file://", "about:")):
+        return stripped_url
+    if len(stripped_url) > 2 and stripped_url[1] == ":":
+        return f"file:///{stripped_url}"
+    return f"http://{stripped_url}"
 
 
 def list_media_sources(source_type: Optional[str] = None) -> list[dict[str, object]]:

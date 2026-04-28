@@ -8,11 +8,15 @@ import environ
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+LOG_DIR = BASE_DIR / "logs"
+LOG_DIR.mkdir(exist_ok=True)
 env = environ.Env(
     DJANGO_DEBUG=(bool, False),
     DJANGO_LANGUAGE_CODE=(str, "zh-hans"),
     DJANGO_TIME_ZONE=(str, "Asia/Shanghai"),
     GRPC_PORT=(int, 50051),
+    MEDIAMTX_SRT_PORT=(int, 8890),
+    MEDIAMTX_RTSP_PORT=(int, 8554),
 )
 environ.Env.read_env(BASE_DIR / ".env")
 
@@ -117,6 +121,45 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 GRPC_HOST = env("GRPC_HOST", default="127.0.0.1")
 GRPC_PORT = env.int("GRPC_PORT")
 MEDIAMTX_BIN_PATH = env("MEDIAMTX_BIN_PATH", default="")
+MEDIAMTX_API_BASE = env("MEDIAMTX_API_BASE", default="http://127.0.0.1:9997")
+MEDIAMTX_SRT_PORT = env.int("MEDIAMTX_SRT_PORT")
+MEDIAMTX_RTSP_PORT = env.int("MEDIAMTX_RTSP_PORT")
+MEDIAMTX_SRT_PUBLIC_HOST = env("MEDIAMTX_SRT_PUBLIC_HOST", default="")
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "standard": {
+            "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "standard",
+        },
+        "file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": LOG_DIR / "scp-cv.log",
+            "maxBytes": 5 * 1024 * 1024,
+            "backupCount": 5,
+            "encoding": "utf-8",
+            "formatter": "standard",
+        },
+    },
+    "root": {
+        "handlers": ["console", "file"],
+        "level": "INFO",
+    },
+    "loggers": {
+        "django.server": {
+            "handlers": ["console", "file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
+}
 
 GRPC_FRAMEWORK = {
     "ROOT_HANDLERS_HOOK": "scp_cv.grpc_handlers.grpc_handlers",
@@ -127,4 +170,3 @@ GRPC_FRAMEWORK = {
     ],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
 }
-

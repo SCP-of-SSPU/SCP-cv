@@ -148,6 +148,9 @@ textarea { min-height: 92px; resize: vertical; }
 .banner--error { background: #fde7e9; color: #a4262c; }
 .chip { display: inline-flex; align-items: center; border-radius: 999px; background: #eef2f7; color: var(--muted); padding: 5px 9px; font-size: 0.78rem; font-weight: 700; }
 .chip--accent { background: #e5f1fb; color: var(--accent-strong); }
+.upload-progress { position: relative; overflow: hidden; height: 34px; margin: 2px 0 10px; border: 1px solid rgba(15,108,189,0.24); border-radius: 999px; background: #e4edf7; }
+.upload-progress span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--success)); transition: width 0.18s ease; }
+.upload-progress strong { position: absolute; inset: 0; display: grid; place-items: center; color: #0d2f4f; font-size: 0.88rem; }
 
 .source-list,
 .scenario-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
