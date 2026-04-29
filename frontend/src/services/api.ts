@@ -95,6 +95,19 @@ export interface DeviceItem {
   device_type_label?: string;
   is_powered_on: boolean;
   address?: string;
+  is_placeholder?: boolean;
+  detail?: string;
+}
+
+export interface PptResourceItem {
+  id: number;
+  source_id: number;
+  page_index: number;
+  slide_image: string;
+  next_slide_image: string;
+  speaker_notes: string;
+  has_media: boolean;
+  created_at: string;
 }
 
 export interface ApiStatePayload {
@@ -210,6 +223,7 @@ export const api = {
   moveSource: (sourceId: number, folderId: number | null) => requestJson<{ success: boolean; source: MediaSourceItem }>(`/api/sources/${sourceId}/move/`, { method: 'PATCH', body: JSON.stringify({ folder_id: folderId }) }),
   deleteSource: (sourceId: number) => requestJson<{ success: boolean }>(`/api/sources/${sourceId}/`, { method: 'DELETE' }),
   downloadSourceUrl: (sourceId: number) => `/api/sources/${sourceId}/download/`,
+  listPptResources: (sourceId: number) => requestJson<{ success: boolean; resources: PptResourceItem[] }>(`/api/sources/${sourceId}/ppt-resources/`),
   listSessions: () => requestJson<ApiStatePayload>('/api/sessions/'),
   getRuntime: () => requestJson<{ success: boolean; runtime: RuntimeSnapshot }>('/api/runtime/'),
   setRuntimeMode: (bigScreenMode: 'single' | 'double') => requestJson<ApiStatePayload & { runtime: RuntimeSnapshot }>('/api/runtime/', { method: 'PATCH', body: JSON.stringify({ big_screen_mode: bigScreenMode }) }),

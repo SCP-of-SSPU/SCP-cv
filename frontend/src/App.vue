@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { computed, onMounted } from 'vue';
 import { RouterLink, RouterView } from 'vue-router';
+import { useRoute } from 'vue-router';
 
 import { useAppStore } from '@/stores/app';
 
 const appStore = useAppStore();
+const route = useRoute();
+const showChrome = computed(() => route.meta.focus !== true);
 
 async function runAction(action: () => Promise<void>): Promise<void> {
   try {
@@ -24,7 +27,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <header class="topbar">
+  <header v-if="showChrome" class="topbar">
     <div class="brand">
       <span class="brand__mark">S</span>
       <div>
@@ -38,16 +41,21 @@ onMounted(async () => {
     </div>
   </header>
 
-  <nav class="toolbar" aria-label="控制台导航">
+  <nav v-if="showChrome" class="toolbar" aria-label="控制台导航">
     <RouterLink to="/dashboard">总览</RouterLink>
+    <RouterLink to="/display/big-left">大屏左</RouterLink>
+    <RouterLink v-if="appStore.runtime?.big_screen_mode === 'double'" to="/display/big-right">大屏右</RouterLink>
+    <RouterLink to="/display/tv-left">TV 左</RouterLink>
+    <RouterLink to="/display/tv-right">TV 右</RouterLink>
     <RouterLink to="/sources">媒体源</RouterLink>
     <RouterLink to="/playback">播放控制</RouterLink>
     <RouterLink to="/settings">系统设置</RouterLink>
     <RouterLink to="/scenarios">预案管理</RouterLink>
+    <RouterLink to="/about">关于</RouterLink>
     <button type="button" class="danger" @click="runAction(appStore.closeActive)">停止当前窗口</button>
   </nav>
 
-  <main class="content">
+  <main :class="showChrome ? 'content' : 'focus-content'">
     <p v-if="appStore.message" class="banner" :class="{ 'banner--error': appStore.isError }">
       {{ appStore.message }}
     </p>
