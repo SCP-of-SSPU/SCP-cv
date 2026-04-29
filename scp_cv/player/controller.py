@@ -319,6 +319,7 @@ class PlayerController(QObject):
 
         # 关闭该窗口旧适配器
         self._close_adapter(window_id)
+        self._cleanup_temporary_source(command_args)
 
         # 创建新适配器（主线程，Qt widget 安全创建）
         adapter = create_adapter(source_type)
@@ -378,6 +379,7 @@ class PlayerController(QObject):
     def _handle_close(self, window_id: int, command_args: dict[str, object]) -> None:
         """处理 CLOSE 指令：关闭适配器并重置会话。"""
         self._close_adapter(window_id)
+        self._cleanup_temporary_source(command_args)
 
         # 切换窗口到黑屏
         window = self.get_window(window_id)
@@ -395,6 +397,21 @@ class PlayerController(QObject):
             session.position_ms = 0
             session.duration_ms = 0
             session.save()
+
+    @staticmethod
+    def _cleanup_temporary_source(command_args: dict[str, object]) -> None:
+        """
+        清理已切离的临时源。
+        :param command_args: 指令参数，包含 cleanup_source_id 时触发
+        """
+        cleanup_source_id = command_args.get("cleanup_source_id")
+        if not cleanup_source_id:
+            return
+        from scp_cv.services.media import MediaError, delete_temporary_source_if_unused
+        try:
+            delete_temporary_source_if_unused(int(cleanup_source_id))
+        except (ValueError, MediaError) as cleanup_error:
+            logger.warning("清理临时源失败：%s", cleanup_error)
 
     def _handle_next(self, window_id: int, command_args: dict[str, object]) -> None:
         """处理 NEXT 指令。"""

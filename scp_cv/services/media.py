@@ -23,6 +23,7 @@ from django.utils import timezone
 from scp_cv.apps.playback.models import (
     MediaFolder,
     MediaSource,
+    PptResource,
     SourceType,
 )
 
@@ -221,6 +222,7 @@ def add_uploaded_file(
         mime_type=_guess_mime_type(file_name),
         folder=folder,
         is_temporary=is_temporary,
+        expires_at=timezone.now() + timedelta(days=1) if is_temporary else None,
     )
     media_source.uploaded_file.save(file_name, uploaded_file, save=False)
     media_source.uri = media_source.uploaded_file.path
@@ -437,6 +439,86 @@ def delete_media_source(media_source_id: int) -> None:
     source_name = source.name
     source.delete()
     logger.info("删除媒体源「%s」", source_name)
+
+
+def delete_temporary_source_if_unused(media_source_id: Optional[int]) -> bool:
+    """
+    删除已切离的临时源。
+    :param media_source_id: 媒体源 ID；为空时不处理
+    :return: 是否删除了临时源
+    """
+    if not media_source_id:
+        return False
+    source = MediaSource.objects.filter(pk=media_source_id, is_temporary=True).first()
+    if source is None:
+        return False
+    delete_media_source(source.pk)
+    return True
+
+
+def list_ppt_resources(source_id: int) -> list[dict[str, object]]:
+    """
+    获取 PPT 源的解析资源列表。
+    :param source_id: PPT 媒体源 ID
+    :return: PPT 页资源字典列表
+    :raises MediaError: 源不存在或不是 PPT 时
+    """
+    source = _get_ppt_source(source_id)
+    return [_ppt_resource_payload(resource) for resource in source.ppt_resources.all()]
+
+
+def replace_ppt_resources(source_id: int, resources: list[dict[str, object]]) -> list[dict[str, object]]:
+    """
+    覆盖保存 PPT 解析资源。
+    :param source_id: PPT 媒体源 ID
+    :param resources: 资源列表，包含 page_index、slide_image、next_slide_image、speaker_notes、has_media
+    :return: 保存后的资源列表
+    :raises MediaError: 源不存在、类型错误或页码无效时
+    """
+    source = _get_ppt_source(source_id)
+    source.ppt_resources.all().delete()
+    for resource_data in resources:
+        try:
+            page_index = int(resource_data.get("page_index", 0))
+        except (TypeError, ValueError) as parse_error:
+            raise MediaError("PPT 页码必须是整数") from parse_error
+        if page_index <= 0:
+            raise MediaError("PPT 页码必须大于 0")
+        PptResource.objects.create(
+            source=source,
+            page_index=page_index,
+            slide_image=str(resource_data.get("slide_image", "")),
+            next_slide_image=str(resource_data.get("next_slide_image", "")),
+            speaker_notes=str(resource_data.get("speaker_notes", "")),
+            has_media=bool(resource_data.get("has_media", False)),
+        )
+    logger.info("保存 PPT 资源：source_id=%d, pages=%d", source_id, len(resources))
+    return list_ppt_resources(source_id)
+
+
+def _get_ppt_source(source_id: int) -> MediaSource:
+    """查询并校验 PPT 媒体源。"""
+    try:
+        source = MediaSource.objects.get(pk=source_id)
+    except MediaSource.DoesNotExist as not_found:
+        raise MediaError(f"媒体源 id={source_id} 不存在") from not_found
+    if source.source_type != SourceType.PPT:
+        raise MediaError("仅 PPT 源支持解析资源")
+    return source
+
+
+def _ppt_resource_payload(resource: PptResource) -> dict[str, object]:
+    """序列化 PPT 页资源。"""
+    return {
+        "id": resource.pk,
+        "source_id": resource.source_id,
+        "page_index": resource.page_index,
+        "slide_image": resource.slide_image,
+        "next_slide_image": resource.next_slide_image,
+        "speaker_notes": resource.speaker_notes,
+        "has_media": resource.has_media,
+        "created_at": resource.created_at.isoformat() if resource.created_at else "",
+    }
 
 
 def cleanup_expired_temporary_sources() -> int:

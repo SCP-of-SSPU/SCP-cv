@@ -29,6 +29,8 @@ def get_system_volume() -> dict[str, object]:
     return {
         "level": runtime.volume_level,
         "muted": runtime.volume_level == 0,
+        "system_synced": False,
+        "backend": "runtime_state",
     }
 
 
@@ -44,4 +46,9 @@ def set_system_volume(level: int) -> dict[str, object]:
     runtime.volume_level = level
     runtime.save(update_fields=["volume_level", "updated_at"])
     logger.info("系统音量设置为 %d", level)
-    return {"level": level, "muted": level == 0}
+    return {
+        "level": level,
+        "muted": level == 0,
+        "system_synced": False,
+        "backend": "runtime_state",
+    }

@@ -164,6 +164,18 @@ class TestOpenSource:
         assert second_session.current_slide == 0
         assert second_session.total_slides == 0
 
+    def test_open_marks_previous_temporary_source_for_cleanup(
+        self, media_source_ppt: MediaSource, media_source_video: MediaSource,
+    ) -> None:
+        """切换离开临时源时应把清理 ID 下发给播放器。"""
+        media_source_ppt.is_temporary = True
+        media_source_ppt.save(update_fields=["is_temporary"])
+        open_source(1, media_source_ppt.pk)
+
+        session = open_source(1, media_source_video.pk)
+
+        assert session.command_args["cleanup_source_id"] == media_source_ppt.pk
+
 
 # ══════════════════════════════════════════════════════════════
 # control_playback
@@ -286,6 +298,16 @@ class TestCloseSource:
         session = close_source(1)
 
         assert session.pending_command == PlaybackCommand.CLOSE
+
+    def test_close_marks_temporary_source_for_cleanup(self, media_source_video: MediaSource) -> None:
+        """关闭临时源时应把清理 ID 下发给播放器。"""
+        media_source_video.is_temporary = True
+        media_source_video.save(update_fields=["is_temporary"])
+        open_source(1, media_source_video.pk)
+
+        session = close_source(1)
+
+        assert session.command_args["cleanup_source_id"] == media_source_video.pk
 
     def test_close_without_source_resets(self) -> None:
         """无活跃源时关闭应直接重置为 IDLE。"""

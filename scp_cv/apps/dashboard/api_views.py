@@ -28,7 +28,9 @@ from scp_cv.services.media import (
     get_source_download_info,
     list_folders,
     list_media_sources,
+    list_ppt_resources,
     move_source,
+    replace_ppt_resources,
     sync_streams_to_media_sources,
     update_folder,
 )
@@ -342,6 +344,31 @@ def download_source_api(request: HttpRequest, source_id: int) -> FileResponse | 
     except MediaError as media_error:
         return _error_response(str(media_error), code="media_error", status=404)
     return FileResponse(open(file_path, "rb"), as_attachment=True, filename=file_name, content_type=mime_type)
+
+
+@csrf_exempt
+@require_http_methods(["GET", "PUT"])
+def ppt_resources_api(request: HttpRequest, source_id: int) -> JsonResponse:
+    """
+    获取或覆盖 PPT 解析资源。
+    :param request: HTTP 请求
+    :param source_id: PPT 媒体源主键
+    :return: PPT 资源列表
+    """
+    try:
+        if request.method == "GET":
+            resources = list_ppt_resources(int(source_id))
+        else:
+            body, error = _body_or_error(request)
+            if error is not None:
+                return error
+            raw_resources = body.get("resources", [])
+            if not isinstance(raw_resources, list):
+                return _error_response("resources 必须是数组", code="invalid_resources")
+            resources = replace_ppt_resources(int(source_id), raw_resources)
+    except MediaError as media_error:
+        return _error_response(str(media_error), code="media_error", status=400)
+    return _json_response({"success": True, "resources": resources})
 
 
 @csrf_exempt

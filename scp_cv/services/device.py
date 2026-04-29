@@ -37,6 +37,8 @@ def list_devices() -> list[dict[str, object]]:
             "device_type_label": d.get_device_type_display(),
             "is_powered_on": d.is_powered_on,
             "address": d.address,
+            "is_placeholder": True,
+            "detail": "当前仅记录控制意图，未接入物理设备协议",
         }
         for d in devices
     ]
@@ -64,6 +66,8 @@ def toggle_device(device_type: str) -> dict[str, object]:
         "name": device.name,
         "device_type": device.device_type,
         "is_powered_on": device.is_powered_on,
+        "is_placeholder": True,
+        "detail": "当前仅记录控制意图，未接入物理设备协议",
     }
 
 
@@ -87,6 +91,8 @@ def power_on_device(device_type: str) -> dict[str, object]:
         "name": device.name,
         "device_type": device.device_type,
         "is_powered_on": device.is_powered_on,
+        "is_placeholder": True,
+        "detail": "当前仅记录控制意图，未接入物理设备协议",
     }
 
 
@@ -110,6 +116,8 @@ def power_off_device(device_type: str) -> dict[str, object]:
         "name": device.name,
         "device_type": device.device_type,
         "is_powered_on": device.is_powered_on,
+        "is_placeholder": True,
+        "detail": "当前仅记录控制意图，未接入物理设备协议",
     }
 
 

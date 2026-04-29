@@ -22,9 +22,12 @@ from scp_cv.services.media import (
     add_local_path,
     add_uploaded_file,
     delete_media_source,
+    delete_temporary_source_if_unused,
     detect_source_type,
     list_media_sources,
+    list_ppt_resources,
     normalize_web_url,
+    replace_ppt_resources,
     sync_streams_to_media_sources,
 )
 
@@ -107,6 +110,14 @@ class TestAddUploadedFile:
         source = add_uploaded_file(fake_file, source_type=SourceType.VIDEO)
 
         assert source.source_type == SourceType.VIDEO
+
+    def test_temporary_upload_sets_expiration(self) -> None:
+        """临时上传源应记录过期时间，便于兜底清理。"""
+        fake_file = SimpleUploadedFile("temp.mp4", b"fake-mp4")
+        source = add_uploaded_file(fake_file, is_temporary=True)
+
+        assert source.is_temporary is True
+        assert source.expires_at is not None
 
     def test_upload_unknown_type_raises(self) -> None:
         """上传无法识别类型的文件应抛出 MediaError。"""
@@ -261,6 +272,40 @@ class TestDeleteMediaSource:
         delete_media_source(source.pk)
 
         assert not os.path.isfile(real_path), "物理文件应被删除"
+
+    def test_delete_temporary_source_if_unused(self) -> None:
+        """临时源切离后应可按 ID 自动删除。"""
+        uploaded = SimpleUploadedFile("temp.mp4", b"video-content")
+        source = add_uploaded_file(uploaded, display_name="临时视频", is_temporary=True)
+
+        deleted = delete_temporary_source_if_unused(source.pk)
+
+        assert deleted is True
+        assert not MediaSource.objects.filter(pk=source.pk).exists()
+
+
+@pytest.mark.django_db
+class TestPptResources:
+    """测试 PPT 解析资源保存和读取。"""
+
+    def test_replace_and_list_resources(self, media_source_ppt: MediaSource) -> None:
+        """PPT 资源接口应按页码保存提词器和预览路径。"""
+        resources = replace_ppt_resources(media_source_ppt.pk, [{
+            "page_index": 1,
+            "slide_image": "slides/1.png",
+            "next_slide_image": "slides/2.png",
+            "speaker_notes": "第一页提示",
+            "has_media": True,
+        }])
+
+        assert resources[0]["page_index"] == 1
+        assert resources[0]["speaker_notes"] == "第一页提示"
+        assert list_ppt_resources(media_source_ppt.pk)[0]["has_media"] is True
+
+    def test_rejects_non_ppt_source(self, media_source_video: MediaSource) -> None:
+        """非 PPT 源不应保存 PPT 解析资源。"""
+        with pytest.raises(MediaError, match="仅 PPT"):
+            replace_ppt_resources(media_source_video.pk, [])
 
 
 # ══════════════════════════════════════════════════════════════

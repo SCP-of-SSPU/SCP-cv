@@ -123,3 +123,20 @@ def test_scenarios_api_create_and_delete(media_source_ppt: MediaSource) -> None:
 
     delete_response = client.delete(f"/api/scenarios/{scenario_id}/")
     assert delete_response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_ppt_resources_api_replace_and_list(media_source_ppt: MediaSource) -> None:
+    """PPT 资源 REST API 应支持覆盖保存和读取。"""
+    client = Client()
+
+    save_response = client.put(
+        f"/api/sources/{media_source_ppt.pk}/ppt-resources/",
+        data={"resources": [{"page_index": 1, "speaker_notes": "提词器"}]},
+        content_type="application/json",
+    )
+    list_response = client.get(f"/api/sources/{media_source_ppt.pk}/ppt-resources/")
+
+    assert save_response.status_code == 200
+    assert list_response.status_code == 200
+    assert list_response.json()["resources"][0]["speaker_notes"] == "提词器"

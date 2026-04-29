@@ -207,6 +207,8 @@ def open_source(window_id: int, media_source_id: int, autoplay: bool = True) -> 
         raise PlaybackError(f"媒体源 id={media_source_id} 不存在") from not_found
 
     session = get_or_create_session(window_id)
+    previous_source_id = session.media_source_id
+    previous_source_is_temporary = bool(session.media_source and session.media_source.is_temporary)
     # 先关闭当前内容
     _reset_playback_fields(session)
 
@@ -221,6 +223,8 @@ def open_source(window_id: int, media_source_id: int, autoplay: bool = True) -> 
         "volume": session.volume,
         "muted": session.is_muted,
     }
+    if previous_source_is_temporary:
+        session.command_args["cleanup_source_id"] = previous_source_id
     session.save()
     logger.info("窗口 %d 打开媒体源「%s」（%s: %s）", window_id, source.name, source.source_type, source.uri)
     return session
@@ -296,7 +300,9 @@ def close_source(window_id: int) -> PlaybackSession:
     # 先发送 close 指令让播放器执行清理
     if session.media_source is not None:
         session.pending_command = PlaybackCommand.CLOSE
-        session.command_args = {}
+        session.command_args = {
+            "cleanup_source_id": session.media_source_id,
+        } if session.media_source.is_temporary else {}
         session.save()
         logger.info("窗口 %d 发送关闭指令", window_id)
     else:
