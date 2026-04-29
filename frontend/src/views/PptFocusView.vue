@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 
-import { api, type PptResourceItem } from '@/services/api';
+import { api, buildBackendUrl, type PptResourceItem } from '@/services/api';
 import { useAppStore } from '@/stores/app';
 
 const route = useRoute();
@@ -15,6 +15,10 @@ const currentPage = computed(() => Math.max(1, session.value?.current_slide || 1
 const totalPages = computed(() => session.value?.total_slides || resources.value.length || 0);
 const currentResource = computed(() => resources.value.find((item) => item.page_index === currentPage.value) || null);
 const nextResource = computed(() => resources.value.find((item) => item.page_index === currentPage.value + 1) || null);
+
+function resourceUrl(path: string): string {
+  return buildBackendUrl(path);
+}
 
 async function runAction(action: () => Promise<void>): Promise<void> {
   try {
@@ -73,12 +77,12 @@ onMounted(async () => {
     <section class="ppt-focus__stage">
       <article class="slide-preview slide-preview--current">
         <span>当前页</span>
-        <img v-if="currentResource?.slide_image" :src="currentResource.slide_image" alt="当前页预览" />
+        <img v-if="currentResource?.slide_image" :src="resourceUrl(currentResource.slide_image)" alt="当前页预览" />
         <strong v-else>{{ currentPage }}</strong>
       </article>
       <aside class="slide-preview slide-preview--next">
         <span>下一页</span>
-        <img v-if="nextResource?.slide_image || currentResource?.next_slide_image" :src="nextResource?.slide_image || currentResource?.next_slide_image" alt="下一页预览" />
+        <img v-if="nextResource?.slide_image || currentResource?.next_slide_image" :src="resourceUrl(nextResource?.slide_image || currentResource?.next_slide_image || '')" alt="下一页预览" />
         <strong v-else>{{ currentPage + 1 <= totalPages ? currentPage + 1 : '-' }}</strong>
       </aside>
     </section>

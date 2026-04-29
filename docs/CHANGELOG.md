@@ -32,7 +32,7 @@
 
 - **多屏定位**：播放器窗口改为使用 Qt 屏幕几何精确定位，避免 `showFullScreen()` 在多显示器环境中放大到其它屏幕
 - **API 容错**：前端 REST 请求在解析前检查 JSON 响应，HTML 错误页会显示可读错误，不再抛出 `Unexpected token '<'`
-- **局域网访问**：Vite 开发代理支持 `VITE_BACKEND_TARGET`，`runall` 会按后端端口自动注入，降低网页可访问但不可控风险
+- **局域网访问**：前端使用 `frontend/.env` 的 `VITE_BACKEND_TARGET` 直连 Django 后端，后端提供 CORS 响应头，降低 Vite 反向代理路径不一致风险
 - **MediaMTX 读取地址**：SRT/RTSP 读取地址支持配置局域网主机，SRT 端口文档统一为 `8890`
 - **第三方二进制**：解除 `tools/third_party` 下 `.exe` / `.dll` 等可执行依赖的忽略规则，允许按需纳入 Git
 - **窗口布局**：删除窗口 1 全屏填充窗口 2 的控制入口、REST 路由、服务逻辑、前端禁用规则和预案字段

@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 
 import {
   api,
+  buildBackendUrl,
   type DeviceItem,
   type DisplayTargetItem,
   type MediaFolderItem,
@@ -123,7 +124,7 @@ export const useAppStore = defineStore('app', {
         window.clearTimeout(this.eventReconnectTimer);
         this.eventReconnectTimer = null;
       }
-      const source = new EventSource('/api/events/');
+      const source = new EventSource(buildBackendUrl('/api/events/'));
       this.eventSource = source;
       source.onopen = () => {
         this.connectionStatus = 'SSE: 已连接';

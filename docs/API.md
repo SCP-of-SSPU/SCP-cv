@@ -11,7 +11,7 @@ SCP-cv 已改为前后端分离架构：
 | gRPC | 外部中控、自动化脚本、兼容客户端 | `127.0.0.1:50051` |
 | gRPC-Web | 兼容旧浏览器客户端，不作为 Vue 主通道 | `http://127.0.0.1:8081` |
 
-Vue 前端位于 `frontend/`，开发期通过 Vite 运行在 `5173` 端口，并代理 `/api` 到 Django 后端。
+Vue 前端位于 `frontend/`，开发期通过 Vite 运行在 `5173` 端口，并使用 `frontend/.env` 中的 `VITE_BACKEND_TARGET` 直接访问 Django 后端。
 
 ## REST API
 

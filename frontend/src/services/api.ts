@@ -139,6 +139,13 @@ interface ApiDetailPayload {
   detail?: string;
 }
 
+const BACKEND_BASE = import.meta.env.VITE_BACKEND_TARGET || 'http://127.0.0.1:8000';
+
+export function buildBackendUrl(path: string): string {
+  if (/^https?:\/\//i.test(path)) return path;
+  return BACKEND_BASE.replace(/\/+$/, '') + path;
+}
+
 function buildNonJsonError(statusCode: number, responseText: string): Error {
   const normalizedText = responseText.trim().replace(/\s+/g, ' ');
   const previewText = normalizedText.slice(0, 120) || '空响应';
@@ -159,7 +166,7 @@ function parseJsonText<T>(responseText: string, statusCode: number, contentType 
 }
 
 async function requestJson<T>(url: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(url, {
+  const response = await fetch(buildBackendUrl(url), {
     ...init,
     headers: {
       ...(init.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
@@ -177,7 +184,7 @@ async function requestJson<T>(url: string, init: RequestInit = {}): Promise<T> {
 function uploadFormData<T>(url: string, formData: FormData, options: UploadOptions = {}): Promise<T> {
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest();
-    request.open('POST', url);
+    request.open('POST', buildBackendUrl(url));
     request.upload.onprogress = (event: ProgressEvent) => {
       if (!event.lengthComputable) return;
       options.onProgress?.(Math.min(99, Math.round((event.loaded / event.total) * 100)));
@@ -222,7 +229,7 @@ export const api = {
   addWebSource: (payload: { url: string; name?: string; folder_id?: number | null }) => requestJson<{ success: boolean; source: MediaSourceItem }>('/api/sources/web/', { method: 'POST', body: JSON.stringify(payload) }),
   moveSource: (sourceId: number, folderId: number | null) => requestJson<{ success: boolean; source: MediaSourceItem }>(`/api/sources/${sourceId}/move/`, { method: 'PATCH', body: JSON.stringify({ folder_id: folderId }) }),
   deleteSource: (sourceId: number) => requestJson<{ success: boolean }>(`/api/sources/${sourceId}/`, { method: 'DELETE' }),
-  downloadSourceUrl: (sourceId: number) => `/api/sources/${sourceId}/download/`,
+  downloadSourceUrl: (sourceId: number) => buildBackendUrl(`/api/sources/${sourceId}/download/`),
   listPptResources: (sourceId: number) => requestJson<{ success: boolean; resources: PptResourceItem[] }>(`/api/sources/${sourceId}/ppt-resources/`),
   listSessions: () => requestJson<ApiStatePayload>('/api/sessions/'),
   getRuntime: () => requestJson<{ success: boolean; runtime: RuntimeSnapshot }>('/api/runtime/'),
