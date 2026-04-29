@@ -62,7 +62,7 @@ def test_watch_playback_state_pushes_changed_db_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """状态流应在没有进程内事件时也推送 DB 快照变化。"""
-    monkeypatch.setattr("scp_cv.grpc_servicers._STATE_WATCH_POLL_SECONDS", 0.01)
+    monkeypatch.setattr("scp_cv.grpc_servicers.streaming._STATE_WATCH_POLL_SECONDS", 0.01)
     servicer = PlaybackControlServicer()
     stream_generator: Generator = servicer.WatchPlaybackState(
         control_pb2.EmptyRequest(),
@@ -131,7 +131,7 @@ def test_grpc_display_rpc_uses_display_targets() -> None:
         "is_primary": True,
     })()
 
-    with patch("scp_cv.grpc_servicers.list_display_targets", return_value=[display]):
+    with patch("scp_cv.grpc_servicers.display.list_display_targets", return_value=[display]):
         response = servicer.ListDisplayTargets(control_pb2.EmptyRequest(), None)
 
     assert response.targets[0].name == "Display 1"
