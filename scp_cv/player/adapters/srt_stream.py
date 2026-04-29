@@ -177,6 +177,22 @@ class SrtStreamAdapter(SourceAdapter):
             self._player.command("stop")
             self._is_connected = False
 
+    def set_volume(self, volume: int) -> None:
+        """
+        设置 SRT/mpv 音量。
+        :param volume: 音量等级（0-100）
+        """
+        if self._player is not None:
+            self._player.volume = max(0, min(100, int(volume)))
+
+    def set_mute(self, muted: bool) -> None:
+        """
+        设置 SRT/mpv 静音状态。
+        :param muted: 是否静音
+        """
+        if self._player is not None:
+            self._player.mute = muted
+
     # ═══════════════════ 状态获取 ═══════════════════
 
     def get_state(self) -> AdapterState:

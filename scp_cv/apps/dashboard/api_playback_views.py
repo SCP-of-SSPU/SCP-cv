@@ -31,12 +31,17 @@ from scp_cv.services.playback import (
     control_playback,
     get_all_sessions_snapshot,
     get_or_create_session,
+    get_runtime_snapshot,
     get_session_snapshot,
     navigate_content,
     open_source,
     select_display_target,
+    set_big_screen_mode,
+    set_window_mute,
+    set_window_volume,
     toggle_loop_playback,
 )
+from scp_cv.services.volume import VolumeError, get_system_volume, set_system_volume
 
 
 @require_GET
@@ -168,6 +173,89 @@ def toggle_loop_api(request: HttpRequest, window_id: int) -> JsonResponse:
         ))
     except PlaybackError as playback_error:
         return error_response(str(playback_error), code="playback_error")
+
+
+@csrf_exempt
+@require_http_methods(["PATCH"])
+def set_window_volume_api(request: HttpRequest, window_id: int) -> JsonResponse:
+    """
+    设置指定窗口音量。
+    :param request: HTTP 请求
+    :param window_id: 窗口编号
+    :return: 操作后的会话状态
+    """
+    body, error = body_or_error(request)
+    if error is not None:
+        return error
+    try:
+        return mutate_playback(lambda: set_window_volume(
+            parse_window_id(window_id), int_value(body, "volume", 100),
+        ))
+    except PlaybackError as playback_error:
+        return error_response(str(playback_error), code="playback_error")
+
+
+@csrf_exempt
+@require_http_methods(["PATCH"])
+def set_window_mute_api(request: HttpRequest, window_id: int) -> JsonResponse:
+    """
+    设置指定窗口静音状态。
+    :param request: HTTP 请求
+    :param window_id: 窗口编号
+    :return: 操作后的会话状态
+    """
+    body, error = body_or_error(request)
+    if error is not None:
+        return error
+    try:
+        return mutate_playback(lambda: set_window_mute(
+            parse_window_id(window_id), bool_value(body, "muted"),
+        ))
+    except PlaybackError as playback_error:
+        return error_response(str(playback_error), code="playback_error")
+
+
+@csrf_exempt
+@require_http_methods(["GET", "PATCH"])
+def runtime_state_api(request: HttpRequest) -> JsonResponse:
+    """
+    获取或设置全局运行状态。
+    :param request: HTTP 请求
+    :return: 运行状态快照
+    """
+    if request.method == "GET":
+        return json_response({"success": True, "runtime": get_runtime_snapshot()})
+
+    body, error = body_or_error(request)
+    if error is not None:
+        return error
+    try:
+        runtime = set_big_screen_mode(str(body.get("big_screen_mode", "")).strip())
+    except PlaybackError as playback_error:
+        return error_response(str(playback_error), code="playback_error")
+    sessions = get_all_sessions_snapshot()
+    return json_response({"success": True, "runtime": runtime, "sessions": sessions})
+
+
+@csrf_exempt
+@require_http_methods(["GET", "PATCH"])
+def system_volume_api(request: HttpRequest) -> JsonResponse:
+    """
+    获取或设置系统音量占位状态。
+    :param request: HTTP 请求
+    :return: 系统音量状态
+    """
+    if request.method == "GET":
+        return json_response({"success": True, "volume": get_system_volume()})
+
+    body, error = body_or_error(request)
+    if error is not None:
+        return error
+    try:
+        volume = set_system_volume(int_value(body, "level", 100))
+    except VolumeError as volume_error:
+        return error_response(str(volume_error), code="volume_error")
+    return json_response({"success": True, "volume": volume})
 
 
 @csrf_exempt

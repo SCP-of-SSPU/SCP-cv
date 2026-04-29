@@ -259,6 +259,8 @@ class PlayerController(QObject):
             PlaybackCommand.GOTO: self._handle_goto,
             PlaybackCommand.SEEK: self._handle_seek,
             PlaybackCommand.SET_LOOP: self._handle_set_loop,
+            PlaybackCommand.SET_VOLUME: self._handle_set_volume,
+            PlaybackCommand.SET_MUTE: self._handle_set_mute,
             PlaybackCommand.SHOW_ID: self._handle_show_id,
         }
 
@@ -337,6 +339,8 @@ class PlayerController(QObject):
                     adapter.set_parent_container(window.web_container)
 
         adapter.open(uri=uri, window_handle=window_handle, autoplay=autoplay)
+        adapter.set_volume(int(command_args.get("volume", 100)))
+        adapter.set_mute(bool(command_args.get("muted", False)))
         self._adapters[window_id] = adapter
         self._adapter_source_types[window_id] = source_type
 
@@ -429,6 +433,30 @@ class PlayerController(QObject):
             loop_enabled = bool(command_args.get("enabled", False))
             adapter.set_loop(loop_enabled)
             logger.info("窗口 %d 循环播放已设置为 %s", window_id, loop_enabled)
+
+    def _handle_set_volume(self, window_id: int, command_args: dict[str, object]) -> None:
+        """
+        处理 SET_VOLUME 指令：调整指定窗口适配器音量。
+        :param window_id: 窗口编号
+        :param command_args: 包含 volume 字段的参数字典
+        """
+        adapter = self._adapters.get(window_id)
+        if adapter is not None:
+            volume = int(command_args.get("volume", 100))
+            adapter.set_volume(volume)
+            logger.info("窗口 %d 音量已设置为 %d", window_id, volume)
+
+    def _handle_set_mute(self, window_id: int, command_args: dict[str, object]) -> None:
+        """
+        处理 SET_MUTE 指令：调整指定窗口适配器静音状态。
+        :param window_id: 窗口编号
+        :param command_args: 包含 muted 字段的参数字典
+        """
+        adapter = self._adapters.get(window_id)
+        if adapter is not None:
+            muted = bool(command_args.get("muted", False))
+            adapter.set_mute(muted)
+            logger.info("窗口 %d 静音已设置为 %s", window_id, muted)
 
     def _handle_show_id(self, window_id: int, command_args: dict[str, object]) -> None:
         """

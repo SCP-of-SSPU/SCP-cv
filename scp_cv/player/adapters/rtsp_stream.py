@@ -182,6 +182,22 @@ class RtspStreamAdapter(SourceAdapter):
         """停止流接收。"""
         self._stop_player()
 
+    def set_volume(self, volume: int) -> None:
+        """
+        设置 RTSP 音量。
+        :param volume: 音量等级（0-100）
+        """
+        if self._audio_output is not None:
+            self._audio_output.setVolume(max(0, min(100, int(volume))) / 100)
+
+    def set_mute(self, muted: bool) -> None:
+        """
+        设置 RTSP 静音状态。
+        :param muted: 是否静音
+        """
+        if self._audio_output is not None:
+            self._audio_output.setMuted(muted)
+
     # ═══════════════════ 状态获取 ═══════════════════
 
     def get_state(self) -> AdapterState:

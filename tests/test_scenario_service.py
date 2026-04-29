@@ -16,6 +16,8 @@ from scp_cv.apps.playback.models import (
     MediaSource,
     PlaybackState,
     Scenario,
+    ScenarioTarget,
+    SourceState,
 )
 from scp_cv.services.playback import get_or_create_session
 from scp_cv.services.scenario import (
@@ -52,12 +54,14 @@ class TestCaptureScenarioFromCurrentState:
 
         assert scenario.name == "当前双窗口"
         assert scenario.description == "从播放状态捕获"
-        assert scenario.window1_source == media_source_ppt
-        assert scenario.window1_autoplay is True
-        assert scenario.window1_resume is True
-        assert scenario.window2_source == media_source_video
-        assert scenario.window2_autoplay is False
-        assert scenario.window2_resume is True
+        target_1 = scenario.targets.get(window_id=1)
+        target_2 = scenario.targets.get(window_id=2)
+        assert target_1.source == media_source_ppt
+        assert target_1.autoplay is True
+        assert target_1.resume is True
+        assert target_2.source == media_source_video
+        assert target_2.autoplay is False
+        assert target_2.resume is True
 
     def test_capture_overwrites_existing_scenario(
         self,
@@ -67,7 +71,12 @@ class TestCaptureScenarioFromCurrentState:
         """传入已有预案 ID 时应覆盖同一条记录而不是创建新记录。"""
         scenario = Scenario.objects.create(
             name="旧预案",
-            window1_source=media_source_video,
+        )
+        ScenarioTarget.objects.create(
+            scenario=scenario,
+            window_id=1,
+            source_state=SourceState.SET,
+            source=media_source_video,
         )
         session_1 = get_or_create_session(1)
         session_1.media_source = media_source_ppt
@@ -84,7 +93,7 @@ class TestCaptureScenarioFromCurrentState:
         assert Scenario.objects.count() == 1
         assert updated.name == "覆盖后的预案"
         assert updated.description == "覆盖描述"
-        assert updated.window1_source == media_source_ppt
+        assert updated.targets.get(window_id=1).source == media_source_ppt
 
     def test_capture_rejects_empty_name(self) -> None:
         """预案名称为空时应返回业务异常。"""
@@ -102,13 +111,22 @@ class TestScenarioList:
         media_source_video: MediaSource,
     ) -> None:
         """列表项应包含窗口源名称，供前端直接展示。"""
-        Scenario.objects.create(
-            name="列表预案",
-            window1_source=media_source_ppt,
-            window2_source=media_source_video,
+        scenario = Scenario.objects.create(name="列表预案")
+        ScenarioTarget.objects.create(
+            scenario=scenario,
+            window_id=1,
+            source_state=SourceState.SET,
+            source=media_source_ppt,
+        )
+        ScenarioTarget.objects.create(
+            scenario=scenario,
+            window_id=2,
+            source_state=SourceState.SET,
+            source=media_source_video,
         )
 
         scenario_dict = list_scenarios()[0]
 
-        assert scenario_dict["window1_source_name"] == "测试演示文稿"
-        assert scenario_dict["window2_source_name"] == "测试视频"
+        targets = {target["window_id"]: target for target in scenario_dict["targets"]}
+        assert targets[1]["source_name"] == "测试演示文稿"
+        assert targets[2]["source_name"] == "测试视频"

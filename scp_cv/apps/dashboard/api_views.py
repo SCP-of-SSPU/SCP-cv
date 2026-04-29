@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from django.http import HttpRequest, JsonResponse, StreamingHttpResponse
+from django.http import FileResponse, HttpRequest, JsonResponse, StreamingHttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_http_methods
 
@@ -22,11 +22,24 @@ from scp_cv.services.media import (
     add_local_path,
     add_uploaded_file,
     add_web_url,
+    create_folder,
     delete_media_source,
+    delete_folder,
+    get_source_download_info,
+    list_folders,
     list_media_sources,
+    move_source,
     sync_streams_to_media_sources,
+    update_folder,
 )
 from scp_cv.services.mediamtx import sync_stream_states
+from scp_cv.services.device import (
+    DeviceError,
+    list_devices,
+    power_off_device,
+    power_on_device,
+    toggle_device,
+)
 from scp_cv.services.sse import event_stream
 
 
@@ -81,6 +94,35 @@ def _body_or_error(request: HttpRequest) -> tuple[dict[str, Any] | None, JsonRes
         return None, _error_response(str(body_error), code="invalid_json")
 
 
+def _optional_int(raw_value: object, default: int | None = None) -> int | None:
+    """
+    将请求中的可选整数转换为 int。
+    :param raw_value: 原始请求值
+    :param default: 解析失败或空值时的默认值
+    :return: 转换后的整数或默认值
+    """
+    if raw_value in (None, ""):
+        return default
+    try:
+        return int(raw_value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _bool_value(raw_value: object, default: bool = False) -> bool:
+    """
+    兼容 JSON 和表单字符串的布尔值解析。
+    :param raw_value: 原始请求值
+    :param default: 缺省值
+    :return: 布尔值
+    """
+    if raw_value is None:
+        return default
+    if isinstance(raw_value, bool):
+        return raw_value
+    return str(raw_value).strip().lower() in {"true", "1", "yes", "on"}
+
+
 def _source_payload(source: object) -> dict[str, Any]:
     """
     将 MediaSource 实例序列化为 API 响应字段。
@@ -94,6 +136,13 @@ def _source_payload(source: object) -> dict[str, Any]:
         "uri": source.uri,
         "is_available": source.is_available,
         "stream_identifier": source.stream_identifier,
+        "folder_id": source.folder_id,
+        "original_filename": source.original_filename,
+        "file_size": source.file_size,
+        "mime_type": source.mime_type,
+        "is_temporary": source.is_temporary,
+        "expires_at": source.expires_at.isoformat() if source.expires_at else None,
+        "metadata": source.metadata,
         "created_at": source.created_at.isoformat() if source.created_at else "",
     }
 
@@ -108,11 +157,76 @@ def list_sources_api(request: HttpRequest) -> JsonResponse:
     sync_result = sync_stream_states()
     stream_sync = sync_streams_to_media_sources()
     source_type_filter = request.GET.get("source_type", "").strip() or None
+    folder_id_filter = _optional_int(request.GET.get("folder_id"))
     return _json_response({
         "success": True,
-        "sources": list_media_sources(source_type_filter),
+        "sources": list_media_sources(source_type_filter, folder_id_filter),
         "sync_result": {**sync_result, **stream_sync},
     })
+
+
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def folders_api(request: HttpRequest) -> JsonResponse:
+    """
+    获取或创建媒体文件夹。
+    :param request: HTTP 请求
+    :return: 文件夹列表或创建结果
+    """
+    if request.method == "GET":
+        return _json_response({"success": True, "folders": list_folders()})
+
+    body, error = _body_or_error(request)
+    if error is not None:
+        return error
+    try:
+        folder = create_folder(
+            name=str(body.get("name", "")),
+            parent_id=_optional_int(body.get("parent_id")),
+        )
+    except MediaError as media_error:
+        return _error_response(str(media_error), code="media_error")
+    return _json_response({"success": True, "folder": {
+        "id": folder.pk,
+        "name": folder.name,
+        "parent_id": folder.parent_id,
+        "created_at": folder.created_at,
+        "updated_at": folder.updated_at,
+    }}, status=201)
+
+
+@csrf_exempt
+@require_http_methods(["PATCH", "DELETE"])
+def folder_detail_api(request: HttpRequest, folder_id: int) -> JsonResponse:
+    """
+    更新或删除媒体文件夹。
+    :param request: HTTP 请求
+    :param folder_id: 文件夹主键
+    :return: 操作结果
+    """
+    if request.method == "DELETE":
+        try:
+            delete_folder(int(folder_id))
+        except MediaError as media_error:
+            return _error_response(str(media_error), code="media_error", status=404)
+        return _json_response({"success": True})
+
+    body, error = _body_or_error(request)
+    if error is not None:
+        return error
+    try:
+        folder = update_folder(
+            folder_id=int(folder_id),
+            name=str(body.get("name")) if "name" in body else None,
+            parent_id=_optional_int(body.get("parent_id")) if "parent_id" in body else None,
+        )
+    except MediaError as media_error:
+        return _error_response(str(media_error), code="media_error")
+    return _json_response({"success": True, "folder": {
+        "id": folder.pk,
+        "name": folder.name,
+        "parent_id": folder.parent_id,
+    }})
 
 
 @csrf_exempt
@@ -132,6 +246,8 @@ def upload_source_api(request: HttpRequest) -> JsonResponse:
             uploaded_file=uploaded_file,
             display_name=request.POST.get("name", "").strip() or None,
             source_type=request.POST.get("source_type", "").strip() or None,
+            folder_id=_optional_int(request.POST.get("folder_id")),
+            is_temporary=_bool_value(request.POST.get("is_temporary")),
         )
     except MediaError as media_error:
         return _error_response(str(media_error), code="media_error")
@@ -159,6 +275,7 @@ def add_local_source_api(request: HttpRequest) -> JsonResponse:
             local_path=local_path,
             display_name=str(body.get("name", "")).strip() or None,
             source_type=str(body.get("source_type", "")).strip() or None,
+            folder_id=_optional_int(body.get("folder_id")),
         )
     except MediaError as media_error:
         return _error_response(str(media_error), code="media_error")
@@ -182,11 +299,49 @@ def add_web_source_api(request: HttpRequest) -> JsonResponse:
         return _error_response("缺少 url 字段", code="missing_url")
 
     try:
-        source = add_web_url(web_url, str(body.get("name", "")).strip() or None)
+        source = add_web_url(
+            web_url,
+            str(body.get("name", "")).strip() or None,
+            folder_id=_optional_int(body.get("folder_id")),
+        )
     except MediaError as media_error:
         return _error_response(str(media_error), code="media_error")
 
     return _json_response({"success": True, "source": _source_payload(source)}, status=201)
+
+
+@csrf_exempt
+@require_http_methods(["PATCH"])
+def move_source_api(request: HttpRequest, source_id: int) -> JsonResponse:
+    """
+    移动媒体源到指定文件夹。
+    :param request: HTTP 请求
+    :param source_id: 媒体源主键
+    :return: 更新后的媒体源
+    """
+    body, error = _body_or_error(request)
+    if error is not None:
+        return error
+    try:
+        source = move_source(int(source_id), _optional_int(body.get("folder_id")))
+    except MediaError as media_error:
+        return _error_response(str(media_error), code="media_error", status=404)
+    return _json_response({"success": True, "source": _source_payload(source)})
+
+
+@require_GET
+def download_source_api(request: HttpRequest, source_id: int) -> FileResponse | JsonResponse:
+    """
+    下载文件型媒体源。
+    :param request: HTTP 请求
+    :param source_id: 媒体源主键
+    :return: 文件下载响应
+    """
+    try:
+        file_path, file_name, mime_type = get_source_download_info(int(source_id))
+    except MediaError as media_error:
+        return _error_response(str(media_error), code="media_error", status=404)
+    return FileResponse(open(file_path, "rb"), as_attachment=True, filename=file_name, content_type=mime_type)
 
 
 @csrf_exempt
@@ -203,6 +358,53 @@ def delete_source_api(request: HttpRequest, source_id: int) -> JsonResponse:
     except MediaError as media_error:
         return _error_response(str(media_error), code="media_error", status=404)
     return _json_response({"success": True})
+
+
+@require_GET
+def list_devices_api(request: HttpRequest) -> JsonResponse:
+    """
+    获取设备开关机占位状态。
+    :param request: HTTP 请求
+    :return: 设备状态列表
+    """
+    return _json_response({"success": True, "devices": list_devices()})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def toggle_device_api(request: HttpRequest, device_type: str) -> JsonResponse:
+    """
+    切换设备开关机状态。
+    :param request: HTTP 请求
+    :param device_type: 设备类型
+    :return: 更新后的设备状态
+    """
+    try:
+        return _json_response({"success": True, "device": toggle_device(device_type)})
+    except DeviceError as device_error:
+        return _error_response(str(device_error), code="device_error", status=404)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def power_device_api(request: HttpRequest, device_type: str, action: str) -> JsonResponse:
+    """
+    设置设备开机或关机状态。
+    :param request: HTTP 请求
+    :param device_type: 设备类型
+    :param action: on 或 off
+    :return: 更新后的设备状态
+    """
+    try:
+        if action == "on":
+            device = power_on_device(device_type)
+        elif action == "off":
+            device = power_off_device(device_type)
+        else:
+            return _error_response("action 必须是 on 或 off", code="invalid_action")
+    except DeviceError as device_error:
+        return _error_response(str(device_error), code="device_error", status=404)
+    return _json_response({"success": True, "device": device})
 
 
 @require_GET

@@ -138,6 +138,20 @@ class SourceAdapter(ABC):
         """
         self._logger.debug("适配器 %s 不支持 set_loop", self._adapter_name)
 
+    def set_volume(self, volume: int) -> None:
+        """
+        设置播放音量（带音频输出的源重写）。
+        :param volume: 音量等级（0-100）
+        """
+        self._logger.debug("适配器 %s 不支持 set_volume", self._adapter_name)
+
+    def set_mute(self, muted: bool) -> None:
+        """
+        设置静音状态（带音频输出的源重写）。
+        :param muted: 是否静音
+        """
+        self._logger.debug("适配器 %s 不支持 set_mute", self._adapter_name)
+
     # ═══════════════════ 状态获取 ═══════════════════
 
     @abstractmethod

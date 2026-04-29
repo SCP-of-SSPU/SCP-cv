@@ -174,6 +174,22 @@ class VideoSourceAdapter(SourceAdapter):
         self._loop_enabled = enabled
         self._logger.info("循环播放已%s", "开启" if enabled else "关闭")
 
+    def set_volume(self, volume: int) -> None:
+        """
+        设置视频音量。
+        :param volume: 音量等级（0-100）
+        """
+        if self._audio_output is not None:
+            self._audio_output.setVolume(max(0, min(100, int(volume))) / 100)
+
+    def set_mute(self, muted: bool) -> None:
+        """
+        设置视频静音状态。
+        :param muted: 是否静音
+        """
+        if self._audio_output is not None:
+            self._audio_output.setMuted(muted)
+
     # ═══════════════════ 状态获取 ═══════════════════
 
     def get_state(self) -> AdapterState:

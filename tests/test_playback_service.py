@@ -32,7 +32,6 @@ from scp_cv.services.playback import (
     open_source,
     select_display_target,
     stop_current_content,
-    toggle_loop_playback,
     update_playback_progress,
 )
 
@@ -111,7 +110,7 @@ class TestGetSessionSnapshot:
             "display_mode", "display_mode_label",
             "target_display_label", "spliced_display_label", "is_spliced",
             "current_slide", "total_slides", "position_ms", "duration_ms",
-            "pending_command", "last_updated_at", "loop_enabled",
+            "pending_command", "last_updated_at", "volume", "is_muted", "loop_enabled",
         }
         assert set(snapshot.keys()) == required_keys
 

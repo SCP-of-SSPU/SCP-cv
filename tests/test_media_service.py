@@ -218,7 +218,11 @@ class TestListMediaSources:
         """返回字典应包含所有必要字段。"""
         sources = list_media_sources()
         assert len(sources) == 1
-        expected_keys = {"id", "source_type", "name", "uri", "is_available", "stream_identifier", "created_at"}
+        expected_keys = {
+            "id", "source_type", "name", "uri", "is_available", "stream_identifier", "created_at",
+            "folder_id", "original_filename", "file_size", "mime_type", "is_temporary",
+            "expires_at", "metadata",
+        }
         assert set(sources[0].keys()) == expected_keys
 
 
