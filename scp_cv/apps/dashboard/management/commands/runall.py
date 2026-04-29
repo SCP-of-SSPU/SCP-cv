@@ -94,7 +94,7 @@ class Command(BaseCommand):
         if not bool(options.get("skip_player", False)):
             self._start_player(poll_interval)
 
-        self._wait_for_port("Django", backend_host, backend_port, required=True)
+        self._wait_for_port("Django", self._connect_host(backend_host), backend_port, required=True)
         if not bool(options.get("skip_frontend", False)):
             self._wait_for_port("Vue 前端", self._connect_host(frontend_host), frontend_port, required=False)
         if not bool(options.get("skip_grpcweb", False)):
