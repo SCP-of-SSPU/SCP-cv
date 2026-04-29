@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import BinaryIO
 
+import psutil
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
@@ -333,17 +334,31 @@ class Command(BaseCommand):
                 continue
             try:
                 self.stdout.write(f"正在停止 {managed_process.name}（pid={process.pid}）…")
-                process.terminate()
-                process.wait(timeout=8)
+                self._terminate_process_tree(process.pid)
                 self.stdout.write(self.style.SUCCESS(f"{managed_process.name} 已停止"))
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait(timeout=3)
-                self.stdout.write(self.style.WARNING(f"{managed_process.name} 已强制终止"))
+            except psutil.Error as process_error:
+                self.stdout.write(self.style.WARNING(f"{managed_process.name} 停止异常：{process_error}"))
             finally:
                 if managed_process.log_handle is not None:
                     managed_process.log_handle.close()
         self._processes.clear()
+
+    def _terminate_process_tree(self, process_id: int) -> None:
+        """
+        终止父进程及其全部子进程，避免 Windows npm/cmd 留下 node 孤儿进程。
+        :param process_id: 父进程 PID
+        :return: None
+        """
+        parent_process = psutil.Process(process_id)
+        process_tree = parent_process.children(recursive=True)
+        process_tree.append(parent_process)
+        for child_process in process_tree:
+            child_process.terminate()
+        _, alive_processes = psutil.wait_procs(process_tree, timeout=8)
+        for alive_process in alive_processes:
+            alive_process.kill()
+        if alive_processes:
+            psutil.wait_procs(alive_processes, timeout=3)
 
     def _signal_handler(self, signum: int, _frame: object) -> None:
         """
