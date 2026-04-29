@@ -1,3 +1,11 @@
+export interface MediaFolderItem {
+  id: number;
+  name: string;
+  parent_id: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface MediaSourceItem {
   id: number;
   source_type: string;
@@ -5,6 +13,13 @@ export interface MediaSourceItem {
   uri: string;
   is_available: boolean;
   stream_identifier: string;
+  folder_id: number | null;
+  original_filename: string;
+  file_size: number;
+  mime_type: string;
+  is_temporary: boolean;
+  expires_at: string | null;
+  metadata: Record<string, unknown>;
   created_at: string;
 }
 
@@ -28,21 +43,37 @@ export interface SessionSnapshot {
   duration_ms: number;
   pending_command: string;
   last_updated_at: string;
+  volume: number;
+  is_muted: boolean;
   loop_enabled: boolean;
+}
+
+export interface RuntimeSnapshot {
+  big_screen_mode: 'single' | 'double';
+  volume_level: number;
+  muted_windows: number[];
+}
+
+export interface ScenarioTargetItem {
+  window_id: number;
+  source_state: 'unset' | 'empty' | 'set';
+  source_id: number | null;
+  source_name: string;
+  autoplay: boolean;
+  resume: boolean;
 }
 
 export interface ScenarioItem {
   id: number;
   name: string;
   description: string;
-  window1_source_id: number | null;
-  window1_source_name: string;
-  window1_autoplay: boolean;
-  window1_resume: boolean;
-  window2_source_id: number | null;
-  window2_source_name: string;
-  window2_autoplay: boolean;
-  window2_resume: boolean;
+  sort_order: number;
+  big_screen_mode_state: 'unset' | 'empty' | 'set';
+  big_screen_mode: 'single' | 'double';
+  big_screen_mode_label: string;
+  volume_state: 'unset' | 'empty' | 'set';
+  volume_level: number;
+  targets: ScenarioTargetItem[];
   created_at: string;
   updated_at: string;
 }
@@ -57,6 +88,15 @@ export interface DisplayTargetItem {
   is_primary: boolean;
 }
 
+export interface DeviceItem {
+  id: number;
+  name: string;
+  device_type: 'splice_screen' | 'tv_left' | 'tv_right';
+  device_type_label?: string;
+  is_powered_on: boolean;
+  address?: string;
+}
+
 export interface ApiStatePayload {
   success: boolean;
   sessions: SessionSnapshot[];
@@ -64,6 +104,22 @@ export interface ApiStatePayload {
 
 export interface UploadOptions {
   onProgress?: (percent: number) => void;
+}
+
+export interface ScenarioPayload {
+  name: string;
+  description?: string;
+  big_screen_mode_state?: 'unset' | 'empty' | 'set';
+  big_screen_mode?: 'single' | 'double';
+  volume_state?: 'unset' | 'empty' | 'set';
+  volume_level?: number;
+  targets?: Array<{
+    window_id: number;
+    source_state: 'unset' | 'empty' | 'set';
+    source_id?: number | null;
+    autoplay?: boolean;
+    resume?: boolean;
+  }>;
 }
 
 interface ApiDetailPayload {
@@ -111,8 +167,7 @@ function uploadFormData<T>(url: string, formData: FormData, options: UploadOptio
     request.open('POST', url);
     request.upload.onprogress = (event: ProgressEvent) => {
       if (!event.lengthComputable) return;
-      const percent = Math.min(99, Math.round((event.loaded / event.total) * 100));
-      options.onProgress?.(percent);
+      options.onProgress?.(Math.min(99, Math.round((event.loaded / event.total) * 100)));
     };
     request.onload = () => {
       let payload: T & ApiDetailPayload;
@@ -135,25 +190,49 @@ function uploadFormData<T>(url: string, formData: FormData, options: UploadOptio
   });
 }
 
+function sourceQuery(sourceType = '', folderId: number | null = null): string {
+  const params = new URLSearchParams();
+  if (sourceType) params.set('source_type', sourceType);
+  if (folderId !== null) params.set('folder_id', String(folderId));
+  const query = params.toString();
+  return query ? `?${query}` : '';
+}
+
 export const api = {
-  listSources: () => requestJson<{ success: boolean; sources: MediaSourceItem[] }>('/api/sources/'),
+  listFolders: () => requestJson<{ success: boolean; folders: MediaFolderItem[] }>('/api/folders/'),
+  createFolder: (payload: { name: string; parent_id?: number | null }) => requestJson<{ success: boolean; folder: MediaFolderItem }>('/api/folders/', { method: 'POST', body: JSON.stringify(payload) }),
+  updateFolder: (folderId: number, payload: { name?: string; parent_id?: number | null }) => requestJson<{ success: boolean; folder: MediaFolderItem }>(`/api/folders/${folderId}/`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  deleteFolder: (folderId: number) => requestJson<{ success: boolean }>(`/api/folders/${folderId}/`, { method: 'DELETE' }),
+  listSources: (sourceType = '', folderId: number | null = null) => requestJson<{ success: boolean; sources: MediaSourceItem[] }>(`/api/sources/${sourceQuery(sourceType, folderId)}`),
   uploadSource: (formData: FormData, options?: UploadOptions) => uploadFormData<{ success: boolean; source: MediaSourceItem }>('/api/sources/upload/', formData, options),
-  addLocalSource: (payload: { path: string; name?: string }) => requestJson<{ success: boolean; source: MediaSourceItem }>('/api/sources/local/', { method: 'POST', body: JSON.stringify(payload) }),
-  addWebSource: (payload: { url: string; name?: string }) => requestJson<{ success: boolean; source: MediaSourceItem }>('/api/sources/web/', { method: 'POST', body: JSON.stringify(payload) }),
+  addLocalSource: (payload: { path: string; name?: string; folder_id?: number | null }) => requestJson<{ success: boolean; source: MediaSourceItem }>('/api/sources/local/', { method: 'POST', body: JSON.stringify(payload) }),
+  addWebSource: (payload: { url: string; name?: string; folder_id?: number | null }) => requestJson<{ success: boolean; source: MediaSourceItem }>('/api/sources/web/', { method: 'POST', body: JSON.stringify(payload) }),
+  moveSource: (sourceId: number, folderId: number | null) => requestJson<{ success: boolean; source: MediaSourceItem }>(`/api/sources/${sourceId}/move/`, { method: 'PATCH', body: JSON.stringify({ folder_id: folderId }) }),
   deleteSource: (sourceId: number) => requestJson<{ success: boolean }>(`/api/sources/${sourceId}/`, { method: 'DELETE' }),
+  downloadSourceUrl: (sourceId: number) => `/api/sources/${sourceId}/download/`,
   listSessions: () => requestJson<ApiStatePayload>('/api/sessions/'),
+  getRuntime: () => requestJson<{ success: boolean; runtime: RuntimeSnapshot }>('/api/runtime/'),
+  setRuntimeMode: (bigScreenMode: 'single' | 'double') => requestJson<ApiStatePayload & { runtime: RuntimeSnapshot }>('/api/runtime/', { method: 'PATCH', body: JSON.stringify({ big_screen_mode: bigScreenMode }) }),
+  getSystemVolume: () => requestJson<{ success: boolean; volume: { level: number; muted: boolean } }>('/api/volume/'),
+  setSystemVolume: (level: number) => requestJson<{ success: boolean; volume: { level: number; muted: boolean } }>('/api/volume/', { method: 'PATCH', body: JSON.stringify({ level }) }),
   openSource: (windowId: number, sourceId: number, autoplay = true) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/open/`, { method: 'POST', body: JSON.stringify({ source_id: sourceId, autoplay }) }),
   controlPlayback: (windowId: number, action: string) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/control/`, { method: 'POST', body: JSON.stringify({ action }) }),
   navigateContent: (windowId: number, action: string, targetIndex = 0, positionMs = 0) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/navigate/`, { method: 'POST', body: JSON.stringify({ action, target_index: targetIndex, position_ms: positionMs }) }),
   closeSource: (windowId: number) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/close/`, { method: 'POST' }),
   setLoop: (windowId: number, enabled: boolean) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/loop/`, { method: 'PATCH', body: JSON.stringify({ enabled }) }),
+  setWindowVolume: (windowId: number, volume: number) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/volume/`, { method: 'PATCH', body: JSON.stringify({ volume }) }),
+  setWindowMute: (windowId: number, muted: boolean) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/mute/`, { method: 'PATCH', body: JSON.stringify({ muted }) }),
   showWindowIds: () => requestJson<ApiStatePayload>('/api/playback/show-ids/', { method: 'POST' }),
   listDisplays: () => requestJson<{ success: boolean; targets: DisplayTargetItem[]; splice_label: string }>('/api/displays/'),
   selectDisplay: (payload: { window_id: number; display_mode: string; target_label: string }) => requestJson<ApiStatePayload>('/api/displays/select/', { method: 'POST', body: JSON.stringify(payload) }),
+  listDevices: () => requestJson<{ success: boolean; devices: DeviceItem[] }>('/api/devices/'),
+  toggleDevice: (deviceType: string) => requestJson<{ success: boolean; device: DeviceItem }>(`/api/devices/${deviceType}/toggle/`, { method: 'POST' }),
+  powerDevice: (deviceType: string, action: 'on' | 'off') => requestJson<{ success: boolean; device: DeviceItem }>(`/api/devices/${deviceType}/power/${action}/`, { method: 'POST' }),
   listScenarios: () => requestJson<{ success: boolean; scenarios: ScenarioItem[] }>('/api/scenarios/'),
-  createScenario: (payload: Partial<ScenarioItem>) => requestJson<{ success: boolean; scenario: ScenarioItem }>('/api/scenarios/', { method: 'POST', body: JSON.stringify(payload) }),
-  updateScenario: (scenarioId: number, payload: Partial<ScenarioItem>) => requestJson<{ success: boolean; scenario: ScenarioItem }>(`/api/scenarios/${scenarioId}/`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  createScenario: (payload: ScenarioPayload) => requestJson<{ success: boolean; scenario: ScenarioItem }>('/api/scenarios/', { method: 'POST', body: JSON.stringify(payload) }),
+  updateScenario: (scenarioId: number, payload: ScenarioPayload) => requestJson<{ success: boolean; scenario: ScenarioItem }>(`/api/scenarios/${scenarioId}/`, { method: 'PATCH', body: JSON.stringify(payload) }),
   deleteScenario: (scenarioId: number) => requestJson<{ success: boolean }>(`/api/scenarios/${scenarioId}/`, { method: 'DELETE' }),
+  pinScenario: (scenarioId: number) => requestJson<{ success: boolean; scenario: ScenarioItem }>(`/api/scenarios/${scenarioId}/pin/`, { method: 'POST' }),
   activateScenario: (scenarioId: number) => requestJson<ApiStatePayload>(`/api/scenarios/${scenarioId}/activate/`, { method: 'POST' }),
   captureScenario: (payload: { name: string; description?: string; scenario_id?: number }) => requestJson<{ success: boolean; scenario: ScenarioItem }>('/api/scenarios/capture/', { method: 'POST', body: JSON.stringify(payload) }),
 };
@@ -163,4 +242,11 @@ export function formatDuration(milliseconds: number): string {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+export function formatBytes(bytes: number): string {
+  if (!bytes) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const unitIndex = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / 1024 ** unitIndex).toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }

@@ -1,13 +1,27 @@
 import { defineStore } from 'pinia';
 
-import { api, type DisplayTargetItem, type MediaSourceItem, type ScenarioItem, type SessionSnapshot } from '@/services/api';
+import {
+  api,
+  type DeviceItem,
+  type DisplayTargetItem,
+  type MediaFolderItem,
+  type MediaSourceItem,
+  type RuntimeSnapshot,
+  type ScenarioItem,
+  type SessionSnapshot,
+} from '@/services/api';
 
 interface AppState {
   activeWindowId: number;
+  selectedFolderId: number | null;
   sources: MediaSourceItem[];
+  folders: MediaFolderItem[];
   sessions: SessionSnapshot[];
+  runtime: RuntimeSnapshot | null;
   scenarios: ScenarioItem[];
   displays: DisplayTargetItem[];
+  devices: DeviceItem[];
+  systemVolumeLevel: number;
   connectionStatus: string;
   message: string;
   isError: boolean;
@@ -18,10 +32,15 @@ interface AppState {
 export const useAppStore = defineStore('app', {
   state: (): AppState => ({
     activeWindowId: 1,
+    selectedFolderId: null,
     sources: [],
+    folders: [],
     sessions: [],
+    runtime: null,
     scenarios: [],
     displays: [],
+    devices: [],
+    systemVolumeLevel: 100,
     connectionStatus: 'SSE: 连接中',
     message: '',
     isError: false,
@@ -33,6 +52,8 @@ export const useAppStore = defineStore('app', {
       state.sessions.find((session) => session.window_id === state.activeWindowId) || null
     ),
     availableSources: (state) => state.sources.filter((source) => source.is_available),
+    sourceFoldersById: (state) => new Map(state.folders.map((folder) => [folder.id, folder.name])),
+    bigScreenModeLabel: (state) => (state.runtime?.big_screen_mode === 'double' ? '双屏' : '单屏'),
   },
   actions: {
     notify(message: string, isError = false): void {
@@ -48,16 +69,37 @@ export const useAppStore = defineStore('app', {
       this.sessions = sessions;
     },
     async bootstrap(): Promise<void> {
-      await Promise.all([this.refreshSources(), this.refreshSessions(), this.refreshScenarios(), this.refreshDisplays()]);
+      await Promise.all([
+        this.refreshFolders(),
+        this.refreshSources(),
+        this.refreshSessions(),
+        this.refreshRuntime(),
+        this.refreshSystemVolume(),
+        this.refreshScenarios(),
+        this.refreshDisplays(),
+        this.refreshDevices(),
+      ]);
       this.connectEvents();
     },
+    async refreshFolders(): Promise<void> {
+      const payload = await api.listFolders();
+      this.folders = payload.folders;
+    },
     async refreshSources(): Promise<void> {
-      const payload = await api.listSources();
+      const payload = await api.listSources('', this.selectedFolderId);
       this.sources = payload.sources;
     },
     async refreshSessions(): Promise<void> {
       const payload = await api.listSessions();
       this.applySessions(payload.sessions);
+    },
+    async refreshRuntime(): Promise<void> {
+      const payload = await api.getRuntime();
+      this.runtime = payload.runtime;
+    },
+    async refreshSystemVolume(): Promise<void> {
+      const payload = await api.getSystemVolume();
+      this.systemVolumeLevel = payload.volume.level;
     },
     async refreshScenarios(): Promise<void> {
       const payload = await api.listScenarios();
@@ -66,6 +108,14 @@ export const useAppStore = defineStore('app', {
     async refreshDisplays(): Promise<void> {
       const payload = await api.listDisplays();
       this.displays = payload.targets;
+    },
+    async refreshDevices(): Promise<void> {
+      const payload = await api.listDevices();
+      this.devices = payload.devices;
+    },
+    async selectFolder(folderId: number | null): Promise<void> {
+      this.selectedFolderId = folderId;
+      await this.refreshSources();
     },
     connectEvents(): void {
       if (this.eventSource) this.eventSource.close();
@@ -119,6 +169,33 @@ export const useAppStore = defineStore('app', {
       const payload = await api.setLoop(this.activeWindowId, enabled);
       this.applySessions(payload.sessions);
       this.notify(enabled ? '循环播放已开启' : '循环播放已关闭');
+    },
+    async setWindowVolume(volume: number): Promise<void> {
+      const payload = await api.setWindowVolume(this.activeWindowId, volume);
+      this.applySessions(payload.sessions);
+    },
+    async setWindowMute(muted: boolean): Promise<void> {
+      const payload = await api.setWindowMute(this.activeWindowId, muted);
+      this.applySessions(payload.sessions);
+    },
+    async setBigScreenMode(bigScreenMode: 'single' | 'double'): Promise<void> {
+      const payload = await api.setRuntimeMode(bigScreenMode);
+      this.runtime = payload.runtime;
+      this.applySessions(payload.sessions);
+      this.notify(bigScreenMode === 'double' ? '已切换为双屏' : '已切换为单屏');
+    },
+    async setSystemVolume(level: number): Promise<void> {
+      const payload = await api.setSystemVolume(level);
+      this.systemVolumeLevel = payload.volume.level;
+      this.notify(`系统音量已设为 ${payload.volume.level}`);
+    },
+    async toggleDevice(deviceType: string): Promise<void> {
+      await api.toggleDevice(deviceType);
+      await this.refreshDevices();
+    },
+    async powerDevice(deviceType: string, action: 'on' | 'off'): Promise<void> {
+      await api.powerDevice(deviceType, action);
+      await this.refreshDevices();
     },
     async showWindowIds(): Promise<void> {
       const payload = await api.showWindowIds();

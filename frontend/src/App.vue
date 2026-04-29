@@ -29,7 +29,7 @@ onMounted(async () => {
       <span class="brand__mark">S</span>
       <div>
         <p>SCP-cv</p>
-        <h1>播放控制台</h1>
+        <h1>现场指挥台</h1>
       </div>
     </div>
     <div class="topbar__meta">
@@ -39,6 +39,7 @@ onMounted(async () => {
   </header>
 
   <nav class="toolbar" aria-label="控制台导航">
+    <RouterLink to="/dashboard">总览</RouterLink>
     <RouterLink to="/sources">媒体源</RouterLink>
     <RouterLink to="/playback">播放控制</RouterLink>
     <RouterLink to="/settings">系统设置</RouterLink>

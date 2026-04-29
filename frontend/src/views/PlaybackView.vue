@@ -24,6 +24,8 @@ const pptSources = computed(() => appStore.availableSources.filter((source) => s
 const canGoPrev = computed(() => canNavigateSlides.value && !blocksActiveWindowAction.value && (totalSlides.value <= 0 || currentSlide.value > 1));
 const canGoNext = computed(() => canNavigateSlides.value && !blocksActiveWindowAction.value && (totalSlides.value <= 0 || currentSlide.value < totalSlides.value));
 const remoteActionLabel = computed(() => pendingAction.value || '待命');
+const activeVolume = computed(() => activeSession.value?.volume ?? 100);
+const activeMuted = computed(() => activeSession.value?.is_muted ?? false);
 const slideProgress = computed(() => {
   if (!canNavigateSlides.value || totalSlides.value <= 0) return 0;
   return Math.min(100, Math.max(0, (currentSlide.value / totalSlides.value) * 100));
@@ -134,6 +136,15 @@ async function seek(): Promise<void> {
   if (!durationMs) return;
   await appStore.navigate('seek', 0, Math.round((seekPercent.value / 1000) * durationMs));
 }
+
+async function setVolume(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement;
+  await appStore.setWindowVolume(Number(input.value));
+}
+
+async function toggleMute(): Promise<void> {
+  await appStore.setWindowMute(!activeMuted.value);
+}
 </script>
 
 <template>
@@ -158,7 +169,26 @@ async function seek(): Promise<void> {
       <span>类型：{{ activeSession?.source_type_label || '无' }}</span>
       <span>显示：{{ activeSession?.display_mode_label || '无' }}</span>
       <span>循环：{{ activeSession?.loop_enabled ? '开启' : '关闭' }}</span>
+      <span>声音：{{ activeMuted ? '静音' : activeVolume }}</span>
     </div>
+  </section>
+
+  <section class="panel audio-strip">
+    <div>
+      <span class="eyebrow">Big Screen</span>
+      <h2>{{ appStore.bigScreenModeLabel }}模式</h2>
+      <small>窗口 3/4 始终静音；Single 模式下窗口 2 静音。</small>
+    </div>
+    <div class="mode-switch">
+      <button type="button" :class="{ active: appStore.runtime?.big_screen_mode === 'single' }" @click="runAction(() => appStore.setBigScreenMode('single'), '单屏模式')">Single</button>
+      <button type="button" :class="{ active: appStore.runtime?.big_screen_mode === 'double' }" @click="runAction(() => appStore.setBigScreenMode('double'), '双屏模式')">Double</button>
+    </div>
+    <label class="audio-strip__slider">窗口音量 {{ activeVolume }}
+      <input type="range" min="0" max="100" :value="activeVolume" :disabled="blocksActiveWindowAction" @change="runAction(() => setVolume($event), '设置音量')" />
+    </label>
+    <button type="button" :class="{ active: activeMuted }" :disabled="blocksActiveWindowAction" @click="runAction(toggleMute, activeMuted ? '取消静音' : '静音')">
+      {{ activeMuted ? '取消静音' : '静音' }}
+    </button>
   </section>
 
   <section
@@ -185,7 +215,7 @@ async function seek(): Promise<void> {
       </div>
       <div class="remote__source-name">
         <strong>{{ activeSession?.source_name || '未打开媒体源' }}</strong>
-        <small>{{ activeSession?.playback_state_label || '待机' }} · {{ remoteActionLabel }}</small>
+        <small>{{ activeSession?.playback_state_label || '待机' }} · {{ activeMuted ? '静音' : `音量 ${activeVolume}` }} · {{ remoteActionLabel }}</small>
       </div>
       <div class="slide-progress" aria-hidden="true">
         <span :style="slideProgressStyle"></span>
