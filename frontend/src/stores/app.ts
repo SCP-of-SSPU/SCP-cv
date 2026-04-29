@@ -70,7 +70,7 @@ export const useAppStore = defineStore('app', {
       this.sessions = sessions;
     },
     async bootstrap(): Promise<void> {
-      await Promise.all([
+      const bootstrapTasks = await Promise.allSettled([
         this.refreshFolders(),
         this.refreshSources(),
         this.refreshSessions(),
@@ -80,6 +80,10 @@ export const useAppStore = defineStore('app', {
         this.refreshDisplays(),
         this.refreshDevices(),
       ]);
+      const failedTask = bootstrapTasks.find((task) => task.status === 'rejected');
+      if (failedTask && failedTask.status === 'rejected') {
+        this.notify(failedTask.reason instanceof Error ? failedTask.reason.message : '部分状态加载失败', true);
+      }
       this.connectEvents();
     },
     async refreshFolders(): Promise<void> {
@@ -131,6 +135,7 @@ export const useAppStore = defineStore('app', {
       };
       source.onerror = () => {
         this.connectionStatus = 'SSE: 重连中';
+        void this.refreshSessions().catch(() => undefined);
         if (source.readyState === EventSource.CLOSED && this.eventReconnectTimer === null) {
           this.eventReconnectTimer = window.setTimeout(() => {
             this.eventReconnectTimer = null;

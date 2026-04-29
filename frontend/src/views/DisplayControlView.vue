@@ -28,9 +28,11 @@ const targetConfig = computed(() => {
 const session = computed(() => appStore.sessions.find((item) => item.window_id === targetConfig.value.windowId) || null);
 const selectedSource = computed(() => appStore.sources.find((source) => source.id === Number(selectedSourceId.value)) || null);
 const pageTitle = computed(() => (
-  targetConfig.value.hiddenInSingle && appStore.runtime?.big_screen_mode === 'single'
-    ? '大屏右当前隐藏'
-    : targetConfig.value.title
+  targetConfig.value.windowId === 1 && appStore.runtime?.big_screen_mode === 'single'
+    ? '大屏显示控制'
+    : targetConfig.value.hiddenInSingle && appStore.runtime?.big_screen_mode === 'single'
+      ? '大屏右当前隐藏'
+      : targetConfig.value.title
 ));
 const isHiddenByMode = computed(() => targetConfig.value.hiddenInSingle && appStore.runtime?.big_screen_mode === 'single');
 
@@ -164,8 +166,10 @@ function sourceTypeLabel(source: MediaSourceItem | null): string {
         <option value="">选择媒体源</option>
         <option v-for="source in appStore.availableSources" :key="source.id" :value="source.id">{{ source.name }}（{{ sourceTypeLabel(source) }}）</option>
       </select>
-      <div class="button-grid">
-        <button type="button" @click="runAction(() => openSource())">打开源</button>
+      <div class="button-grid button-grid--four">
+        <button type="button" @click="runAction(() => openSource())">切换源</button>
+        <button type="button" :disabled="!uploadFile || isUploading" @click="runAction(() => uploadAndOpen(true))">上传临时源</button>
+        <button type="button" :disabled="!uploadFile || isUploading" @click="runAction(() => uploadAndOpen(false))">上传源并保存</button>
         <button type="button" class="danger" @click="runAction(closeDisplay)">关闭显示</button>
       </div>
 
@@ -173,10 +177,7 @@ function sourceTypeLabel(source: MediaSourceItem | null): string {
       <input type="file" :disabled="isUploading" @change="onFileSelected" />
       <input v-model="uploadName" placeholder="显示名称（可选）" :disabled="isUploading" />
       <div v-if="isUploading" class="upload-progress"><span :style="{ width: `${uploadProgress}%` }"></span><strong>{{ uploadProgress }}%</strong></div>
-      <div class="button-grid">
-        <button type="button" :disabled="!uploadFile || isUploading" @click="runAction(() => uploadAndOpen(true))">临时上传即开</button>
-        <button type="button" :disabled="!uploadFile || isUploading" @click="runAction(() => uploadAndOpen(false))">上传保存并打开</button>
-      </div>
+      <small>选择文件后，可通过上方“上传临时源”或“上传源并保存”执行。</small>
     </article>
 
     <article class="panel source-control-card">

@@ -8,6 +8,9 @@ import { useAppStore } from '@/stores/app';
 const appStore = useAppStore();
 const route = useRoute();
 const showChrome = computed(() => route.meta.focus !== true);
+const bigScreenLinkLabel = computed(() => (
+  appStore.runtime?.big_screen_mode === 'single' ? '大屏显示控制' : '大屏左显示控制'
+));
 
 async function runAction(action: () => Promise<void>): Promise<void> {
   try {
@@ -32,7 +35,7 @@ onMounted(async () => {
       <span class="brand__mark">S</span>
       <div>
         <p>SCP-cv</p>
-        <h1>现场指挥台</h1>
+        <h1>播放控制台</h1>
       </div>
     </div>
     <div class="topbar__meta">
@@ -42,15 +45,13 @@ onMounted(async () => {
   </header>
 
   <nav v-if="showChrome" class="toolbar" aria-label="控制台导航">
-    <RouterLink to="/dashboard">总览</RouterLink>
-    <RouterLink to="/display/big-left">大屏左</RouterLink>
-    <RouterLink v-if="appStore.runtime?.big_screen_mode === 'double'" to="/display/big-right">大屏右</RouterLink>
-    <RouterLink to="/display/tv-left">TV 左</RouterLink>
-    <RouterLink to="/display/tv-right">TV 右</RouterLink>
-    <RouterLink to="/sources">媒体源</RouterLink>
-    <RouterLink to="/playback">播放控制</RouterLink>
-    <RouterLink to="/settings">系统设置</RouterLink>
+    <RouterLink to="/dashboard">首页</RouterLink>
+    <RouterLink to="/sources">源管理</RouterLink>
     <RouterLink to="/scenarios">预案管理</RouterLink>
+    <RouterLink to="/display/big-left">{{ bigScreenLinkLabel }}</RouterLink>
+    <RouterLink v-if="appStore.runtime?.big_screen_mode === 'double'" to="/display/big-right">大屏右显示控制</RouterLink>
+    <RouterLink to="/display/tv-left">TV 左显示控制</RouterLink>
+    <RouterLink to="/display/tv-right">TV 右显示控制</RouterLink>
     <RouterLink to="/about">关于</RouterLink>
     <button type="button" class="danger" @click="runAction(appStore.closeActive)">停止当前窗口</button>
   </nav>

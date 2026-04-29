@@ -139,11 +139,24 @@ interface ApiDetailPayload {
   detail?: string;
 }
 
-const BACKEND_BASE = import.meta.env.VITE_BACKEND_TARGET || 'http://127.0.0.1:8000';
+const REQUEST_TIMEOUT_MS = 10000;
+
+function resolveBackendBase(): string {
+  const configuredTarget = import.meta.env.VITE_BACKEND_TARGET || 'http://127.0.0.1:8000';
+  const currentHost = window.location.hostname;
+  if (currentHost && !['localhost', '127.0.0.1', '::1'].includes(currentHost)) {
+    const parsedTarget = new URL(configuredTarget);
+    if (['localhost', '127.0.0.1', '::1'].includes(parsedTarget.hostname)) {
+      parsedTarget.hostname = currentHost;
+      return parsedTarget.toString().replace(/\/+$/, '');
+    }
+  }
+  return configuredTarget.replace(/\/+$/, '');
+}
 
 export function buildBackendUrl(path: string): string {
   if (/^https?:\/\//i.test(path)) return path;
-  return BACKEND_BASE.replace(/\/+$/, '') + path;
+  return resolveBackendBase() + path;
 }
 
 function buildNonJsonError(statusCode: number, responseText: string): Error {
@@ -165,10 +178,22 @@ function parseJsonText<T>(responseText: string, statusCode: number, contentType 
   }
 }
 
+async function fetchWithTimeout(url: string, init: RequestInit = {}): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
 async function requestJson<T>(url: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(buildBackendUrl(url), {
+  const absoluteUrl = buildBackendUrl(url);
+  const response = await fetchWithTimeout(absoluteUrl, {
     ...init,
     headers: {
+      Accept: 'application/json',
       ...(init.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
       ...(init.headers || {}),
     },

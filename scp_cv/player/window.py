@@ -189,6 +189,9 @@ class PlayerWindow(QWidget):
         if window_handle is not None and target_screen is not None:
             window_handle.setScreen(target_screen)
 
+        self.setFixedSize(target_geometry.size())
+        self.move(target_geometry.topLeft())
+        self.resize(target_geometry.size())
         self.setGeometry(target_geometry)
         self._apply_render_viewport_geometry()
         if not self._debug_mode:
@@ -197,7 +200,7 @@ class PlayerWindow(QWidget):
         else:
             self.show()
         logger.info(
-            "窗口 [%d] 定位到 (%d, %d) %dx%d",
+            "窗口 [%d] 定位到 Qt 屏幕区域 (%d, %d) %dx%d",
             self._window_id,
             target_geometry.x(), target_geometry.y(),
             target_geometry.width(), target_geometry.height(),
@@ -231,15 +234,33 @@ class PlayerWindow(QWidget):
     @staticmethod
     def _screen_for_geometry(geometry: QRect) -> QScreen | None:
         """
-        按中心点查找 Qt 屏幕，找不到时返回 None。
+        按最大交叠面积查找 Qt 屏幕，避免物理坐标和 Qt 逻辑坐标缩放差异导致错屏。
         :param geometry: 待匹配的窗口几何
         :return: QScreen 或 None
         """
-        geometry_center = geometry.center()
+        best_screen: QScreen | None = None
+        best_area = 0
         for screen in QGuiApplication.screens():
-            if screen.geometry().contains(geometry_center):
-                return screen
-        return None
+            screen_geometry = screen.geometry()
+            intersected = screen_geometry.intersected(geometry)
+            area = max(0, intersected.width()) * max(0, intersected.height())
+            if area > best_area:
+                best_area = area
+                best_screen = screen
+        if best_screen is not None:
+            return best_screen
+
+        geometry_center = geometry.center()
+        screens = QGuiApplication.screens()
+        if not screens:
+            return None
+        return min(
+            screens,
+            key=lambda screen: (
+                abs(screen.geometry().center().x() - geometry_center.x())
+                + abs(screen.geometry().center().y() - geometry_center.y())
+            ),
+        )
 
     # ═══════════════════ 视频显示控制 ═══════════════════
 

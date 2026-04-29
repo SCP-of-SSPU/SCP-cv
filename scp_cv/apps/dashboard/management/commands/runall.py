@@ -18,8 +18,8 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass
-from typing import BinaryIO
 from pathlib import Path
+from typing import BinaryIO
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
@@ -55,14 +55,15 @@ class Command(BaseCommand):
         :param parser: ArgumentParser 实例
         :return: None
         """
-        parser.add_argument("--backend-host", "--host", type=str, default="127.0.0.1", help="Django 监听地址")
+        parser.add_argument("--backend-host", "--host", type=str, default="0.0.0.0", help="Django 监听地址")
         parser.add_argument("--backend-port", "--port", type=int, default=8000, help="Django 监听端口")
         parser.add_argument("--frontend-host", type=str, default="0.0.0.0", help="Vue 前端监听地址")
         parser.add_argument("--frontend-port", type=int, default=5173, help="Vue 前端监听端口")
         parser.add_argument("--grpc-web-port", type=int, default=8081, help="gRPC-Web 代理监听端口")
         parser.add_argument("--poll-interval", type=float, default=0.2, help="播放器轮询间隔秒数")
         parser.add_argument("--skip-mediamtx", action="store_true", default=False, help="跳过 MediaMTX")
-        parser.add_argument("--skip-grpcweb", "--skip-grpc", action="store_true", default=False, help="跳过 gRPC-Web 代理")
+        parser.add_argument("--skip-grpcweb", "--skip-grpc", action="store_true", default=True, help="跳过 gRPC-Web 代理")
+        parser.add_argument("--enable-grpcweb", action="store_false", dest="skip_grpcweb", help="启用 gRPC-Web 代理")
         parser.add_argument("--skip-frontend", action="store_true", default=False, help="跳过 Vue 前端")
         parser.add_argument("--skip-player", action="store_true", default=False, help="跳过 PySide 播放器")
 
@@ -99,8 +100,10 @@ class Command(BaseCommand):
         if not bool(options.get("skip_grpcweb", False)):
             self._wait_for_port("gRPC-Web", "127.0.0.1", grpc_web_port, required=False)
 
+        frontend_url_host = self._public_host(frontend_host)
+        backend_url_host = self._public_host(backend_host)
         self.stdout.write(self.style.SUCCESS(
-            f"服务已启动：前端 http://{frontend_host}:{frontend_port}/ ，后端 http://{backend_host}:{backend_port}/"
+            f"服务已启动：前端 http://{frontend_url_host}:{frontend_port}/ ，后端 http://{backend_url_host}:{backend_port}/"
         ))
         self._monitor_processes()
 
@@ -166,7 +169,7 @@ class Command(BaseCommand):
         if npm_path is None or not frontend_dir.exists():
             self.stderr.write(self.style.WARNING("未找到 npm 或 frontend/，跳过 Vue 前端"))
             return
-        backend_target_host = self._connect_host(backend_host)
+        backend_target_host = self._public_host(backend_host)
         self._spawn(
             "Vue 前端",
             [npm_path, "run", "dev", "--", "--host", host, "--port", str(port)],
@@ -212,6 +215,10 @@ class Command(BaseCommand):
         log_handle: BinaryIO | None = None
         try:
             process_env = os.environ.copy()
+            process_env.setdefault("CI", "true")
+            process_env.setdefault("PYTHONUTF8", "1")
+            process_env.setdefault("PYTHONIOENCODING", "utf-8")
+            process_env.setdefault("npm_config_yes", "true")
             if extra_env:
                 process_env.update(extra_env)
             log_handle = self._open_process_log(name)
@@ -278,6 +285,21 @@ class Command(BaseCommand):
         if listen_host in {"0.0.0.0", "::"}:
             return "127.0.0.1"
         return listen_host
+
+    def _public_host(self, listen_host: str) -> str:
+        """
+        将通配监听地址转换为局域网可访问地址，供浏览器和移动设备直连。
+        :param listen_host: 服务监听地址
+        :return: 可供客户端访问的主机地址
+        """
+        if listen_host not in {"0.0.0.0", "::"}:
+            return listen_host
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
+                udp_socket.connect(("8.8.8.8", 80))
+                return str(udp_socket.getsockname()[0])
+        except OSError:
+            return "127.0.0.1"
 
     def _monitor_processes(self) -> None:
         """监控关键子进程，任一关键进程退出时清理所有服务。"""
