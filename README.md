@@ -147,7 +147,7 @@ SCP-cv/
 ├── protos/                     # gRPC Proto 定义
 │   └── scp_cv/v1/control.proto # 统一播放控制服务合约
 ├── frontend/                   # Vue 3 + Vite 前端控制台
-├── tests/                      # pytest 测试套件（87 项）
+├── tests/                      # pytest 测试套件（94 项）
 ├── tools/                      # 第三方可执行文件（MediaMTX、mpv）
 └── docs/                       # 项目文档
     ├── API.md                  # HTTP + gRPC 接口参考
