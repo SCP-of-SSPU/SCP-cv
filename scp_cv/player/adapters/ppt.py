@@ -418,21 +418,31 @@ class PptSourceAdapter(SourceAdapter):
         try:
             return int(self._slideshow_view.State) == _PP_SLIDE_SHOW_DONE
         except Exception:
-            return True
+            return self._read_current_show_position() is None
 
     def _current_show_position(self) -> int:
         """
         安全读取当前页码，失败时使用最近一次成功读取的页码。
         :return: 当前页码（从 1 开始）
         """
-        if self._slideshow_view is None:
-            return self._last_slide_index
-        try:
-            current_position = int(self._slideshow_view.CurrentShowPosition or self._last_slide_index)
-        except Exception:
+        current_position = self._read_current_show_position()
+        if current_position is None:
             return self._last_slide_index
         self._last_slide_index = current_position
         return current_position
+
+    def _read_current_show_position(self) -> Optional[int]:
+        """
+        读取当前页码，读取失败时返回 None 而不修改内部状态。
+        :return: 当前页码；COM 视图不可读时返回 None
+        """
+        if self._slideshow_view is None:
+            return None
+        try:
+            current_position = int(self._slideshow_view.CurrentShowPosition or 0)
+        except Exception:
+            return None
+        return current_position if current_position > 0 else None
 
     def control_media(self, media_id: str, action: str, media_index: int = 0) -> None:
         """
@@ -541,10 +551,16 @@ class PptSourceAdapter(SourceAdapter):
                             playback_state = "playing"
                 except Exception as state_error:
                     self._logger.debug("读取 PPT 放映状态失败：%s", state_error)
-                    self._slideshow_view = None
-                    self._slideshow_window = None
-                    current_slide = self._last_slide_index if self._total_slides else 0
-                    playback_state = "stopped" if self._presentation is not None else "idle"
+                    current_position = self._read_current_show_position()
+                    if current_position is not None:
+                        current_slide = current_position
+                        self._last_slide_index = current_position
+                        playback_state = "playing" if not self._is_paused else "paused"
+                    else:
+                        self._slideshow_view = None
+                        self._slideshow_window = None
+                        current_slide = self._last_slide_index if self._total_slides else 0
+                        playback_state = "stopped" if self._presentation is not None else "idle"
             elif self._presentation is not None:
                 # 文件已打开但未在放映
                 playback_state = "stopped"

@@ -34,6 +34,16 @@ const currentPreviewUrl = computed(() => (currentResource.value?.slide_image ? r
 const nextPreviewPath = computed(() => nextResource.value?.slide_image || currentResource.value?.next_slide_image || '');
 const nextPreviewUrl = computed(() => (nextPreviewPath.value ? resourceUrl(nextPreviewPath.value) : ''));
 const nextPageLabel = computed(() => (isPptSession.value && (totalPages.value <= 0 || currentPage.value < totalPages.value) ? String(currentPage.value + 1) : '-'));
+const notesText = computed(() => currentResource.value?.speaker_notes || '当前 PPT 尚未保存提词器文本。');
+const slideProgress = computed(() => {
+  if (!isPptSession.value || totalPages.value <= 0) return 0;
+  return Math.min(100, Math.max(0, (currentPage.value / totalPages.value) * 100));
+});
+const slideProgressStyle = computed(() => ({ width: `${slideProgress.value}%` }));
+const statusToneClass = computed(() => ({
+  'chip--accent': session.value?.playback_state === 'playing',
+  'chip--warn': session.value?.playback_state === 'paused' || session.value?.playback_state === 'stopped',
+}));
 
 function resourceUrl(path: string): string {
   return buildBackendUrl(path);
@@ -100,19 +110,37 @@ watch(() => source.value?.id, () => {
         <span class="eyebrow">PPT Focus · Window {{ windowId }}</span>
         <h1>{{ focusTitle }}</h1>
       </div>
-      <span class="chip" :class="{ 'chip--accent': session?.playback_state === 'playing' }">{{ session?.playback_state_label || '待机' }}</span>
+      <div class="ppt-focus__status">
+        <span class="chip" :class="statusToneClass">{{ session?.playback_state_label || '待机' }}</span>
+        <strong>{{ currentPage }} / {{ totalPages || '-' }}</strong>
+      </div>
     </header>
 
     <section class="ppt-focus__stage">
       <article class="slide-preview slide-preview--current">
-        <span>当前页</span>
+        <div class="slide-preview__label">
+          <span>当前页</span>
+          <strong>{{ currentPage }}</strong>
+        </div>
         <img v-if="currentPreviewUrl" :src="currentPreviewUrl" alt="当前页预览" />
-        <strong v-else>{{ currentPage }}</strong>
+        <strong v-else class="slide-preview__fallback">{{ currentPage }}</strong>
       </article>
-      <aside class="slide-preview slide-preview--next">
-        <span>下一页</span>
-        <img v-if="nextPreviewUrl" :src="nextPreviewUrl" alt="下一页预览" />
-        <strong v-else>{{ nextPageLabel }}</strong>
+      <aside class="ppt-focus__sidecar">
+        <article class="slide-preview slide-preview--next">
+          <div class="slide-preview__label">
+            <span>下一页</span>
+            <strong>{{ nextPageLabel }}</strong>
+          </div>
+          <img v-if="nextPreviewUrl" :src="nextPreviewUrl" alt="下一页预览" />
+          <strong v-else class="slide-preview__fallback">{{ nextPageLabel }}</strong>
+        </article>
+        <article class="ppt-focus__cue-card">
+          <span class="eyebrow">进度</span>
+          <div class="slide-progress slide-progress--focus" aria-hidden="true">
+            <span :style="slideProgressStyle"></span>
+          </div>
+          <p>{{ isLoadingResources ? '正在读取 PPT 资源' : `资源页数 ${resources.length} · 当前页媒体 ${currentMediaItems.length}` }}</p>
+        </article>
       </aside>
     </section>
 
@@ -131,7 +159,7 @@ watch(() => source.value?.id, () => {
       </div>
       <article>
         <span class="eyebrow">提词器</span>
-        <p>{{ currentResource?.speaker_notes || '当前 PPT 尚未保存提词器文本。' }}</p>
+        <p>{{ notesText }}</p>
       </article>
       <article>
         <span class="eyebrow">当前页媒体</span>
