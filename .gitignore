@@ -183,4 +183,5 @@ logs/*
 
 # Third-party download caches and extracted binaries
 tools/third_party/*.zip
-tools/third_party/vlc/runtime/
+tools/third_party/vlc/runtime/*
+!tools/third_party/vlc/runtime/libvlc.dll
