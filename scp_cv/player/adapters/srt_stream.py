@@ -8,7 +8,7 @@ SRT 流适配器：通过 libVLC 直接播放 MediaMTX SRT 流。
 - libVLC 使用 Direct3D11 输出与硬件解码
 - network/live caching 降低到现场播放可接受范围
 - drop-late-frames / skip-frames 优先追实时画面
-- SRT latency=30000 (30ms): OBS 端最低延迟配置
+- SRT read latency=50: libVLC 读端请求低延迟，MediaMTX 通常收敛到约 120ms
 
 线程模型：
 - open() 在 Qt 主线程中调用（由 PlayerController 保证）
@@ -152,7 +152,7 @@ class SrtStreamAdapter(SourceAdapter):
     def open(self, uri: str, window_handle: int, autoplay: bool = True) -> None:
         """
         启动 SRT 流播放。libVLC 嵌入到指定 Qt 原生窗口容器中。
-        :param uri: SRT 流 URL（如 srt://127.0.0.1:8890?streamid=read:test&latency=30000）
+        :param uri: SRT 流 URL（如 srt://127.0.0.1:8890?streamid=read:test&latency=50）
         :param window_handle: 渲染目标窗口的原生句柄（由 PlayerWindow 提供）
         :param autoplay: 是否自动开始播放
         """

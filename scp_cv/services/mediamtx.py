@@ -33,6 +33,10 @@ _RTSP_PORT = int(getattr(settings, "MEDIAMTX_RTSP_PORT", 8554))
 # SRT 服务端口（与 mediamtx.yml 中 srtAddress 一致）
 _SRT_PORT = int(getattr(settings, "MEDIAMTX_SRT_PORT", 8890))
 
+# OBS/FFmpeg 推流端沿用既有 30000 配置；libVLC 读端按毫秒解释 latency。
+_SRT_PUBLISH_LATENCY = 30000
+_SRT_READ_LATENCY_MS = 50
+
 # MediaMTX 进程引用
 _mediamtx_process: Optional[subprocess.Popen[bytes]] = None
 
@@ -67,23 +71,24 @@ def _detect_read_host() -> str:
 def get_srt_publish_url(stream_identifier: str) -> str:
     """
     获取 SRT 推流地址（供 OBS 等外部设备通过 SRT 推送使用）。
-    OBS 原生支持 SRT 输出，延迟 30ms。
+    OBS 原生支持 SRT 输出，沿用现场已验证的低延迟配置。
     :param stream_identifier: 流标识符（路径名）
     :return: SRT 推流 URL
     """
     public_host = _detect_lan_host()
-    return f"srt://{public_host}:{_SRT_PORT}?streamid=publish:{stream_identifier}&latency=30000"
+    return f"srt://{public_host}:{_SRT_PORT}?streamid=publish:{stream_identifier}&latency={_SRT_PUBLISH_LATENCY}"
 
 
 def get_srt_read_url(stream_identifier: str) -> str:
     """
     获取 SRT 拉流地址（供播放器通过 SRT 直接读取使用）。
-    跳过 RTSP 转换环节，播放器直接从 MediaMTX SRT 端口拉流，延迟更低。
+    跳过 RTSP 转换环节，播放器直接从 MediaMTX SRT 端口拉流。
+    libVLC 将 latency 按毫秒解释，不能沿用 OBS/FFmpeg 的 30000 配置。
     :param stream_identifier: 流标识符（路径名）
     :return: SRT 拉流 URL
     """
     read_host = _detect_read_host()
-    return f"srt://{read_host}:{_SRT_PORT}?streamid=read:{stream_identifier}&latency=30000"
+    return f"srt://{read_host}:{_SRT_PORT}?streamid=read:{stream_identifier}&latency={_SRT_READ_LATENCY_MS}"
 
 
 def get_rtsp_read_url(stream_identifier: str) -> str:

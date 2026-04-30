@@ -32,4 +32,4 @@ def test_read_url_uses_configured_read_host(settings: object) -> None:
     """
     settings.MEDIAMTX_SRT_READ_HOST = "192.168.1.100"
 
-    assert get_srt_read_url("camera-a") == "srt://192.168.1.100:8890?streamid=read:camera-a&latency=30000"
+    assert get_srt_read_url("camera-a") == "srt://192.168.1.100:8890?streamid=read:camera-a&latency=50"

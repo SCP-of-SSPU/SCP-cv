@@ -5,6 +5,7 @@
 ### 现场控制补齐
 
 - **播放内核替换**：SRT 播放器移除旧播放内核与旧 Python 绑定，改为 python-vlc + libVLC，第三方下载脚本同步切换到 VLC runtime
+- **SRT 读端延迟修复**：播放器读取 URL 改为 `latency=50`，避免 libVLC 将旧值解释为 30 秒缓冲
 - **启动显卡选择**：播放器启动器在多显卡主机上提供 SRT 渲染显卡选择，并过滤虚拟显示适配器
 - **PPT 资源解析**：上传或注册 `.pptx` / `.ppsx` 时自动提取页数、备注文本和页面媒体引用，PPT 资源接口新增 `media_items` 字段
 - **PPT 媒体控制**：新增 `/api/playback/{window_id}/ppt-media/`，支持对当前页单个媒体执行播放、暂停和停止
