@@ -56,6 +56,10 @@ class Command(BaseCommand):
         dev_mode = bool(options.get("dev", False)) or settings.DEBUG
         poll_interval = float(options.get("poll_interval", 0.2))
 
+        # 启动时自动选择显卡（优先独显），供后续适配器使用
+        from scp_cv.player.gpu_detector import auto_select_gpu
+        auto_select_gpu()
+
         self.stdout.write(self.style.SUCCESS(
             f"启动播放器（dev={dev_mode}, poll={poll_interval}s）"
         ))
@@ -107,6 +111,14 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f"用户分配了 {assigned_count} 个播放窗口"
         ))
+
+        # 应用用户选择的显卡到全局配置（供 mpv 适配器读取）
+        from scp_cv.player.gpu_detector import set_selected_gpu
+        if launch_result.selected_gpu is not None:
+            set_selected_gpu(launch_result.selected_gpu)
+            self.stdout.write(self.style.SUCCESS(
+                f"显卡已选择：{launch_result.selected_gpu.display_label}"
+            ))
 
         # ═══ 根据分配结果创建播放窗口 ═══
         self._start_player(qt_app, launch_result, dev_mode, poll_interval)

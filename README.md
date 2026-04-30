@@ -8,7 +8,7 @@
 
 - **统一媒体源管理**：本地文件上传、路径添加、网页与流媒体源注册，全部媒体在同一界面管理
 - **PPT 全功能控制**：通过 COM 自动化驱动 PowerPoint，支持翻页、跳转、播放/暂停、备注提词和当前页媒体控制
-- **mpv/libmpv 低延迟播放**：基于 python-mpv + libmpv 和 MediaMTX 实现低延迟 SRT 直连播放
+- **mpv/libmpv 低延迟播放**：基于 python-mpv + libmpv 和 MediaMTX 实现低延迟 SRT 直连播放，启动时可选择 SRT 渲染显卡
 - **多显示器拼接**：单屏 / 左右双屏拼接模式，启动时通过 GUI 选择目标屏幕
 - **前后端分离**：`frontend/` Vue 3 控制台通过 REST + SSE 调用 Django 后端
 - **保留 gRPC 集成**：核心播放控制 gRPC 接口继续服务中控系统和自动化脚本
@@ -104,7 +104,7 @@ uv run python manage.py runall --backend-host 0.0.0.0 --frontend-host 0.0.0.0 --
 启动后：
 
 1. 本机浏览器打开 `http://127.0.0.1:5173/` 访问 Vue Web 控制台，手机访问时使用 `http://<本机局域网IP>:5173/`
-2. 播放器启动器 GUI 弹出，选择播放窗口对应的目标屏幕
+2. 播放器启动器 GUI 弹出，多显卡主机可先选择 SRT 渲染显卡，再选择播放窗口对应的目标屏幕
 3. 通过浏览器 Web 控制台上传/添加媒体源，点击播放即可在大屏显示
 
 > **提示**：`DJANGO_DEBUG=True` 时播放器窗口带标题栏（可拖拽缩放），`False` 时全屏无边框置顶。

@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Optional
 
 from scp_cv.player.adapters.base import AdapterState, SourceAdapter
+from scp_cv.player.gpu_detector import get_mpv_gpu_options
 
 logger = logging.getLogger(__name__)
 
@@ -74,23 +75,31 @@ class SrtStreamAdapter(SourceAdapter):
         self._release_player()
 
         # 创建 mpv 实例，嵌入到 Qt 窗口容器
-        self._player = mpv.MPV(
-            wid=str(window_handle),
+        mpv_options = {
+            "wid": str(window_handle),
             # 低延迟核心参数
-            profile="low-latency",
-            cache="no",
-            untimed=True,
+            "profile": "low-latency",
+            "cache": "no",
+            "untimed": True,
             # FFmpeg demuxer 级别禁用缓冲
-            demuxer_lavf_o="fflags=+nobuffer",
+            "demuxer_lavf_o": "fflags=+nobuffer",
             # GPU 渲染 + 硬件解码
-            vo="gpu",
-            hwdec="auto",
+            "vo": "gpu",
+            "hwdec": "auto",
             # 音频配置
-            audio_client_name="SCP-cv",
+            "audio_client_name": "SCP-cv",
             # 日志（通过 python-mpv 回调收集）
-            log_handler=self._on_mpv_log,
-            loglevel="warn",
-        )
+            "log_handler": self._on_mpv_log,
+            "loglevel": "warn",
+        }
+
+        # 注入用户显卡选择配置（d3d11-adapter 等参数）
+        gpu_options = get_mpv_gpu_options()
+        if gpu_options:
+            mpv_options.update(gpu_options)
+            self._logger.info("已应用显卡配置：%s", gpu_options)
+
+        self._player = mpv.MPV(**mpv_options)
 
         # 注册属性观察器：核心播放状态追踪
         self._player.observe_property("core-idle", self._on_core_idle_changed)

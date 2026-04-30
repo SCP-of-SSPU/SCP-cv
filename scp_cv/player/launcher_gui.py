@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QApplication,
+    QComboBox,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -28,6 +29,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from scp_cv.player.gpu_detector import GPUInfo, enumerate_gpus
 from scp_cv.services.display import DisplayTarget, list_display_targets
 
 logger = logging.getLogger(__name__)
@@ -144,6 +146,51 @@ QFrame#SummaryCard {
     border-radius: 10px;
     padding: 12px 16px;
 }
+
+QComboBox#GpuCombo {
+    background: rgba(255, 255, 255, 0.86);
+    border: 1px solid rgba(15, 23, 42, 0.09);
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-size: 14px;
+    color: #0f172a;
+    min-height: 40px;
+    min-width: 280px;
+}
+QComboBox#GpuCombo:hover {
+    background: rgba(0, 120, 212, 0.06);
+    border-color: rgba(0, 120, 212, 0.25);
+}
+QComboBox#GpuCombo::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 32px;
+    border-left: none;
+    border-top-right-radius: 10px;
+    border-bottom-right-radius: 10px;
+}
+QComboBox#GpuCombo::down-arrow {
+    width: 12px;
+    height: 12px;
+}
+QComboBox#GpuCombo QAbstractItemView {
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid rgba(15, 23, 42, 0.09);
+    border-radius: 8px;
+    padding: 6px;
+    font-size: 13px;
+    color: #0f172a;
+    selection-background-color: rgba(0, 120, 212, 0.10);
+    selection-color: #0f172a;
+    outline: none;
+}
+
+QLabel#GpuLabel {
+    font-size: 13px;
+    font-weight: 600;
+    color: #526076;
+    padding: 2px 0px;
+}
 """
 
 # 需要选择的窗口总数
@@ -153,11 +200,13 @@ TOTAL_WINDOWS = 4
 @dataclass
 class LauncherResult:
     """
-    启动器选择结果：记录每个窗口分配的显示器。
+    启动器选择结果：记录每个窗口分配的显示器及显卡选择。
     window_assignments: window_id(1-4) → DisplayTarget
+    selected_gpu: 用户选择的显卡，None 表示使用默认/自动
     """
 
     window_assignments: dict[int, DisplayTarget] = field(default_factory=dict)
+    selected_gpu: GPUInfo | None = None
 
 
 class LauncherWindow(QWidget):
@@ -186,6 +235,13 @@ class LauncherWindow(QWidget):
         super().__init__()
         self._debug_mode = debug_mode
         self._display_targets = list_display_targets()
+
+        # 枚举可用显卡
+        self._available_gpus: list[GPUInfo] = enumerate_gpus()
+        self._selected_gpu: GPUInfo | None = None
+        # 默认选择第一个显卡
+        if self._available_gpus:
+            self._selected_gpu = self._available_gpus[0]
 
         # 分配映射：window_id(1-4) → DisplayTarget
         self._assignments: dict[int, DisplayTarget] = {}
@@ -239,7 +295,34 @@ class LauncherWindow(QWidget):
         self._subtitle_label.setObjectName("SubtitleLabel")
         self._main_layout.addWidget(self._title_label)
         self._main_layout.addWidget(self._subtitle_label)
-        self._main_layout.addSpacing(16)
+        self._main_layout.addSpacing(10)
+
+        # 显卡选择区域（仅在检测到多显卡时显示）
+        if len(self._available_gpus) > 1:
+            gpu_section = QWidget()
+            gpu_layout = QHBoxLayout(gpu_section)
+            gpu_layout.setContentsMargins(0, 0, 0, 0)
+            gpu_layout.setSpacing(12)
+
+            gpu_label = QLabel("选择显卡：")
+            gpu_label.setObjectName("GpuLabel")
+            self._gpu_combo = QComboBox()
+            self._gpu_combo.setObjectName("GpuCombo")
+            for gpu in self._available_gpus:
+                self._gpu_combo.addItem(gpu.display_label, userData=gpu)
+            self._gpu_combo.currentIndexChanged.connect(self._on_gpu_changed)
+            self._gpu_combo.setCurrentIndex(0)
+
+            gpu_layout.addWidget(gpu_label)
+            gpu_layout.addWidget(self._gpu_combo, stretch=1)
+            gpu_layout.addItem(
+                QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+            )
+            self._main_layout.addWidget(gpu_section)
+        else:
+            self._gpu_combo = None
+
+        self._main_layout.addSpacing(8)
 
         # 分割线
         divider = QFrame()
@@ -404,6 +487,17 @@ class LauncherWindow(QWidget):
 
     # ═══════════════════ 用户交互 ═══════════════════
 
+    def _on_gpu_changed(self, combo_index: int) -> None:
+        """
+        显卡选择变更回调。
+        :param combo_index: QComboBox 当前选中项的索引
+        """
+        if combo_index >= 0 and self._gpu_combo is not None:
+            gpu_data = self._gpu_combo.itemData(combo_index)
+            if isinstance(gpu_data, GPUInfo):
+                self._selected_gpu = gpu_data
+        logger.info("已选择显卡：%s", self._selected_gpu.display_label if self._selected_gpu else "默认")
+
     def _select_display(self, display_index: int) -> None:
         """
         选中某台显示器供当前窗口使用。
@@ -454,14 +548,17 @@ class LauncherWindow(QWidget):
         """点击"启动播放"：构建结果并关闭窗口。"""
         launch_result = LauncherResult(
             window_assignments=dict(self._assignments),
+            selected_gpu=self._selected_gpu,
         )
         assignment_summary = ", ".join(
             f"窗口{wid}→{dt.name}"
             for wid, dt in sorted(launch_result.window_assignments.items())
         )
+        gpu_label = f"，显卡={self._selected_gpu.display_label}" if self._selected_gpu else ""
         logger.info(
-            "启动器选择完成：%s，控制端=Web 控制台",
+            "启动器选择完成：%s%s，控制端=Web 控制台",
             assignment_summary,
+            gpu_label,
         )
         self.launch_requested.emit(launch_result)
         self.close()
