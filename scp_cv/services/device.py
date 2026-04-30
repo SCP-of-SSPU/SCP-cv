@@ -1,17 +1,21 @@
 #!/user/bin/env python
 # -*- coding: UTF-8 -*-
 '''
-设备开关机占位服务，记录设备状态但不实际控制硬件。
+设备电源控制服务，通过 TCP 发送固定 hex 控制帧。
+不保存设备状态，也不读取设备返回数据。
 @Project : SCP-cv
 @File : device.py
 @Author : Qintsg
-@Date : 2026-04-29
+@Date : 2026-04-30
 '''
 from __future__ import annotations
 
 import logging
+import socket
+import time
+from dataclasses import dataclass
 
-from scp_cv.apps.playback.models import DeviceEndpoint, DeviceType
+from scp_cv.apps.playback.models import DeviceType
 
 logger = logging.getLogger(__name__)
 
@@ -20,116 +24,132 @@ class DeviceError(Exception):
     """设备操作过程中的业务异常。"""
 
 
+@dataclass(frozen=True)
+class DeviceDefinition:
+    """物理电源控制端点定义。"""
+
+    device_type: str
+    name: str
+    host: str
+    port: int
+
+
+_TCP_TIMEOUT_SECONDS = 3
+_SPLICE_ON_FRAMES = ["FF06010A00010001FA", "FF06010A00010000FA"]
+_SPLICE_OFF_FRAMES = ["FF06010A00020001FA", "FF06010A00020000FA"]
+_TV_TOGGLE_FRAMES = ["FF06010A00330001FA", "FF06010A00330000FA"]
+_DEVICES: dict[str, DeviceDefinition] = {
+    DeviceType.SPLICE_SCREEN: DeviceDefinition(DeviceType.SPLICE_SCREEN, "拼接屏", "192.168.5.10", 8889),
+    DeviceType.TV_LEFT: DeviceDefinition(DeviceType.TV_LEFT, "电视左", "192.168.5.161", 8889),
+    DeviceType.TV_RIGHT: DeviceDefinition(DeviceType.TV_RIGHT, "电视右", "192.168.5.162", 8889),
+}
+
+
 def list_devices() -> list[dict[str, object]]:
     """
-    获取所有设备端点列表。
-    :return: 设备字典列表
+    获取可控制设备按钮配置，不包含状态。
+    :return: 设备按钮配置列表
     """
-    devices = DeviceEndpoint.objects.all()
-    if not devices.exists():
-        _ensure_default_devices()
-        devices = DeviceEndpoint.objects.all()
-    return [
-        {
-            "id": d.pk,
-            "name": d.name,
-            "device_type": d.device_type,
-            "device_type_label": d.get_device_type_display(),
-            "is_powered_on": d.is_powered_on,
-            "address": d.address,
-            "is_placeholder": True,
-            "detail": "当前仅记录控制意图，未接入物理设备协议",
-        }
-        for d in devices
-    ]
+    return [_device_payload(device) for device in _DEVICES.values()]
 
 
 def toggle_device(device_type: str) -> dict[str, object]:
     """
-    切换设备开关机状态（占位实现）。
+    执行电视开关机切换指令。
     :param device_type: 设备类型
-    :return: 更新后的设备状态
-    :raises DeviceError: 设备不存在时
+    :return: 执行结果
+    :raises DeviceError: 设备不支持切换或发送失败时
     """
-    _ensure_default_devices()
-    try:
-        device = DeviceEndpoint.objects.get(device_type=device_type)
-    except DeviceEndpoint.DoesNotExist as not_found:
-        raise DeviceError(f"设备类型 {device_type} 不存在") from not_found
-
-    device.is_powered_on = not device.is_powered_on
-    device.save(update_fields=["is_powered_on", "updated_at"])
-    action = "开机" if device.is_powered_on else "关机"
-    logger.info("设备「%s」执行%s（占位）", device.name, action)
-    return {
-        "id": device.pk,
-        "name": device.name,
-        "device_type": device.device_type,
-        "is_powered_on": device.is_powered_on,
-        "is_placeholder": True,
-        "detail": "当前仅记录控制意图，未接入物理设备协议",
-    }
+    device = _get_device(device_type)
+    if device.device_type not in {DeviceType.TV_LEFT, DeviceType.TV_RIGHT}:
+        raise DeviceError("拼接屏不支持切换指令，请使用开机或关机")
+    _send_sequence(device, _TV_TOGGLE_FRAMES, 0.1)
+    logger.info("设备「%s」已发送开关机切换指令", device.name)
+    return _device_payload(device, action="toggle")
 
 
 def power_on_device(device_type: str) -> dict[str, object]:
     """
-    设备开机（占位实现）。
+    执行拼接屏开机指令。
     :param device_type: 设备类型
-    :return: 设备状态
+    :return: 执行结果
+    :raises DeviceError: 设备不支持开机或发送失败时
     """
-    _ensure_default_devices()
-    try:
-        device = DeviceEndpoint.objects.get(device_type=device_type)
-    except DeviceEndpoint.DoesNotExist as not_found:
-        raise DeviceError(f"设备类型 {device_type} 不存在") from not_found
-
-    device.is_powered_on = True
-    device.save(update_fields=["is_powered_on", "updated_at"])
-    logger.info("设备「%s」执行开机（占位）", device.name)
-    return {
-        "id": device.pk,
-        "name": device.name,
-        "device_type": device.device_type,
-        "is_powered_on": device.is_powered_on,
-        "is_placeholder": True,
-        "detail": "当前仅记录控制意图，未接入物理设备协议",
-    }
+    device = _get_device(device_type)
+    if device.device_type != DeviceType.SPLICE_SCREEN:
+        raise DeviceError("电视仅支持开关机切换指令")
+    _send_sequence(device, _SPLICE_ON_FRAMES, 5.0)
+    logger.info("设备「%s」已发送开机指令", device.name)
+    return _device_payload(device, action="on")
 
 
 def power_off_device(device_type: str) -> dict[str, object]:
     """
-    设备关机（占位实现）。
+    执行拼接屏关机指令。
     :param device_type: 设备类型
-    :return: 设备状态
+    :return: 执行结果
+    :raises DeviceError: 设备不支持关机或发送失败时
     """
-    _ensure_default_devices()
-    try:
-        device = DeviceEndpoint.objects.get(device_type=device_type)
-    except DeviceEndpoint.DoesNotExist as not_found:
-        raise DeviceError(f"设备类型 {device_type} 不存在") from not_found
+    device = _get_device(device_type)
+    if device.device_type != DeviceType.SPLICE_SCREEN:
+        raise DeviceError("电视仅支持开关机切换指令")
+    _send_sequence(device, _SPLICE_OFF_FRAMES, 5.0)
+    logger.info("设备「%s」已发送关机指令", device.name)
+    return _device_payload(device, action="off")
 
-    device.is_powered_on = False
-    device.save(update_fields=["is_powered_on", "updated_at"])
-    logger.info("设备「%s」执行关机（占位）", device.name)
+
+def _get_device(device_type: str) -> DeviceDefinition:
+    """
+    查询静态设备定义。
+    :param device_type: 设备类型
+    :return: 设备定义
+    :raises DeviceError: 设备类型不存在时
+    """
+    device = _DEVICES.get(device_type)
+    if device is None:
+        raise DeviceError(f"设备类型 {device_type} 不存在")
+    return device
+
+
+def _send_sequence(device: DeviceDefinition, hex_frames: list[str], interval_seconds: float) -> None:
+    """
+    按顺序发送 TCP hex 帧，两帧之间按需求等待。
+    :param device: 设备定义
+    :param hex_frames: hex 字符串帧列表
+    :param interval_seconds: 两帧之间等待秒数
+    :return: None
+    """
+    for frame_index, hex_frame in enumerate(hex_frames):
+        _send_tcp_frame(device.host, device.port, hex_frame)
+        if frame_index < len(hex_frames) - 1:
+            time.sleep(interval_seconds)
+
+
+def _send_tcp_frame(host: str, port: int, hex_frame: str) -> None:
+    """
+    向指定 TCP 端点发送单帧数据，不读取返回。
+    :param host: 目标 IP
+    :param port: 目标端口
+    :param hex_frame: 控制帧 hex 字符串
+    :return: None
+    :raises DeviceError: 网络发送失败时
+    """
+    try:
+        frame = bytes.fromhex(hex_frame.replace(" ", ""))
+        with socket.create_connection((host, port), timeout=_TCP_TIMEOUT_SECONDS) as tcp_socket:
+            tcp_socket.sendall(frame)
+    except (OSError, ValueError) as send_error:
+        raise DeviceError(f"发送设备电源指令失败：{host}:{port} {send_error}") from send_error
+
+
+def _device_payload(device: DeviceDefinition, action: str = "") -> dict[str, object]:
+    """序列化电源控制结果，不包含任何设备状态。"""
     return {
-        "id": device.pk,
         "name": device.name,
         "device_type": device.device_type,
-        "is_powered_on": device.is_powered_on,
-        "is_placeholder": True,
-        "detail": "当前仅记录控制意图，未接入物理设备协议",
+        "device_type_label": dict(DeviceType.choices).get(device.device_type, device.name),
+        "host": device.host,
+        "port": device.port,
+        "action": action,
+        "detail": "电源指令已发送，未读取设备返回",
     }
-
-
-def _ensure_default_devices() -> None:
-    """确保三个默认设备端点存在。"""
-    defaults = [
-        (DeviceType.SPLICE_SCREEN, "拼接屏"),
-        (DeviceType.TV_LEFT, "电视左"),
-        (DeviceType.TV_RIGHT, "电视右"),
-    ]
-    for device_type, name in defaults:
-        DeviceEndpoint.objects.get_or_create(
-            device_type=device_type,
-            defaults={"name": name},
-        )

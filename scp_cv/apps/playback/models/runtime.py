@@ -31,6 +31,10 @@ class RuntimeState(models.Model):
         default=100,
         verbose_name="系统音量（0-100）",
     )
+    volume_muted = models.BooleanField(
+        default=False,
+        verbose_name="系统是否静音",
+    )
     updated_at = models.DateTimeField(
         auto_now=True,
         verbose_name="最后更新",
@@ -41,7 +45,8 @@ class RuntimeState(models.Model):
         verbose_name_plural = "运行状态"
 
     def __str__(self) -> str:
-        return f"大屏: {self.get_big_screen_mode_display()}, 音量: {self.volume_level}"
+        muted_label = "静音" if self.volume_muted else "未静音"
+        return f"大屏: {self.get_big_screen_mode_display()}, 音量: {self.volume_level}, {muted_label}"
 
     @classmethod
     def get_instance(cls) -> "RuntimeState":

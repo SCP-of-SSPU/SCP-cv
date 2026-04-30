@@ -28,6 +28,7 @@ from scp_cv.services.playback import (
     VALID_WINDOW_IDS,
     PlaybackError,
     close_source,
+    control_ppt_media,
     control_playback,
     get_all_sessions_snapshot,
     get_or_create_session,
@@ -135,6 +136,32 @@ def navigate_content_api(request: HttpRequest, window_id: int) -> JsonResponse:
             action,
             target_index=int_value(body, "target_index"),
             position_ms=int_value(body, "position_ms"),
+        ))
+    except PlaybackError as playback_error:
+        return error_response(str(playback_error), code="playback_error")
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def ppt_media_control_api(request: HttpRequest, window_id: int) -> JsonResponse:
+    """
+    控制 PPT 当前页中的单个媒体对象。
+    :param request: HTTP 请求
+    :param window_id: 窗口编号
+    :return: 操作后的会话状态
+    """
+    body, error = body_or_error(request)
+    if error is not None:
+        return error
+    media_action = str(body.get("action", "")).strip()
+    if not media_action:
+        return error_response("缺少 action 字段", code="missing_action")
+    try:
+        return mutate_playback(lambda: control_ppt_media(
+            parse_window_id(window_id),
+            media_action,
+            media_id=str(body.get("media_id", "")),
+            media_index=int_value(body, "media_index"),
         ))
     except PlaybackError as playback_error:
         return error_response(str(playback_error), code="playback_error")
@@ -252,7 +279,11 @@ def system_volume_api(request: HttpRequest) -> JsonResponse:
     if error is not None:
         return error
     try:
-        volume = set_system_volume(int_value(body, "level", 100))
+        level = int_value(body, "level", -1)
+        volume = set_system_volume(
+            level if level >= 0 else None,
+            bool_value(body, "muted") if "muted" in body else None,
+        )
     except VolumeError as volume_error:
         return error_response(str(volume_error), code="volume_error")
     return json_response({"success": True, "volume": volume})

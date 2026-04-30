@@ -261,6 +261,7 @@ class PlayerController(QObject):
             PlaybackCommand.SET_LOOP: self._handle_set_loop,
             PlaybackCommand.SET_VOLUME: self._handle_set_volume,
             PlaybackCommand.SET_MUTE: self._handle_set_mute,
+            PlaybackCommand.PPT_MEDIA: self._handle_ppt_media,
             PlaybackCommand.SHOW_ID: self._handle_show_id,
         }
 
@@ -438,6 +439,17 @@ class PlayerController(QObject):
         if adapter is not None:
             position_ms = int(command_args.get("position_ms", 0))
             adapter.seek(position_ms)
+
+    def _handle_ppt_media(self, window_id: int, command_args: dict[str, object]) -> None:
+        """处理 PPT 当前页媒体播放 / 暂停 / 停止指令。"""
+        adapter = self._adapters.get(window_id)
+        if adapter is not None:
+            media_index = int(command_args.get("media_index", 0))
+            adapter.control_media(
+                str(command_args.get("media_id", "")),
+                str(command_args.get("media_action", "")),
+                media_index,
+            )
 
     def _handle_set_loop(self, window_id: int, command_args: dict[str, object]) -> None:
         """

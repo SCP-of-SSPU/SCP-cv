@@ -66,6 +66,7 @@ class PlaybackCommand(models.TextChoices):
     SET_LOOP = "set_loop", "设置循环播放"
     SET_VOLUME = "set_volume", "设置音量"
     SET_MUTE = "set_mute", "设置静音"
+    PPT_MEDIA = "ppt_media", "控制 PPT 当前页媒体"
     SHOW_ID = "show_id", "显示窗口 ID"
 
 

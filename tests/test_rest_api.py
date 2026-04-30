@@ -16,7 +16,7 @@ from unittest.mock import patch
 import pytest
 from django.test import Client
 
-from scp_cv.apps.playback.models import MediaSource
+from scp_cv.apps.playback.models import MediaSource, PlaybackCommand, PlaybackSession
 from scp_cv.services.playback import get_or_create_session
 
 
@@ -140,3 +140,35 @@ def test_ppt_resources_api_replace_and_list(media_source_ppt: MediaSource) -> No
     assert save_response.status_code == 200
     assert list_response.status_code == 200
     assert list_response.json()["resources"][0]["speaker_notes"] == "提词器"
+
+
+@pytest.mark.django_db
+def test_ppt_media_control_api_sets_command(media_source_ppt: MediaSource) -> None:
+    """PPT 当前页媒体控制 API 应写入专用播放指令。"""
+    client = Client()
+    client.post(
+        "/api/playback/1/open/",
+        data={"source_id": media_source_ppt.pk, "autoplay": True},
+        content_type="application/json",
+    )
+
+    response = client.post(
+        "/api/playback/1/ppt-media/",
+        data={"action": "play", "media_id": "m1", "media_index": 1},
+        content_type="application/json",
+    )
+    session = PlaybackSession.objects.get(window_id=1)
+
+    assert response.status_code == 200
+    assert session.pending_command == PlaybackCommand.PPT_MEDIA
+    assert session.command_args["media_id"] == "m1"
+
+
+def test_device_power_api_uses_tcp_service() -> None:
+    """电源 API 应调用 TCP 电源服务且不返回状态字段。"""
+    client = Client()
+    with patch("scp_cv.apps.dashboard.api_views.power_on_device", return_value={"device_type": "splice_screen", "action": "on"}):
+        response = client.post("/api/devices/splice_screen/power/on/")
+
+    assert response.status_code == 200
+    assert response.json()["device"] == {"device_type": "splice_screen", "action": "on"}

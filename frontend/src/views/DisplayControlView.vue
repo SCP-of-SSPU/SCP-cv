@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 
-import { api, formatDuration, type MediaSourceItem } from '@/services/api';
+import { api, formatDuration, type MediaSourceItem, type PptMediaItem, type PptResourceItem } from '@/services/api';
 import { useAppStore } from '@/stores/app';
 
 const route = useRoute();
@@ -14,6 +14,7 @@ const uploadProgress = ref(0);
 const isUploading = ref(false);
 const targetPage = ref(1);
 const seekPercent = ref(0);
+const pptResources = ref<PptResourceItem[]>([]);
 
 const targetConfig = computed(() => {
   const target = String(route.params.target || 'big-left');
@@ -35,6 +36,8 @@ const pageTitle = computed(() => (
       : targetConfig.value.title
 ));
 const isHiddenByMode = computed(() => targetConfig.value.hiddenInSingle && appStore.runtime?.big_screen_mode === 'single');
+const currentPptResource = computed(() => pptResources.value.find((item) => item.page_index === (session.value?.current_slide || 1)) || null);
+const currentPptMediaItems = computed(() => currentPptResource.value?.media_items || []);
 
 watch(targetConfig, (config) => {
   appStore.activeWindowId = config.windowId;
@@ -45,6 +48,7 @@ watch(session, (currentSession) => {
   const matchedSource = appStore.sources.find((source) => source.uri === currentSession.source_uri);
   if (matchedSource) selectedSourceId.value = matchedSource.id;
   if (currentSession.current_slide > 0) targetPage.value = currentSession.current_slide;
+  void refreshPptResources();
 }, { immediate: true });
 
 async function runAction(action: () => Promise<void>): Promise<void> {
@@ -108,6 +112,11 @@ async function control(action: string): Promise<void> {
   appStore.applySessions(payload.sessions);
 }
 
+async function controlPptMedia(mediaItem: PptMediaItem, action: string): Promise<void> {
+  const payload = await api.controlPptMedia(targetConfig.value.windowId, action, mediaItem.id, mediaItem.media_index);
+  appStore.applySessions(payload.sessions);
+}
+
 async function navigate(action: string, targetIndex = 0, positionMs = 0): Promise<void> {
   const payload = await api.navigateContent(targetConfig.value.windowId, action, targetIndex, positionMs);
   appStore.applySessions(payload.sessions);
@@ -123,6 +132,13 @@ async function seek(): Promise<void> {
   await navigate('seek', 0, Math.round((seekPercent.value / 1000) * durationMs));
 }
 
+async function seekRelative(deltaMs: number): Promise<void> {
+  const durationMs = session.value?.duration_ms || 0;
+  if (!durationMs) return;
+  const nextPosition = Math.max(0, Math.min(durationMs, (session.value?.position_ms || 0) + deltaMs));
+  await navigate('seek', 0, nextPosition);
+}
+
 async function toggleLoop(): Promise<void> {
   const payload = await api.setLoop(targetConfig.value.windowId, !(session.value?.loop_enabled || false));
   appStore.applySessions(payload.sessions);
@@ -132,6 +148,21 @@ async function setVolume(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement;
   const payload = await api.setWindowVolume(targetConfig.value.windowId, Number(input.value));
   appStore.applySessions(payload.sessions);
+}
+
+async function toggleMute(): Promise<void> {
+  const payload = await api.setWindowMute(targetConfig.value.windowId, !(session.value?.is_muted || false));
+  appStore.applySessions(payload.sessions);
+}
+
+async function refreshPptResources(): Promise<void> {
+  const source = appStore.sources.find((item) => item.uri === session.value?.source_uri);
+  if (!source || source.source_type !== 'ppt') {
+    pptResources.value = [];
+    return;
+  }
+  const payload = await api.listPptResources(source.id);
+  pptResources.value = payload.resources;
 }
 
 function sourceTypeLabel(source: MediaSourceItem | null): string {
@@ -194,16 +225,33 @@ function sourceTypeLabel(source: MediaSourceItem | null): string {
           <input v-model.number="targetPage" type="number" min="1" />
           <button type="button" @click="runAction(gotoPage)">跳页</button>
         </div>
+        <div v-if="currentPptMediaItems.length" class="media-control-list">
+          <div v-for="mediaItem in currentPptMediaItems" :key="mediaItem.id" class="media-control-row">
+            <strong>{{ mediaItem.name }}</strong>
+            <small>{{ mediaItem.media_type }} · #{{ mediaItem.media_index }}</small>
+            <div class="button-grid">
+              <button type="button" @click="runAction(() => controlPptMedia(mediaItem, 'play'))">播放</button>
+              <button type="button" @click="runAction(() => controlPptMedia(mediaItem, 'pause'))">暂停</button>
+              <button type="button" @click="runAction(() => controlPptMedia(mediaItem, 'stop'))">停止</button>
+            </div>
+          </div>
+        </div>
+        <p v-else>当前页未检测到可逐项控制的音视频媒体。</p>
       </div>
 
       <div v-else-if="session?.source_type === 'video' || session?.source_type === 'audio'" class="type-controls">
         <div class="button-grid">
           <button type="button" @click="runAction(() => control('play'))">播放</button>
           <button type="button" @click="runAction(() => control('pause'))">暂停</button>
+          <button type="button" @click="runAction(() => control('stop'))">停止</button>
           <button type="button" @click="runAction(toggleLoop)">{{ session?.loop_enabled ? '关闭循环' : '开启循环' }}</button>
         </div>
         <p>{{ formatDuration(session?.position_ms || 0) }} / {{ formatDuration(session?.duration_ms || 0) }}</p>
         <input v-model.number="seekPercent" type="range" min="0" max="1000" :disabled="!session?.duration_ms" @change="runAction(seek)" />
+        <div class="button-grid">
+          <button type="button" :disabled="!session?.duration_ms" @click="runAction(() => seekRelative(-10000))">后退 10 秒</button>
+          <button type="button" :disabled="!session?.duration_ms" @click="runAction(() => seekRelative(10000))">前进 10 秒</button>
+        </div>
       </div>
 
       <div v-else-if="session?.source_type === 'image' || session?.source_type === 'web'" class="preview-card">
@@ -219,6 +267,7 @@ function sourceTypeLabel(source: MediaSourceItem | null): string {
       <label>窗口音量 {{ session?.volume ?? 100 }}
         <input type="range" min="0" max="100" :value="session?.volume ?? 100" @change="runAction(() => setVolume($event))" />
       </label>
+      <button type="button" :class="{ active: session?.is_muted }" @click="runAction(toggleMute)">{{ session?.is_muted ? '取消静音' : '静音' }}</button>
     </article>
   </section>
 </template>

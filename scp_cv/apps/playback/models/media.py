@@ -187,6 +187,12 @@ class PptResource(models.Model):
         verbose_name="是否包含媒体",
         help_text="该页是否包含视频/音频媒体对象",
     )
+    media_items = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="页面媒体清单",
+        help_text="当前页视频/音频对象列表，供前端逐项控制",
+    )
     created_at = models.DateTimeField(
         auto_now_add=True,
         verbose_name="创建时间",

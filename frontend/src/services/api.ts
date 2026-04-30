@@ -89,14 +89,22 @@ export interface DisplayTargetItem {
 }
 
 export interface DeviceItem {
-  id: number;
   name: string;
   device_type: 'splice_screen' | 'tv_left' | 'tv_right';
   device_type_label?: string;
-  is_powered_on: boolean;
-  address?: string;
-  is_placeholder?: boolean;
+  host?: string;
+  port?: number;
+  action?: string;
   detail?: string;
+}
+
+export interface PptMediaItem {
+  id: string;
+  media_index: number;
+  media_type: string;
+  name: string;
+  target: string;
+  shape_id: number;
 }
 
 export interface PptResourceItem {
@@ -107,6 +115,7 @@ export interface PptResourceItem {
   next_slide_image: string;
   speaker_notes: string;
   has_media: boolean;
+  media_items: PptMediaItem[];
   created_at: string;
 }
 
@@ -259,11 +268,12 @@ export const api = {
   listSessions: () => requestJson<ApiStatePayload>('/api/sessions/'),
   getRuntime: () => requestJson<{ success: boolean; runtime: RuntimeSnapshot }>('/api/runtime/'),
   setRuntimeMode: (bigScreenMode: 'single' | 'double') => requestJson<ApiStatePayload & { runtime: RuntimeSnapshot }>('/api/runtime/', { method: 'PATCH', body: JSON.stringify({ big_screen_mode: bigScreenMode }) }),
-  getSystemVolume: () => requestJson<{ success: boolean; volume: { level: number; muted: boolean } }>('/api/volume/'),
-  setSystemVolume: (level: number) => requestJson<{ success: boolean; volume: { level: number; muted: boolean } }>('/api/volume/', { method: 'PATCH', body: JSON.stringify({ level }) }),
+  getSystemVolume: () => requestJson<{ success: boolean; volume: { level: number; muted: boolean; system_synced: boolean; backend: string } }>('/api/volume/'),
+  setSystemVolume: (level: number, muted?: boolean) => requestJson<{ success: boolean; volume: { level: number; muted: boolean; system_synced: boolean; backend: string } }>('/api/volume/', { method: 'PATCH', body: JSON.stringify({ level, ...(muted === undefined ? {} : { muted }) }) }),
   openSource: (windowId: number, sourceId: number, autoplay = true) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/open/`, { method: 'POST', body: JSON.stringify({ source_id: sourceId, autoplay }) }),
   controlPlayback: (windowId: number, action: string) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/control/`, { method: 'POST', body: JSON.stringify({ action }) }),
   navigateContent: (windowId: number, action: string, targetIndex = 0, positionMs = 0) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/navigate/`, { method: 'POST', body: JSON.stringify({ action, target_index: targetIndex, position_ms: positionMs }) }),
+  controlPptMedia: (windowId: number, action: string, mediaId: string, mediaIndex: number) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/ppt-media/`, { method: 'POST', body: JSON.stringify({ action, media_id: mediaId, media_index: mediaIndex }) }),
   closeSource: (windowId: number) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/close/`, { method: 'POST' }),
   setLoop: (windowId: number, enabled: boolean) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/loop/`, { method: 'PATCH', body: JSON.stringify({ enabled }) }),
   setWindowVolume: (windowId: number, volume: number) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/volume/`, { method: 'PATCH', body: JSON.stringify({ volume }) }),

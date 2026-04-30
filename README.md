@@ -7,12 +7,13 @@
 ## 功能特性
 
 - **统一媒体源管理**：本地文件上传、路径添加、网页与流媒体源注册，全部媒体在同一界面管理
-- **PPT 全功能控制**：通过 COM 自动化驱动 PowerPoint，支持翻页、跳转、播放/暂停
+- **PPT 全功能控制**：通过 COM 自动化驱动 PowerPoint，支持翻页、跳转、播放/暂停、备注提词和当前页媒体控制
 - **mpv/libmpv 低延迟播放**：基于 python-mpv + libmpv 和 MediaMTX 实现低延迟 SRT 直连播放
 - **多显示器拼接**：单屏 / 左右双屏拼接模式，启动时通过 GUI 选择目标屏幕
 - **前后端分离**：`frontend/` Vue 3 控制台通过 REST + SSE 调用 Django 后端
 - **保留 gRPC 集成**：核心播放控制 gRPC 接口继续服务中控系统和自动化脚本
 - **SSE 实时推送**：播放状态和媒体源变更通过 Server-Sent Events 实时同步到浏览器
+- **系统与设备控制**：支持 Windows 系统音量/静音同步，并通过 TCP 指令控制拼接屏和电视电源
 - **一键启动**：`uv run python manage.py runall` 单终端同时启动 MediaMTX、Django、PySide6 播放器
 
 ## 架构概览
@@ -96,8 +97,8 @@ npm install --prefix frontend
 # 一键启动（推荐）：MediaMTX + Django + Vue + 播放器
 uv run python manage.py runall
 
-# 自定义参数
-uv run python manage.py runall --host 0.0.0.0 --port 8080 --skip-mediamtx
+# 自定义监听地址，便于局域网控制台访问
+uv run python manage.py runall --backend-host 0.0.0.0 --frontend-host 0.0.0.0 --skip-mediamtx
 ```
 
 启动后：
@@ -147,7 +148,7 @@ SCP-cv/
 ├── protos/                     # gRPC Proto 定义
 │   └── scp_cv/v1/control.proto # 统一播放控制服务合约
 ├── frontend/                   # Vue 3 + Vite 前端控制台
-├── tests/                      # pytest 测试套件（94 项）
+├── tests/                      # pytest 测试套件
 ├── tools/                      # 第三方可执行文件（MediaMTX、mpv）
 └── docs/                       # 项目文档
     ├── API.md                  # HTTP + gRPC 接口参考

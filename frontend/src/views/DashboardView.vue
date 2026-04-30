@@ -64,6 +64,10 @@ async function setSystemVolumeFromInput(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement;
   await appStore.setSystemVolume(Number(input.value));
 }
+
+async function toggleSystemMute(): Promise<void> {
+  await appStore.setSystemVolume(appStore.systemVolumeLevel, !appStore.systemMuted);
+}
 </script>
 
 <template>
@@ -71,7 +75,7 @@ async function setSystemVolumeFromInput(event: Event): Promise<void> {
     <div>
       <span class="eyebrow">Fluent Command Center</span>
       <h2>{{ appStore.bigScreenModeLabel }} · {{ appStore.connectionStatus }}</h2>
-      <p>首页只做运行态显示、预案调用、快捷上传、设备占位控制、音量和大屏模式切换。</p>
+      <p>首页只做运行态显示、预案调用、快捷上传、电源指令、音量和大屏模式切换。</p>
     </div>
     <div class="mode-switch" aria-label="大屏模式">
       <button type="button" :class="{ active: appStore.runtime?.big_screen_mode === 'single' }" @click="runAction(() => appStore.setBigScreenMode('single'))">单屏</button>
@@ -98,7 +102,7 @@ async function setSystemVolumeFromInput(event: Event): Promise<void> {
     <article class="metric-card">
       <span>系统音量</span>
       <strong>{{ appStore.systemVolumeLevel }}</strong>
-      <small>运行态入口</small>
+        <small>{{ appStore.systemMuted ? '静音' : appStore.systemVolumeBackend }}</small>
     </article>
   </section>
 
@@ -132,30 +136,25 @@ async function setSystemVolumeFromInput(event: Event): Promise<void> {
   <section class="grid three">
     <article class="panel">
       <div class="panel__header">
-        <h2>开关机占位</h2>
-        <button type="button" @click="runAction(appStore.refreshDevices)">刷新</button>
+        <h2>电源控制</h2>
       </div>
-      <div class="device-grid device-grid--wide">
-        <article v-for="device in appStore.devices" :key="device.device_type" class="device-card" :class="{ active: device.is_powered_on }">
-          <span>{{ device.device_type_label || device.name }}</span>
-          <strong>{{ device.is_powered_on ? '开机' : '关机' }}</strong>
-          <div v-if="device.device_type === 'splice_screen'" class="button-grid">
-            <button type="button" @click="runAction(() => appStore.powerDevice(device.device_type, 'on'))">开机</button>
-            <button type="button" @click="runAction(() => appStore.powerDevice(device.device_type, 'off'))">关机</button>
-          </div>
-          <button v-else type="button" @click="runAction(() => appStore.toggleDevice(device.device_type))">切换开/关</button>
-        </article>
+      <div class="button-grid">
+        <button type="button" @click="runAction(() => appStore.powerDevice('splice_screen', 'on'))">拼接屏开机</button>
+        <button type="button" class="danger" @click="runAction(() => appStore.powerDevice('splice_screen', 'off'))">拼接屏关机</button>
+        <button type="button" @click="runAction(() => appStore.toggleDevice('tv_left'))">电视左开关切换</button>
+        <button type="button" @click="runAction(() => appStore.toggleDevice('tv_right'))">电视右开关切换</button>
       </div>
     </article>
 
     <article class="panel">
       <div class="panel__header">
         <h2>音量管理</h2>
-        <span class="chip">Windows 同步占位</span>
+        <span class="chip">{{ appStore.systemVolumeBackend }}</span>
       </div>
       <label>系统音量 {{ appStore.systemVolumeLevel }}
         <input type="range" min="0" max="100" :value="appStore.systemVolumeLevel" @change="runAction(() => setSystemVolumeFromInput($event))" />
       </label>
+      <button type="button" :class="{ active: appStore.systemMuted }" @click="runAction(toggleSystemMute)">{{ appStore.systemMuted ? '取消系统静音' : '系统静音' }}</button>
     </article>
 
     <article class="panel">

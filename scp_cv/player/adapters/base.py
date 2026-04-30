@@ -130,6 +130,15 @@ class SourceAdapter(ABC):
         """
         self._logger.debug("适配器 %s 不支持 seek", self._adapter_name)
 
+    def control_media(self, media_id: str, action: str, media_index: int = 0) -> None:
+        """
+        控制当前项内的单个媒体对象（PPT 页面媒体等）。
+        :param media_id: 媒体对象标识
+        :param action: 控制动作（play / pause / stop）
+        :param media_index: 当前页媒体序号
+        """
+        self._logger.debug("适配器 %s 不支持 control_media", self._adapter_name)
+
     def set_loop(self, enabled: bool) -> None:
         """
         设置循环播放（时间线型源重写）。

@@ -23,6 +23,8 @@ interface AppState {
   displays: DisplayTargetItem[];
   devices: DeviceItem[];
   systemVolumeLevel: number;
+  systemMuted: boolean;
+  systemVolumeBackend: string;
   connectionStatus: string;
   message: string;
   isError: boolean;
@@ -42,6 +44,8 @@ export const useAppStore = defineStore('app', {
     displays: [],
     devices: [],
     systemVolumeLevel: 100,
+    systemMuted: false,
+    systemVolumeBackend: 'runtime_state',
     connectionStatus: 'SSE: 连接中',
     message: '',
     isError: false,
@@ -105,6 +109,8 @@ export const useAppStore = defineStore('app', {
     async refreshSystemVolume(): Promise<void> {
       const payload = await api.getSystemVolume();
       this.systemVolumeLevel = payload.volume.level;
+      this.systemMuted = payload.volume.muted;
+      this.systemVolumeBackend = payload.volume.backend;
     },
     async refreshScenarios(): Promise<void> {
       const payload = await api.listScenarios();
@@ -190,18 +196,20 @@ export const useAppStore = defineStore('app', {
       this.applySessions(payload.sessions);
       this.notify(bigScreenMode === 'double' ? '已切换为双屏' : '已切换为单屏');
     },
-    async setSystemVolume(level: number): Promise<void> {
-      const payload = await api.setSystemVolume(level);
+    async setSystemVolume(level: number, muted?: boolean): Promise<void> {
+      const payload = await api.setSystemVolume(level, muted);
       this.systemVolumeLevel = payload.volume.level;
-      this.notify(`系统音量已设为 ${payload.volume.level}`);
+      this.systemMuted = payload.volume.muted;
+      this.systemVolumeBackend = payload.volume.backend;
+      this.notify(payload.volume.system_synced ? `系统音量已设为 ${payload.volume.level}` : `音量状态已保存为 ${payload.volume.level}`);
     },
     async toggleDevice(deviceType: string): Promise<void> {
       await api.toggleDevice(deviceType);
-      await this.refreshDevices();
+      this.notify('电源切换指令已发送');
     },
     async powerDevice(deviceType: string, action: 'on' | 'off'): Promise<void> {
       await api.powerDevice(deviceType, action);
-      await this.refreshDevices();
+      this.notify(action === 'on' ? '开机指令已发送' : '关机指令已发送');
     },
     async showWindowIds(): Promise<void> {
       const payload = await api.showWindowIds();

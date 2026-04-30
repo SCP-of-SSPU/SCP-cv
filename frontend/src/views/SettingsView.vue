@@ -31,6 +31,10 @@ async function setSystemVolume(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement;
   await appStore.setSystemVolume(Number(input.value));
 }
+
+async function toggleSystemMute(): Promise<void> {
+  await appStore.setSystemVolume(appStore.systemVolumeLevel, !appStore.systemMuted);
+}
 </script>
 
 <template>
@@ -48,6 +52,7 @@ async function setSystemVolume(event: Event): Promise<void> {
       <label>系统音量 {{ systemVolume }}
         <input type="range" min="0" max="100" :value="systemVolume" @change="runAction(() => setSystemVolume($event))" />
       </label>
+      <button type="button" :class="{ active: appStore.systemMuted }" @click="runAction(toggleSystemMute)">{{ appStore.systemMuted ? '取消系统静音' : '系统静音' }}</button>
     </article>
 
     <article class="panel">
@@ -65,20 +70,14 @@ async function setSystemVolume(event: Event): Promise<void> {
   </section>
 
   <section class="panel">
-    <div class="panel__header">
-      <h2>设备电源</h2>
-      <button type="button" @click="runAction(appStore.refreshDevices)">刷新</button>
-    </div>
-    <div class="device-grid device-grid--wide">
-      <article v-for="device in appStore.devices" :key="device.device_type" class="device-card" :class="{ active: device.is_powered_on }">
-        <span>{{ device.device_type_label || device.name }}</span>
-        <strong>{{ device.is_powered_on ? 'ON' : 'OFF' }}</strong>
-        <div class="row-actions">
-          <button v-if="device.device_type === 'splice_screen'" type="button" @click="runAction(() => appStore.powerDevice(device.device_type, 'on'))">开机</button>
-          <button v-if="device.device_type === 'splice_screen'" type="button" class="danger" @click="runAction(() => appStore.powerDevice(device.device_type, 'off'))">关机</button>
-          <button v-else type="button" @click="runAction(() => appStore.toggleDevice(device.device_type))">切换</button>
-        </div>
-      </article>
+      <div class="panel__header">
+        <h2>设备电源</h2>
+      </div>
+    <div class="button-grid">
+      <button type="button" @click="runAction(() => appStore.powerDevice('splice_screen', 'on'))">拼接屏开机</button>
+      <button type="button" class="danger" @click="runAction(() => appStore.powerDevice('splice_screen', 'off'))">拼接屏关机</button>
+      <button type="button" @click="runAction(() => appStore.toggleDevice('tv_left'))">电视左开关切换</button>
+      <button type="button" @click="runAction(() => appStore.toggleDevice('tv_right'))">电视右开关切换</button>
     </div>
   </section>
 

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+import zipfile
 
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -295,12 +296,40 @@ class TestPptResources:
             "slide_image": "slides/1.png",
             "next_slide_image": "slides/2.png",
             "speaker_notes": "第一页提示",
-            "has_media": True,
+            "media_items": [{"id": "m1", "media_index": 1, "media_type": "video", "name": "片头.mp4"}],
         }])
 
         assert resources[0]["page_index"] == 1
         assert resources[0]["speaker_notes"] == "第一页提示"
+        assert resources[0]["media_items"][0]["name"] == "片头.mp4"
         assert list_ppt_resources(media_source_ppt.pk)[0]["has_media"] is True
+
+    def test_add_local_pptx_extracts_media_items(self, tmp_path: Path) -> None:
+        """注册 pptx 时应自动解析页数和页面媒体清单。"""
+        pptx_file = tmp_path / "demo.pptx"
+        with zipfile.ZipFile(pptx_file, "w") as archive:
+            archive.writestr("ppt/slides/slide1.xml", "<p:sld xmlns:p='p' />")
+            archive.writestr("ppt/slides/slide2.xml", "<p:sld xmlns:p='p' />")
+            archive.writestr(
+                "ppt/slides/_rels/slide1.xml.rels",
+                """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/video" Target="../media/video1.mp4" />
+                </Relationships>
+                """,
+            )
+            archive.writestr(
+                "ppt/notesSlides/notesSlide1.xml",
+                "<p:notes xmlns:p='p' xmlns:a='a'><a:t>第一页备注</a:t></p:notes>",
+            )
+
+        source = add_local_path(str(pptx_file))
+        resources = list_ppt_resources(source.pk)
+
+        assert source.metadata["ppt_parse_status"] == "parsed"
+        assert source.metadata["total_slides"] == 2
+        assert resources[0]["speaker_notes"] == "第一页备注"
+        assert resources[0]["media_items"][0]["media_type"] == "video"
 
     def test_rejects_non_ppt_source(self, media_source_video: MediaSource) -> None:
         """非 PPT 源不应保存 PPT 解析资源。"""

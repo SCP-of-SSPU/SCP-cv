@@ -23,6 +23,7 @@ from scp_cv.apps.playback.models import (
     PlaybackSession,
     PlaybackState,
     RuntimeState,
+    SourceType,
 )
 from scp_cv.services.display import (
     build_left_right_splice_target,
@@ -276,6 +277,8 @@ def navigate_content(
     session = get_or_create_session(window_id)
     if session.media_source is None:
         raise PlaybackError(f"窗口 {window_id} 当前没有打开的媒体源")
+    if _navigation_is_noop(session, action, target_index):
+        return session
 
     session.pending_command = action
     command_args: dict[str, int] = {}
@@ -287,6 +290,67 @@ def navigate_content(
     session.save()
     logger.info("窗口 %d 发送导航指令：%s，参数=%s", window_id, action, command_args)
     return session
+
+
+def control_ppt_media(
+    window_id: int,
+    media_action: str,
+    media_id: str = "",
+    media_index: int = 0,
+) -> PlaybackSession:
+    """
+    控制 PPT 当前页中的单个媒体对象。
+    :param window_id: 窗口编号（1-4）
+    :param media_action: 媒体控制动作（play / pause / stop）
+    :param media_id: 前端媒体对象标识
+    :param media_index: 当前页媒体序号（从 1 开始）
+    :return: 更新后的播放会话
+    :raises PlaybackError: 无 PPT 源或动作无效时
+    """
+    valid_actions = {PlaybackCommand.PLAY, PlaybackCommand.PAUSE, PlaybackCommand.STOP}
+    if media_action not in valid_actions:
+        raise PlaybackError(f"无效的 PPT 媒体控制动作：{media_action}")
+    session = get_or_create_session(window_id)
+    if session.media_source is None:
+        raise PlaybackError(f"窗口 {window_id} 当前没有打开的媒体源")
+    if session.media_source.source_type != SourceType.PPT:
+        raise PlaybackError("当前窗口未打开 PPT 源")
+
+    session.pending_command = PlaybackCommand.PPT_MEDIA
+    session.command_args = {
+        "media_action": media_action,
+        "media_id": media_id,
+        "media_index": max(0, int(media_index)),
+    }
+    session.save()
+    logger.info("窗口 %d 发送 PPT 媒体控制：%s，参数=%s", window_id, media_action, session.command_args)
+    return session
+
+
+def _navigation_is_noop(session: PlaybackSession, action: str, target_index: int) -> bool:
+    """
+    校验翻页/跳页边界，并判断是否应保持当前页不下发指令。
+    :param session: 当前播放会话
+    :param action: 导航动作
+    :param target_index: 目标页码
+    :return: True 表示当前操作为边界保持
+    """
+    source_type = session.media_source.source_type if session.media_source else ""
+    if source_type == SourceType.PPT:
+        if action == PlaybackCommand.SEEK:
+            raise PlaybackError("PPT 源不支持 seek 操作")
+        if action == PlaybackCommand.GOTO:
+            if target_index < 1:
+                raise PlaybackError("PPT 跳页页码必须大于 0")
+            if session.total_slides > 0 and target_index > session.total_slides:
+                raise PlaybackError(f"PPT 跳页页码超出范围：{target_index}/{session.total_slides}")
+        if action == PlaybackCommand.PREV and 0 < session.current_slide <= 1:
+            return True
+        if action == PlaybackCommand.NEXT and session.total_slides > 0 and session.current_slide >= session.total_slides:
+            return True
+    elif action in {PlaybackCommand.NEXT, PlaybackCommand.PREV, PlaybackCommand.GOTO}:
+        raise PlaybackError("当前源不是翻页型内容")
+    return False
 
 
 def close_source(window_id: int) -> PlaybackSession:

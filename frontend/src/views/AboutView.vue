@@ -27,7 +27,7 @@
       <h2>运行约束</h2>
       <p>大屏模式只使用 <code>single</code> 与 <code>double</code>。</p>
       <p>窗口 3/4 始终静音；Single 模式下窗口 2 静音。</p>
-      <p>设备电源当前记录控制意图，未接入物理协议。</p>
+      <p>设备电源通过 TCP hex 帧直接下发，不保存状态且不读取设备返回。</p>
     </article>
   </section>
 

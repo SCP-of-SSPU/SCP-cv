@@ -54,6 +54,7 @@ class PptSourceAdapter(SourceAdapter):
         self._window_handle: int = 0
         self._ppt_hwnd: int = 0
         self._is_paused: bool = False
+        self._last_slide_index: int = 1
         # COM 线程锁（所有 COM 调用须串行）
         self._com_lock = threading.Lock()
 
@@ -109,8 +110,11 @@ class PptSourceAdapter(SourceAdapter):
         if autoplay:
             self._start_slideshow()
 
-    def _start_slideshow(self) -> None:
-        """启动幻灯片放映并嵌入到 PySide 播放器窗口中。"""
+    def _start_slideshow(self, start_slide: int = 1) -> None:
+        """
+        启动幻灯片放映并嵌入到 PySide 播放器窗口中。
+        :param start_slide: 起始页码
+        """
         if self._presentation is None:
             return
 
@@ -120,7 +124,7 @@ class PptSourceAdapter(SourceAdapter):
         # 配置放映参数：使用窗口模式，不占满独立屏幕
         settings = self._presentation.SlideShowSettings
         settings.ShowType = _PP_SLIDE_SHOW_SPEAKER
-        settings.StartingSlide = 1
+        settings.StartingSlide = max(1, min(start_slide, self._total_slides or 1))
         settings.EndingSlide = self._total_slides
         settings.ShowPresenterView = False
 
@@ -288,6 +292,9 @@ class PptSourceAdapter(SourceAdapter):
     def play(self) -> None:
         """恢复放映（从暂停状态）。"""
         with self._com_lock:
+            if self._slideshow_view is None and self._presentation is not None:
+                self._start_slideshow(self._last_slide_index)
+                return
             if self._slideshow_view is not None and self._is_paused:
                 try:
                     self._slideshow_view.State = _PP_SLIDE_SHOW_RUNNING
@@ -310,6 +317,7 @@ class PptSourceAdapter(SourceAdapter):
         with self._com_lock:
             if self._slideshow_view is not None:
                 try:
+                    self._last_slide_index = int(self._slideshow_view.CurrentShowPosition or self._last_slide_index)
                     self._slideshow_view.Exit()
                 except Exception:
                     pass
@@ -325,6 +333,7 @@ class PptSourceAdapter(SourceAdapter):
             if self._slideshow_view is not None:
                 try:
                     self._slideshow_view.Next()
+                    self._last_slide_index = int(self._slideshow_view.CurrentShowPosition or self._last_slide_index)
                 except Exception as nav_error:
                     self._logger.warning("PPT 翻页（下一页）失败：%s", nav_error)
 
@@ -334,6 +343,7 @@ class PptSourceAdapter(SourceAdapter):
             if self._slideshow_view is not None:
                 try:
                     self._slideshow_view.Previous()
+                    self._last_slide_index = int(self._slideshow_view.CurrentShowPosition or self._last_slide_index)
                 except Exception as nav_error:
                     self._logger.warning("PPT 翻页（上一页）失败：%s", nav_error)
 
@@ -350,8 +360,88 @@ class PptSourceAdapter(SourceAdapter):
             if self._slideshow_view is not None:
                 try:
                     self._slideshow_view.GotoSlide(index)
+                    self._last_slide_index = index
                 except Exception as goto_error:
                     self._logger.warning("PPT 跳转到第 %d 页失败：%s", index, goto_error)
+
+    def control_media(self, media_id: str, action: str, media_index: int = 0) -> None:
+        """
+        控制当前页中的音视频媒体对象。
+        :param media_id: 媒体对象标识，可为 PowerPoint shape id
+        :param action: 控制动作（play / pause / stop）
+        :param media_index: 当前页媒体序号（从 1 开始）
+        :return: None
+        """
+        normalized_action = action.strip().lower()
+        if normalized_action not in {"play", "pause", "stop"}:
+            self._logger.warning("未知 PPT 媒体控制动作：%s", action)
+            return
+        with self._com_lock:
+            if self._slideshow_view is None:
+                self._logger.warning("PPT 放映未运行，无法控制页面媒体")
+                return
+            player = self._resolve_media_player(media_id, media_index)
+            if player is None:
+                self._logger.warning("未找到 PPT 页面媒体：media_id=%s, index=%d", media_id, media_index)
+                return
+            try:
+                getattr(player, normalized_action.capitalize())()
+            except Exception as media_error:
+                self._logger.warning("PPT 页面媒体 %s 执行 %s 失败：%s", media_id, action, media_error)
+
+    def _resolve_media_player(self, media_id: str, media_index: int) -> Optional[object]:
+        """
+        根据 shape id 或当前页媒体序号获取 PowerPoint Player 对象。
+        :param media_id: 媒体对象标识
+        :param media_index: 媒体序号
+        :return: PowerPoint Player COM 对象；找不到时返回 None
+        """
+        for shape_id in self._candidate_media_shape_ids(media_id, media_index):
+            try:
+                return self._slideshow_view.Player(shape_id)
+            except Exception:
+                continue
+        return None
+
+    def _candidate_media_shape_ids(self, media_id: str, media_index: int) -> list[int]:
+        """
+        生成可尝试的媒体 shape id 列表。
+        :param media_id: 前端媒体对象标识
+        :param media_index: 当前页媒体序号
+        :return: shape id 列表
+        """
+        candidate_ids: list[int] = []
+        try:
+            parsed_media_id = int(media_id)
+        except (TypeError, ValueError):
+            parsed_media_id = 0
+        if parsed_media_id > 0:
+            candidate_ids.append(parsed_media_id)
+        candidate_ids.extend(self._current_slide_media_shape_ids())
+        if media_index > 0 and len(candidate_ids) >= media_index:
+            return [candidate_ids[media_index - 1]] + candidate_ids
+        return candidate_ids
+
+    def _current_slide_media_shape_ids(self) -> list[int]:
+        """
+        枚举当前页可作为媒体控制目标的 shape id。
+        :return: 当前页媒体 shape id 列表
+        """
+        if self._presentation is None or self._slideshow_view is None:
+            return []
+        try:
+            current_slide = self._presentation.Slides(self._slideshow_view.CurrentShowPosition)
+        except Exception:
+            return []
+        shape_ids: list[int] = []
+        for shape_index in range(1, int(current_slide.Shapes.Count) + 1):
+            shape = current_slide.Shapes(shape_index)
+            try:
+                _ = shape.MediaFormat
+                shape_ids.append(int(shape.Id))
+            except Exception:
+                continue
+        return shape_ids
 
     # ═══════════════════ 状态获取 ═══════════════════
 
@@ -368,6 +458,7 @@ class PptSourceAdapter(SourceAdapter):
                 try:
                     slideshow_state = self._slideshow_view.State
                     current_slide = self._slideshow_view.CurrentShowPosition
+                    self._last_slide_index = int(current_slide or self._last_slide_index)
 
                     if slideshow_state == _PP_SLIDE_SHOW_RUNNING:
                         playback_state = "playing"

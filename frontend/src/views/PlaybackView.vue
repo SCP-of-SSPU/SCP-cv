@@ -137,6 +137,13 @@ async function seek(): Promise<void> {
   await appStore.navigate('seek', 0, Math.round((seekPercent.value / 1000) * durationMs));
 }
 
+async function seekRelative(deltaMs: number): Promise<void> {
+  const durationMs = activeSession.value?.duration_ms || 0;
+  if (!durationMs) return;
+  const currentPosition = activeSession.value?.position_ms || 0;
+  await appStore.navigate('seek', 0, Math.max(0, Math.min(durationMs, currentPosition + deltaMs)));
+}
+
 async function setVolume(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement;
   await appStore.setWindowVolume(Number(input.value));
@@ -310,6 +317,10 @@ async function toggleMute(): Promise<void> {
       <h2>视频进度</h2>
       <p>{{ formatDuration(activeSession?.position_ms || 0) }} / {{ formatDuration(activeSession?.duration_ms || 0) }}</p>
       <input v-model.number="seekPercent" type="range" min="0" max="1000" :disabled="!activeSession?.duration_ms || blocksActiveWindowAction" @change="runAction(seek, '视频跳转')" />
+      <div class="button-grid">
+        <button type="button" :disabled="!activeSession?.duration_ms || blocksActiveWindowAction" @click="runAction(() => seekRelative(-10000), '后退 10 秒')">后退 10 秒</button>
+        <button type="button" :disabled="!activeSession?.duration_ms || blocksActiveWindowAction" @click="runAction(() => seekRelative(10000), '前进 10 秒')">前进 10 秒</button>
+      </div>
     </article>
   </section>
 </template>

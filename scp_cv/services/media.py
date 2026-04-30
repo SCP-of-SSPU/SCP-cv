@@ -13,9 +13,12 @@ from __future__ import annotations
 import logging
 import mimetypes
 import os
+import re
+import zipfile
 from datetime import timedelta
 from pathlib import Path
 from typing import Optional
+from xml.etree import ElementTree
 
 from django.core.files.uploadedfile import UploadedFile
 from django.utils import timezone
@@ -227,6 +230,7 @@ def add_uploaded_file(
     media_source.uploaded_file.save(file_name, uploaded_file, save=False)
     media_source.uri = media_source.uploaded_file.path
     media_source.save()
+    _prepare_ppt_source_resources(media_source)
 
     logger.info("通过上传添加媒体源「%s」（%s）→ %s", display_name, source_type, media_source.uri)
     return media_source
@@ -275,6 +279,7 @@ def add_local_path(
         mime_type=_guess_mime_type(resolved_path.name),
         folder=folder,
     )
+    _prepare_ppt_source_resources(media_source)
 
     logger.info("通过本地路径添加媒体源「%s」（%s）→ %s", display_name, source_type, resolved_path)
     return media_source
@@ -456,6 +461,131 @@ def delete_temporary_source_if_unused(media_source_id: Optional[int]) -> bool:
     return True
 
 
+def _prepare_ppt_source_resources(source: MediaSource) -> None:
+    """
+    为 zip 格式 PPT 自动建立页资源和媒体清单，失败时保留源本身可打开。
+    :param source: 已保存的 PPT 媒体源
+    :return: None
+    """
+    if source.source_type != SourceType.PPT:
+        return
+    metadata = dict(source.metadata or {})
+    try:
+        resources = _extract_pptx_resources(Path(source.uri))
+    except MediaError as parse_error:
+        metadata.update({"ppt_parse_status": "unsupported", "ppt_parse_error": str(parse_error)})
+        source.metadata = metadata
+        source.save(update_fields=["metadata"])
+        logger.info("PPT 资源解析跳过：source_id=%d, reason=%s", source.pk, parse_error)
+        return
+
+    replace_ppt_resources(source.pk, resources)
+    metadata.update({
+        "ppt_parse_status": "parsed",
+        "total_slides": len(resources),
+        "has_media": any(bool(item.get("media_items")) for item in resources),
+    })
+    source.metadata = metadata
+    source.save(update_fields=["metadata"])
+    logger.info("PPT 资源解析完成：source_id=%d, pages=%d", source.pk, len(resources))
+
+
+def _extract_pptx_resources(file_path: Path) -> list[dict[str, object]]:
+    """
+    从 pptx/ppsx zip 包解析页数、备注文本和媒体引用清单。
+    :param file_path: PPT 文件路径
+    :return: PPT 页资源列表
+    :raises MediaError: 文件不是可解析的 zip PPT 时
+    """
+    if file_path.suffix.lower() not in {".pptx", ".ppsx"}:
+        raise MediaError("仅 pptx/ppsx 支持自动解析资源")
+    try:
+        with zipfile.ZipFile(file_path) as archive:
+            slide_names = sorted(
+                (name for name in archive.namelist() if re.fullmatch(r"ppt/slides/slide\d+\.xml", name)),
+                key=lambda name: int(re.search(r"slide(\d+)\.xml", name).group(1)),
+            )
+            return [
+                {
+                    "page_index": page_index,
+                    "speaker_notes": _extract_notes_text(archive, page_index),
+                    "media_items": _extract_slide_media_items(archive, slide_name, page_index),
+                }
+                for page_index, slide_name in enumerate(slide_names, start=1)
+            ]
+    except (zipfile.BadZipFile, OSError, ElementTree.ParseError) as parse_error:
+        raise MediaError(f"PPT 资源解析失败：{parse_error}") from parse_error
+
+
+def _extract_slide_media_items(
+    archive: zipfile.ZipFile,
+    slide_name: str,
+    page_index: int,
+) -> list[dict[str, object]]:
+    """
+    解析单页 PPT 的音视频关系项。
+    :param archive: PPT zip 包
+    :param slide_name: slide XML 路径
+    :param page_index: 页码
+    :return: 媒体对象列表
+    """
+    relationship_name = f"ppt/slides/_rels/{Path(slide_name).name}.rels"
+    if relationship_name not in archive.namelist():
+        return []
+    root = ElementTree.fromstring(archive.read(relationship_name))
+    media_items: list[dict[str, object]] = []
+    for relationship in root:
+        target = str(relationship.attrib.get("Target", ""))
+        relationship_type = str(relationship.attrib.get("Type", "")).lower()
+        if not _is_ppt_media_relationship(target, relationship_type):
+            continue
+        media_index = len(media_items) + 1
+        media_name = Path(target).name or f"media-{media_index}"
+        media_items.append({
+            "id": f"page-{page_index}-media-{media_index}",
+            "media_index": media_index,
+            "media_type": _guess_ppt_media_type(media_name, relationship_type),
+            "name": media_name,
+            "target": target,
+            "shape_id": 0,
+        })
+    return media_items
+
+
+def _extract_notes_text(archive: zipfile.ZipFile, page_index: int) -> str:
+    """
+    从 notesSlide XML 提取纯文本备注。
+    :param archive: PPT zip 包
+    :param page_index: 页码
+    :return: 备注文本；不存在时返回空字符串
+    """
+    notes_name = f"ppt/notesSlides/notesSlide{page_index}.xml"
+    if notes_name not in archive.namelist():
+        return ""
+    root = ElementTree.fromstring(archive.read(notes_name))
+    texts = [node.text.strip() for node in root.iter() if node.tag.endswith("}t") and node.text and node.text.strip()]
+    return "\n".join(texts)
+
+
+def _is_ppt_media_relationship(target: str, relationship_type: str) -> bool:
+    """判断 PPT 关系是否指向音视频媒体文件。"""
+    lower_target = target.lower()
+    media_extensions = {".mp4", ".mov", ".wmv", ".avi", ".mp3", ".wav", ".wma", ".m4a"}
+    return (
+        "/media" in relationship_type
+        or "../media/" in lower_target
+        or Path(lower_target).suffix in media_extensions
+    )
+
+
+def _guess_ppt_media_type(media_name: str, relationship_type: str) -> str:
+    """根据关系类型和扩展名推断 PPT 媒体类型。"""
+    lower_name = media_name.lower()
+    if "audio" in relationship_type or Path(lower_name).suffix in {".mp3", ".wav", ".wma", ".m4a"}:
+        return "audio"
+    return "video"
+
+
 def list_ppt_resources(source_id: int) -> list[dict[str, object]]:
     """
     获取 PPT 源的解析资源列表。
@@ -484,13 +614,15 @@ def replace_ppt_resources(source_id: int, resources: list[dict[str, object]]) ->
             raise MediaError("PPT 页码必须是整数") from parse_error
         if page_index <= 0:
             raise MediaError("PPT 页码必须大于 0")
+        media_items = _normalize_ppt_media_items(resource_data.get("media_items", []))
         PptResource.objects.create(
             source=source,
             page_index=page_index,
             slide_image=str(resource_data.get("slide_image", "")),
             next_slide_image=str(resource_data.get("next_slide_image", "")),
             speaker_notes=str(resource_data.get("speaker_notes", "")),
-            has_media=bool(resource_data.get("has_media", False)),
+            has_media=bool(resource_data.get("has_media", False)) or bool(media_items),
+            media_items=media_items,
         )
     logger.info("保存 PPT 资源：source_id=%d, pages=%d", source_id, len(resources))
     return list_ppt_resources(source_id)
@@ -517,8 +649,45 @@ def _ppt_resource_payload(resource: PptResource) -> dict[str, object]:
         "next_slide_image": resource.next_slide_image,
         "speaker_notes": resource.speaker_notes,
         "has_media": resource.has_media,
+        "media_items": resource.media_items or [],
         "created_at": resource.created_at.isoformat() if resource.created_at else "",
     }
+
+
+def _normalize_ppt_media_items(raw_media_items: object) -> list[dict[str, object]]:
+    """
+    校验并规范化前端保存的 PPT 页面媒体清单。
+    :param raw_media_items: 用户提交的媒体清单
+    :return: 规范化后的媒体对象列表
+    :raises MediaError: 媒体清单格式错误时
+    """
+    if raw_media_items in (None, ""):
+        return []
+    if not isinstance(raw_media_items, list):
+        raise MediaError("media_items 必须是数组")
+    normalized_items: list[dict[str, object]] = []
+    for item_index, raw_item in enumerate(raw_media_items, start=1):
+        if not isinstance(raw_item, dict):
+            raise MediaError("media_items 中的元素必须是对象")
+        media_index = _positive_int(raw_item.get("media_index"), item_index)
+        shape_id = _positive_int(raw_item.get("shape_id"), 0)
+        normalized_items.append({
+            "id": str(raw_item.get("id") or f"media-{media_index}"),
+            "media_index": media_index,
+            "media_type": str(raw_item.get("media_type") or raw_item.get("type") or "unknown"),
+            "name": str(raw_item.get("name") or f"媒体 {media_index}"),
+            "target": str(raw_item.get("target") or ""),
+            "shape_id": shape_id,
+        })
+    return normalized_items
+
+
+def _positive_int(raw_value: object, default: int) -> int:
+    """将输入转换为非负整数，失败时使用默认值。"""
+    try:
+        return max(0, int(raw_value))
+    except (TypeError, ValueError):
+        return default
 
 
 def cleanup_expired_temporary_sources() -> int:

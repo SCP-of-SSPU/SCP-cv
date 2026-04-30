@@ -25,6 +25,7 @@ from scp_cv.services.playback import (
     PlaybackError,
     clear_pending_command,
     close_source,
+    control_ppt_media,
     control_playback,
     get_or_create_session,
     get_session_snapshot,
@@ -249,6 +250,23 @@ class TestNavigateContent:
         assert session.pending_command == PlaybackCommand.GOTO
         assert session.command_args["target_index"] == 5
 
+    def test_goto_out_of_range_raises(self, media_source_ppt: MediaSource) -> None:
+        """PPT 跳页超过已知页数时应返回明确错误。"""
+        open_source(1, media_source_ppt.pk)
+        update_playback_progress(1, current_slide=1, total_slides=3)
+
+        with pytest.raises(PlaybackError, match="超出范围"):
+            navigate_content(1, PlaybackCommand.GOTO, target_index=4)
+
+    def test_boundary_prev_keeps_first_slide(self, media_source_ppt: MediaSource) -> None:
+        """第一页继续上一页时应保持当前页且不下发新指令。"""
+        open_source(1, media_source_ppt.pk)
+        update_playback_progress(1, current_slide=1, total_slides=3)
+        clear_pending_command(1)
+        session = navigate_content(1, PlaybackCommand.PREV)
+
+        assert session.pending_command == PlaybackCommand.NONE
+
     def test_seek_with_position(self, media_source_video: MediaSource) -> None:
         """Seek 到指定毫秒位置应在 command_args 中记录。"""
         open_source(1, media_source_video.pk)
@@ -256,6 +274,13 @@ class TestNavigateContent:
 
         assert session.pending_command == PlaybackCommand.SEEK
         assert session.command_args["position_ms"] == 30000
+
+    def test_ppt_rejects_seek(self, media_source_ppt: MediaSource) -> None:
+        """PPT 源不应接受 seek 指令。"""
+        open_source(1, media_source_ppt.pk)
+
+        with pytest.raises(PlaybackError, match="不支持 seek"):
+            navigate_content(1, PlaybackCommand.SEEK, position_ms=1000)
 
     def test_invalid_action_raises(self, media_source_ppt: MediaSource) -> None:
         """无效的导航动作应抛出 PlaybackError。"""
@@ -282,6 +307,28 @@ class TestNavigateContent:
         get_or_create_session(1)
         with pytest.raises(PlaybackError, match="没有打开"):
             navigate_content(1, PlaybackCommand.NEXT)
+
+
+@pytest.mark.django_db
+class TestControlPptMedia:
+    """测试 PPT 当前页媒体逐项控制。"""
+
+    def test_control_ppt_media_command(self, media_source_ppt: MediaSource) -> None:
+        """PPT 媒体控制应写入专用指令和媒体参数。"""
+        open_source(1, media_source_ppt.pk)
+        session = control_ppt_media(1, PlaybackCommand.PLAY, media_id="m1", media_index=2)
+
+        assert session.pending_command == PlaybackCommand.PPT_MEDIA
+        assert session.command_args["media_action"] == PlaybackCommand.PLAY
+        assert session.command_args["media_id"] == "m1"
+        assert session.command_args["media_index"] == 2
+
+    def test_rejects_non_ppt_source(self, media_source_video: MediaSource) -> None:
+        """非 PPT 源不应接受 PPT 媒体控制。"""
+        open_source(1, media_source_video.pk)
+
+        with pytest.raises(PlaybackError, match="未打开 PPT"):
+            control_ppt_media(1, PlaybackCommand.PLAY, media_id="m1", media_index=1)
 
 
 # ══════════════════════════════════════════════════════════════

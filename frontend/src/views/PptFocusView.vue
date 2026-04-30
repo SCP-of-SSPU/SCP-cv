@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 
-import { api, buildBackendUrl, type PptResourceItem } from '@/services/api';
+import { api, buildBackendUrl, type PptMediaItem, type PptResourceItem } from '@/services/api';
 import { useAppStore } from '@/stores/app';
 
 const route = useRoute();
@@ -15,6 +15,7 @@ const currentPage = computed(() => Math.max(1, session.value?.current_slide || 1
 const totalPages = computed(() => session.value?.total_slides || resources.value.length || 0);
 const currentResource = computed(() => resources.value.find((item) => item.page_index === currentPage.value) || null);
 const nextResource = computed(() => resources.value.find((item) => item.page_index === currentPage.value + 1) || null);
+const currentMediaItems = computed(() => currentResource.value?.media_items || []);
 
 function resourceUrl(path: string): string {
   return buildBackendUrl(path);
@@ -50,6 +51,11 @@ async function navigate(action: string, targetIndex = 0): Promise<void> {
 
 async function control(action: string): Promise<void> {
   const payload = await api.controlPlayback(windowId.value, action);
+  appStore.applySessions(payload.sessions);
+}
+
+async function controlMedia(mediaItem: PptMediaItem, action: string): Promise<void> {
+  const payload = await api.controlPptMedia(windowId.value, action, mediaItem.id, mediaItem.media_index);
   appStore.applySessions(payload.sessions);
 }
 
@@ -103,6 +109,21 @@ onMounted(async () => {
       <article>
         <span class="eyebrow">提词器</span>
         <p>{{ currentResource?.speaker_notes || '当前 PPT 尚未保存提词器文本。' }}</p>
+      </article>
+      <article>
+        <span class="eyebrow">当前页媒体</span>
+        <div v-if="currentMediaItems.length" class="media-control-list">
+          <div v-for="mediaItem in currentMediaItems" :key="mediaItem.id" class="media-control-row">
+            <strong>{{ mediaItem.name }}</strong>
+            <small>{{ mediaItem.media_type }} · #{{ mediaItem.media_index }}</small>
+            <div class="button-grid">
+              <button type="button" @click="runAction(() => controlMedia(mediaItem, 'play'))">播放</button>
+              <button type="button" @click="runAction(() => controlMedia(mediaItem, 'pause'))">暂停</button>
+              <button type="button" @click="runAction(() => controlMedia(mediaItem, 'stop'))">停止</button>
+            </div>
+          </div>
+        </div>
+        <p v-else>当前页未检测到可逐项控制的音视频媒体。</p>
       </article>
     </section>
   </main>
