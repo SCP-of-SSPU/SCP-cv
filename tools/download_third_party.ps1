@@ -1,14 +1,15 @@
-﻿<#
+<#
 .SYNOPSIS
-    下载 SCP-cv 项目所需的第三方依赖（mpv/libmpv）。
+    Download third-party VLC/libVLC runtime for SCP-cv.
 
 .DESCRIPTION
-    从 shinchiro/mpv-winbuild-cmake GitHub Releases 下载
-    mpv-dev-x86_64 压缩包，解压到 tools/third_party/mpv/。
-    需要 7-Zip 或系统自带 tar 解压 .7z / .tar.gz。
+    Downloads the official Windows x64 VLC zip package from VideoLAN and
+    extracts runtime files into tools/third_party/vlc/runtime/.
+    python-vlc is only the Python binding; SRT playback still requires
+    libvlc.dll, libvlccore.dll, and the plugins directory.
 
 .PARAMETER Force
-    若已存在 libmpv-2.dll 则跳过下载，指定 -Force 强制重新下载。
+    Re-download even when libvlc.dll already exists.
 
 .EXAMPLE
     .\tools\download_third_party.ps1
@@ -23,174 +24,121 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$ProjectRoot = Split-Path -Parent $ScriptDir
-$MpvDir = Join-Path $ScriptDir "third_party\mpv"
+$VlcDir = Join-Path $ScriptDir "third_party\vlc"
+$VlcRuntimeDir = Join-Path $VlcDir "runtime"
 
-# ═══════════════ 配置 ═══════════════
-# shinchiro/mpv-winbuild-cmake 仓库 API
-$GithubApiUrl = "https://api.github.com/repos/shinchiro/mpv-winbuild-cmake/releases/latest"
-
-# 目标文件名模式：mpv-dev-x86_64-*.7z 或 .tar.gz
-$AssetPattern = "mpv-dev-x86_64"
-
-# 必须存在的关键文件
-$RequiredDll = "libmpv-2.dll"
+$VlcWin64DirectoryUrl = "https://get.videolan.org/vlc/last/win64/"
+$VlcDownloadBaseUrl = "https://download.videolan.org/pub/videolan/vlc"
+$RequiredDll = "libvlc.dll"
+$RequiredCoreDll = "libvlccore.dll"
+$RequiredPluginsDir = "plugins"
 
 
-function Find-7Zip {
+function Get-LatestVlcZipAsset {
     <#
-    .SYNOPSIS 查找 7-Zip 可执行文件路径。
+    .SYNOPSIS Resolve latest Windows x64 VLC zip asset from VideoLAN.
+    .OUTPUTS PSCustomObject with name and url.
     #>
-    $candidates = @(
-        "7z",
-        "${env:ProgramFiles}\7-Zip\7z.exe",
-        "${env:ProgramFiles(x86)}\7-Zip\7z.exe"
-    )
-    foreach ($path in $candidates) {
-        if (Get-Command $path -ErrorAction SilentlyContinue) {
-            return $path
-        }
-        if (Test-Path $path) {
-            return $path
-        }
+    Write-Host "[INFO] Querying latest VLC Windows x64 zip..." -ForegroundColor Cyan
+    $response = Invoke-WebRequest -Uri $VlcWin64DirectoryUrl -UseBasicParsing -TimeoutSec 30
+    $baseUri = $response.BaseResponse.ResponseUri.AbsoluteUri
+    $matches = [regex]::Matches($response.Content, 'href="(?<name>vlc-(?<version>[^"/]+)-win64\.zip)"')
+
+    if ($matches.Count -eq 0) {
+        throw "No VLC win64 zip asset found at $baseUri"
     }
-    return $null
+
+    $fileName = $matches[0].Groups["name"].Value
+    $version = $matches[0].Groups["version"].Value
+    $downloadUri = "$VlcDownloadBaseUrl/$version/win64/$fileName"
+    Write-Host "[INFO] Found: $fileName" -ForegroundColor Green
+
+    return [PSCustomObject]@{
+        name = $fileName
+        url = $downloadUri
+    }
 }
 
 
-function Get-LatestMpvDevAsset {
+function Assert-VlcRuntime {
     <#
-    .SYNOPSIS 从 GitHub API 获取最新 mpv-dev-x86_64 资产下载链接。
-    .OUTPUTS [PSCustomObject] 包含 name 和 browser_download_url。
-    #>
-    Write-Host "[INFO] 查询最新版本..." -ForegroundColor Cyan
-    $headers = @{ "User-Agent" = "SCP-cv-downloader" }
-    $release = Invoke-RestMethod -Uri $GithubApiUrl -Headers $headers -TimeoutSec 30
-
-    $asset = $release.assets | Where-Object { $_.name -like "$AssetPattern*" } | Select-Object -First 1
-    if (-not $asset) {
-        throw "未找到匹配 '$AssetPattern' 的资产文件（版本：$($release.tag_name)）"
-    }
-
-    Write-Host "[INFO] 找到：$($asset.name)（$($release.tag_name)）" -ForegroundColor Green
-    return $asset
-}
-
-
-function Expand-7zArchive {
-    <#
-    .SYNOPSIS 使用 7-Zip 解压 .7z 文件。
-    .PARAMETER ArchivePath 压缩包路径。
-    .PARAMETER DestinationPath 解压目标目录。
+    .SYNOPSIS Validate required VLC runtime files.
+    .PARAMETER RuntimeDir VLC runtime directory.
     #>
     param(
-        [string]$ArchivePath,
-        [string]$DestinationPath
+        [string]$RuntimeDir
     )
-    $sevenZip = Find-7Zip
-    if (-not $sevenZip) {
-        throw "需要 7-Zip 解压 .7z 文件。请安装 7-Zip（https://www.7-zip.org/）或使用 winget install 7zip.7zip"
+
+    $libvlcPath = Join-Path $RuntimeDir $RequiredDll
+    $corePath = Join-Path $RuntimeDir $RequiredCoreDll
+    $pluginsPath = Join-Path $RuntimeDir $RequiredPluginsDir
+
+    if (-not (Test-Path $libvlcPath)) {
+        throw "Missing $RequiredDll at $libvlcPath"
     }
-    Write-Host "[INFO] 使用 7-Zip 解压..." -ForegroundColor Cyan
-    & $sevenZip x $ArchivePath "-o$DestinationPath" -y | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        throw "7-Zip 解压失败（exit code: $LASTEXITCODE）"
+    if (-not (Test-Path $corePath)) {
+        throw "Missing $RequiredCoreDll at $corePath"
+    }
+    if (-not (Test-Path $pluginsPath)) {
+        throw "Missing $RequiredPluginsDir directory at $pluginsPath"
     }
 }
 
 
-function Expand-TarGzArchive {
-    <#
-    .SYNOPSIS 使用 tar 解压 .tar.gz 文件。
-    .PARAMETER ArchivePath 压缩包路径。
-    .PARAMETER DestinationPath 解压目标目录。
-    #>
-    param(
-        [string]$ArchivePath,
-        [string]$DestinationPath
-    )
-    Write-Host "[INFO] 使用 tar 解压..." -ForegroundColor Cyan
-    tar -xzf $ArchivePath -C $DestinationPath
-    if ($LASTEXITCODE -ne 0) {
-        throw "tar 解压失败（exit code: $LASTEXITCODE）"
-    }
-}
-
-
-# ═══════════════ 主流程 ═══════════════
-
 Write-Host "========================================" -ForegroundColor Yellow
-Write-Host " SCP-cv 第三方依赖下载" -ForegroundColor Yellow
+Write-Host " SCP-cv third-party dependency download" -ForegroundColor Yellow
 Write-Host "========================================" -ForegroundColor Yellow
 
-# 检查是否已存在
-$dllPath = Join-Path $MpvDir $RequiredDll
+$dllPath = Join-Path $VlcRuntimeDir $RequiredDll
 if ((Test-Path $dllPath) -and (-not $Force)) {
-    Write-Host "[OK] $RequiredDll 已存在，跳过下载。使用 -Force 参数重新下载。" -ForegroundColor Green
+    Assert-VlcRuntime -RuntimeDir $VlcRuntimeDir
+    Write-Host "[OK] $RequiredDll already exists. Use -Force to re-download." -ForegroundColor Green
     exit 0
 }
 
-# 确保目标目录存在
-if (-not (Test-Path $MpvDir)) {
-    New-Item -ItemType Directory -Path $MpvDir -Force | Out-Null
+if (Test-Path $VlcRuntimeDir) {
+    Remove-Item -Path $VlcRuntimeDir -Recurse -Force
 }
+New-Item -ItemType Directory -Path $VlcRuntimeDir -Force | Out-Null
 
-# 获取下载链接
-$asset = Get-LatestMpvDevAsset
-$downloadUrl = $asset.browser_download_url
-$fileName = $asset.name
-$tempFile = Join-Path $env:TEMP $fileName
+$asset = Get-LatestVlcZipAsset
+$tempFile = Join-Path $env:TEMP $asset.name
+$tempExtract = Join-Path $env:TEMP "scp-cv-vlc-extract"
 
-# 下载
-Write-Host "[INFO] 下载中：$downloadUrl" -ForegroundColor Cyan
-Write-Host "[INFO] 保存到：$tempFile" -ForegroundColor Cyan
-Invoke-WebRequest -Uri $downloadUrl -OutFile $tempFile -TimeoutSec 300
+try {
+    Write-Host "[INFO] Downloading: $($asset.url)" -ForegroundColor Cyan
+    Write-Host "[INFO] Saving to: $tempFile" -ForegroundColor Cyan
+    Invoke-WebRequest -Uri $asset.url -OutFile $tempFile -UseBasicParsing -TimeoutSec 300
 
-if (-not (Test-Path $tempFile)) {
-    throw "下载失败：$tempFile 不存在"
-}
+    if (Test-Path $tempExtract) {
+        Remove-Item -Path $tempExtract -Recurse -Force
+    }
+    New-Item -ItemType Directory -Path $tempExtract -Force | Out-Null
 
-# 解压到临时目录
-$tempExtract = Join-Path $env:TEMP "mpv-dev-extract"
-if (Test-Path $tempExtract) {
-    Remove-Item -Path $tempExtract -Recurse -Force
-}
-New-Item -ItemType Directory -Path $tempExtract -Force | Out-Null
+    Write-Host "[INFO] Extracting VLC zip..." -ForegroundColor Cyan
+    Expand-Archive -Path $tempFile -DestinationPath $tempExtract -Force
 
-if ($fileName -match "\.7z$") {
-    Expand-7zArchive -ArchivePath $tempFile -DestinationPath $tempExtract
-} elseif ($fileName -match "\.(tar\.gz|tgz)$") {
-    Expand-TarGzArchive -ArchivePath $tempFile -DestinationPath $tempExtract
-} else {
-    throw "不支持的压缩格式：$fileName"
-}
+    $foundDll = Get-ChildItem -Path $tempExtract -Recurse -Filter $RequiredDll | Select-Object -First 1
+    if (-not $foundDll) {
+        throw "Extracted package does not contain $RequiredDll"
+    }
 
-# 查找 libmpv-2.dll（可能在子目录中）
-$foundDll = Get-ChildItem -Path $tempExtract -Recurse -Filter $RequiredDll | Select-Object -First 1
-if (-not $foundDll) {
-    throw "解压后未找到 $RequiredDll"
-}
+    $sourceDir = Split-Path -Parent $foundDll.FullName
+    Copy-Item -Path (Join-Path $sourceDir "*") -Destination $VlcRuntimeDir -Recurse -Force
+    Assert-VlcRuntime -RuntimeDir $VlcRuntimeDir
 
-# 复制 libmpv-2.dll 到目标目录
-$dllSource = $foundDll.FullName
-Copy-Item -Path $dllSource -Destination $MpvDir -Force
-Write-Host "[OK] 已复制 $RequiredDll → $MpvDir" -ForegroundColor Green
-
-# 验证
-if (Test-Path $dllPath) {
     $dllInfo = Get-Item $dllPath
-    Write-Host "[OK] libmpv-2.dll 大小：$([math]::Round($dllInfo.Length / 1MB, 1)) MB" -ForegroundColor Green
-} else {
-    throw "$RequiredDll 复制失败"
+    Write-Host "[OK] VLC runtime prepared: $VlcRuntimeDir" -ForegroundColor Green
+    Write-Host "[OK] libvlc.dll size: $([math]::Round($dllInfo.Length / 1MB, 1)) MB" -ForegroundColor Green
 }
-
-# 清理临时文件
-Remove-Item -Path $tempFile -Force -ErrorAction SilentlyContinue
-Remove-Item -Path $tempExtract -Recurse -Force -ErrorAction SilentlyContinue
-Write-Host "[OK] 临时文件已清理" -ForegroundColor Green
+finally {
+    Remove-Item -Path $tempFile -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $tempExtract -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Host "[OK] Temporary files removed" -ForegroundColor Green
+}
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Yellow
-Write-Host " 下载完成！" -ForegroundColor Green
-Write-Host " 路径：$dllPath" -ForegroundColor Green
+Write-Host " Download complete" -ForegroundColor Green
+Write-Host " Path: $dllPath" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Yellow

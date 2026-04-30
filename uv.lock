@@ -466,12 +466,12 @@ wheels = [
 ]
 
 [[package]]
-name = "python-mpv"
-version = "1.0.8"
+name = "python-vlc"
+version = "3.0.21203"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/77/bc/6aa34c8805ff62e2fefc7d171563c60598aac215d5241186031a2c839935/python_mpv-1.0.8.tar.gz", hash = "sha256:017fa359da059c831a94c419083491903e6d2f7c81b9841c33c196cabf4b3fe3", size = 52680, upload-time = "2025-04-25T09:51:40.048Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4b/5b/f9ce6f0c9877b6fe5eafbade55e0dcb6b2b30f1c2c95837aef40e390d63b/python_vlc-3.0.21203.tar.gz", hash = "sha256:52d0544b276b11e58b6c0b748c3e0518f94f74b1b4cd328c83a59eacabead1ec", size = 162211, upload-time = "2024-10-07T14:39:54.755Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/22/f3/4c632eaacebfc62ab9414586137aecf6c0ea2a1e99708cf5a4c0dec13ae0/python_mpv-1.0.8-py3-none-any.whl", hash = "sha256:b5296403e990fb7348df4ca2211937a030f524bf638657bda7e45a00bc2df0cd", size = 46169, upload-time = "2025-04-25T09:51:37.775Z" },
+    { url = "https://files.pythonhosted.org/packages/5b/ee/7d76eb3b50ccb1397621f32ede0fb4d17aa55a9aa2251bc34e6b9929fdce/python_vlc-3.0.21203-py3-none-any.whl", hash = "sha256:1613451a31b692ec276296ceeae0c0ba82bfc2d094dabf9aceb70f58944a6320", size = 87651, upload-time = "2024-10-07T14:39:50.021Z" },
 ]
 
 [[package]]
@@ -544,7 +544,7 @@ dependencies = [
     { name = "protobuf" },
     { name = "psutil" },
     { name = "pyside6" },
-    { name = "python-mpv" },
+    { name = "python-vlc" },
     { name = "pywin32" },
     { name = "requests" },
     { name = "screeninfo" },
@@ -568,7 +568,7 @@ requires-dist = [
     { name = "protobuf", specifier = "==6.33.6" },
     { name = "psutil", specifier = "==7.2.2" },
     { name = "pyside6", specifier = "==6.11.0" },
-    { name = "python-mpv", specifier = ">=1.0.7" },
+    { name = "python-vlc", specifier = ">=3.0.21203" },
     { name = "pywin32", specifier = ">=310" },
     { name = "requests", specifier = "==2.32.3" },
     { name = "screeninfo", specifier = "==0.8.1" },

@@ -5,6 +5,7 @@
 ## 目录结构
 
 - `mediamtx/`：MediaMTX 解压目录
+- `vlc/runtime/`：VLC/libVLC 运行时目录，可通过 `tools/download_third_party.ps1` 下载
 - `libreoffice/`：LibreOffice 相关文件或安装说明
 
 ## 环境变量

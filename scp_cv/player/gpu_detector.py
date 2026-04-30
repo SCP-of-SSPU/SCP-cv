@@ -1,9 +1,9 @@
 #!/user/bin/env python
 # -*- coding: UTF-8 -*-
 '''
-GPU 检测与选择模块：枚举系统可用显卡，存储用户选择并生成 mpv/PySide6 配置。
+GPU 检测与选择模块：枚举系统可用显卡，存储用户选择并生成 libVLC/PySide6 配置。
 支持 Windows 多显卡场景（Intel 核显 + NVIDIA/AMD 独显），
-通过 WMI 查询显卡信息，生成 mpv d3d11-adapter 参数实现指定显卡渲染。
+通过 WMI 查询显卡信息，为 libVLC Direct3D11 渲染提供启动诊断与硬件解码参数。
 @Project : SCP-cv
 @File : gpu_detector.py
 @Author : Qintsg
@@ -54,7 +54,7 @@ class GPUInfo:
     name: 显卡显示名称（如 "NVIDIA GeForce RTX 4060"）
     vendor: 厂商（nvidia / amd / intel / unknown）
     memory_gb: 显存大小（GB，取整）
-    device_id: PNPDeviceID，用于 mpv d3d11-adapter 精确匹配
+    device_id: PNPDeviceID，用于记录设备来源
     """
 
     index: int
@@ -72,15 +72,6 @@ class GPUInfo:
         mem_label = f"  {self.memory_gb}GB" if self.memory_gb > 0 else ""
         icon_label = f"[{vendor_icon}] " if vendor_icon else ""
         return f"{icon_label}{self.name}{mem_label}"
-
-    @property
-    def mpv_adapter_name(self) -> str:
-        """
-        mpv d3d11-adapter 参数所需的适配器名称。
-        优先使用完整名称精确匹配；PNPDeviceID 作备用。
-        """
-        return self.name
-
 
 def enumerate_gpus() -> list[GPUInfo]:
     """
@@ -123,7 +114,7 @@ def enumerate_gpus() -> list[GPUInfo]:
         for idx, gpu_entry in enumerate(raw_data):
             name = str(gpu_entry.get("Name", "") or f"显卡 {idx + 1}").strip()
             if not name or _is_virtual_adapter(name):
-                # 跳过虚拟/远程显示适配器，避免用户选择后 mpv 无法绑定真实 GPU。
+                # 跳过虚拟/远程显示适配器，避免用户选择后绑定到不可渲染设备。
                 continue
 
             ram_bytes = int(gpu_entry.get("AdapterRAM", 0) or 0)
@@ -217,24 +208,20 @@ def auto_select_gpu() -> None:
     logger.info("未检测到独显，自动选择：%s", gpu_list[0].display_label)
 
 
-def get_mpv_gpu_options() -> dict[str, str]:
+def get_vlc_gpu_options() -> list[str]:
     """
-    根据选中显卡生成 mpv 初始化参数。
-    当选中特定显卡时，强制使用 d3d11 渲染 API 并指定适配器名称。
-    :return: mpv 选项字典，可直接解包传入 mpv.MPV()
+    根据选中显卡生成 libVLC 初始化参数。
+    VLC 3.x 未提供稳定的显卡名称绑定参数，
+    因此这里启用 Direct3D11 输出/解码，并记录用户选择用于现场诊断。
+    :return: 可追加到 vlc.Instance() 的参数列表
     """
     gpu = get_selected_gpu()
-    if gpu is None:
-        return {}
+    options = [
+        "--vout=direct3d11",
+        "--avcodec-hw=d3d11va",
+    ]
 
-    options: dict[str, str] = {}
-    options["gpu-api"] = "d3d11"
-    options["gpu-context"] = "d3d11"
-
-    # mpv d3d11-adapter 通过显卡名称匹配选择特定 GPU
-    adapter_name = gpu.mpv_adapter_name
-    if adapter_name:
-        options["d3d11-adapter"] = adapter_name
-        logger.debug("mpv GPU 配置：d3d11-adapter=%s", adapter_name)
+    if gpu is not None:
+        logger.info("libVLC Direct3D11 渲染配置已启用，启动器显卡选择：%s", gpu.display_label)
 
     return options

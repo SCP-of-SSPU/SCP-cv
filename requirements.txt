@@ -10,4 +10,4 @@ screeninfo==0.8.1
 psutil==7.2.2
 requests==2.32.3
 pywin32>=310
-python-mpv>=1.0.7
+python-vlc>=3.0.21203

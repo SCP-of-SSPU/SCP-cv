@@ -8,7 +8,7 @@
 
 - **统一媒体源管理**：本地文件上传、路径添加、网页与流媒体源注册，全部媒体在同一界面管理
 - **PPT 全功能控制**：通过 COM 自动化驱动 PowerPoint，支持翻页、跳转、播放/暂停、备注提词和当前页媒体控制
-- **mpv/libmpv 低延迟播放**：基于 python-mpv + libmpv 和 MediaMTX 实现低延迟 SRT 直连播放，启动时可选择 SRT 渲染显卡
+- **libVLC 低延迟播放**：基于 python-vlc + libVLC 和 MediaMTX 实现低延迟 SRT 直连播放，启动时可选择 SRT 渲染显卡
 - **多显示器拼接**：单屏 / 左右双屏拼接模式，启动时通过 GUI 选择目标屏幕
 - **前后端分离**：`frontend/` Vue 3 控制台通过 REST + SSE 调用 Django 后端
 - **保留 gRPC 集成**：核心播放控制 gRPC 接口继续服务中控系统和自动化脚本
@@ -35,7 +35,7 @@
 │  PlayerController → 适配器分发     │
 │  ┌─────────┬──────────┬────────┐ │
 │  │ PPT适配  │ 视频适配  │ 流适配 │ │
-│  │ (COM)   │(QMedia)  │ (mpv)  │ │
+│  │ (COM)   │(QMedia)  │(libVLC)│ │
 │  └─────────┴──────────┴────────┘ │
 └──────────────────────────────────┘
            │ 拉流 (SRT)
@@ -78,6 +78,9 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 # 安装项目 Python（遵循 .python-version）并同步依赖
 uv python install
 uv sync
+
+# 准备 VLC/libVLC 播放运行时
+powershell -ExecutionPolicy Bypass -File .\tools\download_third_party.ps1
 
 # 复制环境变量配置
 copy .env.example .env
@@ -142,14 +145,14 @@ SCP-cv/
 │   │   ├── dashboard/          # Web 控制台（视图 + 模板 + 管理命令）
 │   │   ├── playback/           # 播放会话模型（PlaybackSession + MediaSource）
 │   │   └── streams/            # 外部流注册模型（StreamSource）
-│   ├── player/                 # PySide6 播放器（窗口 + 控制器 + mpv/libmpv 适配）
+│   ├── player/                 # PySide6 播放器（窗口 + 控制器 + libVLC 适配）
 │   ├── services/               # 业务服务层（显示、播放、MediaMTX、SSE）
 │   └── grpc_generated/         # protoc 生成的 Python 代码
 ├── protos/                     # gRPC Proto 定义
 │   └── scp_cv/v1/control.proto # 统一播放控制服务合约
 ├── frontend/                   # Vue 3 + Vite 前端控制台
 ├── tests/                      # pytest 测试套件
-├── tools/                      # 第三方可执行文件（MediaMTX、mpv）
+├── tools/                      # 第三方可执行文件（MediaMTX、VLC）
 └── docs/                       # 项目文档
     ├── API.md                  # HTTP + gRPC 接口参考
     ├── 使用文档.md              # 安装与使用指南

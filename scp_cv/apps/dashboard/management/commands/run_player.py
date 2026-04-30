@@ -112,7 +112,7 @@ class Command(BaseCommand):
             f"用户分配了 {assigned_count} 个播放窗口"
         ))
 
-        # 应用用户选择的显卡到全局配置（供 mpv 适配器读取）
+        # 应用用户选择的显卡到全局配置（供 libVLC 适配器读取）
         from scp_cv.player.gpu_detector import set_selected_gpu
         if launch_result.selected_gpu is not None:
             set_selected_gpu(launch_result.selected_gpu)
