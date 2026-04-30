@@ -80,12 +80,23 @@ class SrtStreamAdapter(SourceAdapter):
             # 低延迟核心参数
             "profile": "low-latency",
             "cache": "no",
-            "untimed": True,
+            "cache_pause": False,
+            "cache_pause_initial": False,
+            "cache_pause_wait": 0,
+            # 有音频直播不能使用 untimed，否则 mpv 容易按异常时间戳堆积 A/V 队列。
+            "untimed": False,
+            # 限制 demuxer 队列，避免直播源轻微落后时积累成分钟级延迟。
+            "demuxer_readahead_secs": 0.1,
+            "demuxer_max_bytes": 8 * 1024 * 1024,
+            "demuxer_max_back_bytes": 1 * 1024 * 1024,
             # FFmpeg demuxer 级别禁用缓冲
             "demuxer_lavf_o": "fflags=+nobuffer",
             # GPU 渲染 + 硬件解码
             "vo": "gpu",
             "hwdec": "auto",
+            # 直播优先追实时；解码器可丢弃过期帧，避免画面越播越落后。
+            "framedrop": "decoder",
+            "video_sync": "audio",
             # 音频配置
             "audio_client_name": "SCP-cv",
             # 日志（通过 python-mpv 回调收集）
