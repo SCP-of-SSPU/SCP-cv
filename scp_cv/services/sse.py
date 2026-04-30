@@ -24,6 +24,10 @@ _event_condition = threading.Condition(_event_lock)
 _latest_event_data: dict[str, object] = {}
 _event_sequence: int = 0
 
+# 播放器独立进程只会写数据库，Web 进程需要轮询补齐实时进度推送。
+_STATE_POLL_SECONDS: float = 0.2
+_HEARTBEAT_SECONDS: float = 30.0
+
 
 def publish_event(event_type: str, payload: dict[str, object]) -> None:
     """
@@ -55,8 +59,10 @@ def event_stream(last_sequence: int = 0) -> Generator[str, None, None]:
     :return: SSE 格式的文本流生成器
     """
     current_sequence = last_sequence
+    current_state_signature = ""
+    last_heartbeat_at = time.time()
 
-    # 先推送一次当前完整状态作为初始化数据
+    # 先推送事件总线中当前客户端尚未消费的事件。
     with _event_lock:
         pending_messages, current_sequence = _collect_pending_messages_locked(
             current_sequence,
@@ -67,8 +73,8 @@ def event_stream(last_sequence: int = 0) -> Generator[str, None, None]:
     # 持续等待并推送新事件
     while True:
         with _event_condition:
-            # 等待新事件，超时 30 秒发送心跳保活
-            _event_condition.wait(timeout=30.0)
+            # 等待事件唤醒；超时后检查播放器进程写入数据库的状态变化。
+            _event_condition.wait(timeout=_STATE_POLL_SECONDS)
 
             # 只在锁内复制消息，实际 yield 放到锁外，避免阻塞发布者。
             pending_messages, current_sequence = _collect_pending_messages_locked(
@@ -78,8 +84,19 @@ def event_stream(last_sequence: int = 0) -> Generator[str, None, None]:
         if pending_messages:
             for pending_message in pending_messages:
                 yield pending_message
+            last_heartbeat_at = time.time()
         else:
-            yield ": heartbeat\n\n"
+            polled_message, current_state_signature = _build_polled_state_message(
+                current_state_signature,
+            )
+            if polled_message:
+                yield polled_message
+                last_heartbeat_at = time.time()
+                continue
+            now = time.time()
+            if now - last_heartbeat_at >= _HEARTBEAT_SECONDS:
+                yield ": heartbeat\n\n"
+                last_heartbeat_at = now
 
 
 def _collect_pending_messages_locked(current_sequence: int) -> tuple[list[str], int]:
@@ -117,6 +134,30 @@ def _format_sse_message(event_record: dict[str, object]) -> str:
     lines.append("")
 
     return "\n".join(lines)
+
+
+def _build_polled_state_message(current_signature: str) -> tuple[str, str]:
+    """
+    从数据库读取播放快照并在变化时构造 SSE 消息。
+    :param current_signature: 上一次已推送的快照签名
+    :return: (SSE 消息或空字符串, 最新签名)
+    """
+    try:
+        from scp_cv.services.playback import get_all_sessions_snapshot
+        sessions = get_all_sessions_snapshot()
+    except Exception as snapshot_error:
+        logger.debug("轮询播放状态失败：%s", snapshot_error)
+        return "", current_signature
+
+    next_signature = json.dumps(sessions, ensure_ascii=False, sort_keys=True, default=str)
+    if next_signature == current_signature:
+        return "", current_signature
+    event_record = {
+        "sequence": "",
+        "type": "playback_state",
+        "data": {"sessions": sessions},
+    }
+    return _format_sse_message(event_record), next_signature
 
 
 def get_current_sequence() -> int:

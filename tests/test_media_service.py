@@ -331,6 +331,31 @@ class TestPptResources:
         assert resources[0]["speaker_notes"] == "第一页备注"
         assert resources[0]["media_items"][0]["media_type"] == "video"
 
+    @patch("scp_cv.services.media._export_ppt_slide_previews")
+    def test_add_local_pptx_attaches_exported_previews(
+        self,
+        mock_export_previews: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """注册 pptx 时应把导出的当前页和下一页 PNG 写入资源。"""
+        mock_export_previews.return_value = [
+            "/media/ppt_previews/1/slide-1.png",
+            "/media/ppt_previews/1/slide-2.png",
+        ]
+        pptx_file = tmp_path / "demo.pptx"
+        with zipfile.ZipFile(pptx_file, "w") as archive:
+            archive.writestr("ppt/slides/slide1.xml", "<p:sld xmlns:p='p' />")
+            archive.writestr("ppt/slides/slide2.xml", "<p:sld xmlns:p='p' />")
+
+        source = add_local_path(str(pptx_file))
+        resources = list_ppt_resources(source.pk)
+
+        assert resources[0]["slide_image"] == "/media/ppt_previews/1/slide-1.png"
+        assert resources[0]["next_slide_image"] == "/media/ppt_previews/1/slide-2.png"
+        assert resources[1]["slide_image"] == "/media/ppt_previews/1/slide-2.png"
+        assert resources[1]["next_slide_image"] == ""
+        assert source.metadata["preview_count"] == 2
+
     def test_rejects_non_ppt_source(self, media_source_video: MediaSource) -> None:
         """非 PPT 源不应保存 PPT 解析资源。"""
         with pytest.raises(MediaError, match="仅 PPT"):

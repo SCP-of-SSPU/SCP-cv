@@ -12,7 +12,7 @@
         <li>运行 <code>uv run python manage.py runall</code></li>
         <li>在启动器中选择播放窗口屏幕</li>
         <li>进入 Web 控制台上传或注册媒体源</li>
-        <li>在显示控制页或播放控制页打开源</li>
+        <li>在显示控制页打开源并进入 PPT 专注模式</li>
         <li>保存预案并一键激活现场状态</li>
       </ol>
     </article>

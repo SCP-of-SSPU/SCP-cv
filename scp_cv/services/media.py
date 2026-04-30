@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Optional
 from xml.etree import ElementTree
 
+from django.conf import settings
 from django.core.files.uploadedfile import UploadedFile
 from django.utils import timezone
 
@@ -31,6 +32,7 @@ from scp_cv.apps.playback.models import (
 )
 
 logger = logging.getLogger(__name__)
+_PPT_ALERTS_NONE = 1
 
 
 # 源类型与文件扩展名映射（用于自动检测）
@@ -436,9 +438,10 @@ def delete_media_source(media_source_id: int) -> None:
 
     # 删除 PPT 解析资源文件
     for resource in source.ppt_resources.all():
-        for image_path in [resource.slide_image, resource.next_slide_image]:
-            if image_path and os.path.isfile(image_path):
-                os.remove(image_path)
+        for image_reference in [resource.slide_image, resource.next_slide_image]:
+            image_path = _resolve_ppt_image_path(image_reference)
+            if image_path is not None and image_path.is_file():
+                image_path.unlink()
                 logger.info("删除 PPT 资源文件：%s", image_path)
 
     source_name = source.name
@@ -463,31 +466,182 @@ def delete_temporary_source_if_unused(media_source_id: Optional[int]) -> bool:
 
 def _prepare_ppt_source_resources(source: MediaSource) -> None:
     """
-    为 zip 格式 PPT 自动建立页资源和媒体清单，失败时保留源本身可打开。
+    为 PPT 自动建立页资源、媒体清单和可用时的 PNG 预览。
     :param source: 已保存的 PPT 媒体源
     :return: None
     """
     if source.source_type != SourceType.PPT:
         return
     metadata = dict(source.metadata or {})
+    source_path = Path(source.uri)
     try:
-        resources = _extract_pptx_resources(Path(source.uri))
+        resources = _extract_pptx_resources(source_path)
     except MediaError as parse_error:
+        preview_paths = _export_ppt_slide_previews(source_path, source.pk)
+        if preview_paths:
+            replace_ppt_resources(source.pk, _resources_from_preview_paths(preview_paths))
+            metadata.update({
+                "ppt_parse_status": "preview_only",
+                "ppt_parse_error": str(parse_error),
+                "total_slides": len(preview_paths),
+                "preview_count": len(preview_paths),
+                "has_media": False,
+            })
+            source.metadata = metadata
+            source.save(update_fields=["metadata"])
+            logger.info("PPT 预览导出完成：source_id=%d, pages=%d", source.pk, len(preview_paths))
+            return
         metadata.update({"ppt_parse_status": "unsupported", "ppt_parse_error": str(parse_error)})
         source.metadata = metadata
         source.save(update_fields=["metadata"])
         logger.info("PPT 资源解析跳过：source_id=%d, reason=%s", source.pk, parse_error)
         return
 
+    preview_paths = _export_ppt_slide_previews(source_path, source.pk)
+    _apply_preview_paths(resources, preview_paths)
     replace_ppt_resources(source.pk, resources)
     metadata.update({
         "ppt_parse_status": "parsed",
         "total_slides": len(resources),
+        "preview_count": len(preview_paths),
         "has_media": any(bool(item.get("media_items")) for item in resources),
     })
     source.metadata = metadata
     source.save(update_fields=["metadata"])
     logger.info("PPT 资源解析完成：source_id=%d, pages=%d", source.pk, len(resources))
+
+
+def _resolve_ppt_image_path(image_reference: str) -> Optional[Path]:
+    """
+    将 PPT 预览引用转换为本地文件路径，供删除媒体源时清理文件。
+    :param image_reference: 数据库存储的图片 URL、相对路径或绝对路径
+    :return: 可检查的本地路径；空引用返回 None
+    """
+    if not image_reference:
+        return None
+    media_url = settings.MEDIA_URL.rstrip("/") + "/"
+    if image_reference.startswith(media_url):
+        relative_path = image_reference[len(media_url):]
+        return Path(settings.MEDIA_ROOT) / relative_path
+    image_path = Path(image_reference)
+    if image_path.is_absolute():
+        return image_path
+    return Path(settings.MEDIA_ROOT) / image_reference.lstrip("/\\")
+
+
+def _apply_preview_paths(resources: list[dict[str, object]], preview_paths: list[str]) -> None:
+    """
+    将 PowerPoint 导出的 PNG 预览写入解析资源。
+    :param resources: PPT 页资源字典列表
+    :param preview_paths: 按页码排序的预览 URL 列表
+    :return: None
+    """
+    if not preview_paths:
+        return
+    for resource_index, resource_data in enumerate(resources):
+        if resource_index < len(preview_paths):
+            resource_data["slide_image"] = preview_paths[resource_index]
+        if resource_index + 1 < len(preview_paths):
+            resource_data["next_slide_image"] = preview_paths[resource_index + 1]
+
+
+def _resources_from_preview_paths(preview_paths: list[str]) -> list[dict[str, object]]:
+    """
+    为无法 zip 解析的 PPT/PPS 文件生成仅含 PNG 预览的页资源。
+    :param preview_paths: 按页码排序的预览 URL 列表
+    :return: PPT 页资源字典列表
+    """
+    resources: list[dict[str, object]] = []
+    for page_index, preview_path in enumerate(preview_paths, start=1):
+        resources.append({
+            "page_index": page_index,
+            "slide_image": preview_path,
+            "next_slide_image": preview_paths[page_index] if page_index < len(preview_paths) else "",
+            "speaker_notes": "",
+            "media_items": [],
+        })
+    return resources
+
+
+def _export_ppt_slide_previews(file_path: Path, source_id: int) -> list[str]:
+    """
+    使用本机 PowerPoint 将每页幻灯片导出为 PNG 预览。
+    :param file_path: PPT 文件路径
+    :param source_id: 媒体源 ID，用于隔离导出目录
+    :return: 按页码排序的媒体 URL 列表；不可导出时返回空列表
+    """
+    if os.name != "nt" or not file_path.is_file() or not _is_powerpoint_export_candidate(file_path):
+        return []
+    try:
+        import pythoncom
+        import win32com.client
+    except ImportError as import_error:
+        logger.info("PPT 预览导出跳过，缺少 COM 依赖：%s", import_error)
+        return []
+
+    relative_dir = Path("ppt_previews") / str(source_id)
+    preview_dir = Path(settings.MEDIA_ROOT) / relative_dir
+    preview_dir.mkdir(parents=True, exist_ok=True)
+    for old_preview in preview_dir.glob("*.png"):
+        old_preview.unlink(missing_ok=True)
+
+    pythoncom.CoInitialize()
+    ppt_app: Optional[object] = None
+    presentation: Optional[object] = None
+    try:
+        ppt_app = win32com.client.DispatchEx("PowerPoint.Application")
+        ppt_app.DisplayAlerts = _PPT_ALERTS_NONE
+        presentation = ppt_app.Presentations.Open(
+            str(file_path),
+            ReadOnly=True,
+            Untitled=False,
+            WithWindow=False,
+        )
+        preview_paths: list[str] = []
+        slide_count = int(presentation.Slides.Count)
+        for page_index in range(1, slide_count + 1):
+            output_path = preview_dir / f"slide-{page_index}.png"
+            presentation.Slides(page_index).Export(str(output_path), "PNG")
+            relative_path = (relative_dir / output_path.name).as_posix()
+            preview_paths.append(f"{settings.MEDIA_URL.rstrip('/')}/{relative_path}")
+        return preview_paths
+    except Exception as export_error:
+        logger.info("PPT 预览导出失败：%s", export_error)
+        return []
+    finally:
+        if presentation is not None:
+            try:
+                presentation.Saved = True
+                presentation.Close()
+            except Exception:
+                pass
+        if ppt_app is not None:
+            try:
+                ppt_app.Quit()
+            except Exception:
+                pass
+        try:
+            pythoncom.CoUninitialize()
+        except Exception:
+            pass
+
+
+def _is_powerpoint_export_candidate(file_path: Path) -> bool:
+    """
+    粗略判断文件是否适合交给 PowerPoint COM 导出，避免测试用简化 zip 触发修复弹窗。
+    :param file_path: 待导出的 PPT 文件路径
+    :return: True 表示可尝试导出预览
+    """
+    suffix = file_path.suffix.lower()
+    if suffix in {".ppt", ".pps"}:
+        return True
+    if suffix not in {".pptx", ".ppsx"}:
+        return False
+    try:
+        with zipfile.ZipFile(file_path) as archive:
+            return "[Content_Types].xml" in archive.namelist()
+    except (zipfile.BadZipFile, OSError):
+        return False
 
 
 def _extract_pptx_resources(file_path: Path) -> list[dict[str, object]]:

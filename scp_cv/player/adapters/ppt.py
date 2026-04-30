@@ -29,6 +29,8 @@ _PP_SLIDE_SHOW_KIOSK = 3       # ppShowTypeKiosk
 _PP_SLIDE_SHOW_RUNNING = 1     # ppSlideShowRunning
 _PP_SLIDE_SHOW_PAUSED = 2      # ppSlideShowPaused
 _PP_SLIDE_SHOW_DONE = 5        # ppSlideShowDone
+_PP_ALERTS_NONE = 1            # ppAlertsNone
+_PP_ALERTS_ALL = 2             # ppAlertsAll
 
 
 class PptSourceAdapter(SourceAdapter):
@@ -253,6 +255,7 @@ class PptSourceAdapter(SourceAdapter):
         import pythoncom
 
         try:
+            self._set_powerpoint_alerts(_PP_ALERTS_NONE)
             # 先解除父窗口关系，避免 PowerPoint 关闭时影响 PySide 窗口
             if self._ppt_hwnd != 0:
                 try:
@@ -264,6 +267,7 @@ class PptSourceAdapter(SourceAdapter):
 
             if self._slideshow_view is not None:
                 try:
+                    self._mark_presentation_clean()
                     self._slideshow_view.Exit()
                 except Exception:
                     pass
@@ -272,11 +276,13 @@ class PptSourceAdapter(SourceAdapter):
 
             if self._presentation is not None:
                 try:
+                    self._mark_presentation_clean()
                     self._presentation.Close()
                 except Exception:
                     pass
                 self._presentation = None
 
+            self._set_powerpoint_alerts(_PP_ALERTS_ALL)
             self._ppt_app = None
         finally:
             try:
@@ -286,6 +292,31 @@ class PptSourceAdapter(SourceAdapter):
 
         self._total_slides = 0
         self._is_paused = False
+
+    def _set_powerpoint_alerts(self, alert_level: int) -> None:
+        """
+        设置 PowerPoint 提示级别，避免关闭只读文件时弹出保存对话框。
+        :param alert_level: PowerPoint PpAlertLevel 常量值
+        :return: None
+        """
+        if self._ppt_app is None:
+            return
+        try:
+            self._ppt_app.DisplayAlerts = alert_level
+        except Exception:
+            pass
+
+    def _mark_presentation_clean(self) -> None:
+        """
+        将演示文稿标记为已保存，关闭只读文件时不再触发保存提示。
+        :return: None
+        """
+        if self._presentation is None:
+            return
+        try:
+            self._presentation.Saved = True
+        except Exception:
+            pass
 
     # ═══════════════════ 播放控制 ═══════════════════
 
@@ -318,6 +349,7 @@ class PptSourceAdapter(SourceAdapter):
             if self._slideshow_view is not None:
                 try:
                     self._last_slide_index = int(self._slideshow_view.CurrentShowPosition or self._last_slide_index)
+                    self._mark_presentation_clean()
                     self._slideshow_view.Exit()
                 except Exception:
                     pass
@@ -330,22 +362,33 @@ class PptSourceAdapter(SourceAdapter):
     def next_item(self) -> None:
         """下一页。"""
         with self._com_lock:
-            if self._slideshow_view is not None:
-                try:
-                    self._slideshow_view.Next()
-                    self._last_slide_index = int(self._slideshow_view.CurrentShowPosition or self._last_slide_index)
-                except Exception as nav_error:
-                    self._logger.warning("PPT 翻页（下一页）失败：%s", nav_error)
+            if self._slideshow_view is None or self._slideshow_is_finished():
+                return
+            current_position = self._current_show_position()
+            if self._total_slides > 0 and current_position >= self._total_slides:
+                self._last_slide_index = self._total_slides
+                self._logger.info("PPT 已在最后一页，忽略继续下一页指令")
+                return
+            try:
+                self._slideshow_view.Next()
+                self._last_slide_index = self._current_show_position()
+            except Exception as nav_error:
+                self._logger.warning("PPT 翻页（下一页）失败：%s", nav_error)
 
     def prev_item(self) -> None:
         """上一页。"""
         with self._com_lock:
-            if self._slideshow_view is not None:
-                try:
-                    self._slideshow_view.Previous()
-                    self._last_slide_index = int(self._slideshow_view.CurrentShowPosition or self._last_slide_index)
-                except Exception as nav_error:
-                    self._logger.warning("PPT 翻页（上一页）失败：%s", nav_error)
+            if self._slideshow_view is None or self._slideshow_is_finished():
+                return
+            current_position = self._current_show_position()
+            if current_position <= 1:
+                self._last_slide_index = 1
+                return
+            try:
+                self._slideshow_view.Previous()
+                self._last_slide_index = self._current_show_position()
+            except Exception as nav_error:
+                self._logger.warning("PPT 翻页（上一页）失败：%s", nav_error)
 
     def goto_item(self, index: int) -> None:
         """
@@ -357,12 +400,39 @@ class PptSourceAdapter(SourceAdapter):
             return
 
         with self._com_lock:
-            if self._slideshow_view is not None:
-                try:
-                    self._slideshow_view.GotoSlide(index)
-                    self._last_slide_index = index
-                except Exception as goto_error:
-                    self._logger.warning("PPT 跳转到第 %d 页失败：%s", index, goto_error)
+            if self._slideshow_view is None or self._slideshow_is_finished():
+                return
+            try:
+                self._slideshow_view.GotoSlide(index)
+                self._last_slide_index = index
+            except Exception as goto_error:
+                self._logger.warning("PPT 跳转到第 %d 页失败：%s", index, goto_error)
+
+    def _slideshow_is_finished(self) -> bool:
+        """
+        判断当前放映是否已经结束或 COM 视图已失效。
+        :return: True 表示不应再向 PowerPoint 下发翻页指令
+        """
+        if self._slideshow_view is None:
+            return True
+        try:
+            return int(self._slideshow_view.State) == _PP_SLIDE_SHOW_DONE
+        except Exception:
+            return True
+
+    def _current_show_position(self) -> int:
+        """
+        安全读取当前页码，失败时使用最近一次成功读取的页码。
+        :return: 当前页码（从 1 开始）
+        """
+        if self._slideshow_view is None:
+            return self._last_slide_index
+        try:
+            current_position = int(self._slideshow_view.CurrentShowPosition or self._last_slide_index)
+        except Exception:
+            return self._last_slide_index
+        self._last_slide_index = current_position
+        return current_position
 
     def control_media(self, media_id: str, action: str, media_index: int = 0) -> None:
         """
@@ -456,23 +526,29 @@ class PptSourceAdapter(SourceAdapter):
         with self._com_lock:
             if self._slideshow_view is not None:
                 try:
-                    slideshow_state = self._slideshow_view.State
-                    current_slide = self._slideshow_view.CurrentShowPosition
-                    self._last_slide_index = int(current_slide or self._last_slide_index)
-
-                    if slideshow_state == _PP_SLIDE_SHOW_RUNNING:
-                        playback_state = "playing"
-                    elif slideshow_state == _PP_SLIDE_SHOW_PAUSED:
-                        playback_state = "paused"
-                    elif slideshow_state == _PP_SLIDE_SHOW_DONE:
+                    slideshow_state = int(self._slideshow_view.State)
+                    if slideshow_state == _PP_SLIDE_SHOW_DONE:
+                        current_slide = self._last_slide_index or self._total_slides
                         playback_state = "stopped"
                     else:
-                        playback_state = "playing"
-                except Exception:
-                    playback_state = "error"
+                        current_slide = self._current_show_position()
+
+                        if slideshow_state == _PP_SLIDE_SHOW_RUNNING:
+                            playback_state = "playing"
+                        elif slideshow_state == _PP_SLIDE_SHOW_PAUSED:
+                            playback_state = "paused"
+                        else:
+                            playback_state = "playing"
+                except Exception as state_error:
+                    self._logger.debug("读取 PPT 放映状态失败：%s", state_error)
+                    self._slideshow_view = None
+                    self._slideshow_window = None
+                    current_slide = self._last_slide_index if self._total_slides else 0
+                    playback_state = "stopped" if self._presentation is not None else "idle"
             elif self._presentation is not None:
                 # 文件已打开但未在放映
                 playback_state = "stopped"
+                current_slide = self._last_slide_index if self._total_slides else 0
 
         return AdapterState(
             playback_state=playback_state,

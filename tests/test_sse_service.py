@@ -14,7 +14,9 @@ from collections.abc import Generator
 
 import pytest
 
+from scp_cv.apps.playback.models import PlaybackState
 from scp_cv.services import sse as sse_service
+from scp_cv.services.playback import update_playback_progress
 
 
 @pytest.fixture(autouse=True)
@@ -47,3 +49,22 @@ def test_event_stream_releases_lock_after_yield() -> None:
         if lock_acquired:
             sse_service._event_lock.release()
         stream_generator.close()
+
+
+@pytest.mark.django_db
+def test_event_stream_polls_database_state_without_publish() -> None:
+    """播放器进程仅写数据库时，SSE 仍应推送最新播放快照。"""
+    update_playback_progress(
+        1,
+        playback_state=PlaybackState.PLAYING,
+        current_slide=2,
+        total_slides=5,
+    )
+
+    stream_generator = sse_service.event_stream(0)
+    first_message = next(stream_generator)
+
+    assert "event: playback_state" in first_message
+    assert '"current_slide": 2' in first_message
+    assert '"total_slides": 5' in first_message
+    stream_generator.close()

@@ -165,7 +165,8 @@ function resolveBackendBase(): string {
 
 export function buildBackendUrl(path: string): string {
   if (/^https?:\/\//i.test(path)) return path;
-  return resolveBackendBase() + path;
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return resolveBackendBase() + normalizedPath;
 }
 
 function buildNonJsonError(statusCode: number, responseText: string): Error {
