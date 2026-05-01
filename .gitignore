@@ -178,6 +178,7 @@ frontend/vite.config.js
 frontend/vite.config.d.ts
 .playwright-mcp/
 media/uploads/
+media/ppt_previews/
 logs/*
 !logs/.gitkeep
 

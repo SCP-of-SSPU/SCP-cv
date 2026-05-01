@@ -26,6 +26,7 @@ export interface MediaSourceItem {
 export interface SessionSnapshot {
   window_id: number;
   session_id: number;
+  source_id: number | null;
   source_name: string;
   source_type: string;
   source_type_label: string;

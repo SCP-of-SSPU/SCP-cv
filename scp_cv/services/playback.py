@@ -96,6 +96,7 @@ def get_session_snapshot(window_id: int) -> dict[str, object]:
     return {
         "window_id": session.window_id,
         "session_id": session.pk,
+        "source_id": session.media_source_id,
         "source_name": source_name,
         "source_type": source_type,
         "source_type_label": source_type_label,

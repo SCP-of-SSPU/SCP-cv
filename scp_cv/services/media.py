@@ -748,6 +748,9 @@ def list_ppt_resources(source_id: int) -> list[dict[str, object]]:
     :raises MediaError: 源不存在或不是 PPT 时
     """
     source = _get_ppt_source(source_id)
+    if not source.ppt_resources.exists():
+        _prepare_ppt_source_resources(source)
+        source.refresh_from_db(fields=["metadata"])
     return [_ppt_resource_payload(resource) for resource in source.ppt_resources.all()]
 
 

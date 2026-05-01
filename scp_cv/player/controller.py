@@ -57,6 +57,7 @@ class PlayerController(QObject):
 
     # 轮询线程 → Qt 主线程：分发指令执行（携带 window_id）
     sig_dispatch_command = Signal(int, str, dict)  # (window_id, command, command_args)
+    sig_report_states = Signal()                   # 轮询线程 → Qt 主线程：读取适配器状态
 
     def __init__(self, parent: Optional[QObject] = None) -> None:
         super().__init__(parent)
@@ -75,9 +76,12 @@ class PlayerController(QObject):
 
         # 每个窗口上一次已上报状态，避免轮询线程无变化时频繁写库。
         self._last_reported_states: dict[int, tuple[str, int, int, int, int]] = {}
+        self._state_report_pending = False
+        self._state_report_lock = threading.Lock()
 
         # 连接指令分发信号到主线程处理槽
         self.sig_dispatch_command.connect(self._execute_command_on_main_thread)
+        self.sig_report_states.connect(self._report_all_adapter_states)
 
     def register_window(self, window_id: int, player_window: object) -> None:
         """
@@ -194,11 +198,19 @@ class PlayerController(QObject):
                 # 轮询所有已注册窗口的指令
                 for window_id in self.registered_window_ids:
                     self._check_and_dispatch_command(window_id)
-                # 上报所有活跃适配器的状态
-                self._report_all_adapter_states()
+                # COM 和 Qt 状态读取必须回到适配器创建时所在的 Qt 主线程。
+                self._request_adapter_state_report()
             except Exception as poll_error:
                 logger.error("轮询处理异常：%s", poll_error)
             time.sleep(interval_seconds)
+
+    def _request_adapter_state_report(self) -> None:
+        """请求 Qt 主线程上报适配器状态，避免跨线程访问 COM/Qt 对象。"""
+        with self._state_report_lock:
+            if self._state_report_pending:
+                return
+            self._state_report_pending = True
+        self.sig_report_states.emit()
 
     def _check_and_dispatch_command(self, window_id: int) -> None:
         """
@@ -273,33 +285,42 @@ class PlayerController(QObject):
                 logger.error("执行指令 %s（窗口 %d）失败：%s", command, window_id, cmd_error)
                 self._update_session_error(window_id, str(cmd_error))
 
+    @Slot()
     def _report_all_adapter_states(self) -> None:
-        """将所有活跃适配器的状态回写到 DB（轮询线程中调用）。"""
+        """在 Qt 主线程读取所有活跃适配器状态并回写到 DB。"""
         from scp_cv.services.playback import update_playback_progress
 
-        for window_id, adapter in self._adapters.items():
-            if adapter is None or not adapter.is_open:
-                continue
-            adapter_state = adapter.get_state()
-            state_signature = (
-                adapter_state.playback_state,
-                adapter_state.current_slide,
-                adapter_state.total_slides,
-                adapter_state.position_ms,
-                adapter_state.duration_ms,
-            )
-            if state_signature == self._last_reported_states.get(window_id):
-                continue
+        try:
+            for window_id, adapter in self._adapters.items():
+                if adapter is None or not adapter.is_open:
+                    continue
+                try:
+                    adapter_state = adapter.get_state()
+                except Exception as state_error:
+                    logger.warning("窗口 %d 读取适配器状态失败：%s", window_id, state_error)
+                    continue
+                state_signature = (
+                    adapter_state.playback_state,
+                    adapter_state.current_slide,
+                    adapter_state.total_slides,
+                    adapter_state.position_ms,
+                    adapter_state.duration_ms,
+                )
+                if state_signature == self._last_reported_states.get(window_id):
+                    continue
 
-            update_playback_progress(
-                window_id=window_id,
-                playback_state=adapter_state.playback_state,
-                current_slide=adapter_state.current_slide,
-                total_slides=adapter_state.total_slides,
-                position_ms=adapter_state.position_ms,
-                duration_ms=adapter_state.duration_ms,
-            )
-            self._last_reported_states[window_id] = state_signature
+                update_playback_progress(
+                    window_id=window_id,
+                    playback_state=adapter_state.playback_state,
+                    current_slide=adapter_state.current_slide,
+                    total_slides=adapter_state.total_slides,
+                    position_ms=adapter_state.position_ms,
+                    duration_ms=adapter_state.duration_ms,
+                )
+                self._last_reported_states[window_id] = state_signature
+        finally:
+            with self._state_report_lock:
+                self._state_report_pending = False
 
     # ═══════════════════ 指令处理（主线程执行） ═══════════════════
 

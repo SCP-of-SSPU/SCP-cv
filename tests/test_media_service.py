@@ -356,6 +356,28 @@ class TestPptResources:
         assert resources[1]["next_slide_image"] == ""
         assert source.metadata["preview_count"] == 2
 
+    @patch("scp_cv.services.media._prepare_ppt_source_resources")
+    def test_list_resources_repairs_existing_ppt_without_resources(
+        self,
+        mock_prepare_resources: MagicMock,
+        media_source_ppt: MediaSource,
+    ) -> None:
+        """读取旧 PPT 源资源时，应先补齐缺失的页资源。"""
+        def prepare_resources(source: MediaSource) -> None:
+            """
+            模拟资源补齐流程，避免测试依赖本机 PowerPoint。
+            :param source: 待补齐的 PPT 源
+            :return: None
+            """
+            replace_ppt_resources(source.pk, [{"page_index": 1, "slide_image": "/media/ppt_previews/1/slide-1.png"}])
+
+        mock_prepare_resources.side_effect = prepare_resources
+
+        resources = list_ppt_resources(media_source_ppt.pk)
+
+        mock_prepare_resources.assert_called_once()
+        assert resources[0]["slide_image"] == "/media/ppt_previews/1/slide-1.png"
+
     def test_rejects_non_ppt_source(self, media_source_video: MediaSource) -> None:
         """非 PPT 源不应保存 PPT 解析资源。"""
         with pytest.raises(MediaError, match="仅 PPT"):

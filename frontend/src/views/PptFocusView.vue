@@ -20,9 +20,9 @@ const returnRoute = computed(() => displayRouteByWindowId[windowId.value] || '/d
 const session = computed(() => appStore.sessions.find((item) => item.window_id === windowId.value) || null);
 const isPptSession = computed(() => session.value?.source_type === 'ppt');
 const focusTitle = computed(() => (isPptSession.value ? session.value?.source_name || '未命名 PPT' : '未打开 PPT'));
-const source = computed(() => appStore.sources.find((item) => item.uri === session.value?.source_uri) || null);
+const sourceId = computed(() => session.value?.source_id || 0);
 const currentPage = computed(() => Math.max(1, session.value?.current_slide || 1));
-const totalPages = computed(() => session.value?.total_slides || resources.value.length || 0);
+const totalPages = computed(() => Math.max(session.value?.total_slides || 0, resources.value.length));
 const currentResource = computed(() => resources.value.find((item) => item.page_index === currentPage.value) || null);
 const nextResource = computed(() => resources.value.find((item) => item.page_index === currentPage.value + 1) || null);
 const currentMediaItems = computed(() => currentResource.value?.media_items || []);
@@ -58,13 +58,13 @@ async function runAction(action: () => Promise<void>): Promise<void> {
 }
 
 async function refreshResources(): Promise<void> {
-  if (!source.value || source.value.source_type !== 'ppt') {
+  if (!isPptSession.value || sourceId.value <= 0) {
     resources.value = [];
     return;
   }
   isLoadingResources.value = true;
   try {
-    const payload = await api.listPptResources(source.value.id);
+    const payload = await api.listPptResources(sourceId.value);
     resources.value = payload.resources;
   } catch (error) {
     resources.value = [];
@@ -97,7 +97,7 @@ watch(windowId, (nextWindowId) => {
   appStore.activeWindowId = nextWindowId;
 }, { immediate: true });
 
-watch(() => source.value?.id, () => {
+watch(sourceId, () => {
   void refreshResources();
 }, { immediate: true });
 </script>
@@ -160,21 +160,6 @@ watch(() => source.value?.id, () => {
       <article>
         <span class="eyebrow">提词器</span>
         <p>{{ notesText }}</p>
-      </article>
-      <article>
-        <span class="eyebrow">当前页媒体</span>
-        <div v-if="currentMediaItems.length" class="media-control-list">
-          <div v-for="mediaItem in currentMediaItems" :key="mediaItem.id" class="media-control-row">
-            <strong>{{ mediaItem.name }}</strong>
-            <small>{{ mediaItem.media_type }} · #{{ mediaItem.media_index }}{{ mediaItem.shape_id ? ` · shape ${mediaItem.shape_id}` : '' }}</small>
-            <div class="button-grid">
-              <button type="button" @click="runAction(() => controlMedia(mediaItem, 'play'))">播放</button>
-              <button type="button" @click="runAction(() => controlMedia(mediaItem, 'pause'))">暂停</button>
-              <button type="button" @click="runAction(() => controlMedia(mediaItem, 'stop'))">停止</button>
-            </div>
-          </div>
-        </div>
-        <p v-else>当前页未检测到可逐项控制的音视频媒体。</p>
       </article>
     </section>
   </main>

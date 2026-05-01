@@ -97,6 +97,7 @@ class TestGetSessionSnapshot:
         snapshot = get_session_snapshot(1)
 
         assert snapshot["source_name"] == "测试演示文稿"
+        assert snapshot["source_id"] == media_source_ppt.pk
         assert snapshot["source_type"] == "ppt"
         assert snapshot["playback_state"] == PlaybackState.PLAYING
         assert snapshot["current_slide"] == 3
@@ -106,7 +107,7 @@ class TestGetSessionSnapshot:
         """快照字典应包含所有必要的键。"""
         snapshot = get_session_snapshot(1)
         required_keys = {
-            "window_id", "session_id", "source_name", "source_type", "source_type_label", "source_uri",
+            "window_id", "session_id", "source_id", "source_name", "source_type", "source_type_label", "source_uri",
             "playback_state", "playback_state_label",
             "display_mode", "display_mode_label",
             "target_display_label", "spliced_display_label", "is_spliced",
