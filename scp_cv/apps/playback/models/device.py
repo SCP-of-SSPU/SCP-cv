@@ -1,7 +1,7 @@
 #!/user/bin/env python
 # -*- coding: UTF-8 -*-
 '''
-设备开关机占位模型（DeviceEndpoint）：记录可控制的物理设备占位信息。
+设备开关机模型（DeviceEndpoint）：记录可控制的物理设备状态信息。
 @Project : SCP-cv
 @File : models/device.py
 @Author : Qintsg
@@ -16,8 +16,8 @@ from .enums import DeviceType
 
 class DeviceEndpoint(models.Model):
     """
-    设备端点占位模型，记录可控制的物理设备。
-    当前仅用于前端 UI 占位，实际控制逻辑待后续实现。
+    设备端点模型，保留物理设备状态与扩展配置。
+    当前运行时控制使用静态 TCP 端点，本模型用于后续持久化管理入口。
     """
 
     name = models.CharField(
@@ -38,7 +38,7 @@ class DeviceEndpoint(models.Model):
         max_length=255,
         blank=True,
         verbose_name="设备地址",
-        help_text="IP 或串口地址，待后续实现",
+        help_text="IP 或串口地址",
     )
     metadata = models.JSONField(
         default=dict,

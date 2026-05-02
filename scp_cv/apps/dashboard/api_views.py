@@ -390,7 +390,7 @@ def delete_source_api(request: HttpRequest, source_id: int) -> JsonResponse:
 @require_GET
 def list_devices_api(request: HttpRequest) -> JsonResponse:
     """
-    获取设备开关机占位状态。
+    获取可控制设备列表。
     :param request: HTTP 请求
     :return: 设备状态列表
     """

@@ -11,8 +11,9 @@ SCP-cv 已改为前后端分离架构：
 | gRPC | 外部中控、自动化脚本、兼容客户端 | `127.0.0.1:50051` |
 | gRPC-Web | 兼容旧浏览器客户端，不作为 Vue 主通道，`runall` 默认不启动 | `http://127.0.0.1:8081` |
 
-Vue 前端位于 `frontend/`，开发期通过 Vite 运行在 `5173` 端口，并使用 `frontend/.env` 中的 `VITE_BACKEND_TARGET` 直接访问 Django 后端。
+Vue 前端位于 `frontend/`，开发期通过 Vite 运行在 `5173` 端口，并使用仓库根目录 `.env` 中的 `VITE_BACKEND_TARGET` 直接访问 Django 后端。
 当页面从局域网地址打开而 `VITE_BACKEND_TARGET` 仍指向 `127.0.0.1` 时，前端会自动改用当前页面主机名访问 Django，避免移动端请求自身 localhost。
+后端 CORS 默认只允许同主机的 Vite 控制台端口（`5173` / `4173`）访问；固定域名部署时需在 `SCP_CV_ALLOWED_ORIGINS` 中补充完整 Origin。
 
 ## REST API
 

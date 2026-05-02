@@ -162,7 +162,7 @@ async function toggleSystemMute(): Promise<void> {
         <h2>大屏显示状态</h2>
         <span class="chip chip--accent">{{ appStore.bigScreenModeLabel }}</span>
       </div>
-      <p>单屏：仅窗口 1 显示，窗口 2 静音。双屏：窗口 1/2 分别显示且不静音。脚本切换已保留 TODO 占位。</p>
+      <p>单屏：窗口 1 作为主输出，窗口 2 自动静音。双屏：窗口 1/2 分别输出且保持可听。</p>
       <div class="button-grid">
         <button type="button" :class="{ active: appStore.runtime?.big_screen_mode === 'single' }" @click="runAction(() => appStore.setBigScreenMode('single'))">单屏</button>
         <button type="button" :class="{ active: appStore.runtime?.big_screen_mode === 'double' }" @click="runAction(() => appStore.setBigScreenMode('double'))">双屏</button>

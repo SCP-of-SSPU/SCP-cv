@@ -14,6 +14,7 @@ env = environ.Env(
     DJANGO_DEBUG=(bool, False),
     DJANGO_LANGUAGE_CODE=(str, "zh-hans"),
     DJANGO_TIME_ZONE=(str, "Asia/Shanghai"),
+    SCP_CV_ALLOWED_ORIGINS=(str, ""),
     GRPC_PORT=(int, 50051),
     MEDIAMTX_SRT_PORT=(int, 8890),
     MEDIAMTX_RTSP_PORT=(int, 8554),
@@ -31,6 +32,11 @@ ALLOWED_HOSTS = [
     host.strip()
     for host in env("DJANGO_ALLOWED_HOSTS", default="*").split(",")
     if host.strip()
+]
+SCP_CV_ALLOWED_ORIGINS = [
+    origin.strip().rstrip("/")
+    for origin in env("SCP_CV_ALLOWED_ORIGINS").split(",")
+    if origin.strip()
 ]
 
 

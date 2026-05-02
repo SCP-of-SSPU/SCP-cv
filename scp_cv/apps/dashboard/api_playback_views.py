@@ -268,7 +268,7 @@ def runtime_state_api(request: HttpRequest) -> JsonResponse:
 @require_http_methods(["GET", "PATCH"])
 def system_volume_api(request: HttpRequest) -> JsonResponse:
     """
-    获取或设置系统音量占位状态。
+    获取或设置系统音量状态。
     :param request: HTTP 请求
     :return: 系统音量状态
     """

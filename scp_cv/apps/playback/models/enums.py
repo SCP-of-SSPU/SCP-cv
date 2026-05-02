@@ -79,7 +79,7 @@ class SourceState(models.TextChoices):
 
 
 class DeviceType(models.TextChoices):
-    """设备类型枚举，用于开关机卡片占位。"""
+    """设备类型枚举，用于电源控制卡片。"""
 
     SPLICE_SCREEN = "splice_screen", "拼接屏"
     TV_LEFT = "tv_left", "电视左"
