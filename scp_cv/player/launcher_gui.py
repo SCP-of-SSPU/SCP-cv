@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
     QSpacerItem,
     QVBoxLayout,
@@ -30,168 +31,10 @@ from PySide6.QtWidgets import (
 )
 
 from scp_cv.player.gpu_detector import GPUInfo, enumerate_gpus
+from scp_cv.player.launcher_styles import FLUENT_STYLESHEET
 from scp_cv.services.display import DisplayTarget, list_display_targets
 
 logger = logging.getLogger(__name__)
-
-# ═══════════════════ Fluent 2 样式表 ═══════════════════
-
-_FLUENT_STYLESHEET = """
-QWidget#LauncherWindow {
-    background: qlineargradient(
-        x1:0, y1:0, x2:1, y2:1,
-        stop:0 #f8fbff, stop:1 #eff4fb
-    );
-}
-
-QLabel#TitleLabel {
-    font-size: 24px;
-    font-weight: 600;
-    color: #0f172a;
-    padding: 4px 0px;
-}
-
-QLabel#SubtitleLabel {
-    font-size: 14px;
-    color: #526076;
-    padding: 2px 0px;
-}
-
-QLabel#StepLabel {
-    font-size: 13px;
-    font-weight: 600;
-    color: #0078d4;
-    padding: 6px 0px;
-}
-
-QPushButton#DisplayCard {
-    background: rgba(255, 255, 255, 0.86);
-    border: 1px solid rgba(15, 23, 42, 0.09);
-    border-radius: 10px;
-    padding: 14px 16px;
-    font-size: 14px;
-    color: #0f172a;
-    text-align: left;
-    min-height: 50px;
-}
-QPushButton#DisplayCard:hover {
-    background: rgba(0, 120, 212, 0.06);
-    border-color: rgba(0, 120, 212, 0.25);
-}
-QPushButton#DisplayCard:pressed {
-    background: rgba(0, 120, 212, 0.12);
-}
-QPushButton#DisplayCard:checked {
-    background: rgba(0, 120, 212, 0.10);
-    border: 2px solid #0078d4;
-}
-
-QPushButton#DisplayCard:disabled {
-    background: rgba(200, 200, 200, 0.4);
-    color: #999999;
-    border: 1px solid rgba(15, 23, 42, 0.05);
-}
-
-QLabel#SelectedTag {
-    font-size: 11px;
-    font-weight: 600;
-    color: #ffffff;
-    background: #0078d4;
-    border-radius: 6px;
-    padding: 2px 8px;
-}
-
-QPushButton#PrimaryButton {
-    background: #0078d4;
-    border: none;
-    border-radius: 10px;
-    padding: 12px 32px;
-    font-size: 15px;
-    font-weight: 600;
-    color: #ffffff;
-    min-width: 140px;
-}
-QPushButton#PrimaryButton:hover {
-    background: #005a9e;
-}
-QPushButton#PrimaryButton:pressed {
-    background: #004578;
-}
-QPushButton#PrimaryButton:disabled {
-    background: rgba(0, 120, 212, 0.3);
-    color: rgba(255, 255, 255, 0.6);
-}
-
-QPushButton#BackButton {
-    background: transparent;
-    border: 1px solid rgba(15, 23, 42, 0.12);
-    border-radius: 10px;
-    padding: 10px 24px;
-    font-size: 14px;
-    color: #526076;
-    min-width: 80px;
-}
-QPushButton#BackButton:hover {
-    background: rgba(15, 23, 42, 0.04);
-}
-
-QFrame#Divider {
-    background: rgba(15, 23, 42, 0.09);
-    max-height: 1px;
-}
-
-QFrame#SummaryCard {
-    background: rgba(255, 255, 255, 0.86);
-    border: 1px solid rgba(15, 23, 42, 0.09);
-    border-radius: 10px;
-    padding: 12px 16px;
-}
-
-QComboBox#GpuCombo {
-    background: rgba(255, 255, 255, 0.86);
-    border: 1px solid rgba(15, 23, 42, 0.09);
-    border-radius: 10px;
-    padding: 10px 16px;
-    font-size: 14px;
-    color: #0f172a;
-    min-height: 40px;
-    min-width: 280px;
-}
-QComboBox#GpuCombo:hover {
-    background: rgba(0, 120, 212, 0.06);
-    border-color: rgba(0, 120, 212, 0.25);
-}
-QComboBox#GpuCombo::drop-down {
-    subcontrol-origin: padding;
-    subcontrol-position: top right;
-    width: 32px;
-    border-left: none;
-    border-top-right-radius: 10px;
-    border-bottom-right-radius: 10px;
-}
-QComboBox#GpuCombo::down-arrow {
-    width: 12px;
-    height: 12px;
-}
-QComboBox#GpuCombo QAbstractItemView {
-    background: rgba(255, 255, 255, 0.96);
-    border: 1px solid rgba(15, 23, 42, 0.09);
-    border-radius: 8px;
-    padding: 6px;
-    font-size: 13px;
-    color: #0f172a;
-    selection-background-color: rgba(0, 120, 212, 0.10);
-    selection-color: #0f172a;
-    outline: none;
-}
-
-QLabel#GpuLabel {
-    font-size: 13px;
-    font-weight: 600;
-    color: #526076;
-    padding: 2px 0px;
-}
-"""
 
 # 需要选择的窗口总数
 TOTAL_WINDOWS = 4
@@ -245,6 +88,8 @@ class LauncherWindow(QWidget):
 
         # 分配映射：window_id(1-4) → DisplayTarget
         self._assignments: dict[int, DisplayTarget] = {}
+        self._display_buttons: dict[int, QPushButton] = {}
+        self._pending_selection: int | None = None
         # 当前正在选择的窗口编号（1-4）
         self._current_step = 1
         # 可分配的最大窗口数
@@ -265,7 +110,7 @@ class LauncherWindow(QWidget):
                 | Qt.WindowType.WindowStaysOnTopHint
             )
 
-        self.setStyleSheet(_FLUENT_STYLESHEET)
+        self.setStyleSheet(FLUENT_STYLESHEET)
         self._build_ui()
 
         if self._max_windows > 0:
@@ -336,12 +181,23 @@ class LauncherWindow(QWidget):
         self._step_label.setObjectName("StepLabel")
         self._main_layout.addWidget(self._step_label)
 
+        self._assignment_hint = QLabel()
+        self._assignment_hint.setObjectName("AssignmentHint")
+        self._assignment_hint.setWordWrap(True)
+        self._main_layout.addWidget(self._assignment_hint)
+
         # 内容区域（动态替换）
         self._content_container = QWidget()
         self._content_layout = QVBoxLayout(self._content_container)
         self._content_layout.setContentsMargins(0, 0, 0, 0)
         self._content_layout.setSpacing(10)
-        self._main_layout.addWidget(self._content_container, stretch=1)
+
+        self._content_scroll = QScrollArea()
+        self._content_scroll.setObjectName("ContentScroll")
+        self._content_scroll.setWidgetResizable(True)
+        self._content_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._content_scroll.setWidget(self._content_container)
+        self._main_layout.addWidget(self._content_scroll, stretch=1)
 
         # 底部按钮区域
         self._main_layout.addSpacing(16)
@@ -353,11 +209,16 @@ class LauncherWindow(QWidget):
         self._back_button.clicked.connect(self._on_back)
         self._back_button.hide()
 
+        self._cancel_button = QPushButton("退出")
+        self._cancel_button.setObjectName("CancelButton")
+        self._cancel_button.clicked.connect(self.close)
+
         self._next_button = QPushButton("下一步")
         self._next_button.setObjectName("PrimaryButton")
         self._next_button.setEnabled(False)
         self._next_button.clicked.connect(self._on_next)
 
+        self._button_bar.addWidget(self._cancel_button)
         self._button_bar.addWidget(self._back_button)
         self._button_bar.addItem(
             QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
@@ -367,6 +228,7 @@ class LauncherWindow(QWidget):
 
     def _clear_content(self) -> None:
         """清空内容区域中的所有 widget。"""
+        self._display_buttons.clear()
         while self._content_layout.count():
             child = self._content_layout.takeAt(0)
             widget = child.widget()
@@ -380,16 +242,29 @@ class LauncherWindow(QWidget):
         """获取已被分配的显示器索引集合。"""
         return {dt.index for dt in self._assignments.values()}
 
+    def _update_assignment_hint(self) -> None:
+        """更新当前已分配显示器摘要，帮助用户在多步选择中保持上下文。"""
+        if not self._assignments:
+            self._assignment_hint.setText("尚未分配显示器。请选择一张显示器卡片后继续。")
+            return
+        summary_text = "；".join(
+            f"窗口 {window_id} -> {display_target.name}"
+            for window_id, display_target in sorted(self._assignments.items())
+        )
+        self._assignment_hint.setText(f"已分配：{summary_text}")
+
     # ═══════════════════ 步骤渲染 ═══════════════════
 
     def _show_no_displays_warning(self) -> None:
         """未检测到任何显示器时显示警告。"""
         self._clear_content()
-        self._step_label.setText("⚠ 无法启动")
+        self._step_label.setText("无法启动")
+        self._assignment_hint.setText("未检测到可用显示器，启动器不会创建播放窗口。")
         warning_label = QLabel("未检测到可用的显示器，请检查硬件连接后重试。")
         warning_label.setObjectName("SubtitleLabel")
         warning_label.setWordWrap(True)
         self._content_layout.addWidget(warning_label)
+        self._back_button.hide()
         self._next_button.setEnabled(False)
 
     def _show_step_select_display(self, window_id: int) -> None:
@@ -401,31 +276,32 @@ class LauncherWindow(QWidget):
         self._step_label.setText(
             f"第 {window_id} / {self._max_windows} 步 — 选择窗口 {window_id} 的显示器"
         )
+        self._update_assignment_hint()
 
         # 显示/隐藏返回按钮
         self._back_button.setVisible(window_id > 1)
-        self._next_button.setText("下一步")
+        self._next_button.setText("进入总览" if window_id == self._max_windows else "下一步")
         self._next_button.setEnabled(False)
 
         # 清除该步骤之前可能存在的临时选中状态
-        self._pending_selection: int | None = None
+        self._pending_selection = None
 
         assigned_indices = self._assigned_display_indices()
 
         for display_target in self._display_targets:
             is_assigned = display_target.index in assigned_indices
-            primary_tag = " ⭐ 主显示器" if display_target.is_primary else ""
+            display_status = "主显示器" if display_target.is_primary else "扩展显示器"
 
             # 已分配给其他窗口的屏幕：显示占用标记
             assigned_window_label = ""
             if is_assigned:
                 for wid, assigned_dt in self._assignments.items():
                     if assigned_dt.index == display_target.index:
-                        assigned_window_label = f"  [已分配给窗口 {wid}]"
+                        assigned_window_label = f" · 已分配给窗口 {wid}"
                         break
 
             card_text = (
-                f"{display_target.name}{primary_tag}{assigned_window_label}\n"
+                f"{display_target.name} · {display_status}{assigned_window_label}\n"
                 f"{display_target.geometry_label}  ·  位置 {display_target.position_label}"
             )
 
@@ -435,8 +311,9 @@ class LauncherWindow(QWidget):
             # DEBUG 模式下允许复用已分配的显示器
             card_btn.setEnabled(not is_assigned or self._debug_mode)
             card_btn.clicked.connect(
-                lambda checked, idx=display_target.index: self._select_display(idx)
+                lambda _checked, idx=display_target.index: self._select_display(idx)
             )
+            self._display_buttons[display_target.index] = card_btn
             self._content_layout.addWidget(card_btn)
 
         self._content_layout.addItem(
@@ -447,13 +324,14 @@ class LauncherWindow(QWidget):
         """渲染确认总览页面，显示所有窗口分配和 GUI 屏幕。"""
         self._clear_content()
         self._step_label.setText("确认 — 播放窗口分配总览")
+        self._update_assignment_hint()
         self._back_button.show()
         self._next_button.setText("启动播放")
         self._next_button.setEnabled(True)
 
         for window_id in sorted(self._assignments.keys()):
             display_target = self._assignments[window_id]
-            primary_tag = " ⭐" if display_target.is_primary else ""
+            primary_tag = " · 主显示器" if display_target.is_primary else ""
 
             summary_frame = QFrame()
             summary_frame.setObjectName("SummaryCard")
@@ -504,6 +382,8 @@ class LauncherWindow(QWidget):
         :param display_index: 显示器索引
         """
         self._pending_selection = display_index
+        for button_index, display_button in self._display_buttons.items():
+            display_button.setChecked(button_index == display_index)
         self._next_button.setEnabled(True)
 
     def _on_next(self) -> None:
