@@ -150,18 +150,18 @@ interface ApiDetailPayload {
 }
 
 const REQUEST_TIMEOUT_MS = 10000;
+const DEFAULT_BACKEND_PORT = '8000';
 
 function resolveBackendBase(): string {
-  const configuredTarget = import.meta.env.VITE_BACKEND_TARGET || 'http://127.0.0.1:8000';
-  const currentHost = window.location.hostname;
-  if (currentHost && !['localhost', '127.0.0.1', '::1'].includes(currentHost)) {
-    const parsedTarget = new URL(configuredTarget);
-    if (['localhost', '127.0.0.1', '::1'].includes(parsedTarget.hostname)) {
-      parsedTarget.hostname = currentHost;
-      return parsedTarget.toString().replace(/\/+$/, '');
-    }
+  const configuredTarget = String(import.meta.env.VITE_BACKEND_TARGET || '').trim();
+  if (configuredTarget) {
+    // 显式配置优先，避免运行时偷偷改写导致 .env 中的地址失效。
+    return configuredTarget.replace(/\/+$/, '');
   }
-  return configuredTarget.replace(/\/+$/, '');
+
+  const currentProtocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+  const currentHost = window.location.hostname || '127.0.0.1';
+  return `${currentProtocol}//${currentHost}:${DEFAULT_BACKEND_PORT}`;
 }
 
 export function buildBackendUrl(path: string): string {

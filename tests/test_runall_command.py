@@ -10,6 +10,7 @@ runall 管理命令测试。
 '''
 from __future__ import annotations
 
+import shutil
 from typing import Any
 
 from scp_cv.apps.dashboard.management.commands import runall
@@ -55,6 +56,94 @@ def test_handle_checks_django_via_loopback_for_wildcard_host(monkeypatch: Any) -
     )
 
     assert checked_ports == [("Django", "127.0.0.1", 8000, True)]
+
+
+def test_start_frontend_respects_configured_backend_target(monkeypatch: Any) -> None:
+    """
+    根目录 .env 已配置 VITE_BACKEND_TARGET 时，runall 不应覆盖该值。
+    :param monkeypatch: pytest monkeypatch fixture
+    :return: None
+    """
+    spawned_processes: list[dict[str, Any]] = []
+    command = runall.Command()
+
+    def record_spawn(
+        name: str,
+        command_args: list[str],
+        cwd: object = None,
+        required: bool = True,
+        extra_env: dict[str, str] | None = None,
+    ) -> None:
+        """
+        记录前端启动参数，避免测试中真正拉起 npm。
+        :param name: 服务名称
+        :param command_args: 命令参数
+        :param cwd: 工作目录
+        :param required: 是否关键服务
+        :param extra_env: 额外环境变量
+        :return: None
+        """
+        spawned_processes.append({
+            "name": name,
+            "command_args": command_args,
+            "cwd": cwd,
+            "required": required,
+            "extra_env": extra_env,
+        })
+
+    monkeypatch.setattr(shutil, "which", lambda command_name: "npm.cmd" if command_name == "npm" else None)
+    monkeypatch.setattr(command, "_spawn", record_spawn)
+    monkeypatch.setenv("VITE_BACKEND_TARGET", "http://192.168.1.50:8000")
+
+    command._start_frontend("0.0.0.0", 5173, "0.0.0.0", 8000)
+
+    assert len(spawned_processes) == 1
+    assert spawned_processes[0]["name"] == "Vue 前端"
+    assert spawned_processes[0]["extra_env"] is None
+
+
+def test_start_frontend_injects_backend_target_when_config_missing(monkeypatch: Any) -> None:
+    """
+    根目录 .env 缺少 VITE_BACKEND_TARGET 时，runall 应为前端提供可访问的兜底值。
+    :param monkeypatch: pytest monkeypatch fixture
+    :return: None
+    """
+    spawned_processes: list[dict[str, Any]] = []
+    command = runall.Command()
+
+    def record_spawn(
+        name: str,
+        command_args: list[str],
+        cwd: object = None,
+        required: bool = True,
+        extra_env: dict[str, str] | None = None,
+    ) -> None:
+        """
+        记录前端启动参数，避免测试中真正拉起 npm。
+        :param name: 服务名称
+        :param command_args: 命令参数
+        :param cwd: 工作目录
+        :param required: 是否关键服务
+        :param extra_env: 额外环境变量
+        :return: None
+        """
+        spawned_processes.append({
+            "name": name,
+            "command_args": command_args,
+            "cwd": cwd,
+            "required": required,
+            "extra_env": extra_env,
+        })
+
+    monkeypatch.setattr(shutil, "which", lambda command_name: "npm.cmd" if command_name == "npm" else None)
+    monkeypatch.setattr(command, "_spawn", record_spawn)
+    monkeypatch.delenv("VITE_BACKEND_TARGET", raising=False)
+    monkeypatch.setattr(command, "_public_host", lambda listen_host: "192.168.1.50")
+
+    command._start_frontend("0.0.0.0", 5173, "0.0.0.0", 8000)
+
+    assert len(spawned_processes) == 1
+    assert spawned_processes[0]["extra_env"] == {"VITE_BACKEND_TARGET": "http://192.168.1.50:8000"}
 
 
 def test_terminate_process_tree_stops_children_before_parent(monkeypatch: Any) -> None:

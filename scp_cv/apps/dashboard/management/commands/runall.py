@@ -170,13 +170,18 @@ class Command(BaseCommand):
         if npm_path is None or not frontend_dir.exists():
             self.stderr.write(self.style.WARNING("未找到 npm 或 frontend/，跳过 Vue 前端"))
             return
-        backend_target_host = self._public_host(backend_host)
+        extra_env: dict[str, str] | None = None
+        configured_target = os.environ.get("VITE_BACKEND_TARGET", "").strip()
+        if not configured_target:
+            backend_target_host = self._public_host(backend_host)
+            # 仅在根目录 .env 未配置时提供兜底值，避免覆盖用户显式配置。
+            extra_env = {"VITE_BACKEND_TARGET": f"http://{backend_target_host}:{backend_port}"}
         self._spawn(
             "Vue 前端",
             [npm_path, "run", "dev", "--", "--host", host, "--port", str(port)],
             cwd=frontend_dir,
             required=True,
-            extra_env={"VITE_BACKEND_TARGET": f"http://{backend_target_host}:{backend_port}"},
+            extra_env=extra_env,
         )
 
     def _start_player(self, poll_interval: float) -> None:

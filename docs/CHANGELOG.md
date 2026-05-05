@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 2026-05-05
+
+### 直连策略调整
+
+- **跨域策略放开**：后端 CORS 统一改为任意 Origin 放行，不再校验同主机端口或额外白名单
+- **私网预检兼容**：浏览器携带 `Access-Control-Request-Private-Network: true` 时，后端会回包 `Access-Control-Allow-Private-Network: true`
+- **前端地址配置生效**：`VITE_BACKEND_TARGET` 改为显式配置优先，`runall` 仅在缺省时提供兜底值，避免 `.env` 中的后端地址被启动流程或运行时代码覆盖
+- **配置与文档收口**：移除 `SCP_CV_ALLOWED_ORIGINS` 示例配置，补齐根目录 `.env` 中缺失的后端地址项，并同步 README、API 文档与使用文档中的直连说明
+
 ## 2026-05-02
 
 ### 审查修复
