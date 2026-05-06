@@ -66,7 +66,7 @@ class Command(BaseCommand):
         parser.add_argument("--backend-host", "--host", type=str, default="0.0.0.0", help="Django 监听地址")
         parser.add_argument("--backend-port", "--port", type=int, default=8000, help="Django 监听端口")
         parser.add_argument("--frontend-host", type=str, default="0.0.0.0", help="Vue 前端监听地址")
-        parser.add_argument("--frontend-port", type=int, default=5173, help="Vue 前端监听端口")
+        parser.add_argument("--frontend-port", type=int, default=0, help="Vue 前端监听端口，0 表示使用根 .env 中的 VITE_FRONTEND_PORT 或 Vite 默认值")
         parser.add_argument("--grpc-web-port", type=int, default=8081, help="gRPC-Web 代理监听端口")
         parser.add_argument("--poll-interval", type=float, default=0.2, help="播放器轮询间隔秒数")
         parser.add_argument("--skip-mediamtx", action="store_true", default=False, help="跳过 MediaMTX")
@@ -90,7 +90,14 @@ class Command(BaseCommand):
         backend_port = int(options.get("backend_port", 8000))
         self._backend_port = backend_port
         frontend_host = str(options.get("frontend_host", "0.0.0.0"))
-        frontend_port = int(options.get("frontend_port", 5173))
+        frontend_port = int(options.get("frontend_port", 0))
+        frontend_wait_port = frontend_port if frontend_port > 0 else self._resolve_frontend_port()
+        frontend_display_port = frontend_wait_port
+        frontend_uses_env_port = frontend_port <= 0
+        if frontend_uses_env_port:
+            self.stdout.write(self.style.WARNING(
+                f"Vue 前端端口未显式指定，使用根 .env / Vite 配置端口 {frontend_display_port}"
+            ))
         grpc_web_port = int(options.get("grpc_web_port", 8081))
         poll_interval = float(options.get("poll_interval", 0.2))
 
@@ -107,14 +114,14 @@ class Command(BaseCommand):
             self._start_player(poll_interval)
 
         if not bool(options.get("skip_frontend", False)):
-            self._wait_for_port("Vue 前端", self._connect_host(frontend_host), frontend_port, required=False)
+            self._wait_for_port("Vue 前端", self._connect_host(frontend_host), frontend_wait_port, required=False)
         if not bool(options.get("skip_grpcweb", False)):
             self._wait_for_port("gRPC-Web", "127.0.0.1", grpc_web_port, required=False)
 
         frontend_url_host = self._public_host(frontend_host)
         backend_url_host = self._public_host(backend_host)
         self.stdout.write(self.style.SUCCESS(
-            f"服务已启动：前端 http://{frontend_url_host}:{frontend_port}/ ，后端 http://{backend_url_host}:{backend_port}/"
+            f"服务已启动：前端 http://{frontend_url_host}:{frontend_display_port}/ ，后端 http://{backend_url_host}:{backend_port}/"
         ))
         self._monitor_processes()
 
@@ -186,13 +193,34 @@ class Command(BaseCommand):
             backend_target_host = self._public_host(backend_host)
             # 仅在根目录 .env 未配置时提供兜底值，避免覆盖用户显式配置。
             extra_env = {"VITE_BACKEND_TARGET": f"http://{backend_target_host}:{backend_port}"}
+        command_args = [npm_path, "run", "dev", "--", "--host", host]
+        if port > 0:
+            command_args.extend(["--port", str(port)])
         self._spawn(
             "Vue 前端",
-            [npm_path, "run", "dev", "--", "--host", host, "--port", str(port)],
+            command_args,
             cwd=frontend_dir,
             required=True,
             extra_env=extra_env,
         )
+        if port <= 0:
+            self.stdout.write(self.style.WARNING("Vue 前端未追加 --port，端口以根 .env / Vite 配置为准"))
+        else:
+            self.stdout.write(self.style.WARNING(f"Vue 前端已显式追加 --port {port}"))
+
+    def _resolve_frontend_port(self) -> int:
+        """
+        解析前端实际监听端口，优先根 .env 中的 VITE_FRONTEND_PORT，缺省回退 Vite 默认值。
+        :return: 前端端口
+        """
+        configured_port = os.environ.get("VITE_FRONTEND_PORT", "").strip()
+        if configured_port:
+            try:
+                return int(configured_port)
+            except ValueError:
+                pass
+        return 5173
+
 
     def _start_player(self, poll_interval: float) -> None:
         """

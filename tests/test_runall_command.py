@@ -46,7 +46,7 @@ def test_handle_checks_django_via_loopback_for_wildcard_host(monkeypatch: Any) -
         backend_host="0.0.0.0",
         backend_port=8000,
         frontend_host="0.0.0.0",
-        frontend_port=5173,
+        frontend_port=0,
         grpc_web_port=8081,
         poll_interval=0.2,
         skip_mediamtx=True,
@@ -100,6 +100,56 @@ def test_start_frontend_respects_configured_backend_target(monkeypatch: Any) -> 
     assert len(spawned_processes) == 1
     assert spawned_processes[0]["name"] == "Vue 前端"
     assert spawned_processes[0]["extra_env"] is None
+    assert spawned_processes[0]["command_args"][-2:] == ["--port", "5173"]
+
+
+def test_start_frontend_uses_env_port_when_port_is_not_explicit(monkeypatch: Any) -> None:
+    """
+    未显式指定 frontend_port 时，runall 不应覆盖根目录 .env 中的 VITE_FRONTEND_PORT。
+    :param monkeypatch: pytest monkeypatch fixture
+    :return: None
+    """
+    spawned_processes: list[dict[str, Any]] = []
+    command = runall.Command()
+
+    def record_spawn(
+        name: str,
+        command_args: list[str],
+        cwd: object = None,
+        required: bool = True,
+        extra_env: dict[str, str] | None = None,
+    ) -> None:
+        spawned_processes.append({
+            "name": name,
+            "command_args": command_args,
+            "cwd": cwd,
+            "required": required,
+            "extra_env": extra_env,
+        })
+
+    monkeypatch.setattr(shutil, "which", lambda command_name: "npm.cmd" if command_name == "npm" else None)
+    monkeypatch.setattr(command, "_spawn", record_spawn)
+    monkeypatch.setenv("VITE_FRONTEND_PORT", "5260")
+    monkeypatch.setenv("VITE_BACKEND_TARGET", "http://192.168.1.50:8000")
+
+    command._start_frontend("0.0.0.0", 0, "0.0.0.0", 8000)
+
+    assert len(spawned_processes) == 1
+    assert spawned_processes[0]["command_args"] == ["npm.cmd", "run", "dev", "--", "--host", "0.0.0.0"]
+    assert command._resolve_frontend_port() == 5260
+
+
+def test_resolve_frontend_port_falls_back_to_vite_default(monkeypatch: Any) -> None:
+    """
+    根目录 .env 未配置或配置非法时，应回退到 Vite 默认端口 5173。
+    :param monkeypatch: pytest monkeypatch fixture
+    :return: None
+    """
+    command = runall.Command()
+    monkeypatch.delenv("VITE_FRONTEND_PORT", raising=False)
+    assert command._resolve_frontend_port() == 5173
+    monkeypatch.setenv("VITE_FRONTEND_PORT", "invalid")
+    assert command._resolve_frontend_port() == 5173
 
 
 def test_start_frontend_injects_backend_target_when_config_missing(monkeypatch: Any) -> None:
