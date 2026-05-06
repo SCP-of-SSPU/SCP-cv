@@ -349,10 +349,11 @@ def _is_ppt_media_relationship(target: str, relationship_type: str) -> bool:
     :return: True 表示该关系指向可控制的音视频媒体
     """
     lower_target = target.lower()
+    lower_relationship_type = relationship_type.lower()
     media_extensions = {".mp4", ".mov", ".wmv", ".avi", ".mp3", ".wav", ".wma", ".m4a"}
+    media_relationship_markers = {"/video", "/audio"}
     return (
-        "/media" in relationship_type
-        or "../media/" in lower_target
+        any(marker in lower_relationship_type for marker in media_relationship_markers)
         or Path(lower_target).suffix in media_extensions
     )
 

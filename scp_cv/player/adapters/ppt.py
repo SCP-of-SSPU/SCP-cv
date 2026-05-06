@@ -58,6 +58,7 @@ class PptSourceAdapter(SourceAdapter):
         self._ppt_hwnd: int = 0
         self._is_paused: bool = False
         self._last_slide_index: int = 1
+        self._owns_ppt_app: bool = False
         # COM 线程锁（所有 COM 调用须串行）
         self._com_lock = threading.Lock()
 
@@ -92,11 +93,10 @@ class PptSourceAdapter(SourceAdapter):
 
         pythoncom.CoInitialize()
 
-        # 获取或创建 PowerPoint 实例
-        try:
-            self._ppt_app = win32com.client.GetActiveObject("PowerPoint.Application")
-        except Exception:
-            self._ppt_app = win32com.client.Dispatch("PowerPoint.Application")
+        self._owns_ppt_app = False
+        self._ppt_app = win32com.client.DispatchEx("PowerPoint.Application")
+        self._owns_ppt_app = True
+        self._ppt_app.DisplayAlerts = _PP_ALERTS_NONE
 
         # 最小化 PowerPoint 编辑窗口
         self._ppt_app.WindowState = 2  # ppWindowMinimized
@@ -104,10 +104,11 @@ class PptSourceAdapter(SourceAdapter):
         # 打开演示文稿（只读）
         self._presentation = self._ppt_app.Presentations.Open(
             file_path,
-            ReadOnly=True,   # 只读
+            ReadOnly=True,
             Untitled=False,
-            WithWindow=False,  # 不显示编辑窗口
+            WithWindow=False,
         )
+        self._mark_presentation_clean()
         self._total_slides = self._presentation.Slides.Count
 
         if autoplay:
@@ -187,8 +188,14 @@ class PptSourceAdapter(SourceAdapter):
                     pass
                 self._presentation = None
 
+            if self._ppt_app is not None and self._owns_ppt_app:
+                try:
+                    self._ppt_app.Quit()
+                except Exception:
+                    pass
             self._set_powerpoint_alerts(_PP_ALERTS_ALL)
             self._ppt_app = None
+            self._owns_ppt_app = False
         finally:
             try:
                 pythoncom.CoUninitialize()

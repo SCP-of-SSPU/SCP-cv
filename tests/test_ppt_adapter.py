@@ -12,6 +12,24 @@ from __future__ import annotations
 from scp_cv.player.adapters.ppt import PptSourceAdapter
 
 
+class _PresentationStub:
+    def __init__(self) -> None:
+        self.Saved = False
+        self.close_called = False
+
+    def Close(self) -> None:
+        self.close_called = True
+
+
+class _PptAppStub:
+    def __init__(self) -> None:
+        self.DisplayAlerts = 2
+        self.quit_called = False
+
+    def Quit(self) -> None:
+        self.quit_called = True
+
+
 class _StateFailingSlideShowView:
     """模拟 State 不可读但页码和翻页仍可用的 PowerPoint 放映视图。"""
 
@@ -74,3 +92,48 @@ def test_next_item_allows_navigation_when_state_unreadable_but_position_availabl
 
     assert slideshow_view.next_called is True
     assert adapter._last_slide_index == 3
+
+
+def test_mark_presentation_clean_sets_saved_flag() -> None:
+    """关闭前应将演示文稿标记为已保存，避免 PowerPoint 请求保存。"""
+    adapter = PptSourceAdapter()
+    presentation = _PresentationStub()
+    adapter._presentation = presentation
+
+    adapter._mark_presentation_clean()
+
+    assert presentation.Saved is True
+
+
+def test_close_com_resources_quits_owned_powerpoint_app() -> None:
+    """适配器自建的 PowerPoint 进程应在关闭时退出。"""
+    adapter = PptSourceAdapter()
+    presentation = _PresentationStub()
+    ppt_app = _PptAppStub()
+    adapter._presentation = presentation
+    adapter._ppt_app = ppt_app
+    adapter._owns_ppt_app = True
+
+    adapter._close_com_resources()
+
+    assert presentation.close_called is True
+    assert ppt_app.quit_called is True
+    assert adapter._ppt_app is None
+    assert adapter._owns_ppt_app is False
+
+
+def test_close_com_resources_keeps_external_powerpoint_app_running() -> None:
+    """外部 PowerPoint 进程不应被适配器误退出。"""
+    adapter = PptSourceAdapter()
+    presentation = _PresentationStub()
+    ppt_app = _PptAppStub()
+    adapter._presentation = presentation
+    adapter._ppt_app = ppt_app
+    adapter._owns_ppt_app = False
+
+    adapter._close_com_resources()
+
+    assert presentation.close_called is True
+    assert ppt_app.quit_called is False
+    assert adapter._ppt_app is None
+    assert adapter._owns_ppt_app is False
