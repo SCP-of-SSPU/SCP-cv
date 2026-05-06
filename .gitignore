@@ -177,6 +177,7 @@ frontend/src/**/*.d.ts
 frontend/vite.config.js
 frontend/vite.config.d.ts
 .playwright-mcp/
+.playwright-cli/
 media/uploads/
 media/ppt_previews/
 logs/*

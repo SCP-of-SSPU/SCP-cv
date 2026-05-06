@@ -37,6 +37,7 @@ from scp_cv.services.playback_sessions import (
     get_or_create_session as get_or_create_session,
     get_session_snapshot as get_session_snapshot,
 )
+from scp_cv.services.video_wall import VideoWallError, apply_big_screen_mode as apply_video_wall_mode
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +103,13 @@ def set_big_screen_mode(big_screen_mode: str) -> dict[str, object]:
         raise PlaybackError(f"无效的大屏模式：{big_screen_mode}")
 
     runtime = RuntimeState.get_instance()
+    previous_mode = runtime.big_screen_mode
     runtime.big_screen_mode = big_screen_mode
+    try:
+        apply_video_wall_mode(big_screen_mode)
+    except VideoWallError as video_wall_error:
+        runtime.big_screen_mode = previous_mode
+        raise PlaybackError(str(video_wall_error)) from video_wall_error
     runtime.save(update_fields=["big_screen_mode", "updated_at"])
     apply_runtime_audio_policy()
     logger.info("大屏模式切换为 %s", big_screen_mode)

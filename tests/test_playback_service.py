@@ -10,13 +10,17 @@
 '''
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from scp_cv.apps.playback.models import (
+    BigScreenMode,
     MediaSource,
     PlaybackCommand,
     PlaybackSession,
     PlaybackState,
+    RuntimeState,
 )
 from scp_cv.services.playback import (
     PlaybackError,
@@ -28,9 +32,11 @@ from scp_cv.services.playback import (
     get_session_snapshot,
     navigate_content,
     open_source,
+    set_big_screen_mode,
     stop_current_content,
     update_playback_progress,
 )
+from scp_cv.services.video_wall import VideoWallError
 
 
 # ══════════════════════════════════════════════════════════════
@@ -389,6 +395,50 @@ class TestClearPendingCommand:
 # ══════════════════════════════════════════════════════════════
 # update_playback_progress
 # ══════════════════════════════════════════════════════════════
+
+@pytest.mark.django_db
+class TestSetBigScreenMode:
+    """测试大屏模式切换与视频墙联动。"""
+
+    def test_switches_runtime_and_applies_video_wall(self, monkeypatch: Any) -> None:
+        """切换大屏模式时应同步更新运行态并下发视频墙模式。"""
+        called_modes: list[str] = []
+
+        monkeypatch.setattr(
+            "scp_cv.services.playback.apply_video_wall_mode",
+            lambda mode: called_modes.append(mode),
+        )
+
+        payload = set_big_screen_mode(BigScreenMode.DOUBLE)
+
+        assert called_modes == [BigScreenMode.DOUBLE]
+        assert payload["big_screen_mode"] == BigScreenMode.DOUBLE
+        assert RuntimeState.get_instance().big_screen_mode == BigScreenMode.DOUBLE
+        session_1 = get_or_create_session(1)
+        session_2 = get_or_create_session(2)
+        session_3 = get_or_create_session(3)
+        session_4 = get_or_create_session(4)
+        assert session_1.is_muted is False
+        assert session_2.is_muted is False
+        assert session_3.is_muted is True
+        assert session_4.is_muted is True
+
+    def test_keeps_previous_runtime_mode_when_video_wall_apply_fails(self, monkeypatch: Any) -> None:
+        """视频墙下发失败时应回滚运行态并返回播放层错误。"""
+        runtime = RuntimeState.get_instance()
+        runtime.big_screen_mode = BigScreenMode.SINGLE
+        runtime.save(update_fields=["big_screen_mode", "updated_at"])
+
+        def raise_video_wall_error(_mode: str) -> None:
+            raise VideoWallError("发送视频墙控制包失败")
+
+        monkeypatch.setattr("scp_cv.services.playback.apply_video_wall_mode", raise_video_wall_error)
+
+        with pytest.raises(PlaybackError, match="发送视频墙控制包失败"):
+            set_big_screen_mode(BigScreenMode.DOUBLE)
+
+        assert RuntimeState.get_instance().big_screen_mode == BigScreenMode.SINGLE
+
 
 @pytest.mark.django_db
 class TestUpdatePlaybackProgress:
