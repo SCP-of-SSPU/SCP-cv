@@ -16,9 +16,29 @@ class _PresentationStub:
     def __init__(self) -> None:
         self.Saved = False
         self.close_called = False
+        self.close_args: tuple[object, ...] = ()
 
-    def Close(self) -> None:
+    def Close(self, *args: object) -> None:
         self.close_called = True
+        self.close_args = args
+
+
+class _SlideShowSettingsStub:
+    def __init__(self) -> None:
+        self.StartingSlide = 0
+        self.EndingSlide = 0
+        self.run_called = False
+
+    def Run(self) -> object:
+        self.run_called = True
+        return type("_SlideShowWindowStub", (), {"View": object()})()
+
+
+class _PresentationWithSettingsStub(_PresentationStub):
+    def __init__(self) -> None:
+        super().__init__()
+        self.SlideShowSettings = _SlideShowSettingsStub()
+        self.Slides = type("_SlidesStub", (), {"Count": 5})()
 
 
 class _PptAppStub:
@@ -102,6 +122,33 @@ def test_mark_presentation_clean_sets_saved_flag() -> None:
 
     adapter._mark_presentation_clean()
 
+    assert presentation.Saved is True
+
+
+def test_close_presentation_without_save_prefers_explicit_false() -> None:
+    """关闭演示文稿时应显式传递不保存参数。"""
+    adapter = PptSourceAdapter()
+    presentation = _PresentationStub()
+    adapter._presentation = presentation
+
+    adapter._close_presentation_without_save()
+
+    assert presentation.close_called is True
+    assert presentation.close_args == (False,)
+
+
+def test_start_slideshow_only_updates_slide_range() -> None:
+    """启动放映时应只改页码范围，避免额外改写文稿级放映设置。"""
+    adapter = PptSourceAdapter()
+    presentation = _PresentationWithSettingsStub()
+    adapter._presentation = presentation
+    adapter._total_slides = 5
+
+    adapter._start_slideshow(start_slide=3)
+
+    assert presentation.SlideShowSettings.StartingSlide == 3
+    assert presentation.SlideShowSettings.EndingSlide == 5
+    assert presentation.SlideShowSettings.run_called is True
     assert presentation.Saved is True
 
 

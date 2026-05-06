@@ -277,6 +277,8 @@ export const api = {
   navigateContent: (windowId: number, action: string, targetIndex = 0, positionMs = 0) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/navigate/`, { method: 'POST', body: JSON.stringify({ action, target_index: targetIndex, position_ms: positionMs }) }),
   controlPptMedia: (windowId: number, action: string, mediaId: string, mediaIndex: number) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/ppt-media/`, { method: 'POST', body: JSON.stringify({ action, media_id: mediaId, media_index: mediaIndex }) }),
   closeSource: (windowId: number) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/close/`, { method: 'POST' }),
+  resetAllSessions: () => requestJson<ApiStatePayload>('/api/playback/reset-all/', { method: 'POST' }),
+  shutdownSystem: () => requestJson<ApiStatePayload & { detail?: string }>('/api/system/shutdown/', { method: 'POST' }),
   setLoop: (windowId: number, enabled: boolean) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/loop/`, { method: 'PATCH', body: JSON.stringify({ enabled }) }),
   setWindowVolume: (windowId: number, volume: number) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/volume/`, { method: 'PATCH', body: JSON.stringify({ volume }) }),
   setWindowMute: (windowId: number, muted: boolean) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/mute/`, { method: 'PATCH', body: JSON.stringify({ muted }) }),

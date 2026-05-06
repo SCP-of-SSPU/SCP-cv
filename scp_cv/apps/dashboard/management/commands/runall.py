@@ -49,6 +49,13 @@ class Command(BaseCommand):
         super().__init__(*args, **kwargs)
         self._processes: list[ManagedProcess] = []
         self._shutting_down = False
+        self._shutdown_signal_path = Path(settings.LOG_DIR) / "runall.shutdown"
+        self._last_shutdown_signal_mtime = 0.0
+        self._reset_startup_state_done = False
+        self._request_shutdown_reason = ""
+        self._startup_reset_failed = False
+        self._startup_reset_message = ""
+        self._backend_port = 8000
 
     def add_arguments(self, parser: object) -> None:
         """
@@ -77,9 +84,11 @@ class Command(BaseCommand):
         atexit.register(self._cleanup_processes)
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
+        self._prepare_shutdown_signal_file()
 
         backend_host = str(options.get("backend_host", "127.0.0.1"))
         backend_port = int(options.get("backend_port", 8000))
+        self._backend_port = backend_port
         frontend_host = str(options.get("frontend_host", "0.0.0.0"))
         frontend_port = int(options.get("frontend_port", 5173))
         grpc_web_port = int(options.get("grpc_web_port", 8081))
@@ -90,12 +99,13 @@ class Command(BaseCommand):
         if not bool(options.get("skip_grpcweb", False)):
             self._start_grpcweb_proxy(grpc_web_port)
         self._start_django_server(backend_host, backend_port)
+        self._wait_for_port("Django", self._connect_host(backend_host), backend_port, required=True)
+        self._reset_startup_state()
         if not bool(options.get("skip_frontend", False)):
             self._start_frontend(frontend_host, frontend_port, backend_host, backend_port)
         if not bool(options.get("skip_player", False)):
             self._start_player(poll_interval)
 
-        self._wait_for_port("Django", self._connect_host(backend_host), backend_port, required=True)
         if not bool(options.get("skip_frontend", False)):
             self._wait_for_port("Vue 前端", self._connect_host(frontend_host), frontend_port, required=False)
         if not bool(options.get("skip_grpcweb", False)):
@@ -311,6 +321,12 @@ class Command(BaseCommand):
         """监控关键子进程，任一关键进程退出时清理所有服务。"""
         try:
             while not self._shutting_down:
+                shutdown_reason = self._consume_shutdown_request()
+                if shutdown_reason:
+                    self.stdout.write(self.style.WARNING(shutdown_reason))
+                    self._request_shutdown_reason = shutdown_reason
+                    self._cleanup_processes()
+                    return
                 for managed_process in list(self._processes):
                     exit_code = managed_process.process.poll()
                     if exit_code is None:
@@ -365,6 +381,51 @@ class Command(BaseCommand):
         if alive_processes:
             psutil.wait_procs(alive_processes, timeout=3)
 
+    def _prepare_shutdown_signal_file(self) -> None:
+        """初始化系统关闭请求信号文件。"""
+        self._shutdown_signal_path.write_text("", encoding="utf-8")
+        self._last_shutdown_signal_mtime = self._shutdown_signal_path.stat().st_mtime
+
+    def _consume_shutdown_request(self) -> str:
+        """
+        检查前端发出的系统关闭请求。
+        :return: 关闭原因描述；未请求时返回空字符串
+        """
+        try:
+            stat_result = self._shutdown_signal_path.stat()
+        except OSError:
+            return ""
+        if stat_result.st_mtime <= self._last_shutdown_signal_mtime:
+            return ""
+        self._last_shutdown_signal_mtime = stat_result.st_mtime
+        try:
+            marker = self._shutdown_signal_path.read_text(encoding="utf-8").strip()
+        except OSError:
+            marker = ""
+        if marker:
+            return "收到前端系统关闭请求，正在停止所有服务…"
+        return ""
+
+    def _reset_startup_state(self) -> None:
+        """
+        在前端和播放器启动前，将所有窗口状态重置为待机。
+        :return: None
+        """
+        from urllib.error import HTTPError, URLError
+        from urllib.request import Request, urlopen
+
+        backend_url = f"http://127.0.0.1:{self._backend_port}/api/playback/reset-all/"
+        request = Request(backend_url, method="POST")
+        try:
+            with urlopen(request, timeout=8) as response:
+                response.read()
+            self._reset_startup_state_done = True
+            self.stdout.write(self.style.SUCCESS("启动前已将所有窗口重置为待机状态"))
+        except (OSError, HTTPError, URLError) as reset_error:
+            self._startup_reset_failed = True
+            self._startup_reset_message = str(reset_error)
+            self.stderr.write(self.style.WARNING(f"启动前重置待机状态失败：{reset_error}"))
+
     def _signal_handler(self, signum: int, _frame: object) -> None:
         """
         Ctrl+C / SIGTERM 信号处理。
@@ -375,3 +436,4 @@ class Command(BaseCommand):
         self.stdout.write(self.style.WARNING(f"收到信号 {signum}，正在停止所有服务…"))
         self._cleanup_processes()
         sys.exit(0)
+

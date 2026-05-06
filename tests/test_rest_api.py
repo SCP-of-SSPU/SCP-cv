@@ -11,7 +11,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from unittest.mock import patch
+
+from django.conf import settings
 
 import pytest
 from django.test import Client
@@ -88,6 +91,47 @@ def test_sessions_api_returns_four_windows() -> None:
 
     assert response.status_code == 200
     assert [item["window_id"] for item in response.json()["sessions"]] == [1, 2, 3, 4]
+
+
+@pytest.mark.django_db
+def test_reset_all_sessions_api_sets_windows_idle(media_source_ppt: MediaSource) -> None:
+    """POST /api/playback/reset-all/ 应将全部窗口重置为待机。"""
+    client = Client()
+    client.post(
+        "/api/playback/1/open/",
+        data={"source_id": media_source_ppt.pk, "autoplay": True},
+        content_type="application/json",
+    )
+
+    response = client.post("/api/playback/reset-all/")
+    session = PlaybackSession.objects.get(window_id=1)
+
+    assert response.status_code == 200
+    assert response.json()["sessions"][0]["playback_state"] == "idle"
+    assert session.media_source is None
+    assert session.pending_command == PlaybackCommand.SET_MUTE
+
+
+@pytest.mark.django_db
+def test_shutdown_system_api_requests_close_and_marks_signal(media_source_ppt: MediaSource) -> None:
+    """POST /api/system/shutdown/ 应写入关闭信号并返回待机态会话。"""
+    client = Client()
+    signal_path = Path(settings.LOG_DIR) / "runall.shutdown"
+    signal_path.write_text("", encoding="utf-8")
+    client.post(
+        "/api/playback/1/open/",
+        data={"source_id": media_source_ppt.pk, "autoplay": True},
+        content_type="application/json",
+    )
+
+    response = client.post("/api/system/shutdown/")
+    session = PlaybackSession.objects.get(window_id=1)
+
+    assert response.status_code == 200
+    assert response.json()["detail"] == "系统关闭请求已发送"
+    assert response.json()["sessions"][0]["playback_state"] == "idle"
+    assert session.media_source is None
+    assert signal_path.read_text(encoding="utf-8").strip() == "shutdown"
 
 
 def test_displays_api_uses_display_service() -> None:

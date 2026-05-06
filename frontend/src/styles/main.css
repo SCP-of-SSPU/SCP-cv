@@ -306,6 +306,7 @@ label { color: var(--muted); font-weight: 700; }
 .preview-card { display: grid; gap: 8px; margin: 16px 0; padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: rgba(255, 255, 255, 0.76); }
 .preview-card.live { border-color: rgba(16, 124, 16, 0.35); }
 .about-hero h2 { margin: 6px 0 10px; font-size: clamp(2rem, 5vw, 4.2rem); }
+.about-actions { margin-top: 18px; }
 .guide-list { display: grid; gap: 10px; margin: 0; padding-left: 22px; color: var(--muted); font-weight: 700; }
 code { color: #005a9e; }
 pre { overflow-x: auto; padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: rgba(255, 255, 255, 0.82); }
@@ -357,6 +358,7 @@ pre { overflow-x: auto; padding: 16px; border: 1px solid var(--line); border-rad
   .toolbar,
   .content { width: min(100% - 20px, 1280px); }
   .topbar { align-items: flex-start; flex-direction: column; }
+  .topbar__meta { width: 100%; }
   .grid.two,
   .grid.three,
   .button-grid--four,
@@ -373,13 +375,17 @@ pre { overflow-x: auto; padding: 16px; border: 1px solid var(--line); border-rad
   .toolbar button { flex: 0 0 auto; }
   .content { padding-bottom: max(42px, env(safe-area-inset-bottom)); }
   .panel { border-radius: 20px; padding: 14px; }
+  .panel__header,
+  .row-actions,
+  .audio-strip,
+  .display-hero,
   .command-hero { align-items: stretch; flex-direction: column; }
-  .display-hero { align-items: stretch; flex-direction: column; }
+  .row-actions > *,
+  .panel__header > * { width: 100%; }
   .source-rail { position: static; }
   .window-tabs { position: sticky; top: 70px; z-index: 11; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 8px; border: 1px solid var(--line); border-radius: 20px; background: rgba(255, 255, 255, 0.88); backdrop-filter: blur(14px); }
   .window-tabs button { min-height: 46px; padding: 9px 10px; }
   .hero { display: none; }
-  .audio-strip { align-items: stretch; flex-direction: column; }
   .remote { display: block; }
   .desktop-controls { display: none; }
   .ppt-remote { overflow: hidden; touch-action: pan-y; border-color: rgba(0, 120, 212, 0.24); background: radial-gradient(circle at 82% 12%, rgba(16, 124, 16, 0.10), transparent 9rem), rgba(255, 255, 255, 0.94); }
@@ -403,6 +409,101 @@ pre { overflow-x: auto; padding: 16px; border: 1px solid var(--line); border-rad
   .source-card { align-items: stretch; flex-direction: column; }
   .row-actions button,
   .row-actions .button-link { flex: 1; text-align: center; }
+  .about-actions { display: grid; grid-template-columns: 1fr; }
+}
+
+@media (max-height: 900px) {
+  .ppt-focus__stage { min-height: 48vh; }
+  .slide-preview img { max-height: 54vh; }
+  .ppt-focus__controls button { min-height: 64px; font-size: 1.05rem; }
+  .ppt-focus__notes p { font-size: clamp(1.05rem, 2.3vw, 1.5rem); }
+}
+
+@media (max-height: 760px) and (min-width: 761px) {
+  .ppt-focus { padding: 12px 14px; }
+  .ppt-focus__top { margin-bottom: 12px; }
+  .ppt-focus__stage { grid-template-columns: minmax(0, 1.3fr) minmax(220px, 0.7fr); min-height: 42vh; }
+  .slide-preview { min-height: 200px; }
+  .slide-preview img { max-height: 42vh; padding: 8px; }
+  .ppt-focus__sidecar,
+  .ppt-focus__notes { gap: 12px; }
+  .ppt-focus__controls { margin: 12px 0; }
+  .ppt-focus__controls button { min-height: 58px; font-size: 1rem; }
+  .ppt-focus__notes h2 { font-size: 2.2rem; }
+}
+
+@media (max-height: 640px) and (min-width: 761px) {
+  .ppt-focus__notes { grid-template-columns: 220px minmax(0, 1fr); }
+  .ppt-focus__notes p { font-size: 1rem; line-height: 1.38; }
+  .ppt-focus__cue-card { padding: 14px; }
+}
+
+@media (max-height: 760px) and (max-width: 760px) {
+  .ppt-focus { padding-top: 10px; padding-bottom: calc(148px + env(safe-area-inset-bottom, 0px)); }
+  .slide-preview--current { min-height: min(28vh, 220px); }
+  .slide-preview img { max-height: 26vh; }
+  .ppt-focus__sidecar { grid-template-columns: 1fr; }
+  .slide-preview--next img { max-height: 12vh; }
+  .ppt-focus__notes p { font-size: 1.02rem; line-height: 1.45; }
+}
+
+@media (max-height: 560px) and (max-width: 760px) {
+  .ppt-focus__top h1 { font-size: 1rem; }
+  .ppt-focus__controls { gap: 6px; padding: 8px 10px max(8px, env(safe-area-inset-bottom, 0px)); }
+  .ppt-focus__controls button { min-height: 42px; font-size: 0.86rem; }
+  .ppt-focus__controls button.primary { min-height: 54px; font-size: 1rem; }
+}
+
+@media (max-width: 760px) {
+  /* 底部预留固定控制栏空间（两行按钮 + 间距 ≈ 152px） */
+  .ppt-focus { padding: 12px 10px 0; padding-bottom: calc(156px + env(safe-area-inset-bottom, 0px)); }
+  /* 顶栏：三列单行紧凑，隐藏 eyebrow 副标题 */
+  .ppt-focus__top { grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .ppt-focus__top .button-link { padding: 6px 10px; font-size: 0.82rem; }
+  .ppt-focus__top .eyebrow { display: none; }
+  .ppt-focus__top h1 { margin: 0; font-size: 1.15rem; }
+  .ppt-focus__status { display: flex; align-items: center; gap: 8px; }
+  /* 舞台区：单列、压缩幻灯片预览高度 */
+  .ppt-focus__stage { grid-template-columns: 1fr; min-height: auto; gap: 10px; }
+  .slide-preview { min-height: 160px; border-radius: 22px; }
+  .slide-preview--current { min-height: min(34vh, 260px); }
+  .slide-preview img { max-height: 32vh; padding: 8px; border-radius: 20px; }
+  .slide-preview__label { top: 8px; left: 8px; padding: 5px 8px; }
+  /* 侧边栏：下一页预览与进度卡片横排 */
+  .ppt-focus__sidecar { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .slide-preview--next { min-height: 0; }
+  .slide-preview--next img { max-height: 14vh; }
+  .slide-preview--next .slide-preview__fallback { font-size: clamp(2rem, 8vw, 3.6rem); }
+  .ppt-focus__cue-card { padding: 12px; border-radius: 20px; }
+  .ppt-focus__cue-card p { font-size: 0.8rem; }
+  /* 备注区：隐藏重复页码卡片，提词器文字放大 */
+  .ppt-focus__notes { grid-template-columns: 1fr; gap: 10px; }
+  .ppt-focus__page-status { display: none; }
+  .ppt-focus__notes p { font-size: 1.2rem; line-height: 1.55; }
+  /* 控制栏：固定底部浮动栏 + 毛玻璃 */
+  .ppt-focus__controls { position: fixed; bottom: 0; left: 0; right: 0; z-index: 10; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px 12px max(10px, env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); border-radius: 18px 18px 0 0; background: rgba(255,255,255,0.94); backdrop-filter: blur(18px); box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.06); }
+  .ppt-focus__controls button { min-height: 48px; font-size: 0.92rem; font-weight: 900; }
+  /* "下一页"按钮：加高 + 渐变蓝突出主操作 */
+  .ppt-focus__controls button.primary { min-height: 62px; font-size: 1.12rem; background: linear-gradient(160deg, #0078d4, #005a9e); box-shadow: 0 6px 18px rgba(0, 120, 212, 0.22); }
+}
+
+@media (max-width: 420px) {
+  /* 极窄屏：顶栏折行（返回+状态同行，标题独占第二行） */
+  .ppt-focus__top { grid-template-columns: 1fr auto; grid-auto-flow: dense; }
+  .ppt-focus__title { grid-column: 1 / -1; }
+  /* 侧边栏回单列 */
+  .ppt-focus__sidecar { grid-template-columns: 1fr; }
+  /* 下一页按钮进一步加高 */
+  .ppt-focus__controls button.primary { min-height: 68px; }
+}
+
+@media (max-width: 420px) {
+  .remote__focus { grid-template-columns: 1fr; }
+  .remote__focus button { min-height: 92px; }
+  .remote__next { min-height: 150px; }
+  .remote__quick-jump { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .remote__goto { grid-template-columns: 42px minmax(0, 1fr) 42px; }
+  .remote__goto .primary { grid-column: 1 / -1; }
 }
 
 @media (max-width: 420px) {

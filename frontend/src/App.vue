@@ -53,7 +53,6 @@ onMounted(async () => {
     <RouterLink to="/display/tv-left">TV 左显示控制</RouterLink>
     <RouterLink to="/display/tv-right">TV 右显示控制</RouterLink>
     <RouterLink to="/about">关于</RouterLink>
-    <button type="button" class="danger" @click="runAction(appStore.closeActive)">停止当前窗口</button>
   </nav>
 
   <main :class="showChrome ? 'content' : 'focus-content'">

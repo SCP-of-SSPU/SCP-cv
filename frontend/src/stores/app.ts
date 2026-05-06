@@ -176,6 +176,21 @@ export const useAppStore = defineStore('app', {
       this.applySessions(payload.sessions);
       this.notify('已关闭播放');
     },
+    async resetAllSessions(): Promise<void> {
+      const payload = await api.resetAllSessions();
+      this.applySessions(payload.sessions);
+      this.notify('已将所有窗口重置为待机');
+    },
+    async shutdownSystem(): Promise<void> {
+      const payload = await api.shutdownSystem();
+      this.applySessions(payload.sessions);
+      this.connectionStatus = 'SSE: 系统关闭中';
+      this.notify(payload.detail || '系统关闭请求已发送');
+      if (this.eventSource) {
+        this.eventSource.close();
+        this.eventSource = null;
+      }
+    },
     async toggleLoop(): Promise<void> {
       const enabled = !(this.activeSession?.loop_enabled || false);
       const payload = await api.setLoop(this.activeWindowId, enabled);

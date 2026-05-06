@@ -1,8 +1,26 @@
+<script setup lang="ts">
+import { useAppStore } from '@/stores/app';
+
+const appStore = useAppStore();
+
+async function runAction(action: () => Promise<void>): Promise<void> {
+  try {
+    await action();
+  } catch (error) {
+    appStore.notify(error instanceof Error ? error.message : '操作失败', true);
+  }
+}
+</script>
+
 <template>
   <section class="panel about-hero">
     <span class="eyebrow">About SCP-cv</span>
     <h2>单机大屏播控系统</h2>
     <p>SCP-cv 通过 Vue 控制台、Django REST API、SSE 状态推送和 PySide6 本地播放器完成 PPT、视频、图片、网页与 SRT 直播源的四窗口播放控制。</p>
+    <div class="row-actions about-actions">
+      <button type="button" @click="runAction(appStore.resetAllSessions)">全部窗口待机</button>
+      <button type="button" class="danger" @click="runAction(appStore.shutdownSystem)">关闭系统</button>
+    </div>
   </section>
 
   <section class="grid three">

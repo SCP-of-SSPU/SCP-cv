@@ -41,6 +41,43 @@ from scp_cv.services.playback_sessions import (
 logger = logging.getLogger(__name__)
 
 
+def reset_all_sessions_to_idle() -> list[PlaybackSession]:
+    """
+    将所有播放窗口重置为待机状态。
+    :return: 重置后的会话列表
+    """
+    reset_sessions: list[PlaybackSession] = []
+    for window_id in sorted(VALID_WINDOW_IDS):
+        session = get_or_create_session(window_id)
+        _reset_playback_fields(session)
+        session.save()
+        reset_sessions.append(session)
+    apply_runtime_audio_policy()
+    logger.info("已将所有窗口重置为待机状态")
+    return reset_sessions
+
+
+def request_all_windows_close() -> list[PlaybackSession]:
+    """
+    向所有窗口下发关闭指令，并同步将会话状态重置为待机。
+    :return: 更新后的会话列表
+    """
+    reset_sessions: list[PlaybackSession] = []
+    for window_id in sorted(VALID_WINDOW_IDS):
+        session = get_or_create_session(window_id)
+        cleanup_args = {
+            "cleanup_source_id": session.media_source_id,
+        } if session.media_source is not None and session.media_source.is_temporary else {}
+        _reset_playback_fields(session)
+        session.pending_command = PlaybackCommand.CLOSE
+        session.command_args = cleanup_args
+        session.save()
+        reset_sessions.append(session)
+    apply_runtime_audio_policy()
+    logger.info("已向所有窗口下发关闭指令并重置待机状态")
+    return reset_sessions
+
+
 def get_runtime_snapshot() -> dict[str, object]:
     """
     获取全局运行状态快照。

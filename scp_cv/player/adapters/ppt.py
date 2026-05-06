@@ -22,7 +22,6 @@ from scp_cv.player.adapters.ppt_constants import (
     PP_SLIDE_SHOW_DONE as _PP_SLIDE_SHOW_DONE,
     PP_SLIDE_SHOW_PAUSED as _PP_SLIDE_SHOW_PAUSED,
     PP_SLIDE_SHOW_RUNNING as _PP_SLIDE_SHOW_RUNNING,
-    PP_SLIDE_SHOW_SPEAKER as _PP_SLIDE_SHOW_SPEAKER,
 )
 from scp_cv.player.adapters.ppt_window import (
     detach_slideshow_window,
@@ -122,15 +121,15 @@ class PptSourceAdapter(SourceAdapter):
         if self._presentation is None:
             return
 
-        # 配置放映参数：使用窗口模式，不占满独立屏幕
+        # 仅更新必要的页码范围，尽量减少对演示文稿持久化设置的改写。
         settings = self._presentation.SlideShowSettings
-        settings.ShowType = _PP_SLIDE_SHOW_SPEAKER
         settings.StartingSlide = max(1, min(start_slide, self._total_slides or 1))
         settings.EndingSlide = self._total_slides
-        settings.ShowPresenterView = False
+        self._mark_presentation_clean()
 
         # 启动放映
         self._slideshow_window = settings.Run()
+        self._mark_presentation_clean()
         self._slideshow_view = self._slideshow_window.View
         self._is_paused = False
 
@@ -182,8 +181,7 @@ class PptSourceAdapter(SourceAdapter):
 
             if self._presentation is not None:
                 try:
-                    self._mark_presentation_clean()
-                    self._presentation.Close()
+                    self._close_presentation_without_save()
                 except Exception:
                     pass
                 self._presentation = None
@@ -229,6 +227,23 @@ class PptSourceAdapter(SourceAdapter):
             self._presentation.Saved = True
         except Exception:
             pass
+
+    def _close_presentation_without_save(self) -> None:
+        """
+        关闭演示文稿时显式选择不保存，避免 PowerPoint 弹出保存对话框。
+        :return: None
+        """
+        if self._presentation is None:
+            return
+        self._mark_presentation_clean()
+        close_method = getattr(self._presentation, "Close", None)
+        if close_method is None:
+            return
+        try:
+            close_method(False)
+            return
+        except TypeError:
+            close_method()
 
     # ═══════════════════ 播放控制 ═══════════════════
 

@@ -9,6 +9,9 @@
 '''
 from __future__ import annotations
 
+from pathlib import Path
+
+from django.conf import settings
 from django.http import HttpRequest, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_http_methods
@@ -36,6 +39,8 @@ from scp_cv.services.playback import (
     get_session_snapshot,
     navigate_content,
     open_source,
+    request_all_windows_close,
+    reset_all_sessions_to_idle,
     select_display_target,
     set_big_screen_mode,
     set_window_mute,
@@ -43,6 +48,8 @@ from scp_cv.services.playback import (
     toggle_loop_playback,
 )
 from scp_cv.services.volume import VolumeError, get_system_volume, set_system_volume
+
+_SYSTEM_SHUTDOWN_SIGNAL = Path(settings.LOG_DIR) / "runall.shutdown"
 
 
 @require_GET
@@ -305,6 +312,34 @@ def show_window_ids_api(request: HttpRequest) -> JsonResponse:
             session.save(update_fields=["pending_command", "command_args"])
 
     return mutate_playback(apply_show_id)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def reset_all_sessions_api(request: HttpRequest) -> JsonResponse:
+    """
+    将全部窗口重置为待机状态。
+    :param request: HTTP 请求
+    :return: 重置后的会话状态
+    """
+    return mutate_playback(reset_all_sessions_to_idle)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def shutdown_system_api(request: HttpRequest) -> JsonResponse:
+    """
+    请求 runall 主控进程按统一清理流程关闭整个系统。
+    :param request: HTTP 请求
+    :return: 当前会话状态
+    """
+    request_all_windows_close()
+    _SYSTEM_SHUTDOWN_SIGNAL.write_text("shutdown\n", encoding="utf-8")
+    return json_response({
+        "success": True,
+        "sessions": get_all_sessions_snapshot(),
+        "detail": "系统关闭请求已发送",
+    })
 
 
 @require_GET
