@@ -106,7 +106,7 @@ watch(sourceId, () => {
   <main class="ppt-focus">
     <header class="ppt-focus__top">
       <RouterLink class="button-link" :to="returnRoute">返回屏幕控制</RouterLink>
-      <div>
+      <div class="ppt-focus__title">
         <span class="eyebrow">PPT Focus · Window {{ windowId }}</span>
         <h1>{{ focusTitle }}</h1>
       </div>
@@ -152,12 +152,12 @@ watch(sourceId, () => {
     </section>
 
     <section class="ppt-focus__notes">
-      <div>
+      <div class="ppt-focus__page-status">
         <span class="eyebrow">页码状态</span>
         <h2>{{ currentPage }} / {{ totalPages || '-' }}</h2>
         <small>{{ isLoadingResources ? '正在读取 PPT 资源' : `资源页数 ${resources.length} · 当前页媒体 ${currentMediaItems.length}` }}</small>
       </div>
-      <article>
+      <article class="ppt-focus__teleprompter">
         <span class="eyebrow">提词器</span>
         <p>{{ notesText }}</p>
       </article>

@@ -415,29 +415,44 @@ pre { overflow-x: auto; padding: 16px; border: 1px solid var(--line); border-rad
 }
 
 @media (max-width: 760px) {
-  .ppt-focus { padding: 12px 10px max(18px, env(safe-area-inset-bottom)); }
-  .ppt-focus__top { grid-template-columns: 1fr auto; align-items: start; gap: 10px; }
-  .ppt-focus__top .button-link { grid-column: 1 / -1; justify-self: start; }
-  .ppt-focus__top h1 { white-space: normal; }
-  .ppt-focus__status { justify-items: end; }
+  /* 底部预留固定控制栏空间（两行按钮 + 间距 ≈ 152px） */
+  .ppt-focus { padding: 12px 10px 0; padding-bottom: calc(156px + env(safe-area-inset-bottom, 0px)); }
+  /* 顶栏：三列单行紧凑，隐藏 eyebrow 副标题 */
+  .ppt-focus__top { grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .ppt-focus__top .button-link { padding: 6px 10px; font-size: 0.82rem; }
+  .ppt-focus__top .eyebrow { display: none; }
+  .ppt-focus__top h1 { margin: 0; font-size: 1.15rem; }
+  .ppt-focus__status { display: flex; align-items: center; gap: 8px; }
+  /* 舞台区：单列、压缩幻灯片预览高度 */
   .ppt-focus__stage { grid-template-columns: 1fr; min-height: auto; gap: 10px; }
-  .ppt-focus__sidecar { gap: 10px; }
-  .slide-preview { min-height: 220px; border-radius: 24px; }
-  .slide-preview--current { min-height: min(54vh, 360px); }
-  .slide-preview--next { min-height: 150px; }
-  .slide-preview img { max-height: 52vh; padding: 9px; border-radius: 22px; }
-  .slide-preview--next img { max-height: 28vh; }
-  .slide-preview__label { top: 10px; left: 10px; }
-  .ppt-focus__controls { position: sticky; bottom: max(8px, env(safe-area-inset-bottom)); z-index: 10; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 8px; border: 1px solid var(--line); border-radius: 22px; background: rgba(255,255,255,0.88); backdrop-filter: blur(14px); }
-  .ppt-focus__controls button { min-height: 62px; font-size: 1rem; }
-  .ppt-focus__notes { grid-template-columns: 1fr; }
-  .ppt-focus__notes h2 { font-size: 2.4rem; }
-  .ppt-focus__notes p { font-size: 1.1rem; }
+  .slide-preview { min-height: 160px; border-radius: 22px; }
+  .slide-preview--current { min-height: min(34vh, 260px); }
+  .slide-preview img { max-height: 32vh; padding: 8px; border-radius: 20px; }
+  .slide-preview__label { top: 8px; left: 8px; padding: 5px 8px; }
+  /* 侧边栏：下一页预览与进度卡片横排 */
+  .ppt-focus__sidecar { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .slide-preview--next { min-height: 0; }
+  .slide-preview--next img { max-height: 14vh; }
+  .slide-preview--next .slide-preview__fallback { font-size: clamp(2rem, 8vw, 3.6rem); }
+  .ppt-focus__cue-card { padding: 12px; border-radius: 20px; }
+  .ppt-focus__cue-card p { font-size: 0.8rem; }
+  /* 备注区：隐藏重复页码卡片，提词器文字放大 */
+  .ppt-focus__notes { grid-template-columns: 1fr; gap: 10px; }
+  .ppt-focus__page-status { display: none; }
+  .ppt-focus__notes p { font-size: 1.2rem; line-height: 1.55; }
+  /* 控制栏：固定底部浮动栏 + 毛玻璃 */
+  .ppt-focus__controls { position: fixed; bottom: 0; left: 0; right: 0; z-index: 10; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px 12px max(10px, env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); border-radius: 18px 18px 0 0; background: rgba(255,255,255,0.94); backdrop-filter: blur(18px); box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.06); }
+  .ppt-focus__controls button { min-height: 48px; font-size: 0.92rem; font-weight: 900; }
+  /* "下一页"按钮：加高 + 渐变蓝突出主操作 */
+  .ppt-focus__controls button.primary { min-height: 62px; font-size: 1.12rem; background: linear-gradient(160deg, #0078d4, #005a9e); box-shadow: 0 6px 18px rgba(0, 120, 212, 0.22); }
 }
 
 @media (max-width: 420px) {
-  .ppt-focus__top { grid-template-columns: 1fr; }
-  .ppt-focus__status { justify-items: start; }
-  .ppt-focus__controls { grid-template-columns: 1fr 1fr; }
-  .ppt-focus__controls button:nth-child(2) { min-height: 82px; }
+  /* 极窄屏：顶栏折行（返回+状态同行，标题独占第二行） */
+  .ppt-focus__top { grid-template-columns: 1fr auto; grid-auto-flow: dense; }
+  .ppt-focus__title { grid-column: 1 / -1; }
+  /* 侧边栏回单列 */
+  .ppt-focus__sidecar { grid-template-columns: 1fr; }
+  /* 下一页按钮进一步加高 */
+  .ppt-focus__controls button.primary { min-height: 68px; }
 }
