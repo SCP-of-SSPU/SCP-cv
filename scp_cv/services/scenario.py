@@ -19,7 +19,6 @@ from scp_cv.apps.playback.models import (
     PlaybackState,
     RuntimeState,
     Scenario,
-    ScenarioTarget,
     SourceState,
 )
 from scp_cv.services.playback import (
@@ -52,7 +51,7 @@ def list_scenarios() -> list[dict[str, object]]:
     获取所有预案的摘要列表。
     :return: 预案字典列表（按排序权重和更新时间倒序）
     """
-    scenarios = Scenario.objects.prefetch_related("targets__source").all()
+    scenarios = Scenario.objects.all()
     return [_scenario_to_dict(scenario) for scenario in scenarios]
 
 
@@ -64,7 +63,7 @@ def get_scenario(scenario_id: int) -> dict[str, object]:
     :raises ScenarioError: 预案不存在时
     """
     try:
-        scenario = Scenario.objects.prefetch_related("targets__source").get(pk=scenario_id)
+        scenario = Scenario.objects.get(pk=scenario_id)
     except Scenario.DoesNotExist as not_found:
         raise ScenarioError(f"预案 id={scenario_id} 不存在") from not_found
     return _scenario_to_dict(scenario)
@@ -109,6 +108,7 @@ def create_scenario(
     )
 
     _apply_targets(scenario, targets)
+    scenario.save(update_fields=["targets", "updated_at"])
     logger.info("创建预案「%s」(id=%d)", scenario.name, scenario.pk)
     return scenario
 
@@ -156,10 +156,10 @@ def update_scenario(
     if volume_level is not None:
         scenario.volume_level = volume_level
 
-    scenario.save()
-
     if targets is not None:
         _apply_targets(scenario, targets)
+
+    scenario.save()
 
     logger.info("更新预案「%s」(id=%d)", scenario.name, scenario.pk)
     return scenario
@@ -283,7 +283,7 @@ def activate_scenario(scenario_id: int) -> list[dict[str, object]]:
     :raises ScenarioError: 预案不存在或激活失败时
     """
     try:
-        scenario = Scenario.objects.prefetch_related("targets__source").get(pk=scenario_id)
+        scenario = Scenario.objects.get(pk=scenario_id)
     except Scenario.DoesNotExist as not_found:
         raise ScenarioError(f"预案 id={scenario_id} 不存在") from not_found
 
@@ -300,7 +300,7 @@ def activate_scenario(scenario_id: int) -> list[dict[str, object]]:
         logger.info("系统音量设置为 %d", scenario.volume_level)
 
     # 应用各窗口目标
-    for target in scenario.targets.all():
+    for target in list(scenario.targets or []):
         _apply_window_target(target)
 
     logger.info("预案「%s」激活完成", scenario.name)
@@ -327,47 +327,51 @@ def _apply_targets(scenario: Scenario, targets: Optional[list[dict[str, object]]
     if targets is None:
         return
 
-    # 清除旧目标
-    scenario.targets.all().delete()
-
+    normalized_targets: list[dict[str, object]] = []
+    seen_windows: set[int] = set()
     for target_data in targets:
         window_id = int(target_data.get("window_id", 0))
-        if window_id not in VALID_WINDOW_IDS:
+        if window_id not in VALID_WINDOW_IDS or window_id in seen_windows:
             continue
+        seen_windows.add(window_id)
         source_state = str(target_data.get("source_state", SourceState.UNSET))
         source_id = target_data.get("source_id")
-        ScenarioTarget.objects.create(
-            scenario=scenario,
-            window_id=window_id,
-            source_state=source_state,
-            source=_resolve_source(source_id) if source_state == SourceState.SET else None,
-            autoplay=bool(target_data.get("autoplay", True)),
-            resume=bool(target_data.get("resume", True)),
-        )
+        source = _resolve_source(source_id) if source_state == SourceState.SET else None
+        normalized_targets.append({
+            "window_id": window_id,
+            "source_state": source_state,
+            "source_id": source.pk if source is not None else None,
+            "autoplay": bool(target_data.get("autoplay", True)),
+            "resume": bool(target_data.get("resume", True)),
+        })
+    scenario.targets = normalized_targets
 
 
-def _apply_window_target(target: ScenarioTarget) -> None:
+def _apply_window_target(target: dict[str, object]) -> None:
     """应用单个窗口目标。"""
-    window_id = target.window_id
+    window_id = int(target.get("window_id", 0) or 0)
+    source_state = str(target.get("source_state", SourceState.UNSET))
+    source_id = int(target.get("source_id", 0) or 0)
+    autoplay = bool(target.get("autoplay", True))
+    resume = bool(target.get("resume", True))
 
-    if target.source_state == SourceState.UNSET:
+    if source_state == SourceState.UNSET:
         logger.debug("窗口 %d 未设置，保持原有状态", window_id)
         return
 
-    if target.source_state == SourceState.EMPTY:
+    if source_state == SourceState.EMPTY:
         close_source(window_id)
         logger.info("窗口 %d 已清空（黑屏）", window_id)
         return
 
-    if target.source_state == SourceState.SET and target.source_id:
+    if source_state == SourceState.SET and source_id:
         session = get_or_create_session(window_id)
-        # resume 策略：相同源且正在播放时跳过
-        if target.resume and session.media_source_id == target.source_id:
+        if resume and session.media_source_id == source_id:
             if session.playback_state in (PlaybackState.PLAYING, PlaybackState.PAUSED, PlaybackState.LOADING):
                 logger.info("窗口 %d 已在播放相同源，保留进度", window_id)
                 return
         try:
-            open_source(window_id, target.source_id, autoplay=target.autoplay)
+            open_source(window_id, source_id, autoplay=autoplay)
         except PlaybackError as e:
             raise ScenarioError(f"激活窗口 {window_id} 失败：{e}") from e
 
@@ -375,16 +379,26 @@ def _apply_window_target(target: ScenarioTarget) -> None:
 def _scenario_to_dict(scenario: Scenario) -> dict[str, object]:
     """将 Scenario 模型实例序列化为字典。"""
     targets: list[dict[str, object]] = []
-    for target in scenario.targets.all():
-        target_dict: dict[str, object] = {
-            "window_id": target.window_id,
-            "source_state": target.source_state,
-            "source_id": target.source_id,
-            "source_name": target.source.name if target.source else "",
-            "autoplay": target.autoplay,
-            "resume": target.resume,
+    window_targets: dict[int, dict[str, object]] = {}
+    for target in list(scenario.targets or []):
+        window_id = int(target.get("window_id", 0) or 0)
+        if window_id not in VALID_WINDOW_IDS:
+            continue
+        source_id = int(target.get("source_id", 0) or 0)
+        source_name = ""
+        if source_id > 0:
+            source = MediaSource.objects.filter(pk=source_id).only("name").first()
+            source_name = source.name if source else ""
+        target_dict = {
+            "window_id": window_id,
+            "source_state": str(target.get("source_state", SourceState.UNSET)),
+            "source_id": source_id or None,
+            "source_name": source_name,
+            "autoplay": bool(target.get("autoplay", True)),
+            "resume": bool(target.get("resume", True)),
         }
         targets.append(target_dict)
+        window_targets[window_id] = target_dict
 
     return {
         "id": scenario.pk,
@@ -397,6 +411,14 @@ def _scenario_to_dict(scenario: Scenario) -> dict[str, object]:
         "volume_state": scenario.volume_state,
         "volume_level": scenario.volume_level,
         "targets": targets,
+        "window1_source_id": window_targets.get(1, {}).get("source_id"),
+        "window1_source_name": window_targets.get(1, {}).get("source_name", ""),
+        "window1_autoplay": window_targets.get(1, {}).get("autoplay", True),
+        "window1_resume": window_targets.get(1, {}).get("resume", True),
+        "window2_source_id": window_targets.get(2, {}).get("source_id"),
+        "window2_source_name": window_targets.get(2, {}).get("source_name", ""),
+        "window2_autoplay": window_targets.get(2, {}).get("autoplay", True),
+        "window2_resume": window_targets.get(2, {}).get("resume", True),
         "created_at": scenario.created_at.isoformat() if scenario.created_at else "",
         "updated_at": scenario.updated_at.isoformat() if scenario.updated_at else "",
     }

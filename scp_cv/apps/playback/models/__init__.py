@@ -20,13 +20,11 @@ from .enums import (
 )
 from .media import MediaFolder, MediaSource, PptResource
 from .session import PlaybackSession
-from .scenario_models import Scenario, ScenarioTarget
-from .device import DeviceEndpoint
+from .scenario_models import Scenario
 from .runtime import RuntimeState
 
 __all__ = [
     "BigScreenMode",
-    "DeviceEndpoint",
     "DeviceType",
     "MediaFolder",
     "MediaSource",

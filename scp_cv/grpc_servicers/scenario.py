@@ -65,20 +65,30 @@ class ScenarioMixin:
                 success=False, message="预案名称不能为空",
             )
 
-        # 提取窗口 1/2 配置
         w1 = request.window1
         w2 = request.window2
+        targets = [
+            {
+                "window_id": 1,
+                "source_state": "set" if w1 and w1.source_id else "empty",
+                "source_id": int(w1.source_id) if w1 and w1.source_id else None,
+                "autoplay": w1.autoplay if w1 else True,
+                "resume": w1.resume if w1 else True,
+            },
+            {
+                "window_id": 2,
+                "source_state": "set" if w2 and w2.source_id else "empty",
+                "source_id": int(w2.source_id) if w2 and w2.source_id else None,
+                "autoplay": w2.autoplay if w2 else True,
+                "resume": w2.resume if w2 else True,
+            },
+        ]
 
         try:
             scenario = create_scenario(
                 name=request.name.strip(),
                 description=request.description.strip(),
-                window1_source_id=int(w1.source_id) if w1 and w1.source_id else None,
-                window1_autoplay=w1.autoplay if w1 else True,
-                window1_resume=w1.resume if w1 else True,
-                window2_source_id=int(w2.source_id) if w2 and w2.source_id else None,
-                window2_autoplay=w2.autoplay if w2 else True,
-                window2_resume=w2.resume if w2 else True,
+                targets=targets,
             )
         except ScenarioError as create_err:
             return control_pb2.ScenarioReply(
@@ -110,20 +120,31 @@ class ScenarioMixin:
         detail = request.detail
         w1 = detail.window1 if detail else None
         w2 = detail.window2 if detail else None
+        targets = None
+        if detail is not None:
+            targets = [
+                {
+                    "window_id": 1,
+                    "source_state": "set" if w1 and w1.source_id else "empty",
+                    "source_id": int(w1.source_id) if w1 and w1.source_id else None,
+                    "autoplay": w1.autoplay if w1 else True,
+                    "resume": w1.resume if w1 else True,
+                },
+                {
+                    "window_id": 2,
+                    "source_state": "set" if w2 and w2.source_id else "empty",
+                    "source_id": int(w2.source_id) if w2 and w2.source_id else None,
+                    "autoplay": w2.autoplay if w2 else True,
+                    "resume": w2.resume if w2 else True,
+                },
+            ]
 
         try:
             scenario = update_scenario(
                 scenario_id=int(request.scenario_id),
                 name=detail.name.strip() if detail and detail.name else None,
                 description=detail.description if detail else None,
-                window1_source_id=int(w1.source_id) if w1 and w1.source_id else None,
-                window1_autoplay=w1.autoplay if w1 else None,
-                window1_resume=w1.resume if w1 else None,
-                window2_source_id=int(w2.source_id) if w2 and w2.source_id else None,
-                window2_autoplay=w2.autoplay if w2 else None,
-                window2_resume=w2.resume if w2 else None,
-                _window1_source_provided=w1 is not None,
-                _window2_source_provided=w2 is not None,
+                targets=targets,
             )
         except ScenarioError as update_err:
             return control_pb2.ScenarioReply(

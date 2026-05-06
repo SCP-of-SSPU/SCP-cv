@@ -16,7 +16,6 @@ from scp_cv.apps.playback.models import (
     MediaSource,
     PlaybackState,
     Scenario,
-    ScenarioTarget,
     SourceState,
 )
 from scp_cv.services.playback import get_or_create_session
@@ -54,14 +53,13 @@ class TestCaptureScenarioFromCurrentState:
 
         assert scenario.name == "当前双窗口"
         assert scenario.description == "从播放状态捕获"
-        target_1 = scenario.targets.get(window_id=1)
-        target_2 = scenario.targets.get(window_id=2)
-        assert target_1.source == media_source_ppt
-        assert target_1.autoplay is True
-        assert target_1.resume is True
-        assert target_2.source == media_source_video
-        assert target_2.autoplay is False
-        assert target_2.resume is True
+        targets = {target["window_id"]: target for target in scenario.targets}
+        assert targets[1]["source_id"] == media_source_ppt.pk
+        assert targets[1]["autoplay"] is True
+        assert targets[1]["resume"] is True
+        assert targets[2]["source_id"] == media_source_video.pk
+        assert targets[2]["autoplay"] is False
+        assert targets[2]["resume"] is True
 
     def test_capture_overwrites_existing_scenario(
         self,
@@ -72,12 +70,14 @@ class TestCaptureScenarioFromCurrentState:
         scenario = Scenario.objects.create(
             name="旧预案",
         )
-        ScenarioTarget.objects.create(
-            scenario=scenario,
-            window_id=1,
-            source_state=SourceState.SET,
-            source=media_source_video,
-        )
+        scenario.targets = [{
+            "window_id": 1,
+            "source_state": SourceState.SET,
+            "source_id": media_source_video.pk,
+            "autoplay": True,
+            "resume": True,
+        }]
+        scenario.save(update_fields=["targets"])
         session_1 = get_or_create_session(1)
         session_1.media_source = media_source_ppt
         session_1.playback_state = PlaybackState.PLAYING
@@ -93,7 +93,8 @@ class TestCaptureScenarioFromCurrentState:
         assert Scenario.objects.count() == 1
         assert updated.name == "覆盖后的预案"
         assert updated.description == "覆盖描述"
-        assert updated.targets.get(window_id=1).source == media_source_ppt
+        targets = {target["window_id"]: target for target in updated.targets}
+        assert targets[1]["source_id"] == media_source_ppt.pk
 
     def test_capture_rejects_empty_name(self) -> None:
         """预案名称为空时应返回业务异常。"""
@@ -111,18 +112,24 @@ class TestScenarioList:
         media_source_video: MediaSource,
     ) -> None:
         """列表项应包含窗口源名称，供前端直接展示。"""
-        scenario = Scenario.objects.create(name="列表预案")
-        ScenarioTarget.objects.create(
-            scenario=scenario,
-            window_id=1,
-            source_state=SourceState.SET,
-            source=media_source_ppt,
-        )
-        ScenarioTarget.objects.create(
-            scenario=scenario,
-            window_id=2,
-            source_state=SourceState.SET,
-            source=media_source_video,
+        scenario = Scenario.objects.create(
+            name="列表预案",
+            targets=[
+                {
+                    "window_id": 1,
+                    "source_state": SourceState.SET,
+                    "source_id": media_source_ppt.pk,
+                    "autoplay": True,
+                    "resume": True,
+                },
+                {
+                    "window_id": 2,
+                    "source_state": SourceState.SET,
+                    "source_id": media_source_video.pk,
+                    "autoplay": True,
+                    "resume": True,
+                },
+            ],
         )
 
         scenario_dict = list_scenarios()[0]

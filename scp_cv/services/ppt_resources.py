@@ -185,7 +185,7 @@ def replace_ppt_resources(source_id: int, resources: list[dict[str, object]]) ->
     """
     覆盖保存 PPT 解析资源。
     :param source_id: PPT 媒体源 ID
-    :param resources: 资源列表，包含 page_index、slide_image、next_slide_image、speaker_notes、has_media
+    :param resources: 资源列表，包含 page_index、slide_image、speaker_notes、media_items
     :return: 保存后的资源列表
     :raises MediaError: 源不存在、类型错误或页码无效时
     """
@@ -203,9 +203,7 @@ def replace_ppt_resources(source_id: int, resources: list[dict[str, object]]) ->
             source=source,
             page_index=page_index,
             slide_image=str(resource_data.get("slide_image", "")),
-            next_slide_image=str(resource_data.get("next_slide_image", "")),
             speaker_notes=str(resource_data.get("speaker_notes", "")),
-            has_media=bool(resource_data.get("has_media", False)) or bool(media_items),
             media_items=media_items,
         )
     logger.info("保存 PPT 资源：source_id=%d, pages=%d", source_id, len(resources))
@@ -224,8 +222,6 @@ def _apply_preview_paths(resources: list[dict[str, object]], preview_paths: list
     for resource_index, resource_data in enumerate(resources):
         if resource_index < len(preview_paths):
             resource_data["slide_image"] = preview_paths[resource_index]
-        if resource_index + 1 < len(preview_paths):
-            resource_data["next_slide_image"] = preview_paths[resource_index + 1]
 
 
 def _resources_from_preview_paths(preview_paths: list[str]) -> list[dict[str, object]]:
@@ -239,7 +235,6 @@ def _resources_from_preview_paths(preview_paths: list[str]) -> list[dict[str, ob
         resources.append({
             "page_index": page_index,
             "slide_image": preview_path,
-            "next_slide_image": preview_paths[page_index] if page_index < len(preview_paths) else "",
             "speaker_notes": "",
             "media_items": [],
         })

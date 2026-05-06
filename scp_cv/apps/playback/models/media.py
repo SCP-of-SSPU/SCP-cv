@@ -77,7 +77,6 @@ class MediaSource(models.Model):
         verbose_name="上传文件",
         help_text="通过 Web 上传的文件存储路径",
     )
-    # 仅 RTSP_STREAM 类型使用，关联自动发现的流记录
     stream_identifier = models.CharField(
         max_length=255,
         blank=True,
@@ -90,8 +89,6 @@ class MediaSource(models.Model):
         verbose_name="是否可用",
         help_text="文件是否存在 / 流是否在线",
     )
-
-    # ── 文件夹与文件元数据 ──
     folder = models.ForeignKey(
         MediaFolder,
         null=True,
@@ -115,8 +112,6 @@ class MediaSource(models.Model):
         blank=True,
         verbose_name="MIME 类型",
     )
-
-    # ── 临时源 ──
     is_temporary = models.BooleanField(
         default=False,
         verbose_name="是否临时源",
@@ -128,16 +123,12 @@ class MediaSource(models.Model):
         verbose_name="过期时间",
         help_text="临时源过期后自动清理",
     )
-
-    # ── 扩展元数据 ──
     metadata = models.JSONField(
         default=dict,
         blank=True,
         verbose_name="扩展元数据",
         help_text="存储 PPT 解析资源 ID 等扩展信息",
     )
-
-    # ── 时间戳 ──
     created_at = models.DateTimeField(
         auto_now_add=True,
         verbose_name="创建时间",
@@ -154,7 +145,7 @@ class MediaSource(models.Model):
 
 class PptResource(models.Model):
     """
-    PPT 解析资源，存储幻灯片 PNG 预览和提词器文本。
+    PPT 解析资源，存储幻灯片 PNG 预览、备注和页面媒体清单。
     与 MediaSource 关联，删除 PPT 时一并删除。
     """
 
@@ -172,20 +163,10 @@ class PptResource(models.Model):
         blank=True,
         verbose_name="幻灯片 PNG 路径",
     )
-    next_slide_image = models.CharField(
-        max_length=512,
-        blank=True,
-        verbose_name="下一页 PNG 路径",
-    )
     speaker_notes = models.TextField(
         blank=True,
         default="",
         verbose_name="演讲者备注/提词器文本",
-    )
-    has_media = models.BooleanField(
-        default=False,
-        verbose_name="是否包含媒体",
-        help_text="该页是否包含视频/音频媒体对象",
     )
     media_items = models.JSONField(
         default=list,
@@ -206,3 +187,15 @@ class PptResource(models.Model):
 
     def __str__(self) -> str:
         return f"{self.source.name} - 第{self.page_index}页"
+
+    @property
+    def has_media(self) -> bool:
+        return bool(self.media_items)
+
+    @property
+    def next_slide_image(self) -> str:
+        next_resource = self.source.ppt_resources.filter(page_index=self.page_index + 1).only("slide_image").first()
+        return next_resource.slide_image if next_resource else ""
+
+
+__all__ = ["MediaFolder", "MediaSource", "PptResource"]
