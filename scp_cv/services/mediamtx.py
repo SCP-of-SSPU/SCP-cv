@@ -59,13 +59,13 @@ def _detect_lan_host() -> str:
 
 def _detect_read_host() -> str:
     """
-    获取拉流地址主机名，默认使用局域网地址以支持其它设备读取。
+    获取拉流地址主机名，默认使用本机回环地址供同机播放器稳定读取。
     :return: SRT/RTSP 读取入口主机名
     """
     configured_host = str(getattr(settings, "MEDIAMTX_SRT_READ_HOST", "")).strip()
     if configured_host:
         return configured_host
-    return _detect_lan_host()
+    return "127.0.0.1"
 
 
 def get_srt_publish_url(stream_identifier: str) -> str:

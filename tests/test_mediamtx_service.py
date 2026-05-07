@@ -33,3 +33,14 @@ def test_read_url_uses_configured_read_host(settings: object) -> None:
     settings.MEDIAMTX_SRT_READ_HOST = "192.168.1.100"
 
     assert get_srt_read_url("camera-a") == "srt://192.168.1.100:8890?streamid=read:camera-a&latency=50"
+
+
+def test_read_url_defaults_to_loopback_when_unconfigured(settings: object) -> None:
+    """
+    SRT 拉流地址默认面向同机播放器，避免局域网地址受防火墙或网卡路径影响。
+    :param settings: pytest-django settings fixture
+    :return: None
+    """
+    settings.MEDIAMTX_SRT_READ_HOST = ""
+
+    assert get_srt_read_url("camera-a") == "srt://127.0.0.1:8890?streamid=read:camera-a&latency=50"

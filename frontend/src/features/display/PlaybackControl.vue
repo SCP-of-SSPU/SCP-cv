@@ -29,6 +29,7 @@ import { useSessionStore } from '@/stores/sessions';
 import { useSourceStore } from '@/stores/sources';
 import { formatDuration } from '@/design-system/utils';
 import { api, type PptResourceItem, type SessionSnapshot } from '@/services/api';
+import { usePlaybackErrorGate } from './usePlaybackErrorGate';
 
 const props = defineProps<{ session: SessionSnapshot }>();
 
@@ -194,25 +195,10 @@ async function reopenCurrentSource(): Promise<void> {
   }
 }
 
-/*
- * 错误提示可被用户手动 dismiss：避免直播流首帧握手过程的瞬时 error 持续盖在 UI 上，
- * 也避免历史 stale error 一直无法消除。dismiss 仅作用在「当前 source_id × 当前 state」组合上，
- * 一旦 source_id 变化或 state 离开 error 后再回到 error，会自动重置 ack 重新提示。
- */
-const dismissedErrorKey = ref<string>('');
-const currentErrorKey = computed(() => `${props.session.source_id ?? 0}::${props.session.playback_state}`);
-const showErrorBar = computed(
-  () => props.session.playback_state === 'error' && dismissedErrorKey.value !== currentErrorKey.value,
-);
-
-watch(currentErrorKey, () => {
-  // 任何 error key 变化（换源 / 状态切换）都视作"事件"，让 dismiss 标记失效。
-  if (props.session.playback_state !== 'error') dismissedErrorKey.value = '';
+const { showErrorBar, dismissErrorBar } = usePlaybackErrorGate({
+  session: () => props.session,
+  category: () => category.value,
 });
-
-function dismissErrorBar(): void {
-  dismissedErrorKey.value = currentErrorKey.value;
-}
 
 const errorBarTitle = computed(() => (category.value === 'stream' ? '直播流尚未就绪' : '播放器异常'));
 const errorBarDescription = computed(() => {

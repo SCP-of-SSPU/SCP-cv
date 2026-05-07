@@ -112,7 +112,7 @@ class TestScenarioList:
         media_source_video: MediaSource,
     ) -> None:
         """列表项应包含窗口源名称，供前端直接展示。"""
-        scenario = Scenario.objects.create(
+        Scenario.objects.create(
             name="列表预案",
             targets=[
                 {
