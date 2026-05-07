@@ -1,8 +1,9 @@
 <script setup lang="ts">
 /**
  * PPT 专注模式：完全替换 Shell 的全屏深色舞台。
- *  - ≥ lg 横屏：当前页 PNG 大预览 + 下一页缩略 + 进度 + 提词器；
- *  - < lg 或竖屏：方向阻断 EmptyState，提供「返回 / 紧凑模式」两条出路。
+ *  - 桌面横屏：当前页大预览 + 下一页缩略 + 进度 + 右下角提词器悬浮卡；
+ *  - 竖屏（手机 / 平板竖屏）：当前页 + 控制条 + 提词器纵向堆叠的紧凑布局，
+ *    不再阻断访问，由现场需要决定是否使用全屏。
  */
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -23,12 +24,11 @@ import { api, buildBackendUrl, type PptResourceItem } from '@/services/api';
 
 const route = useRoute();
 const router = useRouter();
-const { canUseFocusMode } = useBreakpoint();
+const { isLandscape } = useBreakpoint();
 const sessionStore = useSessionStore();
 const toast = useToast();
 
-const compactMode = ref(false);
-const isPinned = ref(false);
+const isFullscreen = ref(false);
 
 const windowId = computed(() => Number.parseInt(String(route.params.windowId ?? '0'), 10));
 const session = computed(() => sessionStore.byWindowId(windowId.value));
@@ -37,11 +37,14 @@ const resources = ref<PptResourceItem[]>([]);
 const loadError = ref('');
 const isLoading = ref(false);
 
+// 注意：后端 PptResource.page_index 是 1-based（值与 PowerPoint COM 的 Slide.Index 对齐），
+// session.current_slide 同样是 1-based。早先误用 `current_slide - 1` 会让大图渲染前一页，
+// 与 caption 的「Page N」错位 1，肉眼看就是「页面显示提前了一页」。
 const currentResource = computed(() =>
-  resources.value.find((res) => res.page_index === Math.max(0, (session.value?.current_slide ?? 1) - 1)),
+  resources.value.find((res) => res.page_index === (session.value?.current_slide ?? 1)),
 );
 const nextResource = computed(() =>
-  resources.value.find((res) => res.page_index === (session.value?.current_slide ?? 1)),
+  resources.value.find((res) => res.page_index === (session.value?.current_slide ?? 1) + 1),
 );
 
 const slidesProgress = computed(() => {
@@ -50,7 +53,9 @@ const slidesProgress = computed(() => {
   return { total, current };
 });
 
-const eligible = computed(() => canUseFocusMode.value || compactMode.value);
+// 横屏 / 竖屏由 useBreakpoint 监听 resize + orientationchange 实时更新；
+// PPT 专注模式两种形态共用一套数据源，只通过 :data-orientation 切换 CSS 布局。
+const orientationKey = computed<'landscape' | 'portrait'>(() => (isLandscape.value ? 'landscape' : 'portrait'));
 
 async function loadResources(): Promise<void> {
   if (!session.value?.source_id || session.value?.source_type !== 'ppt') {
@@ -104,15 +109,17 @@ async function togglePlayPause(): Promise<void> {
   }
 }
 
-async function togglePin(): Promise<void> {
-  isPinned.value = !isPinned.value;
-  if (isPinned.value && document.documentElement.requestFullscreen) {
+async function toggleFullscreen(): Promise<void> {
+  // 走浏览器 Fullscreen API；首次进入因 user-activation 限制可能被拒绝，
+  // 这种情况静默处理，由用户再次点击重试，避免红色错误干扰演讲流程。
+  isFullscreen.value = !isFullscreen.value;
+  if (isFullscreen.value && document.documentElement.requestFullscreen) {
     try {
       await document.documentElement.requestFullscreen();
     } catch {
-      // requestFullscreen 在用户首次交互前可能被拒绝，不视为错误。
+      isFullscreen.value = !!document.fullscreenElement;
     }
-  } else if (!isPinned.value && document.fullscreenElement) {
+  } else if (!isFullscreen.value && document.fullscreenElement) {
     await document.exitFullscreen();
   }
 }
@@ -137,10 +144,6 @@ const windowMappingForExit = computed(() => {
 
 const slideImage = computed(() => (currentResource.value?.slide_image ? buildBackendUrl(currentResource.value.slide_image) : ''));
 const nextSlideImage = computed(() => (nextResource.value?.slide_image ? buildBackendUrl(nextResource.value.slide_image) : ''));
-
-const enterCompact = (): void => {
-  compactMode.value = true;
-};
 </script>
 
 <template>
@@ -159,16 +162,14 @@ const enterCompact = (): void => {
           {{ slidesProgress.current }} / {{ slidesProgress.total }}
         </span>
       </div>
-      <FButton
-        appearance="subtle"
-        :icon-start="isPinned ? 'pin_24_filled' : 'pin_24_regular'"
-        @click="togglePin"
-      >
-        {{ isPinned ? '已固定' : '固定窗口' }}
+      <FButton appearance="subtle"
+        :icon-start="isFullscreen ? 'full_screen_minimize_24_regular' : 'full_screen_maximize_24_regular'"
+        @click="toggleFullscreen">
+        {{ isFullscreen ? '退出全屏' : '全屏' }}
       </FButton>
     </header>
 
-    <main v-if="eligible" class="ppt-focus__stage" :class="{ 'ppt-focus__stage--compact': compactMode }">
+    <main class="ppt-focus__stage" :data-orientation="orientationKey">
       <FMessageBar v-if="loadError" tone="error" title="无法加载 PPT 资源">
         {{ loadError }}
       </FMessageBar>
@@ -179,11 +180,7 @@ const enterCompact = (): void => {
       </div>
 
       <template v-else-if="!session?.source_id">
-        <FEmpty
-          title="该窗口当前没有打开 PPT"
-          description="请先在显示控制页打开 PPT 源后再进入专注模式。"
-          icon="document_24_regular"
-        >
+        <FEmpty title="该窗口当前没有打开 PPT" description="请先在显示控制页打开 PPT 源后再进入专注模式。" icon="document_24_regular">
           <template #actions>
             <FButton appearance="primary" @click="exitFocus">返回屏幕控制</FButton>
           </template>
@@ -211,11 +208,7 @@ const enterCompact = (): void => {
             </div>
             <div class="ppt-focus__progress">
               <p class="ppt-focus__side-eyebrow">进度</p>
-              <FProgress
-                :value="slidesProgress.current"
-                :max="slidesProgress.total || 1"
-                show-label
-              />
+              <FProgress :value="slidesProgress.current" :max="slidesProgress.total || 1" show-label />
               <p class="ppt-focus__progress-meta">
                 资源 {{ resources.length }} · 媒体 {{ currentResource?.media_items?.length ?? 0 }}
               </p>
@@ -227,11 +220,9 @@ const enterCompact = (): void => {
           <FButton appearance="secondary" icon-start="previous_24_regular" @click="nav('prev')">
             上一页
           </FButton>
-          <FButton
-            appearance="primary"
+          <FButton appearance="primary"
             :icon-start="session.playback_state === 'playing' ? 'pause_24_regular' : 'play_24_regular'"
-            @click="togglePlayPause"
-          >
+            @click="togglePlayPause">
             {{ session.playback_state === 'playing' ? '暂停媒体' : '播放媒体' }}
           </FButton>
           <FButton appearance="secondary" icon-start="next_24_regular" @click="nav('next')">
@@ -239,27 +230,17 @@ const enterCompact = (): void => {
           </FButton>
         </div>
 
-        <section class="ppt-focus__teleprompter">
-          <p class="ppt-focus__side-eyebrow">提词器</p>
+        <section class="ppt-focus__teleprompter" :class="`ppt-focus__teleprompter--${orientationKey}`">
+          <header class="ppt-focus__teleprompter-head">
+            <p class="ppt-focus__side-eyebrow">提词器</p>
+            <span class="ppt-focus__teleprompter-page">第 {{ slidesProgress.current }} 页</span>
+          </header>
           <p v-if="currentResource?.speaker_notes" class="ppt-focus__teleprompter-text">
             {{ currentResource.speaker_notes }}
           </p>
           <p v-else class="ppt-focus__teleprompter-empty">该页暂无提词器内容。</p>
         </section>
       </template>
-    </main>
-
-    <main v-else class="ppt-focus__blocked">
-      <FEmpty
-        title="专注模式仅支持横屏大屏"
-        description="请将设备旋转为横屏，或在更大屏幕（≥ 1024 × 768）上打开。"
-        icon="warning_24_filled"
-      >
-        <template #actions>
-          <FButton appearance="primary" @click="exitFocus">返回屏幕控制</FButton>
-          <FButton appearance="subtle" @click="enterCompact">继续以紧凑模式打开</FButton>
-        </template>
-      </FEmpty>
     </main>
   </div>
 </template>
@@ -308,6 +289,7 @@ const enterCompact = (): void => {
 }
 
 .ppt-focus__stage {
+  position: relative;
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
@@ -315,8 +297,9 @@ const enterCompact = (): void => {
   padding: var(--spacing-2xl);
 }
 
-.ppt-focus__stage--compact {
+.ppt-focus__stage[data-orientation='portrait'] {
   padding: var(--spacing-l);
+  gap: var(--spacing-m);
 }
 
 .ppt-focus__layout {
@@ -324,6 +307,14 @@ const enterCompact = (): void => {
   grid-template-columns: 6fr 2fr;
   gap: var(--spacing-l);
   flex: 1 1 auto;
+  /* 给提词器悬浮卡留出底部安全距离，避免遮挡当前页大图。 */
+  min-height: 0;
+}
+
+.ppt-focus__stage[data-orientation='portrait'] .ppt-focus__layout {
+  /* 竖屏：当前页 + 下一页 / 进度上下纵向堆叠，去除右栏。 */
+  grid-template-columns: 1fr;
+  grid-template-rows: minmax(0, 3fr) auto;
 }
 
 .ppt-focus__current {
@@ -428,15 +419,54 @@ const enterCompact = (): void => {
   min-width: 160px;
 }
 
+/*
+ * 提词器：横屏时浮动在右下角作为辅助卡片，不阻挡当前页大图的中心；
+ *        竖屏时回归 normal flow 接在控制条之下，按页面宽度排版。
+ */
 .ppt-focus__teleprompter {
-  background: #181a20;
+  background: rgba(24, 26, 32, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-large);
   padding: var(--spacing-l);
   flex-shrink: 0;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-3, 0 12px 32px rgba(0, 0, 0, 0.45));
+}
+
+.ppt-focus__teleprompter--landscape {
+  position: absolute;
+  right: var(--spacing-2xl);
+  bottom: var(--spacing-2xl);
+  max-width: min(420px, 38vw);
+  max-height: min(40vh, 360px);
+  overflow-y: auto;
+  z-index: 5;
+}
+
+.ppt-focus__teleprompter--portrait {
+  position: static;
+  width: 100%;
+  max-height: 36vh;
+  overflow-y: auto;
+}
+
+.ppt-focus__teleprompter-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-s);
+  margin-bottom: var(--spacing-xs);
+}
+
+.ppt-focus__teleprompter-page {
+  font-size: var(--type-caption1-size);
+  color: rgba(255, 255, 255, 0.55);
+  font-variant-numeric: tabular-nums;
 }
 
 .ppt-focus__teleprompter-text {
-  margin: var(--spacing-xs) 0 0;
+  margin: 0;
   font-size: 22px;
   line-height: 30px;
   white-space: pre-wrap;
@@ -444,7 +474,7 @@ const enterCompact = (): void => {
 }
 
 .ppt-focus__teleprompter-empty {
-  margin: var(--spacing-xs) 0 0;
+  margin: 0;
   color: rgba(255, 255, 255, 0.45);
 }
 
@@ -457,14 +487,6 @@ const enterCompact = (): void => {
   color: rgba(255, 255, 255, 0.7);
 }
 
-.ppt-focus__blocked {
-  flex: 1 1 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--spacing-2xl);
-}
-
 @media (max-width: 1023px) and (min-aspect-ratio: 1/1) {
   .ppt-focus__layout {
     grid-template-columns: 1fr;
@@ -475,6 +497,16 @@ const enterCompact = (): void => {
   .ppt-focus__topbar {
     flex-wrap: wrap;
     padding: var(--spacing-s) var(--spacing-l);
+  }
+
+  .ppt-focus__topbar-title {
+    max-width: 200px;
+  }
+
+  .ppt-focus__teleprompter--landscape {
+    right: var(--spacing-l);
+    bottom: var(--spacing-l);
+    max-width: min(320px, 70vw);
   }
 }
 </style>

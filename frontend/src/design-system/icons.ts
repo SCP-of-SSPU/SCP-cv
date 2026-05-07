@@ -90,6 +90,8 @@ import warning_24_filled from '@fluentui/svg-icons/icons/warning_24_filled.svg?r
 import warning_20_filled from '@fluentui/svg-icons/icons/warning_20_filled.svg?raw';
 import arrow_maximize_24_regular from '@fluentui/svg-icons/icons/arrow_maximize_24_regular.svg?raw';
 import arrow_minimize_24_regular from '@fluentui/svg-icons/icons/arrow_minimize_24_regular.svg?raw';
+import full_screen_maximize_24_regular from '@fluentui/svg-icons/icons/full_screen_maximize_24_regular.svg?raw';
+import full_screen_minimize_24_regular from '@fluentui/svg-icons/icons/full_screen_minimize_24_regular.svg?raw';
 import apps_list_24_regular from '@fluentui/svg-icons/icons/apps_list_24_regular.svg?raw';
 import spinner_ios_20_regular from '@fluentui/svg-icons/icons/spinner_ios_20_regular.svg?raw';
 import eye_24_regular from '@fluentui/svg-icons/icons/eye_24_regular.svg?raw';
@@ -178,6 +180,8 @@ const ICONS = {
   warning_20_filled,
   arrow_maximize_24_regular,
   arrow_minimize_24_regular,
+  full_screen_maximize_24_regular,
+  full_screen_minimize_24_regular,
   apps_list_24_regular,
   spinner_ios_20_regular,
   eye_24_regular,
