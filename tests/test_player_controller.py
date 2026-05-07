@@ -11,7 +11,34 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
+
+from scp_cv.apps.playback.models import MediaSource, PlaybackState
+from scp_cv.player.adapters.base import AdapterState
 from scp_cv.player.controller import PlayerController
+from scp_cv.services.playback import open_source
+
+
+class _StateAdapter:
+    """返回固定状态的 adapter 替身，用于验证状态写回保护。"""
+
+    def __init__(self, adapter_state: AdapterState) -> None:
+        """
+        初始化 adapter 替身。
+        :param adapter_state: get_state 要返回的状态快照
+        :return: None
+        """
+        self.is_open = True
+        self.adapter_state = adapter_state
+        self.read_count = 0
+
+    def get_state(self) -> AdapterState:
+        """
+        返回固定状态并记录读取次数。
+        :return: 预置的 adapter 状态
+        """
+        self.read_count += 1
+        return self.adapter_state
 
 
 class _SingleLoopController(PlayerController):
@@ -59,3 +86,24 @@ def test_poll_loop_requests_state_report_instead_of_reading_adapter_directly() -
 
     assert controller.checked_windows == [1]
     assert controller.report_requested is True
+
+
+@pytest.mark.django_db
+def test_report_skips_stale_adapter_after_source_change(
+    media_source_ppt: MediaSource,
+    media_source_video: MediaSource,
+) -> None:
+    """切源后旧 adapter 的延迟错误状态不应覆盖新会话。"""
+    open_source(1, media_source_ppt.pk)
+    open_source(1, media_source_video.pk)
+
+    controller = PlayerController()
+    adapter = _StateAdapter(AdapterState(playback_state=PlaybackState.ERROR))
+    controller._adapters[1] = adapter
+    controller._adapter_source_ids[1] = media_source_ppt.pk
+
+    controller._report_all_adapter_states()
+
+    session = media_source_video.playback_sessions.get(window_id=1)
+    assert session.playback_state == PlaybackState.LOADING
+    assert adapter.read_count == 0

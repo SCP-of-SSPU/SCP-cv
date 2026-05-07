@@ -2,6 +2,15 @@
 
 ## 2026-05-07
 
+### 修复切换直播源后旧错误状态覆盖新会话
+
+- 现象：直播源切换后，推流端与播放器实际已恢复，但控制台仍可能显示「直播流尚未就绪」。
+- 根因：播放器控制器的 adapter 状态上报与 Web 端切源请求异步执行，旧 adapter 的延迟 `error` 上报可能在新源写入 `loading` 后覆盖同一窗口会话；同时前端 `sessions` store 对 REST 返回和 SSE 推送直接整包替换，旧 SSE 帧可能覆盖更新的状态。
+- 修复：
+  - 播放器：`SrtStreamAdapter` 对 libVLC 首帧前的瞬时错误增加 5 秒宽限窗口，宽限期内继续上报 `loading`，确认超时后才进入 `error`。
+  - 后端：`open_source` 下发 OPEN 指令时携带 `source_id`，`PlayerController` 记录 adapter 对应源 ID，状态上报前校验当前 `PlaybackSession.media_source_id` 一致，不一致则跳过旧 adapter 写回。
+  - 前端：`stores/sessions.applyRemoteSessions` 改为按窗口合并，并用 `last_updated_at` 丢弃比本地快照更旧的 SSE / REST 帧，避免旧 `error` 覆盖新 `loading` / `playing`。
+
 ### 修复直播流 MessageBar 持续不消失
 
 - 现象：当 SrtStreamAdapter 首帧握手失败或推流端未推流时，`session.playback_state` 持久化为 `error`；前端 `PlaybackControl` 的「直播流尚未就绪」MessageBar 一直显示，点击「关闭显示」也无法消除。

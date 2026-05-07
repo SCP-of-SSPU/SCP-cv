@@ -171,6 +171,7 @@ def open_source(window_id: int, media_source_id: int, autoplay: bool = True) -> 
     session.is_muted = _is_muted_by_runtime(window_id)
     session.pending_command = PlaybackCommand.OPEN
     session.command_args = {
+        "source_id": source.pk,
         "source_type": source.source_type,
         "uri": source.uri,
         "autoplay": autoplay,

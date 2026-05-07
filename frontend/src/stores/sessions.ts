@@ -12,6 +12,16 @@ interface SessionState {
   sessions: SessionSnapshot[];
 }
 
+function snapshotUpdatedAt(session: SessionSnapshot): number {
+  const updatedAt = Date.parse(session.last_updated_at);
+  return Number.isFinite(updatedAt) ? updatedAt : 0;
+}
+
+function newerOrSameSession(incoming: SessionSnapshot, existing: SessionSnapshot): SessionSnapshot {
+  // REST 返回与 SSE 推送可能交错到达；较旧帧不能覆盖刚切源后的 loading/playing。
+  return snapshotUpdatedAt(incoming) >= snapshotUpdatedAt(existing) ? incoming : existing;
+}
+
 export const useSessionStore = defineStore('sessions', {
   state: (): SessionState => ({
     sessions: [],
@@ -36,7 +46,17 @@ export const useSessionStore = defineStore('sessions', {
     },
     /** SSE 推送或 REST 返回时统一入口。 */
     applyRemoteSessions(sessions: SessionSnapshot[]): void {
-      this.sessions = sessions;
+      const existingByWindow = new Map(this.sessions.map((session) => [session.window_id, session]));
+      const incomingWindowIds = new Set(sessions.map((session) => session.window_id));
+      const mergedSessions = sessions.map((session) => {
+        const existingSession = existingByWindow.get(session.window_id);
+        return existingSession ? newerOrSameSession(session, existingSession) : session;
+      });
+
+      this.sessions
+        .filter((session) => !incomingWindowIds.has(session.window_id))
+        .forEach((session) => mergedSessions.push(session));
+      this.sessions = mergedSessions.sort((left, right) => left.window_id - right.window_id);
     },
     async openSource(windowId: number, sourceId: number, autoplay = true): Promise<void> {
       const payload = await api.openSource(windowId, sourceId, autoplay);

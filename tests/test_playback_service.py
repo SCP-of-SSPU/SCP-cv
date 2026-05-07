@@ -134,6 +134,7 @@ class TestOpenSource:
         assert session.media_source == media_source_ppt
         assert session.playback_state == PlaybackState.LOADING
         assert session.pending_command == PlaybackCommand.OPEN
+        assert session.command_args["source_id"] == media_source_ppt.pk
         assert session.command_args["source_type"] == "ppt"
         assert session.command_args["uri"] == media_source_ppt.uri
         assert session.command_args["autoplay"] is True

@@ -70,6 +70,8 @@ class PlayerController(PlayerCommandHandlersMixin, QObject):
         self._adapters: dict[int, SourceAdapter] = {}
         # 适配器源类型记录：window_id → source_type
         self._adapter_source_types: dict[int, str] = {}
+        # 适配器源 ID 记录：切源竞态中用于阻断旧 adapter 状态写回新会话。
+        self._adapter_source_ids: dict[int, int] = {}
 
         # 轮询线程
         self._poll_thread: Optional[threading.Thread] = None
@@ -295,6 +297,9 @@ class PlayerController(PlayerCommandHandlersMixin, QObject):
             for window_id, adapter in self._adapters.items():
                 if adapter is None or not adapter.is_open:
                     continue
+                if not self._adapter_matches_current_session(window_id):
+                    logger.debug("窗口 %d adapter 源已过期，跳过本次状态上报", window_id)
+                    continue
                 try:
                     adapter_state = adapter.get_state()
                 except Exception as state_error:
@@ -322,3 +327,17 @@ class PlayerController(PlayerCommandHandlersMixin, QObject):
         finally:
             with self._state_report_lock:
                 self._state_report_pending = False
+
+    def _adapter_matches_current_session(self, window_id: int) -> bool:
+        """
+        判断 adapter 是否仍对应当前会话源。
+        :param window_id: 窗口编号
+        :return: True 表示允许该 adapter 状态写回数据库
+        """
+        expected_source_id = self._adapter_source_ids.get(window_id)
+        if expected_source_id is None:
+            return True
+
+        from scp_cv.apps.playback.models import PlaybackSession
+        session = PlaybackSession.objects.filter(window_id=window_id).only("media_source_id").first()
+        return session is not None and session.media_source_id == expected_source_id

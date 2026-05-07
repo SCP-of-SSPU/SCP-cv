@@ -16,6 +16,15 @@ from scp_cv.player.adapters import create_adapter
 logger = logging.getLogger(__name__)
 
 
+def _is_stream_source(source_type: str) -> bool:
+    """
+    判断媒体源是否属于直播流。
+    :param source_type: MediaSource.source_type 原始值
+    :return: True 表示需要等待适配器确认首帧连接
+    """
+    return source_type.endswith("_stream")
+
+
 class PlayerCommandHandlersMixin:
     """
     PlayerController 指令处理 mixin。
@@ -34,6 +43,7 @@ class PlayerCommandHandlersMixin:
         source_type = str(command_args.get("source_type", ""))
         uri = str(command_args.get("uri", ""))
         autoplay = bool(command_args.get("autoplay", True))
+        source_id = int(command_args.get("source_id") or 0)
 
         if not source_type or not uri:
             logger.warning("窗口 %d：OPEN 指令缺少 source_type 或 uri", window_id)
@@ -61,6 +71,8 @@ class PlayerCommandHandlersMixin:
         adapter.set_mute(bool(command_args.get("muted", False)))
         self._adapters[window_id] = adapter
         self._adapter_source_types[window_id] = source_type
+        if source_id > 0:
+            self._adapter_source_ids[window_id] = source_id
 
         window = self.get_window(window_id)
         if window is not None:
@@ -69,7 +81,9 @@ class PlayerCommandHandlersMixin:
             else:
                 window.show_video_container()
 
-        self._update_session_state(window_id, "playing" if autoplay else "loading")
+        # 直播流需要等待 libVLC 完成首帧握手，不能在 OPEN 指令刚执行时提前标记 playing。
+        initial_state = "loading" if _is_stream_source(source_type) or not autoplay else "playing"
+        self._update_session_state(window_id, initial_state)
 
     def _handle_play(self, window_id: int, command_args: dict[str, object]) -> None:
         """处理 PLAY 指令。"""
@@ -223,6 +237,7 @@ class PlayerCommandHandlersMixin:
             except Exception as close_error:
                 logger.warning("关闭窗口 %d 适配器异常：%s", window_id, close_error)
         self._adapter_source_types.pop(window_id, None)
+        self._adapter_source_ids.pop(window_id, None)
         self._last_reported_states.pop(window_id, None)
 
     def _update_session_state(self, window_id: int, playback_state: str) -> None:

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from pathlib import Path
 
 from scp_cv.player.adapters.base import AdapterState, SourceAdapter
@@ -31,6 +32,10 @@ logger = logging.getLogger(__name__)
 
 _VLC_RUNTIME_DIR = Path(__file__).resolve().parents[3] / "tools" / "third_party" / "vlc"
 _VLC_DLL_DIRECTORY_HANDLES: list[object] = []
+
+# libVLC 连接 SRT 读端时可能在首帧前先抛一次错误事件；
+# 这段窗口内先保持 loading，避免控制台把正常握手误判为异常。
+_TRANSIENT_ERROR_GRACE_SECONDS = 5.0
 
 
 def _candidate_vlc_runtime_dirs() -> list[Path]:
@@ -148,6 +153,8 @@ class SrtStreamAdapter(SourceAdapter):
         self._is_connected: bool = False
         self._has_error: bool = False
         self._error_message: str = ""
+        self._opened_at_monotonic: float = 0.0
+        self._last_error_at_monotonic: float = 0.0
 
     def open(self, uri: str, window_handle: int, autoplay: bool = True) -> None:
         """
@@ -164,6 +171,8 @@ class SrtStreamAdapter(SourceAdapter):
         self._release_player()
         self._has_error = False
         self._error_message = ""
+        self._opened_at_monotonic = time.monotonic()
+        self._last_error_at_monotonic = 0.0
 
         vlc_args = _build_vlc_instance_args()
         self._instance = vlc.Instance(vlc_args)
@@ -222,8 +231,7 @@ class SrtStreamAdapter(SourceAdapter):
         if not self._is_connected:
             self._logger.info("SRT 流已连接（libVLC 已开始渲染）")
         self._is_connected = True
-        self._has_error = False
-        self._error_message = ""
+        self._clear_transient_error()
 
     def _on_vlc_error(self, _event: object) -> None:
         """
@@ -246,8 +254,25 @@ class SrtStreamAdapter(SourceAdapter):
         """
         self._has_error = True
         self._error_message = error_message
+        self._last_error_at_monotonic = time.monotonic()
         self._is_connected = False
         self._logger.error(error_message)
+
+    def _clear_transient_error(self) -> None:
+        """清理已经被 libVLC 正常播放状态覆盖的瞬时错误。"""
+        self._has_error = False
+        self._error_message = ""
+        self._last_error_at_monotonic = 0.0
+
+    def _is_in_error_grace_period(self) -> bool:
+        """
+        判断当前错误是否仍处在直播首帧/重连宽限窗口。
+        :return: True 表示暂不上报 error，继续让前端显示 loading
+        """
+        grace_anchor = self._last_error_at_monotonic or self._opened_at_monotonic
+        if grace_anchor <= 0:
+            return False
+        return time.monotonic() - grace_anchor < _TRANSIENT_ERROR_GRACE_SECONDS
 
     def _release_player(self) -> None:
         """释放 libVLC 实例及关联资源。"""
@@ -343,27 +368,35 @@ class SrtStreamAdapter(SourceAdapter):
         获取 SRT 流状态快照。
         :return: 流连接状态（playing/loading/paused/stopped/error）
         """
-        if self._has_error:
-            return AdapterState(
-                playback_state="error",
-                error_message=self._error_message,
-            )
-
         if self._player is None or vlc is None:
             return AdapterState(playback_state="stopped")
 
         current_state = self._player.get_state()
-        if current_state == vlc.State.Error:
-            return AdapterState(
-                playback_state="error",
-                error_message="libVLC 播放状态异常",
-            )
         if current_state == vlc.State.Playing:
+            self._is_connected = True
+            self._clear_transient_error()
             playback_state = "playing"
         elif current_state == vlc.State.Paused:
+            self._clear_transient_error()
             playback_state = "paused"
         elif current_state in (vlc.State.Opening, vlc.State.Buffering):
             playback_state = "loading"
+        elif current_state == vlc.State.Error:
+            if self._is_in_error_grace_period():
+                playback_state = "loading"
+            else:
+                return AdapterState(
+                    playback_state="error",
+                    error_message=self._error_message or "libVLC 播放状态异常",
+                )
+        elif self._has_error:
+            if self._is_in_error_grace_period():
+                playback_state = "loading"
+            else:
+                return AdapterState(
+                    playback_state="error",
+                    error_message=self._error_message,
+                )
         elif current_state in (vlc.State.Stopped, vlc.State.Ended):
             playback_state = "stopped"
         elif self._is_connected:
