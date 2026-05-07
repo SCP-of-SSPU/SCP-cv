@@ -123,7 +123,9 @@ function onChange(event: Event): void {
   border: 2px solid var(--color-background-brand);
   box-shadow: var(--shadow-2);
   margin-top: calc((var(--f-slider-track-height) - var(--f-slider-thumb-size)) / 2);
-  transition: transform var(--motion-duration-fast) var(--motion-curve-ease);
+  /* hover/active 缩放走 spring 曲线，按下回弹更"有手感"。 */
+  transition: transform var(--motion-duration-medium) var(--motion-curve-spring),
+    box-shadow var(--motion-duration-medium) var(--motion-curve-ease);
 }
 
 .f-slider__input::-moz-range-thumb {
@@ -135,12 +137,17 @@ function onChange(event: Event): void {
   box-shadow: var(--shadow-2);
 }
 
+/* 键盘聚焦时光晕用 4 px color-mix 半透明，与 FInput 同样柔感。 */
 .f-slider__input:focus-visible::-webkit-slider-thumb {
-  box-shadow: 0 0 0 2px var(--color-border-focus);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-border-focus) 32%, transparent);
 }
 
-.f-slider__input:active::-webkit-slider-thumb {
-  transform: scale(1.08);
+.f-slider__input:hover:not(:disabled)::-webkit-slider-thumb {
+  transform: scale(1.05);
+}
+
+.f-slider__input:active:not(:disabled)::-webkit-slider-thumb {
+  transform: scale(1.15);
 }
 
 .f-slider--disabled {

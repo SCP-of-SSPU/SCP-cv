@@ -31,11 +31,8 @@ const percent = computed(() => {
 <template>
   <div class="f-progress" role="progressbar" :aria-valuenow="value" :aria-valuemax="max" aria-valuemin="0">
     <div class="f-progress__track">
-      <div
-        class="f-progress__bar"
-        :class="{ 'f-progress__bar--indeterminate': indeterminate }"
-        :style="indeterminate ? undefined : { width: `${percent}%` }"
-      />
+      <div class="f-progress__bar" :class="{ 'f-progress__bar--indeterminate': indeterminate }"
+        :style="indeterminate ? undefined : { width: `${percent}%` }" />
     </div>
     <span v-if="showLabel" class="f-progress__label">{{ percent.toFixed(0) }}%</span>
   </div>
@@ -61,20 +58,27 @@ const percent = computed(() => {
 
 .f-progress__bar {
   height: 100%;
-  background: var(--color-background-brand);
+  /* 进度填充用渐变在视觉上更"有方向感"，从浅蓝过渡到品牌蓝。 */
+  background: linear-gradient(90deg, var(--color-background-brand-hover), var(--color-background-brand));
   border-radius: var(--radius-circular);
-  transition: width var(--motion-duration-normal) var(--motion-curve-ease);
+  /* 宽度过渡用 decelerate，跳值时减速到位；duration 提到 normal 保留可见动画。 */
+  transition: width var(--motion-duration-normal) var(--motion-curve-decelerate);
 }
 
 .f-progress__bar--indeterminate {
+  /*
+   * 不定模式：35% 宽度的色块在 track 内来回滑动；
+   * linear 曲线让来回节奏稳定，避免 ease 在两端"卡顿"。
+   */
   width: 35%;
-  animation: f-progress-slide 1200ms var(--motion-curve-ease) infinite;
+  animation: f-progress-slide 1400ms var(--motion-curve-linear) infinite;
 }
 
 @keyframes f-progress-slide {
   0% {
     transform: translateX(-100%);
   }
+
   100% {
     transform: translateX(285%);
   }

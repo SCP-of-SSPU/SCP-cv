@@ -224,7 +224,8 @@ const hasDeviceError = computed(() =>
   flex-direction: column;
   gap: var(--spacing-s);
   padding: var(--spacing-2xl) var(--spacing-3xl);
-  border-radius: var(--radius-large);
+  /* Hero 用 xxlarge 大圆角与渐变背景配合，是仪表盘视觉重心。 */
+  border-radius: var(--radius-xxlarge);
   background:
     linear-gradient(135deg, rgba(27, 134, 224, 0.12) 0%, rgba(15, 108, 189, 0.04) 60%),
     var(--color-background-card);
