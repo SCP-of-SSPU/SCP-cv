@@ -1,0 +1,1749 @@
+openapi: 3.0.3
+info:
+  title: SCP-cv REST API
+  version: 1.0.0
+  description: |
+    SCP-cv 控制台 REST API OpenAPI 文档。
+    所有路径默认挂载在 `/api` 前缀下，成功响应通常包含 `success: true`，错误响应统一为 `detail + code`。
+servers:
+  - url: /api
+    description: Django REST API
+
+tags:
+  - name: folders
+    description: 媒体文件夹管理
+  - name: sources
+    description: 媒体源管理
+  - name: sessions
+    description: 播放会话查询
+  - name: playback
+    description: 播放控制
+  - name: runtime
+    description: 全局运行态与音量
+  - name: displays
+    description: 显示器与布局选择
+  - name: devices
+    description: 外部设备控制
+  - name: scenarios
+    description: 预案管理
+  - name: events
+    description: SSE 事件流
+
+paths:
+  /folders/:
+    get:
+      tags: [folders]
+      summary: 获取媒体文件夹列表
+      operationId: listFolders
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FoldersResponse'
+    post:
+      tags: [folders]
+      summary: 创建媒体文件夹
+      operationId: createFolder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FolderCreateRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FolderResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /folders/{folder_id}/:
+    parameters:
+      - $ref: '#/components/parameters/FolderId'
+    patch:
+      tags: [folders]
+      summary: 更新媒体文件夹
+      operationId: updateFolder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FolderUpdateRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FolderResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+    delete:
+      tags: [folders]
+      summary: 删除媒体文件夹
+      operationId: deleteFolder
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /sources/:
+    get:
+      tags: [sources]
+      summary: 获取媒体源列表
+      operationId: listSources
+      parameters:
+        - in: query
+          name: source_type
+          schema:
+            $ref: '#/components/schemas/SourceType'
+          required: false
+          description: 按媒体类型筛选
+        - in: query
+          name: folder_id
+          schema:
+            type: integer
+          required: false
+          description: 按文件夹筛选，`-1` 表示根目录
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourcesResponse'
+
+  /sources/upload/:
+    post:
+      tags: [sources]
+      summary: 上传文件并创建媒体源
+      operationId: uploadSource
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                name:
+                  type: string
+                source_type:
+                  $ref: '#/components/schemas/SourceType'
+                folder_id:
+                  type: integer
+                  nullable: true
+                is_temporary:
+                  type: boolean
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /sources/local/:
+    post:
+      tags: [sources]
+      summary: 通过本地路径创建媒体源
+      operationId: addLocalSource
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LocalSourceCreateRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /sources/web/:
+    post:
+      tags: [sources]
+      summary: 通过网页 URL 创建媒体源
+      operationId: addWebSource
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebSourceCreateRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /sources/{source_id}/move/:
+    parameters:
+      - $ref: '#/components/parameters/SourceId'
+    patch:
+      tags: [sources]
+      summary: 移动媒体源到指定文件夹
+      operationId: moveSource
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoveSourceRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /sources/{source_id}/download/:
+    parameters:
+      - $ref: '#/components/parameters/SourceId'
+    get:
+      tags: [sources]
+      summary: 下载文件型媒体源
+      operationId: downloadSource
+      responses:
+        '200':
+          description: 文件流
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /sources/{source_id}/ppt-resources/:
+    parameters:
+      - $ref: '#/components/parameters/SourceId'
+    get:
+      tags: [sources]
+      summary: 获取 PPT 页资源
+      operationId: listPptResources
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PptResourcesResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+    put:
+      tags: [sources]
+      summary: 覆盖保存 PPT 页资源
+      operationId: replacePptResources
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PptResourcesReplaceRequest'
+      responses:
+        '200':
+          description: 保存成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PptResourcesResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /sources/{source_id}/:
+    parameters:
+      - $ref: '#/components/parameters/SourceId'
+    delete:
+      tags: [sources]
+      summary: 删除媒体源
+      operationId: deleteSource
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /sessions/:
+    get:
+      tags: [sessions]
+      summary: 获取全部窗口会话快照
+      operationId: listSessions
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionsResponse'
+
+  /sessions/{window_id}/:
+    parameters:
+      - $ref: '#/components/parameters/WindowId'
+    get:
+      tags: [sessions]
+      summary: 获取单个窗口会话快照
+      operationId: getSession
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /runtime/:
+    get:
+      tags: [runtime]
+      summary: 获取全局运行状态
+      operationId: getRuntimeState
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeResponse'
+    patch:
+      tags: [runtime]
+      summary: 设置大屏模式
+      operationId: updateRuntimeState
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeUpdateRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeWithSessionsResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /volume/:
+    get:
+      tags: [runtime]
+      summary: 获取系统音量状态
+      operationId: getSystemVolume
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemVolumeResponse'
+    patch:
+      tags: [runtime]
+      summary: 设置系统音量或静音
+      operationId: updateSystemVolume
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SystemVolumeUpdateRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemVolumeResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /playback/{window_id}/open/:
+    parameters:
+      - $ref: '#/components/parameters/WindowId'
+    post:
+      tags: [playback]
+      summary: 打开媒体源到指定窗口
+      operationId: openSourceToWindow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenSourceRequest'
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionsResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /playback/{window_id}/control/:
+    parameters:
+      - $ref: '#/components/parameters/WindowId'
+    post:
+      tags: [playback]
+      summary: 播放控制
+      operationId: controlPlayback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlaybackControlRequest'
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionsResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /playback/{window_id}/navigate/:
+    parameters:
+      - $ref: '#/components/parameters/WindowId'
+    post:
+      tags: [playback]
+      summary: 内容导航
+      operationId: navigateContent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NavigateContentRequest'
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionsResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /playback/{window_id}/ppt-media/:
+    parameters:
+      - $ref: '#/components/parameters/WindowId'
+    post:
+      tags: [playback]
+      summary: 控制 PPT 当前页媒体对象
+      operationId: controlPptMedia
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PptMediaControlRequest'
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionsResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /playback/{window_id}/close/:
+    parameters:
+      - $ref: '#/components/parameters/WindowId'
+    post:
+      tags: [playback]
+      summary: 关闭指定窗口当前媒体源
+      operationId: closeWindowSource
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionsResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /playback/{window_id}/loop/:
+    parameters:
+      - $ref: '#/components/parameters/WindowId'
+    patch:
+      tags: [playback]
+      summary: 设置循环播放状态
+      operationId: toggleLoopPlayback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ToggleLoopRequest'
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionsResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /playback/{window_id}/volume/:
+    parameters:
+      - $ref: '#/components/parameters/WindowId'
+    patch:
+      tags: [playback]
+      summary: 设置窗口音量
+      operationId: setWindowVolume
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetWindowVolumeRequest'
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionsResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /playback/{window_id}/mute/:
+    parameters:
+      - $ref: '#/components/parameters/WindowId'
+    patch:
+      tags: [playback]
+      summary: 设置窗口静音
+      operationId: setWindowMute
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetWindowMuteRequest'
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionsResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /playback/show-ids/:
+    post:
+      tags: [playback]
+      summary: 让所有窗口显示编号覆盖层
+      operationId: showWindowIds
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionsResponse'
+
+  /playback/reset-all/:
+    post:
+      tags: [playback]
+      summary: 重置全部窗口为待机状态
+      operationId: resetAllSessions
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionsResponse'
+
+  /system/shutdown/:
+    post:
+      tags: [runtime]
+      summary: 请求主控进程关闭系统
+      operationId: shutdownSystem
+      responses:
+        '200':
+          description: 请求已发送
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShutdownResponse'
+
+  /displays/:
+    get:
+      tags: [displays]
+      summary: 获取显示器列表与拼接标签
+      operationId: listDisplays
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DisplaysResponse'
+
+  /displays/select/:
+    post:
+      tags: [displays]
+      summary: 切换窗口显示目标
+      operationId: selectDisplay
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SelectDisplayRequest'
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionsResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /devices/:
+    get:
+      tags: [devices]
+      summary: 获取可控设备定义
+      operationId: listDevices
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevicesResponse'
+
+  /devices/{device_type}/toggle/:
+    parameters:
+      - $ref: '#/components/parameters/DeviceType'
+    post:
+      tags: [devices]
+      summary: 切换设备电源状态
+      operationId: toggleDevice
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /devices/{device_type}/power/{action}/:
+    parameters:
+      - $ref: '#/components/parameters/DeviceType'
+      - $ref: '#/components/parameters/PowerAction'
+    post:
+      tags: [devices]
+      summary: 设置设备开机或关机
+      operationId: powerDevice
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /scenarios/:
+    get:
+      tags: [scenarios]
+      summary: 获取预案列表
+      operationId: listScenarios
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScenariosResponse'
+    post:
+      tags: [scenarios]
+      summary: 创建预案
+      operationId: createScenario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScenarioCreateRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScenarioResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /scenarios/create/:
+    post:
+      tags: [scenarios]
+      summary: 创建预案（兼容别名）
+      operationId: createScenarioCompat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScenarioCreateRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScenarioResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /scenarios/capture/:
+    post:
+      tags: [scenarios]
+      summary: 从当前状态捕获预案
+      operationId: captureScenario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScenarioCaptureRequest'
+      responses:
+        '200':
+          description: 捕获成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScenarioResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /scenarios/{scenario_id}/:
+    parameters:
+      - $ref: '#/components/parameters/ScenarioId'
+    get:
+      tags: [scenarios]
+      summary: 获取预案详情
+      operationId: getScenario
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScenarioResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+    patch:
+      tags: [scenarios]
+      summary: 更新预案
+      operationId: updateScenario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScenarioUpdateRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScenarioResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+    delete:
+      tags: [scenarios]
+      summary: 删除预案
+      operationId: deleteScenario
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /scenarios/{scenario_id}/pin/:
+    parameters:
+      - $ref: '#/components/parameters/ScenarioId'
+    post:
+      tags: [scenarios]
+      summary: 置顶预案
+      operationId: pinScenario
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScenarioResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /scenarios/{scenario_id}/activate/:
+    parameters:
+      - $ref: '#/components/parameters/ScenarioId'
+    post:
+      tags: [scenarios]
+      summary: 激活预案
+      operationId: activateScenario
+      responses:
+        '200':
+          description: 激活成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionsResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /events/:
+    get:
+      tags: [events]
+      summary: 订阅播放状态 SSE 事件流
+      operationId: streamEvents
+      parameters:
+        - in: query
+          name: last_id
+          required: false
+          description: 上次收到的事件序列号，非法值会按 0 处理
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: SSE 数据流
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                example: |
+                  id: 12
+                  event: playback_state
+                  data: {"sessions": []}
+
+components:
+  parameters:
+    FolderId:
+      in: path
+      name: folder_id
+      required: true
+      schema:
+        type: integer
+    SourceId:
+      in: path
+      name: source_id
+      required: true
+      schema:
+        type: integer
+    WindowId:
+      in: path
+      name: window_id
+      required: true
+      description: 窗口编号，当前有效范围为 1-4
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 4
+    ScenarioId:
+      in: path
+      name: scenario_id
+      required: true
+      schema:
+        type: integer
+    DeviceType:
+      in: path
+      name: device_type
+      required: true
+      schema:
+        type: string
+        enum: [splice_screen, tv_left, tv_right]
+    PowerAction:
+      in: path
+      name: action
+      required: true
+      schema:
+        type: string
+        enum: [on, off]
+
+  responses:
+    ErrorResponse:
+      description: 统一错误响应
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    SuccessResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+          example: true
+
+    ErrorResponse:
+      type: object
+      required: [detail, code]
+      properties:
+        detail:
+          type: string
+          example: 请求体必须是合法 JSON
+        code:
+          type: string
+          example: invalid_json
+
+    SourceType:
+      type: string
+      enum:
+        - ppt
+        - video
+        - audio
+        - image
+        - web
+        - custom_stream
+        - rtsp_stream
+        - srt_stream
+
+    PlaybackState:
+      type: string
+      enum: [idle, loading, playing, paused, stopped, error]
+
+    DisplayMode:
+      type: string
+      enum: [single, left_right_splice]
+
+    BigScreenMode:
+      type: string
+      enum: [single, double]
+
+    SourceState:
+      type: string
+      enum: [unset, empty, set]
+
+    PlaybackAction:
+      type: string
+      enum: [play, pause, stop]
+
+    NavigateAction:
+      type: string
+      enum: [next, prev, goto, seek]
+
+    Folder:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        parent_id:
+          type: integer
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    MediaItem:
+      type: object
+      properties:
+        id:
+          type: string
+        media_index:
+          type: integer
+        media_type:
+          type: string
+        type:
+          type: string
+        name:
+          type: string
+        target:
+          type: string
+        shape_id:
+          type: string
+
+    MediaSource:
+      type: object
+      required: [id, source_type, name, uri, is_available, is_temporary, metadata, created_at]
+      properties:
+        id:
+          type: integer
+        source_type:
+          $ref: '#/components/schemas/SourceType'
+        name:
+          type: string
+        uri:
+          type: string
+        is_available:
+          type: boolean
+        stream_identifier:
+          type: string
+          nullable: true
+        folder_id:
+          type: integer
+          nullable: true
+        original_filename:
+          type: string
+        file_size:
+          type: integer
+        mime_type:
+          type: string
+        is_temporary:
+          type: boolean
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+
+    PptResource:
+      type: object
+      required: [id, source_id, page_index, slide_image, next_slide_image, speaker_notes, has_media, media_items, created_at]
+      properties:
+        id:
+          type: integer
+        source_id:
+          type: integer
+        page_index:
+          type: integer
+        slide_image:
+          type: string
+        next_slide_image:
+          type: string
+        speaker_notes:
+          type: string
+        has_media:
+          type: boolean
+        media_items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MediaItem'
+        created_at:
+          type: string
+          format: date-time
+
+    SessionSnapshot:
+      type: object
+      required:
+        - window_id
+        - session_id
+        - source_name
+        - source_type
+        - source_type_label
+        - source_uri
+        - playback_state
+        - playback_state_label
+        - display_mode
+        - display_mode_label
+        - target_display_label
+        - spliced_display_label
+        - is_spliced
+        - current_slide
+        - total_slides
+        - position_ms
+        - duration_ms
+        - pending_command
+        - last_updated_at
+        - volume
+        - is_muted
+        - loop_enabled
+      properties:
+        window_id:
+          type: integer
+        session_id:
+          type: integer
+        source_id:
+          type: integer
+          nullable: true
+        source_name:
+          type: string
+        source_type:
+          type: string
+        source_type_label:
+          type: string
+        source_uri:
+          type: string
+        playback_state:
+          $ref: '#/components/schemas/PlaybackState'
+        playback_state_label:
+          type: string
+        display_mode:
+          $ref: '#/components/schemas/DisplayMode'
+        display_mode_label:
+          type: string
+        target_display_label:
+          type: string
+        spliced_display_label:
+          type: string
+        is_spliced:
+          type: boolean
+        current_slide:
+          type: integer
+        total_slides:
+          type: integer
+        position_ms:
+          type: integer
+        duration_ms:
+          type: integer
+        pending_command:
+          type: string
+          nullable: true
+        last_updated_at:
+          type: string
+          format: date-time
+        volume:
+          type: integer
+          minimum: 0
+          maximum: 100
+        is_muted:
+          type: boolean
+        loop_enabled:
+          type: boolean
+
+    RuntimeSnapshot:
+      type: object
+      required: [big_screen_mode, volume_level, muted_windows]
+      properties:
+        big_screen_mode:
+          $ref: '#/components/schemas/BigScreenMode'
+        volume_level:
+          type: integer
+          minimum: 0
+          maximum: 100
+        muted_windows:
+          type: array
+          items:
+            type: integer
+
+    SystemVolumeStatus:
+      type: object
+      required: [level, muted, system_synced, backend]
+      properties:
+        level:
+          type: integer
+          minimum: 0
+          maximum: 100
+        muted:
+          type: boolean
+        system_synced:
+          type: boolean
+        backend:
+          type: string
+          example: windows_core_audio
+
+    DisplayTarget:
+      type: object
+      required: [index, name, width, height, x, y, is_primary]
+      properties:
+        index:
+          type: integer
+        name:
+          type: string
+        width:
+          type: integer
+        height:
+          type: integer
+        x:
+          type: integer
+        y:
+          type: integer
+        is_primary:
+          type: boolean
+
+    DeviceDescriptor:
+      type: object
+      required: [name, device_type, device_type_label, host, port, action, detail]
+      properties:
+        name:
+          type: string
+        device_type:
+          type: string
+          enum: [splice_screen, tv_left, tv_right]
+        device_type_label:
+          type: string
+        host:
+          type: string
+        port:
+          type: integer
+        action:
+          type: string
+        detail:
+          type: string
+
+    ScenarioTarget:
+      type: object
+      required: [window_id, source_state, autoplay, resume]
+      properties:
+        window_id:
+          type: integer
+          minimum: 1
+          maximum: 4
+        source_state:
+          $ref: '#/components/schemas/SourceState'
+        source_id:
+          type: integer
+          nullable: true
+        source_name:
+          type: string
+        autoplay:
+          type: boolean
+        resume:
+          type: boolean
+
+    Scenario:
+      type: object
+      required:
+        - id
+        - name
+        - description
+        - sort_order
+        - big_screen_mode_state
+        - big_screen_mode
+        - big_screen_mode_label
+        - volume_state
+        - volume_level
+        - targets
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        sort_order:
+          type: integer
+        big_screen_mode_state:
+          $ref: '#/components/schemas/SourceState'
+        big_screen_mode:
+          $ref: '#/components/schemas/BigScreenMode'
+        big_screen_mode_label:
+          type: string
+        volume_state:
+          $ref: '#/components/schemas/SourceState'
+        volume_level:
+          type: integer
+          minimum: 0
+          maximum: 100
+        targets:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScenarioTarget'
+        window1_source_id:
+          type: integer
+          nullable: true
+        window1_source_name:
+          type: string
+        window1_autoplay:
+          type: boolean
+        window1_resume:
+          type: boolean
+        window2_source_id:
+          type: integer
+          nullable: true
+        window2_source_name:
+          type: string
+        window2_autoplay:
+          type: boolean
+        window2_resume:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    FolderCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        parent_id:
+          type: integer
+          nullable: true
+
+    FolderUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        parent_id:
+          type: integer
+          nullable: true
+
+    LocalSourceCreateRequest:
+      type: object
+      required: [path]
+      properties:
+        path:
+          type: string
+        name:
+          type: string
+        source_type:
+          $ref: '#/components/schemas/SourceType'
+        folder_id:
+          type: integer
+          nullable: true
+
+    WebSourceCreateRequest:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+        name:
+          type: string
+        folder_id:
+          type: integer
+          nullable: true
+
+    MoveSourceRequest:
+      type: object
+      properties:
+        folder_id:
+          type: integer
+          nullable: true
+          description: 为空时移动到根目录
+
+    PptResourceInput:
+      type: object
+      required: [page_index]
+      properties:
+        page_index:
+          type: integer
+          minimum: 1
+        slide_image:
+          type: string
+        speaker_notes:
+          type: string
+        media_items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MediaItem'
+
+    PptResourcesReplaceRequest:
+      type: object
+      required: [resources]
+      properties:
+        resources:
+          type: array
+          items:
+            $ref: '#/components/schemas/PptResourceInput'
+
+    OpenSourceRequest:
+      type: object
+      required: [source_id]
+      properties:
+        source_id:
+          type: integer
+          minimum: 1
+        media_source_id:
+          type: integer
+          minimum: 1
+          description: 兼容旧字段名
+        autoplay:
+          type: boolean
+          default: true
+
+    PlaybackControlRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          $ref: '#/components/schemas/PlaybackAction'
+
+    NavigateContentRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          $ref: '#/components/schemas/NavigateAction'
+        target_index:
+          type: integer
+          description: 当 action=goto 时使用
+        position_ms:
+          type: integer
+          description: 当 action=seek 时使用
+
+    PptMediaControlRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          $ref: '#/components/schemas/PlaybackAction'
+        media_id:
+          type: string
+        media_index:
+          type: integer
+
+    ToggleLoopRequest:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          default: false
+
+    SetWindowVolumeRequest:
+      type: object
+      properties:
+        volume:
+          type: integer
+          minimum: 0
+          maximum: 100
+          default: 100
+
+    SetWindowMuteRequest:
+      type: object
+      properties:
+        muted:
+          type: boolean
+          default: false
+
+    RuntimeUpdateRequest:
+      type: object
+      required: [big_screen_mode]
+      properties:
+        big_screen_mode:
+          $ref: '#/components/schemas/BigScreenMode'
+
+    SystemVolumeUpdateRequest:
+      type: object
+      properties:
+        level:
+          type: integer
+          minimum: 0
+          maximum: 100
+        muted:
+          type: boolean
+
+    SelectDisplayRequest:
+      type: object
+      properties:
+        window_id:
+          type: integer
+          minimum: 1
+          maximum: 4
+          default: 1
+        display_mode:
+          $ref: '#/components/schemas/DisplayMode'
+        target_label:
+          type: string
+          description: 单屏模式可省略，省略时由后端选择默认显示器
+
+    ScenarioTargetInput:
+      type: object
+      required: [window_id]
+      properties:
+        window_id:
+          type: integer
+          minimum: 1
+          maximum: 4
+        source_state:
+          $ref: '#/components/schemas/SourceState'
+        source_id:
+          type: integer
+          nullable: true
+        autoplay:
+          type: boolean
+          default: true
+        resume:
+          type: boolean
+          default: true
+
+    ScenarioCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        big_screen_mode_state:
+          $ref: '#/components/schemas/SourceState'
+        big_screen_mode:
+          $ref: '#/components/schemas/BigScreenMode'
+        volume_state:
+          $ref: '#/components/schemas/SourceState'
+        volume_level:
+          type: integer
+          minimum: 0
+          maximum: 100
+          default: 100
+        targets:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScenarioTargetInput'
+
+    ScenarioUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        big_screen_mode_state:
+          $ref: '#/components/schemas/SourceState'
+        big_screen_mode:
+          $ref: '#/components/schemas/BigScreenMode'
+        volume_state:
+          $ref: '#/components/schemas/SourceState'
+        volume_level:
+          type: integer
+          minimum: 0
+          maximum: 100
+        targets:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScenarioTargetInput'
+
+    ScenarioCaptureRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        scenario_id:
+          type: integer
+          nullable: true
+          description: 传入时覆盖已有预案
+
+    FoldersResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          required: [folders]
+          properties:
+            folders:
+              type: array
+              items:
+                $ref: '#/components/schemas/Folder'
+
+    FolderResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          required: [folder]
+          properties:
+            folder:
+              $ref: '#/components/schemas/Folder'
+
+    SourcesResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          required: [sources, sync_result]
+          properties:
+            sources:
+              type: array
+              items:
+                $ref: '#/components/schemas/MediaSource'
+            sync_result:
+              type: object
+              additionalProperties:
+                type: integer
+
+    SourceResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          required: [source]
+          properties:
+            source:
+              $ref: '#/components/schemas/MediaSource'
+
+    PptResourcesResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          required: [resources]
+          properties:
+            resources:
+              type: array
+              items:
+                $ref: '#/components/schemas/PptResource'
+
+    SessionsResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          required: [sessions]
+          properties:
+            sessions:
+              type: array
+              items:
+                $ref: '#/components/schemas/SessionSnapshot'
+
+    SessionResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          required: [session]
+          properties:
+            session:
+              $ref: '#/components/schemas/SessionSnapshot'
+
+    RuntimeResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          required: [runtime]
+          properties:
+            runtime:
+              $ref: '#/components/schemas/RuntimeSnapshot'
+
+    RuntimeWithSessionsResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          required: [runtime, sessions]
+          properties:
+            runtime:
+              $ref: '#/components/schemas/RuntimeSnapshot'
+            sessions:
+              type: array
+              items:
+                $ref: '#/components/schemas/SessionSnapshot'
+
+    SystemVolumeResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          required: [volume]
+          properties:
+            volume:
+              $ref: '#/components/schemas/SystemVolumeStatus'
+
+    DisplaysResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          required: [targets, splice_label]
+          properties:
+            targets:
+              type: array
+              items:
+                $ref: '#/components/schemas/DisplayTarget'
+            splice_label:
+              type: string
+
+    DevicesResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          required: [devices]
+          properties:
+            devices:
+              type: array
+              items:
+                $ref: '#/components/schemas/DeviceDescriptor'
+
+    DeviceResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          required: [device]
+          properties:
+            device:
+              $ref: '#/components/schemas/DeviceDescriptor'
+
+    ScenariosResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          required: [scenarios]
+          properties:
+            scenarios:
+              type: array
+              items:
+                $ref: '#/components/schemas/Scenario'
+
+    ScenarioResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          required: [scenario]
+          properties:
+            scenario:
+              $ref: '#/components/schemas/Scenario'
+
+    ShutdownResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          required: [sessions, detail]
+          properties:
+            sessions:
+              type: array
+              items:
+                $ref: '#/components/schemas/SessionSnapshot'
+            detail:
+              type: string
+              example: 系统关闭请求已发送
