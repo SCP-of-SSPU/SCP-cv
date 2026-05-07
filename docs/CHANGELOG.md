@@ -2,6 +2,19 @@
 
 ## 2026-05-07
 
+### 控制台综合修复：PPT 跳转/页号 + 直播流引导 + 媒体源编辑 + keep_alive + 预案保存
+
+- **PPT 跳转**：`PlaybackControl.onJump` 由发送 `'jump'` 改为 `'goto'`，与后端 `services.playback.navigate_content` 的 `valid_actions={NEXT, PREV, GOTO, SEEK}` 对齐；旧实现会被「无效的导航动作」拒绝。
+- **PPT 页号偏移**：`PlaybackControl` / `PptFocusView` 中 `currentResource` / `nextResource` 由 `page_index === current_slide - 1` / `=== current_slide` 改为 `=== current_slide` / `=== current_slide + 1`；后端 `PptResource.page_index` 与 `session.current_slide` 都是 1-based，旧实现让大图比 caption 滞后一页。
+- **PPT 专注模式重做**：「固定窗口」按钮改为「全屏」，走浏览器 Fullscreen API；提词器卡片横屏悬浮在右下角（absolute + backdrop-blur），竖屏回归 normal flow 纵向堆叠；移除竖屏阻断 EmptyState，由 `:data-orientation` CSS 切换布局。
+- **直播流引导**：`PlaybackControl` 的 `playback_state==='error'` MessageBar 在 `category==='stream'` 时给出「首帧 1–2 秒握手 / 推流端检查 / 重置全部窗口」具体指引，并提供「再次打开源」一键重试按钮。
+- **仪表盘 UX**：删除「后端：windows_core_audio」标签；电视左/右切换按钮文案改为「切换开/关机状态」；大屏模式切换 `pendingMode + isModeSwitching` 锁定 FSegmented 并展示「正在切换大屏模式，请稍候…」+ Spinner，避免操作员重复点击。
+- **媒体源 keep_alive**：`MediaSource` 新增 `keep_alive` 字段（默认 True），迁移 `0017_add_media_source_keep_alive`；POST `/api/sources/web/` 接收 `keep_alive`，新增 PATCH `/api/sources/{id}/`；前端 AddSourceDrawer 新增「保持活跃」开关，新增 `EditSourceDrawer` 走 PATCH 仅传变更字段；`player/adapters/web.py` 加 TODO，预热池作为下一阶段实现。
+- **媒体源默认按拼音首字母排序**：`stores/sources.ts.filtered` 用 `Intl.Collator(['zh-Hans-CN-u-co-pinyin', 'zh-Hans-CN'], { numeric, sensitivity: 'base' })` 排序，中英文混合时同语言内部按字母升序。
+- **媒体源行菜单新增「编辑」**：`SourcesView` 加入编辑入口，`EditSourceDrawer` 暴露名称、网页源 URI、保持活跃三类安全字段；非网页源仅允许改名，文件路径只能通过删除-重新上传。
+- **SourcePicker 行视觉**：隐藏文件大小 / 创建时间元信息，新增 40×30 缩略位（image 显示 download 原图，其它类型回退大图标）。
+- **预案保存失败**：`ScenarioEditDrawer.sourceOptionsByCategory` 给 group 头 option 显式 `disabled=true`，前端校验 `sourceId < 1` 拒绝；后端 `services.scenario._resolve_source` 把 None / 0 / 负数一律视作「不绑定」返回 None，避免 group 标题被误选时整个 PATCH 失败。
+
 ### 修复媒体源 / 预案页面顶部 sticky toolbar 遮挡 NavList 第一项
 
 - 现象：桌面端 `/sources` 与 `/scenarios` 顶部工具条 `position: sticky; top: 56px` 与下方 NavList / 卡片列表的第一项视觉重叠 ~40 px，最直观的影响是 SourcesView 的「全部源」分类按钮被搜索栏 caption 整个盖住，看上去像消失了
