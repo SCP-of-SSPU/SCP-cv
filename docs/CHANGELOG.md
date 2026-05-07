@@ -2,6 +2,15 @@
 
 ## 2026-05-07
 
+### 修复直播流 MessageBar 持续不消失
+
+- 现象：当 SrtStreamAdapter 首帧握手失败或推流端未推流时，`session.playback_state` 持久化为 `error`；前端 `PlaybackControl` 的「直播流尚未就绪」MessageBar 一直显示，点击「关闭显示」也无法消除。
+- 根因：后端 `services.playback.close_source` 旧实现仅设置 `pending_command=CLOSE`，依赖 player 端 `_handle_close` 回写 `IDLE`；player 进程不在跑或处理延迟时，UI 永久卡在旧 error 状态。前端 errorBar 也没有给用户手动关闭的出口。
+- 修复（两端协同）：
+  - 后端：`close_source` 在保留 `media_source` 与 CLOSE 指令的同时，**立即** 重置 `playback_state` / `current_slide` / `total_slides` / `position_ms` / `duration_ms` 到 IDLE / 0，让 `mutate_playback` 返回与下一帧 SSE 推送即可让 UI 同步。
+  - 前端：`PlaybackControl.errorBar` 加 `dismissible`，并以 `source_id::playback_state` 组合 key 记录用户的 ack；换源或状态再次进入 error 时自动重新触发提示，避免历史 dismiss 屏蔽真实新错。
+- 验证：`pytest 141 passed`；Playwright 实测点击 × 后 MessageBar 立即消失；POST `/api/playback/1/close/` response 与数据库均显示 `state='idle'`。
+
 ### 设计系统打磨：圆角柔化 + 动效曲线升级 + 微交互反馈
 
 - 设计令牌（`styles/tokens.css`）：`--radius-medium` 4 -> 6、`--radius-large` 8 -> 10、`--radius-xlarge` 12 -> 14，新增 `--radius-xxlarge` 20；`--motion-curve-ease` 由 `cubic-bezier(0.33,0,0.67,1)` 改为 `cubic-bezier(0.22,1,0.36,1)` (ease-out-quart)；新增 `--motion-curve-spring` 与 `--motion-duration-medium`(160ms)。
