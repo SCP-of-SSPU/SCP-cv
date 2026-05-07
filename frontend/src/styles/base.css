@@ -1,0 +1,178 @@
+/*
+ * 全局基础样式：HTML/Body 重置 + 字体栈 + 焦点环统一 + 滚动条克制处理。
+ * 不在这里写业务样式；业务样式必须通过 alias token 与组件 scoped 样式表达。
+ */
+
+@import "./tokens.css";
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  background: var(--color-background-canvas);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-base);
+  font-size: var(--type-body1-size);
+  line-height: var(--type-body1-line);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-variant-numeric: tabular-nums;
+}
+
+#app {
+  /* iOS Safari 与桌面浏览器一致的视口高度。 */
+  min-height: var(--app-height, 100vh);
+  display: flex;
+  flex-direction: column;
+}
+
+/* 可访问焦点：按钮 / 链接 / 表单控件公用 2 px 蓝色焦点环。 */
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-medium);
+}
+
+/* 链接默认样式：仅基础态，复杂语义交给业务组件。 */
+a {
+  color: var(--color-text-brand);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* 让原生表单控件继承字体，统一在组件层重写视觉。 */
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+img,
+svg,
+video {
+  display: block;
+  max-width: 100%;
+}
+
+/* 选区颜色与品牌一致，但保持柔和不刺眼。 */
+::selection {
+  background: var(--color-background-brand-selected);
+  color: var(--color-text-brand);
+}
+
+/* 滚动条：仅在桌面浏览器上做轻量化处理，不强行修改移动端原生体验。 */
+@media (pointer: fine) {
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border-default);
+    border-radius: var(--radius-circular);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-border-strong);
+    background-clip: padding-box;
+    border: 2px solid transparent;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+/* 通用工具类，仅暴露给“无组件可用、需要纯文本排版”的极少数场景使用。 */
+.t-title1 {
+  font-size: var(--type-title1-size);
+  line-height: var(--type-title1-line);
+  font-weight: 600;
+}
+
+.t-title2 {
+  font-size: var(--type-title2-size);
+  line-height: var(--type-title2-line);
+  font-weight: 600;
+}
+
+.t-title3 {
+  font-size: var(--type-title3-size);
+  line-height: var(--type-title3-line);
+  font-weight: 600;
+}
+
+.t-subtitle2 {
+  font-size: var(--type-subtitle2-size);
+  line-height: var(--type-subtitle2-line);
+  font-weight: 600;
+}
+
+.t-body1 {
+  font-size: var(--type-body1-size);
+  line-height: var(--type-body1-line);
+}
+
+.t-body1-strong {
+  font-size: var(--type-body1-size);
+  line-height: var(--type-body1-line);
+  font-weight: 600;
+}
+
+.t-caption1 {
+  font-size: var(--type-caption1-size);
+  line-height: var(--type-caption1-line);
+}
+
+.t-caption2 {
+  font-size: var(--type-caption2-size);
+  line-height: var(--type-caption2-line);
+}
+
+.t-eyebrow {
+  font-size: var(--type-caption1-size);
+  line-height: var(--type-caption1-line);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+/* 视觉隐藏（屏幕阅读器仍可读到）。 */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

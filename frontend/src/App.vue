@@ -1,64 +1,59 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
-import { RouterLink, RouterView } from 'vue-router';
-import { useRoute } from 'vue-router';
+/**
+ * 应用根组件：根据路由 meta.focus 与当前断点切换 Shell。
+ *  - meta.focus = true：完全替换 Shell 为全屏专注内容（PPT 专注模式）；
+ *  - 桌面（≥ md）：AppShell；
+ *  - 移动（< md）：MobileShell；
+ *  - 全局挂载 ToastHost 与 DialogHost。
+ */
+import { computed, onMounted, onUnmounted } from 'vue';
+import { RouterView, useRoute } from 'vue-router';
 
-import { useAppStore } from '@/stores/app';
+import AppShell from '@/layouts/AppShell.vue';
+import MobileShell from '@/layouts/MobileShell.vue';
+import { FDialogHost, FToastHost } from '@/design-system';
+import { useBreakpoint } from '@/composables/useBreakpoint';
+import { useReducedMotion } from '@/composables/useReducedMotion';
+import { bindAppHeight } from '@/composables/useAppHeight';
+import { bootstrapStores } from '@/stores';
+import { useToast } from '@/composables/useToast';
+import { useRuntimeStore } from '@/stores/runtime';
 
-const appStore = useAppStore();
 const route = useRoute();
-const showChrome = computed(() => route.meta.focus !== true);
-const bigScreenLinkLabel = computed(() => (
-  appStore.runtime?.big_screen_mode === 'single' ? '大屏显示控制' : '大屏左显示控制'
-));
+const { isMobile } = useBreakpoint();
+const toast = useToast();
+const runtime = useRuntimeStore();
 
-async function runAction(action: () => Promise<void>): Promise<void> {
-  try {
-    await action();
-  } catch (error) {
-    appStore.notify(error instanceof Error ? error.message : '操作失败', true);
-  }
-}
+// 暂保留 reduced 状态，便于未来在 JS 端联动；CSS 层已通过媒体查询兜底。
+useReducedMotion();
+
+const isFocusMode = computed(() => route.meta?.focus === true);
+
+let unbindHeight: (() => void) | null = null;
 
 onMounted(async () => {
+  unbindHeight = bindAppHeight();
   try {
-    await appStore.bootstrap();
+    await bootstrapStores();
   } catch (error) {
-    appStore.notify(error instanceof Error ? error.message : '初始化失败', true);
+    toast.error('初始化失败', error instanceof Error ? error.message : '请刷新页面或检查后端');
   }
+});
+
+onUnmounted(() => {
+  unbindHeight?.();
+  runtime.disconnectEvents();
 });
 </script>
 
 <template>
-  <header v-if="showChrome" class="topbar">
-    <div class="brand">
-      <span class="brand__mark">S</span>
-      <div>
-        <p>SCP-cv</p>
-        <h1>播放控制台</h1>
-      </div>
-    </div>
-    <div class="topbar__meta">
-      <span class="chip">REST API</span>
-      <span class="chip chip--accent">{{ appStore.connectionStatus }}</span>
-    </div>
-  </header>
-
-  <nav v-if="showChrome" class="toolbar" aria-label="控制台导航">
-    <RouterLink to="/dashboard">首页</RouterLink>
-    <RouterLink to="/sources">源管理</RouterLink>
-    <RouterLink to="/scenarios">预案管理</RouterLink>
-    <RouterLink to="/display/big-left">{{ bigScreenLinkLabel }}</RouterLink>
-    <RouterLink v-if="appStore.runtime?.big_screen_mode === 'double'" to="/display/big-right">大屏右显示控制</RouterLink>
-    <RouterLink to="/display/tv-left">TV 左显示控制</RouterLink>
-    <RouterLink to="/display/tv-right">TV 右显示控制</RouterLink>
-    <RouterLink to="/about">关于</RouterLink>
-  </nav>
-
-  <main :class="showChrome ? 'content' : 'focus-content'">
-    <p v-if="appStore.message" class="banner" :class="{ 'banner--error': appStore.isError }">
-      {{ appStore.message }}
-    </p>
-    <RouterView />
-  </main>
+  <RouterView v-if="isFocusMode" />
+  <AppShell v-else-if="!isMobile" />
+  <MobileShell v-else />
+  <FDialogHost />
+  <FToastHost />
 </template>
+
+<style>
+@import '@/styles/base.css';
+</style>

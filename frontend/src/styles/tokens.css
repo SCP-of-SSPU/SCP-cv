@@ -1,0 +1,174 @@
+/*
+ * 设计令牌（Design Tokens）。
+ * 严格对齐 docs/前端设计稿.md §11.1 与 DESIGN.md §21.1。
+ * 业务组件不得直接写 HEX/PX，必须经由这里的 alias token。
+ */
+
+:root {
+  color-scheme: light;
+
+  /* ── 文本（color.text.*） ─────────────────────────────────── */
+  --color-text-primary: #242424;
+  --color-text-secondary: #616161;
+  --color-text-tertiary: #707070;
+  --color-text-disabled: #bdbdbd;
+  --color-text-inverse: #ffffff;
+  --color-text-brand: #0f6cbd;
+  --color-text-error: #c42b1c;
+  --color-text-success: #107c10;
+  --color-text-warning: #9d5d00;
+
+  /* ── 背景（color.background.*） ───────────────────────────── */
+  --color-background-canvas: #f5f5f5;
+  --color-background-card: #ffffff;
+  --color-background-subtle: #fafafa;
+  --color-background-raised: #ffffff;
+  --color-background-brand: #1b86e0;
+  --color-background-brand-hover: #2899f5;
+  --color-background-brand-pressed: #0f6cbd;
+  --color-background-brand-selected: #eaf4fe;
+  --color-background-disabled: #f0f0f0;
+  --color-background-overlay: rgba(0, 0, 0, 0.4);
+
+  /* ── 边框（color.border.*） ───────────────────────────────── */
+  --color-border-subtle: #ebebeb;
+  --color-border-default: #d1d1d1;
+  --color-border-strong: #a0a0a0;
+  --color-border-focus: #2899f5;
+  --color-border-error: #c42b1c;
+  --color-border-disabled: #e0e0e0;
+
+  /* ── 状态（color.status.*） ───────────────────────────────── */
+  --color-status-info-foreground: #0f6cbd;
+  --color-status-info-background: #eaf4fe;
+  --color-status-success-foreground: #107c10;
+  --color-status-success-background: #dff6dd;
+  --color-status-warning-foreground: #9d5d00;
+  --color-status-warning-background: #fff4ce;
+  --color-status-error-foreground: #c42b1c;
+  --color-status-error-background: #fde7e9;
+
+  /* ── 间距（spacing.*）：4 px 基础网格 ─────────────────────── */
+  --spacing-none: 0;
+  --spacing-xxs: 2px;
+  --spacing-xs: 4px;
+  --spacing-s: 8px;
+  --spacing-m: 12px;
+  --spacing-l: 16px;
+  --spacing-xl: 20px;
+  --spacing-2xl: 24px;
+  --spacing-3xl: 32px;
+  --spacing-4xl: 40px;
+  --spacing-5xl: 48px;
+  --spacing-6xl: 56px;
+
+  /* ── 圆角（radius.*） ─────────────────────────────────────── */
+  --radius-none: 0;
+  --radius-small: 2px;
+  --radius-medium: 4px;
+  --radius-large: 8px;
+  --radius-xlarge: 12px;
+  --radius-circular: 9999px;
+
+  /* ── 阴影（shadow.*） ─────────────────────────────────────── */
+  --shadow-none: none;
+  --shadow-2: 0 1px 2px rgb(0 0 0 / 0.07);
+  --shadow-4: 0 2px 4px rgb(0 0 0 / 0.10);
+  --shadow-8: 0 4px 8px rgb(0 0 0 / 0.10);
+  --shadow-16: 0 8px 16px rgb(0 0 0 / 0.14);
+  --shadow-28: 0 14px 28px rgb(0 0 0 / 0.18);
+
+  /* ── Z-index（z.*） ───────────────────────────────────────── */
+  --z-base: 0;
+  --z-sticky: 100;
+  --z-dropdown: 1000;
+  --z-popover: 1100;
+  --z-overlay: 1200;
+  --z-drawer: 1300;
+  --z-dialog: 1400;
+  --z-toast: 1500;
+
+  /* ── 动效（motion.*） ─────────────────────────────────────── */
+  --motion-duration-ultra-fast: 50ms;
+  --motion-duration-fast: 100ms;
+  --motion-duration-normal: 200ms;
+  --motion-duration-slow: 300ms;
+  --motion-duration-ultra-slow: 500ms;
+  --motion-curve-accelerate: cubic-bezier(0.7, 0, 1, 0.5);
+  --motion-curve-decelerate: cubic-bezier(0.1, 0.9, 0.2, 1);
+  --motion-curve-ease: cubic-bezier(0.33, 0, 0.67, 1);
+  --motion-curve-linear: linear;
+
+  /* ── 字体 ───────────────────────────────────────────────── */
+  --font-family-base: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI Variable",
+    "Segoe UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+  --font-family-mono: "Cascadia Code", "JetBrains Mono", "SFMono-Regular", Consolas,
+    "Liberation Mono", Menlo, monospace;
+
+  /* type.* 字号/行高/字重，便于在文字工具类中复用 */
+  --type-title1-size: 28px;
+  --type-title1-line: 36px;
+  --type-title2-size: 24px;
+  --type-title2-line: 32px;
+  --type-title3-size: 20px;
+  --type-title3-line: 28px;
+  --type-subtitle1-size: 18px;
+  --type-subtitle1-line: 24px;
+  --type-subtitle2-size: 16px;
+  --type-subtitle2-line: 22px;
+  --type-body1-size: 14px;
+  --type-body1-line: 20px;
+  --type-caption1-size: 12px;
+  --type-caption1-line: 16px;
+  --type-caption2-size: 10px;
+  --type-caption2-line: 14px;
+
+  /* 触控目标最小命中区域，移动端按 ≥ 44 px 设计 */
+  --touch-target-min: 44px;
+  --touch-target-pref: 48px;
+
+  /* iOS Safari 100vh 兜底变量；JS 端可写 --app-height 覆盖 */
+  --app-height: 100dvh;
+}
+
+/* 深色模式占位：仅 PPT 专注模式启用，避免“简单反色”导致对比度问题。
+   未来扩展全局深色时再补全 alias 映射。 */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-text-primary: #f3f3f3;
+  --color-text-secondary: #c8c8c8;
+  --color-text-tertiary: #a0a0a0;
+  --color-text-disabled: #5c5c5c;
+  --color-text-inverse: #1c1c1c;
+  --color-text-brand: #6cb8ff;
+
+  --color-background-canvas: #0f1115;
+  --color-background-card: #1b1d23;
+  --color-background-subtle: #16181d;
+  --color-background-raised: #20232b;
+  --color-background-brand: #2899f5;
+  --color-background-brand-selected: rgba(40, 153, 245, 0.16);
+
+  --color-border-subtle: rgba(255, 255, 255, 0.08);
+  --color-border-default: rgba(255, 255, 255, 0.18);
+  --color-border-strong: rgba(255, 255, 255, 0.32);
+  --color-border-focus: #6cb8ff;
+
+  --shadow-2: 0 1px 2px rgb(0 0 0 / 0.5);
+  --shadow-4: 0 2px 4px rgb(0 0 0 / 0.45);
+  --shadow-8: 0 4px 8px rgb(0 0 0 / 0.45);
+  --shadow-16: 0 8px 16px rgb(0 0 0 / 0.5);
+  --shadow-28: 0 14px 28px rgb(0 0 0 / 0.6);
+}
+
+/* 用户系统级偏好：减少动效。所有 transition / animation 收敛到几乎无感。 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
