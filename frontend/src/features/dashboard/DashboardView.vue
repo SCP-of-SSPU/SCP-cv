@@ -17,6 +17,7 @@ import {
   FMessageBar,
 } from '@/design-system';
 import { useDialog } from '@/composables/useDialog';
+import { useThrottledSlider } from '@/composables/useThrottledSlider';
 import { useToast } from '@/composables/useToast';
 import { useRuntimeStore } from '@/stores/runtime';
 import { useDeviceStore } from '@/stores/devices';
@@ -47,22 +48,24 @@ const screenMode = computed({
   },
 });
 
-const volumeLevel = computed({
-  get: () => runtime.systemVolume.level,
-  set: async (next: number) => {
-    try {
-      await runtime.setSystemVolume(next, runtime.systemVolume.muted);
-    } catch (error) {
+// 系统音量节流：拖动期间 120 ms 节流提交、抬手时一次最终上报；
+// 后端 PATCH 响应在拖动期间不会覆盖本地 UI 值，避免回弹。
+const volume = useThrottledSlider(
+  () => runtime.systemVolume.level,
+  {
+    commit: (level: number) => runtime.setSystemVolume(level, runtime.systemVolume.muted),
+    onError: (error) => {
       toast.error('系统音量设置失败', error instanceof Error ? error.message : '请稍后重试');
-    }
+    },
   },
-});
+);
 
 const muteToggle = computed({
   get: () => runtime.systemVolume.muted,
   set: async (next: boolean) => {
     try {
-      await runtime.setSystemVolume(runtime.systemVolume.level, next);
+      // 静音切换沿用滑块当前显示值，避免回写到节流前的旧值。
+      await runtime.setSystemVolume(volume.value.value, next);
     } catch (error) {
       toast.error('系统静音切换失败', error instanceof Error ? error.message : '请稍后重试');
     }
@@ -153,15 +156,10 @@ const hasDeviceError = computed(() =>
       <FCard class="dashboard__card">
         <template #eyebrow>BIG SCREEN</template>
         <template #title>大屏模式</template>
-        <FSegmented
-          v-model="screenMode"
-          :options="[
-            { label: '单屏', value: 'single' },
-            { label: '双屏', value: 'double' },
-          ]"
-          full-width
-          aria--label="大屏模式选择"
-        />
+        <FSegmented v-model="screenMode" :options="[
+          { label: '单屏', value: 'single' },
+          { label: '双屏', value: 'double' },
+        ]" full-width aria--label="大屏模式选择" />
         <p class="dashboard__hint">
           单屏模式下窗口 2 自动静音；双屏模式下「大屏左 / 大屏右」窗口独立可控。
         </p>
@@ -170,7 +168,8 @@ const hasDeviceError = computed(() =>
       <FCard class="dashboard__card">
         <template #eyebrow>SYSTEM VOLUME</template>
         <template #title>系统音量</template>
-        <FSlider v-model="volumeLevel" :min="0" :max="100" aria-label="系统音量" show-value />
+        <FSlider :model-value="volume.value.value" :min="0" :max="100" aria-label="系统音量" show-value
+          @update:modelValue="volume.handleInput" @change="volume.handleChange" />
         <FSwitch v-model="muteToggle" label="启用系统静音" />
         <FTag :tone="volumeBackendTone">{{ volumeBackendLabel }}</FTag>
       </FCard>

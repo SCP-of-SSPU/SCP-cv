@@ -33,7 +33,16 @@ const props = withDefaults(defineProps<FSliderProps>(), {
   showValue: false,
 });
 
-const emit = defineEmits<(event: 'update:modelValue', value: number) => void>();
+/**
+ * 双事件契约：
+ *  - update:modelValue：拖动过程中持续触发，业务侧应当节流；
+ *  - change：抬手或键盘 commit 时触发一次，业务侧用它执行最终落库。
+ * 这样的契约让 useThrottledSlider 等高频场景能严格区分「中间值」与「最终值」。
+ */
+const emit = defineEmits<{
+  (event: 'update:modelValue', value: number): void;
+  (event: 'change', value: number): void;
+}>();
 
 const id = useLocalId('f-slider');
 const percent = computed(() => {
@@ -47,29 +56,18 @@ function onInput(event: Event): void {
   const value = Number((event.target as HTMLInputElement).value);
   emit('update:modelValue', value);
 }
+
+function onChange(event: Event): void {
+  const value = Number((event.target as HTMLInputElement).value);
+  emit('change', value);
+}
 </script>
 
 <template>
-  <div
-    class="f-slider"
-    :class="{ 'f-slider--disabled': disabled }"
-    :style="{ '--f-slider-percent': `${percent}%` }"
-  >
-    <input
-      :id="id"
-      type="range"
-      class="f-slider__input"
-      :min="min"
-      :max="max"
-      :step="step"
-      :value="modelValue"
-      :disabled="disabled"
-      :aria-label="ariaLabel"
-      :aria-valuenow="modelValue"
-      :aria-valuemin="min"
-      :aria-valuemax="max"
-      @input="onInput"
-    />
+  <div class="f-slider" :class="{ 'f-slider--disabled': disabled }" :style="{ '--f-slider-percent': `${percent}%` }">
+    <input :id="id" type="range" class="f-slider__input" :min="min" :max="max" :step="step" :value="modelValue"
+      :disabled="disabled" :aria-label="ariaLabel" :aria-valuenow="modelValue" :aria-valuemin="min" :aria-valuemax="max"
+      @input="onInput" @change="onChange" />
     <span v-if="showValue" class="f-slider__value">{{ modelValue }}</span>
   </div>
 </template>
@@ -98,11 +96,9 @@ function onInput(event: Event): void {
 .f-slider__input::-webkit-slider-runnable-track {
   height: var(--f-slider-track-height);
   border-radius: var(--radius-circular);
-  background: linear-gradient(
-    to right,
-    var(--color-background-brand) var(--f-slider-percent, 0%),
-    var(--color-border-default) var(--f-slider-percent, 0%)
-  );
+  background: linear-gradient(to right,
+      var(--color-background-brand) var(--f-slider-percent, 0%),
+      var(--color-border-default) var(--f-slider-percent, 0%));
 }
 
 .f-slider__input::-moz-range-track {

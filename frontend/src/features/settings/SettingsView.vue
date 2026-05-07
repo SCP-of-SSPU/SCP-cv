@@ -20,6 +20,7 @@ import {
 } from '@/design-system';
 import type { FTabsItem } from '@/design-system';
 import { useDialog } from '@/composables/useDialog';
+import { useThrottledSlider } from '@/composables/useThrottledSlider';
 import { useToast } from '@/composables/useToast';
 import { useDeviceStore } from '@/stores/devices';
 import { useDisplayStore } from '@/stores/displays';
@@ -60,22 +61,23 @@ const screenMode = computed({
   },
 });
 
-const volumeLevel = computed({
-  get: () => runtime.systemVolume.level,
-  set: async (next: number) => {
-    try {
-      await runtime.setSystemVolume(next, runtime.systemVolume.muted);
-    } catch (error) {
+// 系统音量节流：与仪表盘共享同一份 store，节流策略保证拖动时不会被 PATCH 回写覆盖。
+const volume = useThrottledSlider(
+  () => runtime.systemVolume.level,
+  {
+    commit: (level: number) => runtime.setSystemVolume(level, runtime.systemVolume.muted),
+    onError: (error) => {
       toast.error('系统音量设置失败', error instanceof Error ? error.message : '请稍后重试');
-    }
+    },
   },
-});
+);
 
 const muteToggle = computed({
   get: () => runtime.systemVolume.muted,
   set: async (next: boolean) => {
     try {
-      await runtime.setSystemVolume(runtime.systemVolume.level, next);
+      // 静音切换沿用滑块当前显示值，避免回写到节流前的旧值。
+      await runtime.setSystemVolume(volume.value.value, next);
     } catch (error) {
       toast.error('系统静音切换失败', error instanceof Error ? error.message : '请稍后重试');
     }
@@ -226,7 +228,8 @@ const version = '1.0.0';
         <FButton appearance="secondary" icon-start="open_24_regular" :disabled="true" aria-label="桌面壳层未启用">
           打开 logs/
         </FButton>
-        <FButton appearance="subtle" icon-start="info_24_regular" @click="() => toast.info('请把控制台日志反馈给现场维护人员', '若可附带错误代码与时间戳更佳')">
+        <FButton appearance="subtle" icon-start="info_24_regular"
+          @click="() => toast.info('请把控制台日志反馈给现场维护人员', '若可附带错误代码与时间戳更佳')">
           上报问题
         </FButton>
       </div>
@@ -238,14 +241,10 @@ const version = '1.0.0';
     <section v-if="activeTab === 'runtime'" class="settings-view__grid">
       <FCard padding="cozy">
         <template #title>大屏模式</template>
-        <FSegmented
-          v-model="screenMode"
-          :options="[
-            { label: '单屏', value: 'single' },
-            { label: '双屏', value: 'double' },
-          ]"
-          full-width
-        />
+        <FSegmented v-model="screenMode" :options="[
+          { label: '单屏', value: 'single' },
+          { label: '双屏', value: 'double' },
+        ]" full-width />
         <p class="settings-view__hint">
           单屏模式下窗口 2 自动静音；双屏模式可独立控制大屏左 / 右。
         </p>
@@ -253,7 +252,8 @@ const version = '1.0.0';
 
       <FCard padding="cozy">
         <template #title>系统音量</template>
-        <FSlider v-model="volumeLevel" :min="0" :max="100" show-value aria-label="系统音量" />
+        <FSlider :model-value="volume.value.value" :min="0" :max="100" show-value aria-label="系统音量"
+          @update:modelValue="volume.handleInput" @change="volume.handleChange" />
         <FSwitch v-model="muteToggle" label="启用系统静音" />
         <FTag :tone="runtime.systemVolume.backend === 'windows_core_audio' ? 'subtle' : 'warning'">
           后端：{{ runtime.systemVolume.backend }}
@@ -263,7 +263,8 @@ const version = '1.0.0';
       <FCard padding="cozy">
         <template #title>SSE 状态</template>
         <p class="settings-view__row">
-          <FTag :tone="runtime.sseStatus === 'connected' ? 'success' : 'warning'" :dot="runtime.sseStatus === 'reconnecting'">
+          <FTag :tone="runtime.sseStatus === 'connected' ? 'success' : 'warning'"
+            :dot="runtime.sseStatus === 'reconnecting'">
             {{ sseLabel }}
           </FTag>
           <span>{{ sseLastUpdateLabel }}</span>
@@ -288,48 +289,37 @@ const version = '1.0.0';
     <section v-if="activeTab === 'display'" class="settings-view__display">
       <FCard padding="cozy">
         <template #title>窗口选择</template>
-        <FSegmented
-          v-model="targetWindowId"
-          :options="[
-            { label: '窗口 1', value: 1 },
-            { label: '窗口 2', value: 2 },
-            { label: '窗口 3', value: 3 },
-            { label: '窗口 4', value: 4 },
-          ]"
-          full-width
-        />
+        <FSegmented v-model="targetWindowId" :options="[
+          { label: '窗口 1', value: 1 },
+          { label: '窗口 2', value: 2 },
+          { label: '窗口 3', value: 3 },
+          { label: '窗口 4', value: 4 },
+        ]" full-width />
       </FCard>
 
       <FCard padding="cozy">
         <template #title>可用显示器</template>
         <div class="settings-view__display-grid">
-          <button
-            v-for="target in display.targets"
-            :key="target.index"
-            type="button"
+          <button v-for="target in display.targets" :key="target.index" type="button"
             class="settings-view__display-tile"
             :class="{ 'settings-view__display-tile--selected': displaySelection.label === target.name && displaySelection.mode === 'single' }"
-            @click="pickDisplay(target)"
-          >
+            @click="pickDisplay(target)">
             <p class="settings-view__display-name">Display {{ target.index + 1 }}</p>
             <p class="settings-view__display-meta">{{ target.width }} × {{ target.height }}</p>
             <p class="settings-view__display-meta">({{ target.x }}, {{ target.y }})</p>
             <FIcon v-if="target.is_primary" class="settings-view__display-primary" name="star_24_filled" />
           </button>
-          <button
-            type="button"
-            class="settings-view__display-tile settings-view__display-tile--splice"
+          <button type="button" class="settings-view__display-tile settings-view__display-tile--splice"
             :class="{ 'settings-view__display-tile--selected': displaySelection.mode === 'left_right_splice' }"
-            :disabled="!display.spliceLabel"
-            @click="pickSplice"
-          >
+            :disabled="!display.spliceLabel" @click="pickSplice">
             <p class="settings-view__display-name">{{ display.spliceLabel || '尚未配置拼接' }}</p>
             <p class="settings-view__display-meta">左右拼接显示</p>
           </button>
         </div>
       </FCard>
 
-      <FButton appearance="primary" icon-start="checkmark_24_regular" :disabled="!displaySelection.label" @click="applyDisplay">
+      <FButton appearance="primary" icon-start="checkmark_24_regular" :disabled="!displaySelection.label"
+        @click="applyDisplay">
         应用到窗口 {{ targetWindowId }}
       </FButton>
     </section>

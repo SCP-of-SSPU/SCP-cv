@@ -2,9 +2,12 @@
 /**
  * 单窗口播放控制条：按 source_type 渲染不同分支
  *  - PPT：上一页 / 下一页 / 跳页 / PPT 进度条 / 当前页媒体子表
- *  - video / audio：播放暂停停止 / 循环 / Seek
+ *  - video：播放暂停停止 / 循环 / Seek（旧 audio 会话亦回退到本分支）
  *  - image / web：仅展示 URI + 关闭按钮
  *  - *_stream：直播状态 Tag + URI（无 Seek）
+ *
+ * 音量调节走 useThrottledSlider：拖动期间节流上报、抬手再 flush 一次，
+ * 避免高频 PATCH 与 SSE 回写在拖动中竞态导致滑块回弹/卡顿。
  */
 import { computed, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
@@ -21,6 +24,7 @@ import {
 } from '@/design-system';
 import type { TagTone } from '@/design-system';
 import { useToast } from '@/composables/useToast';
+import { useThrottledSlider } from '@/composables/useThrottledSlider';
 import { useSessionStore } from '@/stores/sessions';
 import { useSourceStore } from '@/stores/sources';
 import { formatDuration } from '@/design-system/utils';
@@ -103,9 +107,17 @@ function onMuteToggle(value: boolean): void {
   void call(() => sessionStore.setWindowMute(props.session.window_id, value), '窗口静音失败');
 }
 
-function onVolumeUpdate(value: number): void {
-  void call(() => sessionStore.setWindowVolume(props.session.window_id, value), '音量调整失败');
-}
+// 窗口音量节流：拖动每 ~120 ms 上报一次，抬手再 flush，
+// SSE 回写在拖动 / 飞行 / 待发期间不会覆盖本地 UI 值。
+const windowVolume = useThrottledSlider(
+  () => props.session.volume,
+  {
+    commit: (value: number) => sessionStore.setWindowVolume(props.session.window_id, value),
+    onError: (error) => {
+      toast.error('音量调整失败', error instanceof Error ? error.message : '请稍后重试');
+    },
+  },
+);
 
 function onSeek(positionMs: number): void {
   void call(
@@ -226,8 +238,8 @@ const isPlaying = computed(() => props.session.playback_state === 'playing');
       </div>
     </section>
 
-    <!-- 视频/音频控制 -->
-    <section v-else-if="category === 'video' || category === 'audio'" class="playback-control__section">
+    <!-- 视频控制（旧 audio 源回退至此分支） -->
+    <section v-else-if="category === 'video'" class="playback-control__section">
       <div class="playback-control__row">
         <FButton v-if="!isPlaying" appearance="primary" icon-start="play_24_regular" @click="onPlay">
           播放
@@ -269,8 +281,9 @@ const isPlaying = computed(() => props.session.playback_state === 'playing');
     <section class="playback-control__section">
       <div class="playback-control__row">
         <span class="playback-control__field-label">窗口音量</span>
-        <FSlider :model-value="session.volume" :min="0" :max="100" aria-label="窗口音量" show-value
-          :disabled="category === 'image' || category === 'web'" @update:modelValue="onVolumeUpdate" />
+        <FSlider :model-value="windowVolume.value.value" :min="0" :max="100" aria-label="窗口音量" show-value
+          :disabled="category === 'image' || category === 'web'" @update:modelValue="windowVolume.handleInput"
+          @change="windowVolume.handleChange" />
       </div>
       <div class="playback-control__row">
         <FSwitch :model-value="session.is_muted" label="窗口静音" :disabled="category === 'image' || category === 'web'"
