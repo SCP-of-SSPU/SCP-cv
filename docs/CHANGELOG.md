@@ -2,6 +2,21 @@
 
 ## 2026-05-07
 
+### 设计系统打磨：圆角柔化 + 动效曲线升级 + 微交互反馈
+
+- 设计令牌（`styles/tokens.css`）：`--radius-medium` 4 -> 6、`--radius-large` 8 -> 10、`--radius-xlarge` 12 -> 14，新增 `--radius-xxlarge` 20；`--motion-curve-ease` 由 `cubic-bezier(0.33,0,0.67,1)` 改为 `cubic-bezier(0.22,1,0.36,1)` (ease-out-quart)；新增 `--motion-curve-spring` 与 `--motion-duration-medium`(160ms)。
+- 全局焦点环（`styles/base.css`）：去掉写死的 `border-radius`，`outline` 自动跟随元素自身圆角；兼容圆形头像与新的 medium=6 / large=10。
+- 组件级微交互
+  - **FButton**：过渡升至 medium，`:active` 增加 `translateY(1px) scale(0.99)` 按压反馈；`:focus-visible` 显示 2 px 品牌焦点环。
+  - **FCard**：`interactive` 变体 hover 时 `translateY(-1px)` + `shadow-8` 形成层次；`@media (hover: none)` 移动端禁用上浮防 touch 残留。
+  - **FDialog**：进入位移 8 -> 16 px、缩放 0.98 -> 0.96；进入 `normal+decelerate`、退出 `fast+accelerate`，重量感与弹开分明。
+  - **FDrawer**：桌面 X 位移 16 -> 32 px；移动 sheet 由 `translateY(16)` 改为 `translateY(100%)`，从屏幕外真正滑入。
+  - **FToastHost**：进入用 spring 曲线 + `translateY(12)`；离场 `fast+accelerate`。
+  - **FInput / FTextarea**：focus 光晕由 1 px 实色改 2 px `color-mix` 半透明，更柔；过渡升 medium。
+  - **FSegmented**：选中态由「品牌底高亮 + inset 边框」改为「白底 + 1 px 描边 + 1 px 微阴影」，避免与 NavList Active 蓝底混淆。
+  - **FSwitch**：拇指位移用 spring 曲线；背景与边框过渡升 medium。
+  - **FTabs / FMenu**：过渡时长升 medium；FMenu 浮层进出区分 `decelerate/accelerate`，进入位移加大到 -8 px。
+
 ### 控制台综合修复：PPT 跳转/页号 + 直播流引导 + 媒体源编辑 + keep_alive + 预案保存
 
 - **PPT 跳转**：`PlaybackControl.onJump` 由发送 `'jump'` 改为 `'goto'`，与后端 `services.playback.navigate_content` 的 `valid_actions={NEXT, PREV, GOTO, SEEK}` 对齐；旧实现会被「无效的导航动作」拒绝。
