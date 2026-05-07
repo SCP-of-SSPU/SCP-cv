@@ -51,26 +51,12 @@ defineExpose({
 </script>
 
 <template>
-  <textarea
-    ref="innerEl"
-    :id="inputId"
-    class="f-textarea"
-    :class="{
-      'f-textarea--invalid': isInvalid,
-      'f-textarea--disabled': disabled,
-    }"
-    :value="modelValue"
-    :rows="rows"
-    :placeholder="placeholder"
-    :disabled="disabled"
-    :readonly="readonly"
-    :maxlength="maxLength"
-    :aria-label="ariaLabel"
-    :aria-describedby="describedBy"
-    :aria-invalid="isInvalid || undefined"
-    :aria-required="field?.required.value || undefined"
-    @input="onInput"
-  />
+  <textarea ref="innerEl" :id="inputId" class="f-textarea" :class="{
+    'f-textarea--invalid': isInvalid,
+    'f-textarea--disabled': disabled,
+  }" :value="modelValue" :rows="rows" :placeholder="placeholder" :disabled="disabled" :readonly="readonly"
+    :maxlength="maxLength" :aria-label="ariaLabel" :aria-describedby="describedBy"
+    :aria-invalid="isInvalid || undefined" :aria-required="field?.required.value || undefined" @input="onInput" />
 </template>
 
 <style scoped>
@@ -85,9 +71,10 @@ defineExpose({
   color: var(--color-text-primary);
   font: inherit;
   resize: vertical;
+  /* 与 FInput 保持一致的 medium(160ms) 过渡 + 2 px 柔光晕。 */
   transition:
-    border-color var(--motion-duration-fast) var(--motion-curve-ease),
-    box-shadow var(--motion-duration-fast) var(--motion-curve-ease);
+    border-color var(--motion-duration-medium) var(--motion-curve-ease),
+    box-shadow var(--motion-duration-medium) var(--motion-curve-ease);
 }
 
 .f-textarea:hover:not(:disabled) {
@@ -97,7 +84,7 @@ defineExpose({
 .f-textarea:focus-visible {
   outline: none;
   border-color: var(--color-border-focus);
-  box-shadow: 0 0 0 1px var(--color-border-focus);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-border-focus) 32%, transparent);
 }
 
 .f-textarea--invalid {

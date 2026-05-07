@@ -43,26 +43,13 @@ function onKey(event: KeyboardEvent): void {
 </script>
 
 <template>
-  <label
-    :for="switchId"
-    class="f-switch"
-    :class="{
-      'f-switch--on': isOn,
-      'f-switch--disabled': disabled,
-      'f-switch--compact': size === 'compact',
-    }"
-  >
-    <input
-      :id="switchId"
-      type="checkbox"
-      class="visually-hidden"
-      role="switch"
-      :checked="isOn"
-      :disabled="disabled"
-      :aria-label="ariaLabel ?? label"
-      @change="toggle"
-      @keydown="onKey"
-    />
+  <label :for="switchId" class="f-switch" :class="{
+    'f-switch--on': isOn,
+    'f-switch--disabled': disabled,
+    'f-switch--compact': size === 'compact',
+  }">
+    <input :id="switchId" type="checkbox" class="visually-hidden" role="switch" :checked="isOn" :disabled="disabled"
+      :aria-label="ariaLabel ?? label" @change="toggle" @keydown="onKey" />
     <span class="f-switch__track" aria-hidden="true">
       <span class="f-switch__thumb" />
     </span>
@@ -93,8 +80,9 @@ function onKey(event: KeyboardEvent): void {
   border-radius: var(--radius-circular);
   background: var(--color-background-disabled);
   border: 1px solid var(--color-border-default);
-  transition: background var(--motion-duration-fast) var(--motion-curve-ease),
-    border-color var(--motion-duration-fast) var(--motion-curve-ease);
+  /* 拨动时背景与边框过渡走 medium(160ms) ease，让深色 / 浅色对比有"逐渐变化"的观感。 */
+  transition: background var(--motion-duration-medium) var(--motion-curve-ease),
+    border-color var(--motion-duration-medium) var(--motion-curve-ease);
 }
 
 .f-switch--compact .f-switch__track {
@@ -111,8 +99,9 @@ function onKey(event: KeyboardEvent): void {
   border-radius: var(--radius-circular);
   background: var(--color-text-secondary);
   transform: translateY(-50%);
-  transition: transform var(--motion-duration-fast) var(--motion-curve-ease),
-    background var(--motion-duration-fast) var(--motion-curve-ease);
+  /* 拇指位移采用 spring 曲线，弹性更明显但仅 ≤5% 过冲；duration 提升到 medium。 */
+  transition: transform var(--motion-duration-medium) var(--motion-curve-spring),
+    background var(--motion-duration-medium) var(--motion-curve-ease);
 }
 
 .f-switch--compact .f-switch__thumb {

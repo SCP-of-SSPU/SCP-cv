@@ -34,7 +34,11 @@ body,
   flex-direction: column;
 }
 
-/* 可访问焦点：按钮 / 链接 / 表单控件公用 2 px 蓝色焦点环。 */
+/*
+ * 可访问焦点：按钮 / 链接 / 表单控件公用 2 px 蓝色焦点环。
+ * 不再写死 border-radius，让 outline 自动跟随元素自身圆角（Chromium 94+ / Firefox 88+），
+ * 既能匹配新的 medium=6 / large=10 token，也不会让圆形头像类元素产生方角错位。
+ */
 :focus {
   outline: none;
 }
@@ -42,7 +46,6 @@ body,
 :focus-visible {
   outline: 2px solid var(--color-border-focus);
   outline-offset: 2px;
-  border-radius: var(--radius-medium);
 }
 
 /* 链接默认样式：仅基础态，复杂语义交给业务组件。 */

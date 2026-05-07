@@ -196,6 +196,9 @@ void flatItems; // 显式标记，避免 lint 抱怨
   cursor: pointer;
   border-radius: var(--radius-medium);
   text-align: left;
+  /* hover 时背景过渡走 medium(160ms)，比原来的瞬切更自然。 */
+  transition: background var(--motion-duration-medium) var(--motion-curve-ease),
+    color var(--motion-duration-medium) var(--motion-curve-ease);
 }
 
 .f-menu__item:hover:not(:disabled) {
@@ -240,16 +243,24 @@ void flatItems; // 显式标记，避免 lint 抱怨
   margin: var(--spacing-xs) 0;
 }
 
-.f-menu-enter-active,
+/*
+ * 浮层进入：medium(160ms) decelerate；离场用 fast(100ms) accelerate 收尾。
+ * 进入位移加大到 -8 px，让"从触发器掉下来"的方向感更明显。
+ */
+.f-menu-enter-active {
+  transition: opacity var(--motion-duration-medium) var(--motion-curve-ease),
+    transform var(--motion-duration-medium) var(--motion-curve-decelerate);
+}
+
 .f-menu-leave-active {
   transition: opacity var(--motion-duration-fast) var(--motion-curve-ease),
-    transform var(--motion-duration-fast) var(--motion-curve-decelerate);
+    transform var(--motion-duration-fast) var(--motion-curve-accelerate);
 }
 
 .f-menu-enter-from,
 .f-menu-leave-to {
   opacity: 0;
-  transform: translateY(-4px);
+  transform: translateY(-8px);
 }
 
 @media (max-width: 767px) {

@@ -86,34 +86,22 @@ defineExpose({
 </script>
 
 <template>
-  <div
-    class="f-input"
-    :class="[
-      `f-input--${appearance}`,
-      `f-input--${size}`,
-      isInvalid && 'f-input--invalid',
-      disabled && 'f-input--disabled',
-    ]"
-  >
-    <span v-if="$slots.prefix" class="f-input__prefix"><slot name="prefix" /></span>
-    <input
-      ref="innerEl"
-      :id="inputId"
-      class="f-input__inner"
-      :type="type"
-      :value="modelValue"
-      :placeholder="placeholder"
-      :disabled="disabled"
-      :readonly="readonly"
-      :maxlength="maxLength"
-      :aria-label="ariaLabel"
-      :aria-describedby="describedBy"
-      :aria-invalid="isInvalid || undefined"
-      :aria-required="field?.required.value || undefined"
-      @input="onInput"
-      @keydown="onKeyDown"
-    />
-    <span v-if="$slots.suffix" class="f-input__suffix"><slot name="suffix" /></span>
+  <div class="f-input" :class="[
+    `f-input--${appearance}`,
+    `f-input--${size}`,
+    isInvalid && 'f-input--invalid',
+    disabled && 'f-input--disabled',
+  ]">
+    <span v-if="$slots.prefix" class="f-input__prefix">
+      <slot name="prefix" />
+    </span>
+    <input ref="innerEl" :id="inputId" class="f-input__inner" :type="type" :value="modelValue"
+      :placeholder="placeholder" :disabled="disabled" :readonly="readonly" :maxlength="maxLength"
+      :aria-label="ariaLabel" :aria-describedby="describedBy" :aria-invalid="isInvalid || undefined"
+      :aria-required="field?.required.value || undefined" @input="onInput" @keydown="onKeyDown" />
+    <span v-if="$slots.suffix" class="f-input__suffix">
+      <slot name="suffix" />
+    </span>
   </div>
 </template>
 
@@ -129,9 +117,10 @@ defineExpose({
   border: 1px solid var(--color-border-default);
   background: var(--color-background-card);
   color: var(--color-text-primary);
+  /* 过渡用 medium(160ms) 让 hover/focus 切换更柔，配合 box-shadow 双层光晕。 */
   transition:
-    border-color var(--motion-duration-fast) var(--motion-curve-ease),
-    box-shadow var(--motion-duration-fast) var(--motion-curve-ease);
+    border-color var(--motion-duration-medium) var(--motion-curve-ease),
+    box-shadow var(--motion-duration-medium) var(--motion-curve-ease);
 }
 
 .f-input--filled {
@@ -153,7 +142,8 @@ defineExpose({
 
 .f-input:focus-within {
   border-color: var(--color-border-focus);
-  box-shadow: 0 0 0 1px var(--color-border-focus);
+  /* 2 px 光晕比 1 px 更柔和，避免硬边导致的"实色描边"观感。 */
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-border-focus) 32%, transparent);
 }
 
 .f-input--invalid {
@@ -161,7 +151,7 @@ defineExpose({
 }
 
 .f-input--invalid:focus-within {
-  box-shadow: 0 0 0 1px var(--color-border-error);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-border-error) 32%, transparent);
 }
 
 .f-input--disabled {

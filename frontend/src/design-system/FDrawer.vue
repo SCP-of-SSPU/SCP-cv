@@ -112,35 +112,19 @@ function onOverlayClick(event: MouseEvent): void {
 <template>
   <Teleport to="body">
     <Transition :name="isMobile ? 'f-sheet' : 'f-drawer'">
-      <div
-        v-if="open"
-        class="f-drawer__overlay"
-        :class="{ 'f-drawer__overlay--mobile': isMobile }"
-        role="presentation"
-        @mousedown="onOverlayClick"
-      >
-        <aside
-          ref="drawerRef"
-          class="f-drawer"
-          :class="[isMobile && 'f-drawer--mobile', `f-drawer--mh-${mobileHeight}`]"
-          role="dialog"
-          aria-modal="true"
+      <div v-if="open" class="f-drawer__overlay" :class="{ 'f-drawer__overlay--mobile': isMobile }" role="presentation"
+        @mousedown="onOverlayClick">
+        <aside ref="drawerRef" class="f-drawer"
+          :class="[isMobile && 'f-drawer--mobile', `f-drawer--mh-${mobileHeight}`]" role="dialog" aria-modal="true"
           :aria-labelledby="$.uid + '-title'"
-          :style="!isMobile ? { width: inlineWidth, maxWidth: inlineWidth } : undefined"
-        >
+          :style="!isMobile ? { width: inlineWidth, maxWidth: inlineWidth } : undefined">
           <span v-if="isMobile" class="f-drawer__handle" aria-hidden="true" />
           <header class="f-drawer__header">
             <div class="f-drawer__heading">
               <h2 :id="$.uid + '-title'" class="f-drawer__title">{{ title }}</h2>
               <p v-if="description" class="f-drawer__description">{{ description }}</p>
             </div>
-            <button
-              v-if="cancellable"
-              type="button"
-              class="f-drawer__close"
-              aria-label="关闭"
-              @click="onCancel"
-            >
+            <button v-if="cancellable" type="button" class="f-drawer__close" aria-label="关闭" @click="onCancel">
               <FIcon name="dismiss_24_regular" />
             </button>
           </header>
@@ -153,12 +137,7 @@ function onOverlayClick(event: MouseEvent): void {
                 <FButton appearance="secondary" :full-width="isMobile" @click="onCancel">
                   {{ secondaryLabel }}
                 </FButton>
-                <FButton
-                  :appearance="primaryVariant"
-                  :loading="loading"
-                  :full-width="isMobile"
-                  @click="onConfirm"
-                >
+                <FButton :appearance="primaryVariant" :loading="loading" :full-width="isMobile" @click="onConfirm">
                   {{ primaryLabel }}
                 </FButton>
               </template>
@@ -291,21 +270,33 @@ function onOverlayClick(event: MouseEvent): void {
   padding-bottom: calc(var(--spacing-2xl) + env(safe-area-inset-bottom));
 }
 
+/*
+ * 抽屉与移动端 sheet 共用同一组进入 / 退出过渡：
+ *   - 遮罩淡入 160ms ease；
+ *   - 抽屉本体走 decelerate（进入）/ accelerate（退出），让进入"减速贴边"、退出"加速消失"；
+ *   - 桌面侧 X 位移 32 px、移动端 sheet 用 translateY(100%) 真正从屏幕外滑入。
+ */
 .f-drawer-enter-active,
 .f-drawer-leave-active,
 .f-sheet-enter-active,
 .f-sheet-leave-active {
-  transition: opacity var(--motion-duration-fast) var(--motion-curve-ease);
+  transition: opacity var(--motion-duration-medium) var(--motion-curve-ease);
 }
 
-.f-drawer-enter-active .f-drawer,
-.f-drawer-leave-active .f-drawer {
+.f-drawer-enter-active .f-drawer {
   transition: transform var(--motion-duration-normal) var(--motion-curve-decelerate);
 }
 
-.f-sheet-enter-active .f-drawer,
-.f-sheet-leave-active .f-drawer {
+.f-drawer-leave-active .f-drawer {
+  transition: transform var(--motion-duration-fast) var(--motion-curve-accelerate);
+}
+
+.f-sheet-enter-active .f-drawer {
   transition: transform var(--motion-duration-slow) var(--motion-curve-decelerate);
+}
+
+.f-sheet-leave-active .f-drawer {
+  transition: transform var(--motion-duration-normal) var(--motion-curve-accelerate);
 }
 
 .f-drawer-enter-from,
@@ -317,11 +308,12 @@ function onOverlayClick(event: MouseEvent): void {
 
 .f-drawer-enter-from .f-drawer,
 .f-drawer-leave-to .f-drawer {
-  transform: translateX(16px);
+  transform: translateX(32px);
 }
 
 .f-sheet-enter-from .f-drawer,
 .f-sheet-leave-to .f-drawer {
-  transform: translateY(16px);
+  /* 移动端 sheet 真正从屏幕底部滑入；保留 translateY 100% 避免与 100dvh 内容重叠跳变。 */
+  transform: translateY(100%);
 }
 </style>

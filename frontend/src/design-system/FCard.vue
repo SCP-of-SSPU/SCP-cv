@@ -77,9 +77,14 @@ const rootClass = computed(() =>
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-large);
   color: var(--color-text-primary);
+  /*
+   * 加入 transform 过渡目标，让 interactive 变体在 hover 时可以轻微上浮；
+   * duration 提升到 medium(160ms) 避免视觉突兀。
+   */
   transition:
-    border-color var(--motion-duration-fast) var(--motion-curve-ease),
-    box-shadow var(--motion-duration-fast) var(--motion-curve-ease);
+    border-color var(--motion-duration-medium) var(--motion-curve-ease),
+    box-shadow var(--motion-duration-medium) var(--motion-curve-ease),
+    transform var(--motion-duration-medium) var(--motion-curve-ease);
 }
 
 .f-card--subtle {
@@ -111,7 +116,15 @@ const rootClass = computed(() =>
 
 .f-card--interactive:hover {
   border-color: var(--color-border-default);
-  box-shadow: var(--shadow-2);
+  box-shadow: var(--shadow-8);
+  /* 1 px 上浮让交互卡片在悬浮时形成清晰层次；移动端 @media 下还原以避免 touch 残留。 */
+  transform: translateY(-1px);
+}
+
+@media (hover: none) {
+  .f-card--interactive:hover {
+    transform: none;
+  }
 }
 
 .f-card--selected {

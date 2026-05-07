@@ -135,8 +135,9 @@ function onKey(event: KeyboardEvent, index: number): void {
   cursor: pointer;
   white-space: nowrap;
   border-radius: var(--radius-medium);
-  transition: color var(--motion-duration-fast) var(--motion-curve-ease),
-    background var(--motion-duration-fast) var(--motion-curve-ease);
+  /* 颜色与底色一并 medium(160ms) 过渡；下划线本体过渡见 ::after 段。 */
+  transition: color var(--motion-duration-medium) var(--motion-curve-ease),
+    background var(--motion-duration-medium) var(--motion-curve-ease);
 }
 
 .f-tabs--compact .f-tabs__item {

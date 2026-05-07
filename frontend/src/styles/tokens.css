@@ -62,12 +62,21 @@
   --spacing-5xl: 48px;
   --spacing-6xl: 56px;
 
-  /* ── 圆角（radius.*） ─────────────────────────────────────── */
+  /*
+   * 圆角（radius.*）
+   * 在 Fluent 2 基础上略作柔化，让控件视觉更现代：
+   *   - small 2 px → 仍保留，用于徽章、小色块；
+   *   - medium 4 → 6 px：按钮、菜单项、标签；
+   *   - large 8 → 10 px：卡片、输入框、抽屉；
+   *   - xlarge 12 → 14 px：移动端 sheet 顶部；
+   *   - 新增 xxlarge 20 px，用于 Hero / 特色卡 / 大型舞台。
+   */
   --radius-none: 0;
   --radius-small: 2px;
-  --radius-medium: 4px;
-  --radius-large: 8px;
-  --radius-xlarge: 12px;
+  --radius-medium: 6px;
+  --radius-large: 10px;
+  --radius-xlarge: 14px;
+  --radius-xxlarge: 20px;
   --radius-circular: 9999px;
 
   /* ── 阴影（shadow.*） ─────────────────────────────────────── */
@@ -88,15 +97,26 @@
   --z-dialog: 1400;
   --z-toast: 1500;
 
-  /* ── 动效（motion.*） ─────────────────────────────────────── */
+  /*
+   * 动效（motion.*）
+   * 曲线选择：
+   *   - ease：ease-out-quart（cubic-bezier(0.22, 1, 0.36, 1)），进入段更细腻柔缓；
+   *   - decelerate：沿用 Fluent 2 decel 曲线，适合浮层进入；
+   *   - accelerate：快速退出用，浮层消失；
+   *   - spring：≤ 5 % 轻微过冲，适合 Toast / Badge 进入，避免"机械感"；
+   *   - linear：进度 / 骨架 / spinner 这种需要恒速的元素。
+   * Duration 新增 medium=160 ms，填补 fast(100) 与 normal(200) 之间，按钮 hover / 菜单展开更自然。
+   */
   --motion-duration-ultra-fast: 50ms;
   --motion-duration-fast: 100ms;
+  --motion-duration-medium: 160ms;
   --motion-duration-normal: 200ms;
   --motion-duration-slow: 300ms;
   --motion-duration-ultra-slow: 500ms;
   --motion-curve-accelerate: cubic-bezier(0.7, 0, 1, 0.5);
   --motion-curve-decelerate: cubic-bezier(0.1, 0.9, 0.2, 1);
-  --motion-curve-ease: cubic-bezier(0.33, 0, 0.67, 1);
+  --motion-curve-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-curve-spring: cubic-bezier(0.34, 1.2, 0.64, 1);
   --motion-curve-linear: linear;
 
   /* ── 字体 ───────────────────────────────────────────────── */
@@ -163,6 +183,7 @@
 
 /* 用户系统级偏好：减少动效。所有 transition / animation 收敛到几乎无感。 */
 @media (prefers-reduced-motion: reduce) {
+
   *,
   *::before,
   *::after {

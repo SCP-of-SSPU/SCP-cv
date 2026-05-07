@@ -46,35 +46,18 @@ async function triggerAction(id: number, action?: { onTrigger: () => void | Prom
   <Teleport to="body">
     <div :class="['f-toast-host', placementClass]" aria-live="polite" aria-atomic="true">
       <TransitionGroup name="f-toast" tag="div" class="f-toast-host__list">
-        <article
-          v-for="item in items"
-          :key="item.id"
-          class="f-toast"
-          :class="`f-toast--${item.level}`"
-          role="status"
-        >
+        <article v-for="item in items" :key="item.id" class="f-toast" :class="`f-toast--${item.level}`" role="status">
           <FIcon class="f-toast__icon" :name="levelIcon(item.level)" />
           <div class="f-toast__body">
             <p class="f-toast__message">{{ item.message }}</p>
             <p v-if="item.description" class="f-toast__description">{{ item.description }}</p>
           </div>
           <div class="f-toast__actions">
-            <FButton
-              v-if="item.action"
-              appearance="subtle"
-              size="compact"
-              @click="triggerAction(item.id, item.action)"
-            >
+            <FButton v-if="item.action" appearance="subtle" size="compact" @click="triggerAction(item.id, item.action)">
               {{ item.action.label }}
             </FButton>
-            <FButton
-              appearance="transparent"
-              size="compact"
-              icon-only
-              :icon-start="'dismiss_20_regular'"
-              aria-label="关闭通知"
-              @click="toastStore.dismiss(item.id)"
-            />
+            <FButton appearance="transparent" size="compact" icon-only :icon-start="'dismiss_20_regular'"
+              aria-label="关闭通知" @click="toastStore.dismiss(item.id)" />
           </div>
         </article>
       </TransitionGroup>
@@ -178,20 +161,28 @@ async function triggerAction(id: number, action?: { onTrigger: () => void | Prom
   flex-shrink: 0;
 }
 
-.f-toast-enter-active,
-.f-toast-leave-active {
+/*
+ * Toast 进入用 spring 曲线（≤5% 过冲），让通知"轻轻弹"；离场用 accelerate 淡出，
+ * 避免长时间停留遮挡操作。位移幅度也加大到 12 px 让"出现感"更明确。
+ */
+.f-toast-enter-active {
   transition: opacity var(--motion-duration-normal) var(--motion-curve-ease),
-    transform var(--motion-duration-normal) var(--motion-curve-decelerate);
+    transform var(--motion-duration-normal) var(--motion-curve-spring);
+}
+
+.f-toast-leave-active {
+  transition: opacity var(--motion-duration-fast) var(--motion-curve-ease),
+    transform var(--motion-duration-fast) var(--motion-curve-accelerate);
 }
 
 .f-toast-enter-from {
   opacity: 0;
-  transform: translateY(8px);
+  transform: translateY(12px);
 }
 
 .f-toast-leave-to {
   opacity: 0;
-  transform: translateY(-4px);
+  transform: translateY(-6px);
 }
 
 .f-toast-host--top .f-toast-enter-from {

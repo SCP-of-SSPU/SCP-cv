@@ -99,29 +99,12 @@ function onOverlayClick(event: MouseEvent): void {
 <template>
   <Teleport to="body">
     <Transition name="f-dialog">
-      <div
-        v-if="open"
-        class="f-dialog__overlay"
-        role="presentation"
-        @mousedown="onOverlayClick"
-      >
-        <div
-          ref="dialogRef"
-          class="f-dialog"
-          role="dialog"
-          aria-modal="true"
-          :aria-labelledby="$.uid + '-title'"
-          :aria-describedby="description ? $.uid + '-desc' : undefined"
-        >
+      <div v-if="open" class="f-dialog__overlay" role="presentation" @mousedown="onOverlayClick">
+        <div ref="dialogRef" class="f-dialog" role="dialog" aria-modal="true" :aria-labelledby="$.uid + '-title'"
+          :aria-describedby="description ? $.uid + '-desc' : undefined">
           <header class="f-dialog__header">
             <h2 :id="$.uid + '-title'" class="f-dialog__title">{{ title }}</h2>
-            <button
-              v-if="cancellable"
-              type="button"
-              class="f-dialog__close"
-              aria-label="关闭对话框"
-              @click="onCancel"
-            >
+            <button v-if="cancellable" type="button" class="f-dialog__close" aria-label="关闭对话框" @click="onCancel">
               <FIcon name="dismiss_24_regular" />
             </button>
           </header>
@@ -132,11 +115,7 @@ function onOverlayClick(event: MouseEvent): void {
           <footer class="f-dialog__footer">
             <slot name="actions" :confirm="onConfirm" :cancel="onCancel">
               <FButton appearance="secondary" @click="onCancel">{{ cancelLabel }}</FButton>
-              <FButton
-                :appearance="variant === 'danger' ? 'danger' : 'primary'"
-                :loading="loading"
-                @click="onConfirm"
-              >
+              <FButton :appearance="variant === 'danger' ? 'danger' : 'primary'" :loading="loading" @click="onConfirm">
                 {{ confirmLabel }}
               </FButton>
             </slot>
@@ -223,14 +202,23 @@ function onOverlayClick(event: MouseEvent): void {
   background: var(--color-background-subtle);
 }
 
+/*
+ * 进入 / 退出节奏：
+ *  - 遮罩淡入 160ms；
+ *  - 对话框本体 translateY(16) + scale(0.96) 走 decelerate 曲线，进入更有"重量感"；
+ *  - 离场用 accelerate 收尾，视觉上"弹开"。
+ */
 .f-dialog-enter-active,
 .f-dialog-leave-active {
-  transition: opacity var(--motion-duration-fast) var(--motion-curve-ease);
+  transition: opacity var(--motion-duration-medium) var(--motion-curve-ease);
 }
 
-.f-dialog-enter-active .f-dialog,
+.f-dialog-enter-active .f-dialog {
+  transition: transform var(--motion-duration-normal) var(--motion-curve-decelerate);
+}
+
 .f-dialog-leave-active .f-dialog {
-  transition: transform var(--motion-duration-slow) var(--motion-curve-decelerate);
+  transition: transform var(--motion-duration-fast) var(--motion-curve-accelerate);
 }
 
 .f-dialog-enter-from,
@@ -240,7 +228,7 @@ function onOverlayClick(event: MouseEvent): void {
 
 .f-dialog-enter-from .f-dialog,
 .f-dialog-leave-to .f-dialog {
-  transform: translateY(8px) scale(0.98);
+  transform: translateY(16px) scale(0.96);
 }
 
 @media (max-width: 767px) {

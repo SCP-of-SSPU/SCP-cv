@@ -105,11 +105,28 @@ defineEmits<(event: 'click', payload: MouseEvent) => void>();
   background: transparent;
   cursor: pointer;
   user-select: none;
+  /*
+   * 过渡时间统一到 medium(160ms)：比原 fast(100ms) 略柔，
+   * 避免 hover 闪现过于"机械"；同时把 transform 加入过渡目标，
+   * 配合 :active 轻按压反馈生效。
+   */
   transition:
-    background-color var(--motion-duration-fast) var(--motion-curve-ease),
-    color var(--motion-duration-fast) var(--motion-curve-ease),
-    border-color var(--motion-duration-fast) var(--motion-curve-ease),
-    box-shadow var(--motion-duration-fast) var(--motion-curve-ease);
+    background-color var(--motion-duration-medium) var(--motion-curve-ease),
+    color var(--motion-duration-medium) var(--motion-curve-ease),
+    border-color var(--motion-duration-medium) var(--motion-curve-ease),
+    box-shadow var(--motion-duration-medium) var(--motion-curve-ease),
+    transform var(--motion-duration-fast) var(--motion-curve-ease);
+}
+
+/* 按下瞬间轻微下沉 + 微缩，增强点击手感。 */
+.f-button:active:not(:disabled):not(.f-button--loading) {
+  transform: translateY(1px) scale(0.99);
+}
+
+/* 键盘聚焦时显示 2 px 品牌色外环，鼠标点击不触发（:focus-visible 规范）。 */
+.f-button:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
 }
 
 .f-button:disabled {

@@ -99,8 +99,13 @@ function pick(option: FSegmentedOption<string | number>): void {
   font-size: var(--type-body1-size);
   font-weight: 500;
   cursor: pointer;
-  transition: background var(--motion-duration-fast) var(--motion-curve-ease),
-    color var(--motion-duration-fast) var(--motion-curve-ease);
+  /*
+   * 切换分段时同时过渡背景、文字色与字重；duration 升到 medium 让 indicator 滑动更柔。
+   * 选中态用 inset box-shadow 模拟"轻陷下"，避免突变。
+   */
+  transition: background var(--motion-duration-medium) var(--motion-curve-ease),
+    color var(--motion-duration-medium) var(--motion-curve-ease),
+    box-shadow var(--motion-duration-medium) var(--motion-curve-ease);
 }
 
 .f-segmented--compact .f-segmented__item {
@@ -121,10 +126,11 @@ function pick(option: FSegmentedOption<string | number>): void {
 }
 
 .f-segmented__item--selected {
-  background: var(--color-background-brand-selected);
-  color: var(--color-text-brand);
+  background: var(--color-background-card);
+  color: var(--color-text-primary);
   font-weight: 600;
-  box-shadow: inset 0 0 0 1px var(--color-background-brand);
+  /* 浮起感：边框 1 px + 微阴影；不再用强品牌底色，避免与 NavList Active 混淆。 */
+  box-shadow: 0 0 0 1px var(--color-border-default), 0 1px 2px rgb(0 0 0 / 0.06);
 }
 
 .f-segmented__item--icon-only {
