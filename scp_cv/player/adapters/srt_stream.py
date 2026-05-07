@@ -269,10 +269,9 @@ class SrtStreamAdapter(SourceAdapter):
         判断当前错误是否仍处在直播首帧/重连宽限窗口。
         :return: True 表示暂不上报 error，继续让前端显示 loading
         """
-        grace_anchor = self._last_error_at_monotonic or self._opened_at_monotonic
-        if grace_anchor <= 0:
+        if self._opened_at_monotonic <= 0:
             return False
-        return time.monotonic() - grace_anchor < _TRANSIENT_ERROR_GRACE_SECONDS
+        return time.monotonic() - self._opened_at_monotonic < _TRANSIENT_ERROR_GRACE_SECONDS
 
     def _release_player(self) -> None:
         """释放 libVLC 实例及关联资源。"""

@@ -37,6 +37,13 @@ from scp_cv.services.playback_sessions import (
     get_or_create_session as get_or_create_session,
     get_session_snapshot as get_session_snapshot,
 )
+from scp_cv.services.playback_window_controls import (
+    is_muted_by_runtime as _is_muted_by_runtime,
+    runtime_muted_windows as _runtime_muted_windows,
+    set_window_mute as set_window_mute,
+    set_window_volume as set_window_volume,
+    toggle_loop_playback as toggle_loop_playback,
+)
 from scp_cv.services.video_wall import VideoWallError, apply_big_screen_mode as apply_video_wall_mode
 
 logger = logging.getLogger(__name__)
@@ -130,20 +137,6 @@ def apply_runtime_audio_policy() -> None:
         session.pending_command = PlaybackCommand.SET_MUTE
         session.command_args = {"muted": muted}
         session.save(update_fields=["is_muted", "pending_command", "command_args"])
-
-
-def _runtime_muted_windows(big_screen_mode: str) -> list[int]:
-    """返回指定大屏模式下必须静音的窗口编号。"""
-    muted_windows = [3, 4]
-    if big_screen_mode == BigScreenMode.SINGLE:
-        muted_windows.append(2)
-    return sorted(muted_windows)
-
-
-def _is_muted_by_runtime(window_id: int) -> bool:
-    """判断窗口是否受当前运行态约束必须静音。"""
-    runtime = RuntimeState.get_instance()
-    return window_id in _runtime_muted_windows(runtime.big_screen_mode)
 
 
 def open_source(window_id: int, media_source_id: int, autoplay: bool = True) -> PlaybackSession:
@@ -453,62 +446,6 @@ def select_display_target(
         "窗口 %d 显示目标切换为 %s（%s）",
         window_id, session.get_display_mode_display(), session.target_display_label,
     )
-    return session
-
-
-def set_window_volume(window_id: int, volume: int) -> PlaybackSession:
-    """
-    设置指定窗口音量（0-100），同时下发 SET_VOLUME 指令。
-    :param window_id: 窗口编号（1-4）
-    :param volume: 音量等级（0-100）
-    :return: 更新后的播放会话
-    """
-    volume = max(0, min(100, int(volume)))
-    session = get_or_create_session(window_id)
-    session.volume = volume
-    session.pending_command = PlaybackCommand.SET_VOLUME
-    session.command_args = {"volume": volume}
-    session.save()
-    logger.info("窗口 %d 音量设置为 %d", window_id, volume)
-    return session
-
-
-def set_window_mute(window_id: int, muted: bool) -> PlaybackSession:
-    """
-    设置指定窗口静音状态，同时下发 SET_MUTE 指令。
-    :param window_id: 窗口编号（1-4）
-    :param muted: 是否静音
-    :return: 更新后的播放会话
-    """
-    session = get_or_create_session(window_id)
-    if _is_muted_by_runtime(window_id):
-        muted = True
-    session.is_muted = muted
-    session.pending_command = PlaybackCommand.SET_MUTE
-    session.command_args = {"muted": muted}
-    session.save()
-    logger.info("窗口 %d 静音设置为 %s", window_id, muted)
-    return session
-
-
-def toggle_loop_playback(window_id: int, enabled: bool) -> PlaybackSession:
-    """
-    切换指定窗口的循环播放状态，同时下发 SET_LOOP 指令给播放器进程。
-    :param window_id: 窗口编号（1-4）
-    :param enabled: 是否启用循环播放
-    :return: 更新后的播放会话
-    :raises PlaybackError: 无活跃源时
-    """
-    session = get_or_create_session(window_id)
-    if session.media_source is None:
-        raise PlaybackError(f"窗口 {window_id} 当前没有打开的媒体源")
-
-    session.loop_enabled = enabled
-    session.pending_command = PlaybackCommand.SET_LOOP
-    session.command_args = {"enabled": enabled}
-    session.save()
-
-    logger.info("窗口 %d 循环播放已%s", window_id, "开启" if enabled else "关闭")
     return session
 
 
