@@ -123,14 +123,8 @@ void activeId; // 当前后端未提供「激活预案 id」字段；保留 hook
         <p class="scenarios-view__caption">浏览、调用、编辑预案；从当前状态可一键生成新预案。</p>
       </div>
       <div class="scenarios-view__actions">
-        <FButton
-          appearance="secondary"
-          icon-start="arrow_clockwise_20_regular"
-          icon-only
-          aria-label="刷新预案列表"
-          :loading="isLoading"
-          @click="refresh"
-        />
+        <FButton appearance="secondary" icon-start="arrow_clockwise_20_regular" icon-only aria-label="刷新预案列表"
+          :loading="isLoading" @click="refresh" />
         <FButton appearance="secondary" icon-start="document_24_regular" @click="captureFromCurrent">
           从当前状态生成
         </FButton>
@@ -150,11 +144,7 @@ void activeId; // 当前后端未提供「激活预案 id」字段；保留 hook
       </template>
 
       <template v-else-if="sortedScenarios.length === 0">
-        <FEmpty
-          title="暂无预案"
-          description="从当前播放状态生成预案，或手动创建第一个预案。"
-          icon="layer_24_regular"
-        >
+        <FEmpty title="暂无预案" description="从当前播放状态生成预案，或手动创建第一个预案。" icon="layer_24_regular">
           <template #actions>
             <FButton appearance="primary" icon-start="add_24_regular" @click="openCreate">
               新建预案
@@ -167,14 +157,8 @@ void activeId; // 当前后端未提供「激活预案 id」字段；保留 hook
       </template>
 
       <template v-else>
-        <FCard
-          v-for="scenario in sortedScenarios"
-          :key="scenario.id"
-          padding="compact"
-          interactive
-          :class="{ 'scenarios-view__card--pinned': scenario.sort_order > 0 }"
-          @click="openPreview(scenario)"
-        >
+        <FCard v-for="scenario in sortedScenarios" :key="scenario.id" padding="compact" interactive
+          :class="{ 'scenarios-view__card--pinned': scenario.sort_order > 0 }" @click="openPreview(scenario)">
           <template #eyebrow>
             <span v-if="scenario.sort_order > 0" class="scenarios-view__pinned">
               <FIcon name="pin_24_filled" /> 置顶
@@ -196,18 +180,10 @@ void activeId; // 当前后端未提供「激活预案 id」字段；保留 hook
       </template>
     </section>
 
-    <ScenarioPreviewDrawer
-      v-model:open="previewOpen"
-      :scenario="previewScenario"
-      @edit="openEdit"
-      @after-delete="onAfterDelete"
-    />
-    <ScenarioEditDrawer
-      v-model:open="editOpen"
-      :scenario="editingScenario"
-      :prefill-from-state="prefillDraft"
-      @saved="onSaved"
-    />
+    <ScenarioPreviewDrawer v-model:open="previewOpen" :scenario="previewScenario" @edit="openEdit"
+      @after-delete="onAfterDelete" />
+    <ScenarioEditDrawer v-model:open="editOpen" :scenario="editingScenario" :prefill-from-state="prefillDraft"
+      @saved="onSaved" />
   </div>
 </template>
 
@@ -219,9 +195,14 @@ void activeId; // 当前后端未提供「激活预案 id」字段；保留 hook
   max-width: 1280px;
 }
 
+/*
+ * sticky toolbar 锚定到 .app-shell__content 滚动容器的 content-edge.top；
+ * 历史值 56px 会让 toolbar 在自身原位之外再向下偏移 56 px，与下方第一行卡片
+ * 产生视觉重叠。改成 0 让 sticky 起点与自然位置一致。
+ */
 .scenarios-view__toolbar {
   position: sticky;
-  top: 56px;
+  top: 0;
   z-index: var(--z-sticky);
   display: flex;
   align-items: flex-end;

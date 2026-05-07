@@ -344,9 +344,15 @@ const totalCaption = computed(() => {
   gap: var(--spacing-l);
 }
 
+/*
+ * sticky toolbar 锚定到 .app-shell__content 滚动容器的 content-edge.top（已位于 AppShell
+ * title-bar 之下并叠加 24 px 内容 padding），故 top 取 0 即"贴在内容区顶端"。
+ * 历史值 56px 会让 toolbar 相对 scrollport 再下移 56 px，与下方 NavList 第一项产生
+ * 视觉重叠，导致「全部源」按钮被遮挡。
+ */
 .sources-view__toolbar {
   position: sticky;
-  top: 56px;
+  top: 0;
   z-index: var(--z-sticky);
   display: flex;
   align-items: flex-end;
