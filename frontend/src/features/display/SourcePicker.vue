@@ -46,7 +46,6 @@ const filterTabs: FTabsItem<SourceCategory>[] = [
   { label: 'PPT', value: 'ppt' },
   { label: '视频', value: 'video' },
   { label: '图片', value: 'image' },
-  { label: '音频', value: 'audio' },
   { label: '网页', value: 'web' },
   { label: '直播', value: 'stream' },
 ];
@@ -76,7 +75,6 @@ const CATEGORY_LABEL: Record<SourceCategory, string> = {
   all: '全部',
   ppt: 'PPT',
   video: '视频',
-  audio: '音频',
   image: '图片',
   web: '网页',
   stream: '直播',
@@ -86,7 +84,6 @@ const CATEGORY_ICON: Record<SourceCategory, string> = {
   all: 'document_24_regular',
   ppt: 'document_24_regular',
   video: 'video_24_regular',
-  audio: 'music_note_2_24_regular',
   image: 'image_24_regular',
   web: 'globe_24_regular',
   stream: 'live_24_regular',
@@ -181,7 +178,7 @@ const totalLabel = computed(() => `共 ${filteredSources.value.length} 项`);
         <span>上传并打开</span>
       </summary>
       <div class="source-picker__upload-body">
-        <FField label="文件" required hint="支持 PPT / 视频 / 图片 / 音频">
+        <FField label="文件" required hint="支持 PPT / 视频 / 图片">
           <label class="source-picker__file">
             <input ref="fileInputRef" type="file" class="visually-hidden" :disabled="uploading"
               @change="onFileSelect" />

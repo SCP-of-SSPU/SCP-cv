@@ -82,10 +82,9 @@ const sourceOptionsByCategory = computed<FComboboxOption<number>[]>(() => {
     const cat = sourceStore.resolveCategory(source.source_type);
     const groupLabel = cat === 'ppt' ? 'PPT'
       : cat === 'video' ? '视频'
-      : cat === 'audio' ? '音频'
-      : cat === 'image' ? '图片'
-      : cat === 'web' ? '网页'
-      : cat === 'stream' ? '直播' : '其它';
+        : cat === 'image' ? '图片'
+          : cat === 'web' ? '网页'
+            : cat === 'stream' ? '直播' : '其它';
     if (!groups.has(groupLabel)) groups.set(groupLabel, []);
     groups.get(groupLabel)!.push(source);
   }
@@ -159,7 +158,8 @@ function showLoopToggle(window: ScenarioWindowDraft): boolean {
   const source = sourceStore.sources.find((item) => item.id === window.sourceId);
   if (!source) return false;
   const cat = sourceStore.resolveCategory(source.source_type);
-  return cat === 'video' || cat === 'audio';
+  // 旧 audio 源被映射为 video 分支，因此只判断 video 即可覆盖音/视频两种情况。
+  return cat === 'video';
 }
 
 function setBigScreenMode(value: ScenarioWindowMode): void {
@@ -217,15 +217,8 @@ function close(): void {
 </script>
 
 <template>
-  <FDrawer
-    :open="open"
-    :title="scenario ? '编辑预案' : '新建预案'"
-    description="名称必填；任意窗口选择「切换」时必须指定源。"
-    :primary-label="'保存预案'"
-    :hide-default-actions="true"
-    :width="520"
-    @update:open="(value) => emit('update:open', value)"
-  >
+  <FDrawer :open="open" :title="scenario ? '编辑预案' : '新建预案'" description="名称必填；任意窗口选择「切换」时必须指定源。" :primary-label="'保存预案'"
+    :hide-default-actions="true" :width="520" @update:open="(value) => emit('update:open', value)">
     <FCard padding="compact">
       <template #title>基础信息</template>
       <FField label="预案名称" required>
@@ -238,38 +231,19 @@ function close(): void {
         <FSegmented v-model="bigScreenSegmentValue" :options="screenSegmentOptions" full-width />
       </FField>
       <FField label="系统音量" hint="保持表示不修改系统音量；切换后按右侧值设定">
-        <FSegmented
-          v-model="draft.volumeState"
-          :options="volumeSegmentOptions"
-          full-width
-        />
-        <FSlider
-          v-if="draft.volumeState === 'set'"
-          v-model="draft.volumeLevel"
-          :min="0"
-          :max="100"
-          show-value
-          aria-label="系统音量值"
-        />
+        <FSegmented v-model="draft.volumeState" :options="volumeSegmentOptions" full-width />
+        <FSlider v-if="draft.volumeState === 'set'" v-model="draft.volumeLevel" :min="0" :max="100" show-value
+          aria-label="系统音量值" />
       </FField>
     </FCard>
 
     <FCard padding="compact">
       <template #title>窗口配置</template>
       <div class="scenario-edit__windows">
-        <FCard
-          v-for="window in visibleWindows"
-          :key="window.windowId"
-          padding="compact"
-          variant="subtle"
-        >
+        <FCard v-for="window in visibleWindows" :key="window.windowId" padding="compact" variant="subtle">
           <template #eyebrow>{{ windowLabel(window.windowId) }}</template>
           <template #title>窗口 {{ window.windowId }}</template>
-          <FSegmented
-            v-model="window.sourceState"
-            :options="sourceSegmentOptions"
-            full-width
-          />
+          <FSegmented v-model="window.sourceState" :options="sourceSegmentOptions" full-width />
           <p v-if="window.sourceState === 'unset'" class="scenario-edit__hint">
             切换到本预案时，该窗口保留当前内容。
           </p>
@@ -278,12 +252,7 @@ function close(): void {
           </p>
           <template v-else>
             <FField label="源选择" required>
-              <FCombobox
-                v-model="window.sourceId"
-                :options="sourceOptionsByCategory"
-                placeholder="选择源"
-                searchable
-              />
+              <FCombobox v-model="window.sourceId" :options="sourceOptionsByCategory" placeholder="选择源" searchable />
             </FField>
             <FSwitch v-model="window.autoplay" label="切换后自动播放" size="compact" />
             <FSwitch v-if="showLoopToggle(window)" v-model="window.resume" label="保留上次进度" size="compact" />

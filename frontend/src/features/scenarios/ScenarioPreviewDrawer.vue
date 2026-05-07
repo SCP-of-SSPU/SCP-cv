@@ -107,8 +107,6 @@ function targetIcon(target: ScenarioTargetItem): string {
       return 'document_24_regular';
     case 'video':
       return 'video_24_regular';
-    case 'audio':
-      return 'music_note_2_24_regular';
     case 'image':
       return 'image_24_regular';
     case 'web':
@@ -173,22 +171,11 @@ void currentBigScreenSnapshotMode; // 保留以备未来在预览中显示模式
 </script>
 
 <template>
-  <FDrawer
-    :open="open"
-    :title="scenario?.name ?? '预案预览'"
-    :description="meta"
-    :primary-label="'激活'"
-    :secondary-label="'关闭'"
-    :width="520"
-    :hide-default-actions="true"
-    @update:open="(value) => emit('update:open', value)"
-  >
+  <FDrawer :open="open" :title="scenario?.name ?? '预案预览'" :description="meta" :primary-label="'激活'"
+    :secondary-label="'关闭'" :width="520" :hide-default-actions="true"
+    @update:open="(value) => emit('update:open', value)">
     <div class="scenario-preview__matrix" :class="{ 'scenario-preview__matrix--single': isSingleScreenMode }">
-      <FCard
-        v-for="target in orderedTargets"
-        :key="target.window_id"
-        padding="compact"
-      >
+      <FCard v-for="target in orderedTargets" :key="target.window_id" padding="compact">
         <template #eyebrow>{{ windowLabel(target.window_id, isSingleScreenMode) }}</template>
         <template #title>
           <FTag :tone="targetTone(target)" :icon="targetIcon(target)">

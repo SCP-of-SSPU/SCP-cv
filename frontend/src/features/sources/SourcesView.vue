@@ -53,7 +53,6 @@ const CATEGORY_DEFS: CategoryDef[] = [
   { value: 'ppt', label: 'PPT 源', emptyTitle: '暂无 PPT 源', emptyHint: '上传 PPT 后，可在这里浏览、打开到窗口或加入预案。' },
   { value: 'video', label: '视频源', emptyTitle: '暂无视频源', emptyHint: '上传视频后，可在这里浏览、打开到窗口或加入预案。' },
   { value: 'image', label: '图片源', emptyTitle: '暂无图片源', emptyHint: '上传图片后，可在这里浏览、打开到窗口或加入预案。' },
-  { value: 'audio', label: '音频源', emptyTitle: '暂无音频源', emptyHint: '上传音频后，可在这里浏览、打开到窗口或加入预案。' },
   { value: 'web', label: '网页源', emptyTitle: '暂无网页源', emptyHint: '注册 URL 或 ip:port 网页后，可在这里浏览、打开到窗口或加入预案。' },
   { value: 'stream', label: '直播源', emptyTitle: '暂无直播源', emptyHint: '直播源由后端推流注入，离线超过 1 小时会自动清理。' },
 ];
@@ -149,8 +148,6 @@ function categoryToneOf(source: MediaSourceItem): TagTone {
       return 'info';
     case 'video':
       return 'success';
-    case 'audio':
-      return 'subtle';
     case 'image':
       return 'subtle';
     case 'web':
@@ -169,8 +166,6 @@ function categoryLabel(source: MediaSourceItem): string {
       return 'PPT';
     case 'video':
       return '视频';
-    case 'audio':
-      return '音频';
     case 'image':
       return '图片';
     case 'web':
@@ -189,8 +184,6 @@ function categoryIcon(source: MediaSourceItem): string {
       return 'document_24_regular';
     case 'video':
       return 'video_24_regular';
-    case 'audio':
-      return 'music_note_2_24_regular';
     case 'image':
       return 'image_24_regular';
     case 'web':
@@ -222,24 +215,14 @@ const totalCaption = computed(() => {
         <p class="sources-view__caption">{{ totalCaption }}</p>
       </div>
       <div class="sources-view__actions">
-        <FInput
-          :model-value="sourceStore.searchKeyword"
-          placeholder="搜索源名称或 URL"
-          aria-label="搜索源名称或 URL"
-          @update:modelValue="sourceStore.setSearchKeyword"
-        >
+        <FInput :model-value="sourceStore.searchKeyword" placeholder="搜索源名称或 URL" aria-label="搜索源名称或 URL"
+          @update:modelValue="sourceStore.setSearchKeyword">
           <template #prefix>
             <FIcon name="search_20_regular" />
           </template>
         </FInput>
-        <FButton
-          appearance="secondary"
-          icon-start="arrow_clockwise_20_regular"
-          icon-only
-          aria-label="刷新源列表"
-          :loading="isLoading"
-          @click="refresh"
-        />
+        <FButton appearance="secondary" icon-start="arrow_clockwise_20_regular" icon-only aria-label="刷新源列表"
+          :loading="isLoading" @click="refresh" />
         <FButton appearance="primary" icon-start="add_24_regular" @click="drawerOpen = true">
           添加源
         </FButton>
@@ -247,26 +230,15 @@ const totalCaption = computed(() => {
     </header>
 
     <div v-if="isMobile" class="sources-view__mobile-pills">
-      <FTabs
-        :model-value="sourceStore.category"
-        :items="navItems"
-        appearance="pill"
-        full-width
-        aria-label="源类型"
-        @update:modelValue="(value) => setCategory(value as SourceCategory)"
-      />
+      <FTabs :model-value="sourceStore.category" :items="navItems" appearance="pill" full-width aria-label="源类型"
+        @update:modelValue="(value) => setCategory(value as SourceCategory)" />
     </div>
 
     <div class="sources-view__layout" :class="{ 'sources-view__layout--mobile': isMobile }">
       <aside v-if="!isMobile" class="sources-view__nav" aria-label="源类型筛选">
-        <button
-          v-for="def in CATEGORY_DEFS"
-          :key="def.value"
-          type="button"
-          class="sources-view__nav-item"
+        <button v-for="def in CATEGORY_DEFS" :key="def.value" type="button" class="sources-view__nav-item"
           :class="{ 'sources-view__nav-item--active': sourceStore.category === def.value }"
-          @click="setCategory(def.value)"
-        >
+          @click="setCategory(def.value)">
           <span class="sources-view__nav-label">{{ def.label }}</span>
           <span class="sources-view__nav-badge">{{ sourceStore.countByCategory[def.value] }}</span>
         </button>
@@ -286,11 +258,8 @@ const totalCaption = computed(() => {
           </template>
 
           <template v-else-if="sourceStore.filtered.length === 0">
-            <FEmpty
-              :title="activeCategoryDef.emptyTitle"
-              :description="activeCategoryDef.emptyHint"
-              icon="library_24_regular"
-            >
+            <FEmpty :title="activeCategoryDef.emptyTitle" :description="activeCategoryDef.emptyHint"
+              icon="library_24_regular">
               <template #actions>
                 <FButton appearance="primary" icon-start="add_24_regular" @click="drawerOpen = true">
                   添加源
@@ -323,11 +292,7 @@ const totalCaption = computed(() => {
                   </td>
                   <td>
                     <FTag :tone="categoryToneOf(source)">{{ categoryLabel(source) }}</FTag>
-                    <FTag
-                      v-if="!source.is_available"
-                      tone="error"
-                      class="sources-view__chip"
-                    >
+                    <FTag v-if="!source.is_available" tone="error" class="sources-view__chip">
                       离线
                     </FTag>
                   </td>
@@ -343,11 +308,7 @@ const totalCaption = computed(() => {
 
           <template v-else>
             <div class="sources-view__cards">
-              <FCard
-                v-for="source in sourceStore.filtered"
-                :key="source.id"
-                padding="compact"
-              >
+              <FCard v-for="source in sourceStore.filtered" :key="source.id" padding="compact">
                 <template #title>
                   <div class="sources-view__card-title">
                     <FIcon class="sources-view__row-icon" :name="categoryIcon(source)" />

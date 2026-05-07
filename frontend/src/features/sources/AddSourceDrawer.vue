@@ -139,7 +139,7 @@ async function addWebSource(): Promise<void> {
     <FTabs v-model="activeTab" :items="tabs" appearance="line" aria-label="添加源类型" />
 
     <template v-if="activeTab === 'file'">
-      <FField label="文件" required hint="支持 PPT / 视频 / 图片 / 音频；单文件 ≤ 2 GB">
+      <FField label="文件" required hint="支持 PPT / 视频 / 图片；单文件 ≤ 2 GB">
         <label class="add-source__file">
           <input ref="fileInputEl" type="file" class="visually-hidden" :disabled="uploading" @change="onFileSelect" />
           <span class="add-source__file-info">
