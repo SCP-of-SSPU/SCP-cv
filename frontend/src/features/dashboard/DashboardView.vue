@@ -5,7 +5,7 @@
  *  - 不放预案调用、上传、窗口状态等明细能力；
  *  - 关机统一走 useDialog 二次确认。
  */
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
 import {
   FCard,
@@ -13,8 +13,8 @@ import {
   FSegmented,
   FSlider,
   FSwitch,
-  FTag,
   FMessageBar,
+  FSpinner,
 } from '@/design-system';
 import { useDialog } from '@/composables/useDialog';
 import { useThrottledSlider } from '@/composables/useThrottledSlider';
@@ -27,26 +27,46 @@ const device = useDeviceStore();
 const toast = useToast();
 const dialog = useDialog();
 
+/*
+ * 大屏模式切换：后端会同步关闭/打开窗口、刷新会话快照，整体耗时 1–3 秒；
+ * 历史实现仅 await + 成功 toast，过程没有任何视觉反馈，导致操作员误以为点击未生效
+ * 进而重复点击。新实现：
+ *   - 显式 pendingMode：被锁定的目标值，期间 FSegmented 锁定为 disabled；
+ *   - inline Loading + 提示文字「切换中…」；
+ *   - 同一时刻只允许一笔切换；并发点击被忽略，避免多笔互相覆盖。
+ */
+const pendingMode = ref<'single' | 'double' | null>(null);
+const isModeSwitching = computed(() => pendingMode.value !== null);
+
 const screenMode = computed({
-  get: (): 'single' | 'double' => runtime.runtime?.big_screen_mode ?? 'single',
-  set: async (mode: 'single' | 'double'): Promise<void> => {
-    try {
-      await runtime.setBigScreenMode(mode);
-      toast.push({
-        level: 'success',
-        message: mode === 'double' ? '已切换为双屏' : '已切换为单屏',
-        action: {
-          label: '撤销',
-          onTrigger: async () => {
-            await runtime.setBigScreenMode(mode === 'double' ? 'single' : 'double');
-          },
-        },
-      });
-    } catch (error) {
-      toast.error('大屏模式切换失败', error instanceof Error ? error.message : '请稍后重试');
-    }
+  get: (): 'single' | 'double' => pendingMode.value ?? (runtime.runtime?.big_screen_mode ?? 'single'),
+  set: (mode: 'single' | 'double'): void => {
+    if (isModeSwitching.value) return;
+    void switchScreenMode(mode);
   },
 });
+
+async function switchScreenMode(mode: 'single' | 'double'): Promise<void> {
+  if (mode === (runtime.runtime?.big_screen_mode ?? 'single')) return;
+  pendingMode.value = mode;
+  try {
+    await runtime.setBigScreenMode(mode);
+    toast.push({
+      level: 'success',
+      message: mode === 'double' ? '已切换为双屏' : '已切换为单屏',
+      action: {
+        label: '撤销',
+        onTrigger: async () => {
+          await runtime.setBigScreenMode(mode === 'double' ? 'single' : 'double');
+        },
+      },
+    });
+  } catch (error) {
+    toast.error('大屏模式切换失败', error instanceof Error ? error.message : '请稍后重试');
+  } finally {
+    pendingMode.value = null;
+  }
+}
 
 // 系统音量节流：拖动期间 120 ms 节流提交、抬手时一次最终上报；
 // 后端 PATCH 响应在拖动期间不会覆盖本地 UI 值，避免回弹。
@@ -71,21 +91,6 @@ const muteToggle = computed({
     }
   },
 });
-
-const volumeBackendLabel = computed(() => {
-  switch (runtime.systemVolume.backend) {
-    case 'windows_core_audio':
-      return '后端：windows_core_audio';
-    case 'runtime_state':
-      return '后端：runtime_state（系统接口不可用，仅本地保留）';
-    default:
-      return `后端：${runtime.systemVolume.backend}`;
-  }
-});
-
-const volumeBackendTone = computed<'subtle' | 'warning'>(
-  () => (runtime.systemVolume.backend === 'windows_core_audio' ? 'subtle' : 'warning'),
-);
 
 const heroSubtitle = computed(() => {
   const sse = runtime.sseStatus === 'connected'
@@ -127,7 +132,8 @@ async function powerOffSplice(): Promise<void> {
 async function toggleTv(deviceType: 'tv_left' | 'tv_right', label: string): Promise<void> {
   try {
     await device.toggle(deviceType);
-    toast.success(`${label} 切换指令已发送`, '该指令仅发送切换，不读取真实开关状态');
+    // 设备无回读，按钮按"切换电源 toggle"语义命名；此处也保持「开/关机状态」用语统一。
+    toast.success(`${label} 已发送切换开/关机状态指令`, '该指令仅发送切换，不读取真实开关状态');
   } catch (error) {
     toast.error(`${label} 切换失败`, error instanceof Error ? error.message : '请稍后重试');
   }
@@ -159,8 +165,11 @@ const hasDeviceError = computed(() =>
         <FSegmented v-model="screenMode" :options="[
           { label: '单屏', value: 'single' },
           { label: '双屏', value: 'double' },
-        ]" full-width aria--label="大屏模式选择" />
-        <p class="dashboard__hint">
+        ]" :disabled="isModeSwitching" full-width aria-label="大屏模式选择" />
+        <p class="dashboard__hint dashboard__hint--switching" v-if="isModeSwitching">
+          <FSpinner :size="14" /> 正在切换大屏模式，请稍候…
+        </p>
+        <p class="dashboard__hint" v-else>
           单屏模式下窗口 2 自动静音；双屏模式下「大屏左 / 大屏右」窗口独立可控。
         </p>
       </FCard>
@@ -171,7 +180,6 @@ const hasDeviceError = computed(() =>
         <FSlider :model-value="volume.value.value" :min="0" :max="100" aria-label="系统音量" show-value
           @update:modelValue="volume.handleInput" @change="volume.handleChange" />
         <FSwitch v-model="muteToggle" label="启用系统静音" />
-        <FTag :tone="volumeBackendTone">{{ volumeBackendLabel }}</FTag>
       </FCard>
 
       <FCard class="dashboard__card">
@@ -189,13 +197,13 @@ const hasDeviceError = computed(() =>
         <div class="dashboard__power-row">
           <span class="dashboard__power-label">电视左</span>
           <FButton appearance="secondary" icon-start="arrow_swap_24_regular" @click="toggleTv('tv_left', '电视左')">
-            切换
+            切换开/关机状态
           </FButton>
         </div>
         <div class="dashboard__power-row">
           <span class="dashboard__power-label">电视右</span>
           <FButton appearance="secondary" icon-start="arrow_swap_24_regular" @click="toggleTv('tv_right', '电视右')">
-            切换
+            切换开/关机状态
           </FButton>
         </div>
       </FCard>
@@ -260,6 +268,14 @@ const hasDeviceError = computed(() =>
   margin: 0;
   color: var(--color-text-tertiary);
   font-size: var(--type-caption1-size);
+}
+
+.dashboard__hint--switching {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  color: var(--color-text-brand);
+  font-weight: 600;
 }
 
 .dashboard__power-row {

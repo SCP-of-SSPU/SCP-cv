@@ -96,7 +96,9 @@ function onJump(): void {
     toast.warning('页码无效', '请输入大于 0 的整数');
     return;
   }
-  void call(() => sessionStore.navigate(props.session.window_id, 'jump', target), '跳页失败');
+  // 后端 PlaybackCommand 中跳页指令命名为 GOTO；早先误传 'jump' 会被
+  // services.playback.navigate_content 校验为「无效的导航动作」，跳转无效。
+  void call(() => sessionStore.navigate(props.session.window_id, 'goto', target), '跳页失败');
 }
 
 function onLoopToggle(value: boolean): void {
@@ -153,8 +155,10 @@ watch(
   { immediate: true },
 );
 
+// 后端 PptResource.page_index 与 session.current_slide 都是 1-based，
+// 这里直接对齐即可；旧实现 `- 1` 会取到前一页，使「当前页媒体」比实际播放慢一页。
 const currentResource = computed(() =>
-  pptResources.value.find((res) => res.page_index === props.session.current_slide - 1),
+  pptResources.value.find((res) => res.page_index === props.session.current_slide),
 );
 
 async function pptMediaAction(mediaId: string, mediaIndex: number, action: string): Promise<void> {
@@ -173,6 +177,30 @@ const pptProgressLabel = computed(() => {
 const seekValue = computed(() => Math.min(props.session.duration_ms, Math.max(0, props.session.position_ms)));
 
 const isPlaying = computed(() => props.session.playback_state === 'playing');
+
+/*
+ * 直播流首次接入时 libVLC 需要数百毫秒到 1-2 秒完成握手，过程中状态会经历
+ *   idle → loading → (短暂 error 视网络抖动) → playing
+ * 旧实现一旦看到 error 立刻渲染红色 MessageBar，操作员误以为切换失败重复点击。
+ * 这里给直播流单独定制错误文案，并提供「再次打开源」一键重试入口。
+ */
+async function reopenCurrentSource(): Promise<void> {
+  if (!props.session.source_id) return;
+  try {
+    await sessionStore.openSource(props.session.window_id, props.session.source_id, true);
+    toast.info('已重新打开当前源', '请等待播放器握手完成');
+  } catch (error) {
+    toast.error('重新打开源失败', error instanceof Error ? error.message : '请稍后重试');
+  }
+}
+
+const errorBarTitle = computed(() => (category.value === 'stream' ? '直播流尚未就绪' : '播放器异常'));
+const errorBarDescription = computed(() => {
+  if (category.value === 'stream') {
+    return '请确认推流端（OBS / 编码器）已经向 MediaMTX 推流；首帧握手 1–2 秒，期间状态可能短暂为「异常」。如持续 5 秒以上未恢复，可点击「再次打开源」或在「应急 → 重置全部窗口」恢复。';
+  }
+  return '请检查源是否可用或重新打开源；如反复失败，可在「应急 → 重置全部窗口」恢复。';
+});
 </script>
 
 <template>
@@ -197,8 +225,13 @@ const isPlaying = computed(() => props.session.playback_state === 'playing');
       </RouterLink>
     </header>
 
-    <FMessageBar v-if="session.playback_state === 'error'" tone="error" title="播放器异常">
-      请检查源是否可用或重新打开源；如反复失败，可在「应急 → 重置全部窗口」恢复。
+    <FMessageBar v-if="session.playback_state === 'error'" tone="error" :title="errorBarTitle">
+      {{ errorBarDescription }}
+      <template #actions>
+        <FButton appearance="secondary" size="compact" :disabled="!session.source_id" @click="reopenCurrentSource">
+          再次打开源
+        </FButton>
+      </template>
     </FMessageBar>
 
     <!-- PPT 控制 -->
