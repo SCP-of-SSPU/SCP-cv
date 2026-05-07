@@ -21,8 +21,8 @@ const moreOpen = ref(false);
 const titleHint = computed(() => {
   const sse = runtime.sseStatus === 'connected' ? '实时已连接'
     : runtime.sseStatus === 'reconnecting' ? '断开重连中'
-    : runtime.sseStatus === 'connecting' ? '建立连接…'
-    : '连接已关闭';
+      : runtime.sseStatus === 'connecting' ? '建立连接…'
+        : '连接已关闭';
   return `${runtime.bigScreenLabel} · ${sse}`;
 });
 
@@ -50,7 +50,8 @@ function onTabClick(path: string, event: MouseEvent): void {
         <span class="mobile-shell__brand-title">SCP-cv</span>
       </RouterLink>
       <div class="mobile-shell__top-meta">
-        <FTag :tone="runtime.sseStatus === 'connected' ? 'success' : runtime.sseStatus === 'reconnecting' ? 'warning' : 'subtle'">
+        <FTag
+          :tone="runtime.sseStatus === 'connected' ? 'success' : runtime.sseStatus === 'reconnecting' ? 'warning' : 'subtle'">
           {{ runtime.bigScreenLabel }}
         </FTag>
         <EmergencyMenu />
@@ -63,14 +64,9 @@ function onTabClick(path: string, event: MouseEvent): void {
     </main>
 
     <nav class="mobile-shell__tab-bar" :aria-label="'主导航'">
-      <RouterLink
-        v-for="item in MOBILE_TAB_BAR"
-        :key="item.path"
-        :to="item.path"
-        class="mobile-shell__tab"
+      <RouterLink v-for="item in MOBILE_TAB_BAR" :key="item.path" :to="item.path" class="mobile-shell__tab"
         :class="{ 'mobile-shell__tab--active': isPathActive(item.path) }"
-        @click="(event) => onTabClick(item.path, event)"
-      >
+        @click="(event) => onTabClick(item.path, event)">
         <FIcon class="mobile-shell__tab-icon" :name="(isPathActive(item.path) && item.iconSelected) || item.icon" />
         <span class="mobile-shell__tab-label">{{ item.label }}</span>
       </RouterLink>
@@ -145,20 +141,36 @@ function onTabClick(path: string, event: MouseEvent): void {
 
 .mobile-shell__content {
   flex: 1 1 auto;
-  padding: var(--spacing-l) var(--spacing-l) calc(72px + env(safe-area-inset-bottom));
+  /* 底部留白覆盖 fixed TabBar 高度（≥ 64 px）+ 设备安全区，避免内容被遮挡。 */
+  padding: var(--spacing-l) var(--spacing-l) calc(80px + env(safe-area-inset-bottom));
   min-width: 0;
 }
 
+/*
+ * 移动端底部 TabBar 改为 fixed：
+ *   - 摆脱父级 overflow / sticky 容器约束，避免在 iOS Safari 动态地址栏、虚拟键盘
+ *     或 Drawer 锁 body 滚动时底栏被裁掉；
+ *   - 永远悬浮在视口底部，配合内容 padding-bottom 保持可点击区域；
+ *   - 适配刘海 / Home Bar 安全区，并叠加轻微毛玻璃保持 Fluent acrylic 质感。
+ */
 .mobile-shell__tab-bar {
-  position: sticky;
-  bottom: 0;
+  position: fixed;
+  inset: auto 0 0 0;
   z-index: var(--z-sticky);
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: var(--spacing-xs);
   padding: var(--spacing-xs) var(--spacing-xs) calc(var(--spacing-xs) + env(safe-area-inset-bottom));
-  background: var(--color-background-card);
+  background: color-mix(in srgb, var(--color-background-card) 92%, transparent);
   border-top: 1px solid var(--color-border-subtle);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+@supports not (backdrop-filter: blur(12px)) {
+  .mobile-shell__tab-bar {
+    background: var(--color-background-card);
+  }
 }
 
 .mobile-shell__tab {
