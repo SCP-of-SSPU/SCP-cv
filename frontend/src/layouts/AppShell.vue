@@ -1,9 +1,10 @@
 <script setup lang="ts">
 /**
  * 桌面端 Application Shell：TitleBar + NavPane + Page Content。
- * 设计稿 §3.1：
+ * 设计稿 §3.1（已调整）：
  *   - TitleBar 32-56 px 高，承载品牌、SSE 状态、应急；
- *   - NavPane ≥ 1280 px 全展 240 px；1024-1280 px Compact（仅图标）；
+ *   - NavPane 在所有桌面断点（md / lg / xl / 2xl）始终全展显示文字；
+ *     旧的 1024–1280 px Compact 仅图标模式已下线，便于操作员快速识别功能项；
  *   - 内容区 24 px 边距；超宽屏时主内容居中。
  */
 import { computed } from 'vue';
@@ -15,17 +16,12 @@ import {
   DESKTOP_SECONDARY_NAV,
   resolveDisplayLabel,
 } from './navItems';
-import { useBreakpoint } from '@/composables/useBreakpoint';
 import { useRuntimeStore } from '@/stores/runtime';
 import { FIcon, FTag } from '@/design-system';
 import type { NavItemDef } from './types';
 
 const runtime = useRuntimeStore();
 const route = useRoute();
-const { current } = useBreakpoint();
-
-/** lg 断点上 NavPane 收缩为图标列；xl/2xl 全展。 */
-const isCompactNav = computed(() => current.value === 'lg' || current.value === 'md');
 
 const visiblePrimary = computed<NavItemDef[]>(() =>
   DESKTOP_PRIMARY_NAV.filter((item) => !(item.doubleScreenOnly && !runtime.isDoubleScreen)).map((item) => ({
@@ -70,7 +66,7 @@ function isPathActive(path: string): boolean {
 </script>
 
 <template>
-  <div class="app-shell" :class="{ 'app-shell--compact': isCompactNav }">
+  <div class="app-shell">
     <header class="app-shell__title-bar" role="banner">
       <div class="app-shell__brand">
         <span class="app-shell__brand-mark" aria-hidden="true">S</span>
@@ -95,34 +91,20 @@ function isPathActive(path: string): boolean {
       <nav class="app-shell__nav" :aria-label="'主导航'">
         <ul class="app-shell__nav-list">
           <li v-for="item in visiblePrimary" :key="item.path">
-            <RouterLink
-              :to="item.path"
-              class="app-shell__nav-item"
-              :class="{ 'app-shell__nav-item--active': isPathActive(item.path) }"
-              :title="isCompactNav ? item.label : undefined"
-            >
-              <FIcon
-                class="app-shell__nav-icon"
-                :name="(isPathActive(item.path) && item.iconSelected) || item.icon"
-              />
-              <span v-if="!isCompactNav" class="app-shell__nav-label">{{ item.label }}</span>
+            <RouterLink :to="item.path" class="app-shell__nav-item"
+              :class="{ 'app-shell__nav-item--active': isPathActive(item.path) }">
+              <FIcon class="app-shell__nav-icon" :name="(isPathActive(item.path) && item.iconSelected) || item.icon" />
+              <span class="app-shell__nav-label">{{ item.label }}</span>
             </RouterLink>
           </li>
         </ul>
         <div class="app-shell__nav-divider" aria-hidden="true" />
         <ul class="app-shell__nav-list">
           <li v-for="item in DESKTOP_SECONDARY_NAV" :key="item.path">
-            <RouterLink
-              :to="item.path"
-              class="app-shell__nav-item"
-              :class="{ 'app-shell__nav-item--active': isPathActive(item.path) }"
-              :title="isCompactNav ? item.label : undefined"
-            >
-              <FIcon
-                class="app-shell__nav-icon"
-                :name="(isPathActive(item.path) && item.iconSelected) || item.icon"
-              />
-              <span v-if="!isCompactNav" class="app-shell__nav-label">{{ item.label }}</span>
+            <RouterLink :to="item.path" class="app-shell__nav-item"
+              :class="{ 'app-shell__nav-item--active': isPathActive(item.path) }">
+              <FIcon class="app-shell__nav-icon" :name="(isPathActive(item.path) && item.iconSelected) || item.icon" />
+              <span class="app-shell__nav-label">{{ item.label }}</span>
             </RouterLink>
           </li>
         </ul>
@@ -235,12 +217,6 @@ function isPathActive(path: string): boolean {
   overflow-y: auto;
 }
 
-.app-shell--compact .app-shell__nav {
-  width: 64px;
-  padding: var(--spacing-l) var(--spacing-xs);
-  align-items: stretch;
-}
-
 .app-shell__nav-list {
   list-style: none;
   margin: 0;
@@ -268,11 +244,6 @@ function isPathActive(path: string): boolean {
     color var(--motion-duration-fast) var(--motion-curve-ease);
 }
 
-.app-shell--compact .app-shell__nav-item {
-  justify-content: center;
-  padding: var(--spacing-s);
-}
-
 .app-shell__nav-item:hover {
   background: var(--color-background-subtle);
   color: var(--color-text-primary);
@@ -291,10 +262,6 @@ function isPathActive(path: string): boolean {
   border-radius: var(--radius-circular);
   background: var(--color-background-brand);
   margin-right: -8px;
-}
-
-.app-shell--compact .app-shell__nav-item--active::before {
-  display: none;
 }
 
 .app-shell__nav-icon {
