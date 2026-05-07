@@ -307,6 +307,7 @@ class PlayerController(PlayerCommandHandlersMixin, QObject):
                     continue
                 state_signature = (
                     adapter_state.playback_state,
+                    adapter_state.error_message,
                     adapter_state.current_slide,
                     adapter_state.total_slides,
                     adapter_state.position_ms,
@@ -318,6 +319,7 @@ class PlayerController(PlayerCommandHandlersMixin, QObject):
                 update_playback_progress(
                     window_id=window_id,
                     playback_state=adapter_state.playback_state,
+                    error_message=adapter_state.error_message,
                     current_slide=adapter_state.current_slide,
                     total_slides=adapter_state.total_slides,
                     position_ms=adapter_state.position_ms,

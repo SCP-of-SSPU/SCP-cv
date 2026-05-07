@@ -86,6 +86,7 @@ def get_session_snapshot(window_id: int) -> dict[str, object]:
         "source_uri": source_uri,
         "playback_state": session.playback_state,
         "playback_state_label": session.get_playback_state_display(),
+        "error_message": session.error_message,
         "display_mode": session.display_mode,
         "display_mode_label": session.get_display_mode_display(),
         "target_display_label": session.target_display_label or "未选择",

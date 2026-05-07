@@ -1096,6 +1096,7 @@ components:
         - source_uri
         - playback_state
         - playback_state_label
+        - error_message
         - display_mode
         - display_mode_label
         - target_display_label
@@ -1129,6 +1130,8 @@ components:
         playback_state:
           $ref: '#/components/schemas/PlaybackState'
         playback_state_label:
+          type: string
+        error_message:
           type: string
         display_mode:
           $ref: '#/components/schemas/DisplayMode'

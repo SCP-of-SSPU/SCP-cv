@@ -2,6 +2,12 @@
 
 ## 2026-05-07
 
+### 修复播放器错误详情被前端泛化
+
+- 后端：`PlaybackSession` 新增 `error_message`，播放器适配器上报 `error` 时同步保存具体错误，状态恢复或重置窗口时自动清空。
+- API：`/api/sessions/` 与播放状态 SSE 快照新增 `error_message` 字段。
+- 前端：`PlaybackControl` 错误条优先展示后端错误详情；只有没有具体详情时才回退到「直播流尚未就绪」等通用引导。
+
 ### 修复直播错误提示过早显示与本机拉流默认地址
 
 - 前端：`PlaybackControl` 改为通过 `usePlaybackErrorGate` 延迟确认直播源 `error` 状态；直播错误持续 5 秒后才显示「直播流尚未就绪」，首帧握手和 SSE 抖动期间保持页面安静，非直播源错误仍立即展示。

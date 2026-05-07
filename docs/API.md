@@ -87,6 +87,7 @@ PPT 资源对象字段：`id`、`source_id`、`page_index`、`slide_image`、`ne
 | `source_uri` | string | 当前源地址 |
 | `playback_state` | string | `idle` / `loading` / `playing` / `paused` / `stopped` / `error` |
 | `playback_state_label` | string | 播放状态显示文本 |
+| `error_message` | string | 播放器适配器返回的错误详情；无错误时为空字符串 |
 | `display_mode` | string | `single` / `left_right_splice` |
 | `target_display_label` | string | 目标显示器 |
 | `is_spliced` | bool | 是否处于拼接模式 |

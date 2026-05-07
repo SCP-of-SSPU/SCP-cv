@@ -45,6 +45,7 @@ export interface SessionSnapshot {
   source_uri: string;
   playback_state: string;
   playback_state_label: string;
+  error_message: string;
   display_mode: string;
   display_mode_label: string;
   target_display_label: string;

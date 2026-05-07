@@ -85,12 +85,15 @@ def test_playback_control_api_reports_missing_source() -> None:
 def test_sessions_api_returns_four_windows() -> None:
     """GET /api/sessions/ 应返回 1-4 号窗口快照。"""
     client = Client()
-    get_or_create_session(1)
+    session = get_or_create_session(1)
+    session.error_message = "播放器无法连接直播源"
+    session.save(update_fields=["error_message"])
 
     response = client.get("/api/sessions/")
 
     assert response.status_code == 200
     assert [item["window_id"] for item in response.json()["sessions"]] == [1, 2, 3, 4]
+    assert response.json()["sessions"][0]["error_message"] == "播放器无法连接直播源"
 
 
 @pytest.mark.django_db

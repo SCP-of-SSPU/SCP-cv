@@ -26,7 +26,7 @@ export function usePlaybackErrorGate(options: PlaybackErrorGateOptions): {
 
   const currentErrorKey = computed(() => {
     const session = options.session();
-    return `${session.window_id}::${session.source_id ?? 0}::${session.source_type}::${session.playback_state}`;
+    return `${session.window_id}::${session.source_id ?? 0}::${session.source_type}::${session.playback_state}::${session.error_message || ''}`;
   });
 
   function clearConfirmTimer(): void {

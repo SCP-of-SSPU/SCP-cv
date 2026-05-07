@@ -120,6 +120,7 @@ class PlayerCommandHandlersMixin:
         if session is not None:
             session.media_source = None
             session.playback_state = PlaybackState.IDLE
+            session.error_message = ""
             session.current_slide = 0
             session.total_slides = 0
             session.position_ms = 0
@@ -250,7 +251,8 @@ class PlayerCommandHandlersMixin:
         session = PlaybackSession.objects.filter(window_id=window_id).first()
         if session is not None:
             session.playback_state = playback_state
-            session.save(update_fields=["playback_state", "last_updated_at"])
+            session.error_message = ""
+            session.save(update_fields=["playback_state", "error_message", "last_updated_at"])
 
     def _update_session_error(self, window_id: int, error_message: str) -> None:
         """
@@ -263,4 +265,5 @@ class PlayerCommandHandlersMixin:
         session = PlaybackSession.objects.filter(window_id=window_id).first()
         if session is not None:
             session.playback_state = "error"
-            session.save(update_fields=["playback_state", "last_updated_at"])
+            session.error_message = error_message
+            session.save(update_fields=["playback_state", "error_message", "last_updated_at"])

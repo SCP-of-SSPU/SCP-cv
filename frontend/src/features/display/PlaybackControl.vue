@@ -180,10 +180,7 @@ const seekValue = computed(() => Math.min(props.session.duration_ms, Math.max(0,
 const isPlaying = computed(() => props.session.playback_state === 'playing');
 
 /*
- * 直播流首次接入时 libVLC 需要数百毫秒到 1-2 秒完成握手，过程中状态会经历
- *   idle → loading → (短暂 error 视网络抖动) → playing
- * 旧实现一旦看到 error 立刻渲染红色 MessageBar，操作员误以为切换失败重复点击。
- * 这里给直播流单独定制错误文案，并提供「再次打开源」一键重试入口。
+ * 直播首帧握手期间可能短暂 error；错误条由 usePlaybackErrorGate 延迟确认。
  */
 async function reopenCurrentSource(): Promise<void> {
   if (!props.session.source_id) return;
@@ -200,8 +197,13 @@ const { showErrorBar, dismissErrorBar } = usePlaybackErrorGate({
   category: () => category.value,
 });
 
-const errorBarTitle = computed(() => (category.value === 'stream' ? '直播流尚未就绪' : '播放器异常'));
+const adapterErrorMessage = computed(() => (props.session.error_message || '').trim());
+const errorBarTitle = computed(() => {
+  if (!adapterErrorMessage.value && category.value === 'stream') return '直播流尚未就绪';
+  return category.value === 'stream' ? '直播播放异常' : '播放器异常';
+});
 const errorBarDescription = computed(() => {
+  if (adapterErrorMessage.value) return adapterErrorMessage.value;
   if (category.value === 'stream') {
     return '请确认推流端（OBS / 编码器）已经向 MediaMTX 推流；首帧握手 1–2 秒，期间状态可能短暂为「异常」。如持续 5 秒以上未恢复，可点击「再次打开源」或在「应急 → 重置全部窗口」恢复。';
   }

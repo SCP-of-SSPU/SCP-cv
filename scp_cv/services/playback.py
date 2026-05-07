@@ -323,6 +323,7 @@ def close_source(window_id: int) -> PlaybackSession:
         session.command_args = cleanup_args
         # 同步立即重置可视字段，让前端 SSE 这一帧就拿到 IDLE，不再卡在过期 error。
         session.playback_state = PlaybackState.IDLE
+        session.error_message = ""
         session.current_slide = 0
         session.total_slides = 0
         session.position_ms = 0
@@ -363,6 +364,7 @@ def clear_pending_command(window_id: int) -> PlaybackSession:
 def update_playback_progress(
     window_id: int,
     playback_state: Optional[str] = None,
+    error_message: Optional[str] = None,
     current_slide: Optional[int] = None,
     total_slides: Optional[int] = None,
     position_ms: Optional[int] = None,
@@ -372,6 +374,7 @@ def update_playback_progress(
     播放器进程上报指定窗口的播放进度（通过 DB 写入）。
     :param window_id: 窗口编号（1-4）
     :param playback_state: 播放状态
+    :param error_message: 播放器适配器返回的具体错误说明
     :param current_slide: 当前页码（PPT）
     :param total_slides: 总页数（PPT）
     :param position_ms: 当前位置毫秒（视频）
@@ -381,6 +384,10 @@ def update_playback_progress(
     session = get_or_create_session(window_id)
     if playback_state is not None:
         session.playback_state = playback_state
+        if playback_state == PlaybackState.ERROR:
+            session.error_message = error_message or ""
+        else:
+            session.error_message = ""
     if current_slide is not None:
         session.current_slide = current_slide
     if total_slides is not None:
@@ -456,6 +463,7 @@ def _reset_playback_fields(session: PlaybackSession) -> None:
     """
     session.media_source = None
     session.playback_state = PlaybackState.IDLE
+    session.error_message = ""
     session.current_slide = 0
     session.total_slides = 0
     session.position_ms = 0

@@ -46,6 +46,11 @@ class PlaybackSession(models.Model):
         default=PlaybackState.IDLE,
         verbose_name="播放状态",
     )
+    error_message = models.TextField(
+        blank=True,
+        default="",
+        verbose_name="播放错误说明",
+    )
 
     # ── 显示配置（由启动器 GUI 写入） ──
     display_mode = models.CharField(

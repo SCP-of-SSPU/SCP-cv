@@ -16,7 +16,7 @@ import pytest
 from scp_cv.apps.playback.models import MediaSource, PlaybackState
 from scp_cv.player.adapters.base import AdapterState
 from scp_cv.player.controller import PlayerController
-from scp_cv.services.playback import open_source
+from scp_cv.services.playback import get_session_snapshot, open_source
 
 
 class _StateAdapter:
@@ -107,3 +107,25 @@ def test_report_skips_stale_adapter_after_source_change(
     session = media_source_video.playback_sessions.get(window_id=1)
     assert session.playback_state == PlaybackState.LOADING
     assert adapter.read_count == 0
+
+
+@pytest.mark.django_db
+def test_report_persists_adapter_error_message(media_source_video: MediaSource) -> None:
+    """适配器错误详情应进入会话快照，避免前端只能显示泛化提示。"""
+    open_source(1, media_source_video.pk)
+
+    controller = PlayerController()
+    adapter = _StateAdapter(AdapterState(
+        playback_state=PlaybackState.ERROR,
+        error_message="libVLC 播放 SRT 流失败",
+    ))
+    controller._adapters[1] = adapter
+    controller._adapter_source_ids[1] = media_source_video.pk
+
+    controller._report_all_adapter_states()
+
+    session = media_source_video.playback_sessions.get(window_id=1)
+    snapshot = get_session_snapshot(1)
+    assert session.playback_state == PlaybackState.ERROR
+    assert session.error_message == "libVLC 播放 SRT 流失败"
+    assert snapshot["error_message"] == "libVLC 播放 SRT 流失败"
