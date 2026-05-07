@@ -2,6 +2,12 @@
 
 ## 2026-05-07
 
+### 音频源下线 / 音量同步优化 / NavPane 文本恢复
+
+- **音频源 UI 全量下线**：`SourceCategory` 移除 `audio` 大类，`SOURCE_TYPE_TO_CATEGORY` 把 `audio` 重映射到 `video` 兼容旧会话；`stores/sources` 在 `refresh` / `upload` 阶段过滤后端返回的 audio 源，使其不出现在媒体源列表、显示控制源选择器、预案窗口下拉中；同步清理 SourcesView / AddSourceDrawer / SourcePicker / PlaybackControl / ScenarioEditDrawer / ScenarioPreviewDrawer 中所有音频文案与图标分支
+- **音量滑块拖动节流 + 抬手提交**：新增 `useThrottledSlider` composable，把「拖动期间最小间隔 ≥ 120 ms 上报、抬手 / change 时强制 flush 最终值、拖动 / 飞行 / 待发期间不被服务端响应回写覆盖」三条策略统一封装；`FSlider` 同步暴露 `change` 事件以区分中间值与最终值；仪表盘、设置、显示控制（窗口音量）三处全部接入。Playwright 实测连续 11 次 input + 1 次 change 仅触发 7 次 PATCH，相邻请求间隔 121–125 ms，最终滑块停留在抬手值不发生回弹
+- **桌面 NavPane 文本始终展示**：移除 `AppShell` 1024–1280 px 的 Compact 仅图标模式，所有桌面断点（md / lg / xl / 2xl）的主导航与次导航均同时显示图标 + 中文文字，便于现场操作员快速识别功能项
+
 ### 前端按 Fluent 2 设计规范完整重写
 
 - **设计令牌落地**：新增 `src/styles/tokens.css` 与 `base.css`，覆盖颜色、字体、间距、圆角、阴影、Z 层级与动效六大类 alias token；业务样式统一通过 CSS 变量引用，禁止散落 HEX/PX
