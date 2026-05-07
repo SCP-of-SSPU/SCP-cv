@@ -2,6 +2,12 @@
 
 ## 2026-05-07
 
+### 修复媒体源 / 预案页面顶部 sticky toolbar 遮挡 NavList 第一项
+
+- 现象：桌面端 `/sources` 与 `/scenarios` 顶部工具条 `position: sticky; top: 56px` 与下方 NavList / 卡片列表的第一项视觉重叠 ~40 px，最直观的影响是 SourcesView 的「全部源」分类按钮被搜索栏 caption 整个盖住，看上去像消失了
+- 根因：sticky 元素的 scrollport 是其 nearest scrolling ancestor 的 content-edge；本项目 `.app-shell__content` 设置了 `overflow-y: auto` 与 `padding-top: var(--spacing-2xl)`，scrollport 顶部从 viewport top 56 + 24 = 80 px 起算，再叠加 `top: 56px` 让 toolbar 锚定在 viewport top 136 px，比 normal flow 自然位置 80 px 多偏移 56 px，与下方 sibling 形成 40 px 视觉重叠
+- 修复：`SourcesView.vue` 与 `ScenariosView.vue` 的 toolbar `top` 改为 `0`（即贴在 scrollport content-edge top，等于自然位置 80 px），消除多余偏移；layout / 卡片列表回到 toolbar 自然 bottom + gap 之下；Playwright 实测「全部源」按钮顶层栈 = `BUTTON.sources-view__nav-item--active`，不再被 toolbar 中的 caption 文本遮挡
+
 ### 移动端底部 TabBar 改为 fixed 以保证真机可见
 
 - `MobileShell` 底部 TabBar 由 `position: sticky` 升级为 `position: fixed; inset: auto 0 0 0`，规避 iOS Safari 动态地址栏 / Drawer 锁 body 滚动场景下底栏被裁剪或推出视口的隐患
