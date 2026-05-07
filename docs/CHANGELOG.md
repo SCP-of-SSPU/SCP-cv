@@ -2,6 +2,12 @@
 
 ## 2026-05-07
 
+### 移动端底部 TabBar 改为 fixed 以保证真机可见
+
+- `MobileShell` 底部 TabBar 由 `position: sticky` 升级为 `position: fixed; inset: auto 0 0 0`，规避 iOS Safari 动态地址栏 / Drawer 锁 body 滚动场景下底栏被裁剪或推出视口的隐患
+- 内容区 `padding-bottom` 提升至 `calc(80px + env(safe-area-inset-bottom))`，叠加 `color-mix` 半透明 + `backdrop-filter: blur(12px)` 还原 Fluent acrylic 质感；不支持 backdrop-filter 的浏览器回退到不透明背景
+- Playwright 在 414×896 视口下覆盖 dashboard / sources / scenarios / display / settings 与 PPT 专注模式：除 focus 模式外底部 TabBar 始终显示在 viewport 832–896 区域；focus 模式按设计稿全屏不挂 Shell
+
 ### 音频源下线 / 音量同步优化 / NavPane 文本恢复
 
 - **音频源 UI 全量下线**：`SourceCategory` 移除 `audio` 大类，`SOURCE_TYPE_TO_CATEGORY` 把 `audio` 重映射到 `video` 兼容旧会话；`stores/sources` 在 `refresh` / `upload` 阶段过滤后端返回的 audio 源，使其不出现在媒体源列表、显示控制源选择器、预案窗口下拉中；同步清理 SourcesView / AddSourceDrawer / SourcePicker / PlaybackControl / ScenarioEditDrawer / ScenarioPreviewDrawer 中所有音频文案与图标分支
