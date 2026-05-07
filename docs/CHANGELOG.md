@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## 2026-05-07
+
+### 前端按 Fluent 2 设计规范完整重写
+
+- **设计令牌落地**：新增 `src/styles/tokens.css` 与 `base.css`，覆盖颜色、字体、间距、圆角、阴影、Z 层级与动效六大类 alias token；业务样式统一通过 CSS 变量引用，禁止散落 HEX/PX
+- **设计系统组件**：在 `src/design-system/` 自建 23 个轻量组件（Button、Card、Input、Field、Textarea、Switch、Slider、Segmented、Tag、Spinner、Skeleton、Progress、Dialog、Drawer、MessageBar、Toast、Empty、Tabs、Combobox、Menu、Icon 与 Dialog/Toast Host）；图标按需登记自 `@fluentui/svg-icons`，不全量打包
+- **响应式 Shell**：拆分 `AppShell`（桌面 TitleBar + NavPane）与 `MobileShell`（顶栏 + 底部 5 项 TabBar + 「更多」Sheet）；< md 断点自动切换；`AppShell` 在 lg / md 自动收缩为图标 NavPane
+- **状态管理重构**：原 `app` 大 store 拆为 `runtime / sessions / sources / scenarios / devices / displays`，并提供 `bootstrapStores()` 入口统一拉取与建立 SSE 连接；Toast / Dialog 抽出为全局可调用的 composable
+- **页面重写**：仪表盘 / 媒体源 / 显示控制 / PPT 专注 / 预案 / 设置六个页面按设计稿 §4 重写
+  - 仪表盘只保留 Hero、大屏模式、系统音量、设备电源四块
+  - 媒体源移除文件夹与临时源 UI，类型筛选改 NavList（桌面）/ Pills（移动），添加源 Drawer 仅保留「上传文件 / 网页」两 Tab，桌面 / 移动差异渲染
+  - 显示控制按 `source_type` 分支控制条（PPT / 视频 / 音频 / 图片 / 网页 / 直播），单屏模式下访问大屏右展示 EmptyState
+  - PPT 专注模式深色独立 layout，< 1024 px 或竖屏阻断进入并提供「紧凑模式」兜底
+  - 预案默认形态仅列表，整卡点击弹预览抽屉；新建 / 编辑 / 从当前状态生成共用同一编辑表单
+  - 设置合并原「关于」内容，AppHeader 顶置 + Pivot Tabs（运行态 / 显示器 / 设备电源 / 开发），`/about` 改为重定向到 `/settings`
+- **环境变量**：前端独立 `frontend/.env` 与 `frontend/.env.example`（含 `VITE_FRONTEND_PORT`、`VITE_BACKEND_TARGET`），Vite `envDir` 改为指向 `frontend/`，与根 `.env`（Django/MediaMTX 后端配置）解耦
+- **可访问性**：Toast / Dialog / Drawer 焦点陷阱 + `prefers-reduced-motion` 支持；触控目标 ≥ 44 × 44 px；Sticky 顶/底栏使用 `safe-area-inset` 与 `100dvh` 兼容刘海屏
+
 ## 2026-05-05
 
 ### 直连策略调整
