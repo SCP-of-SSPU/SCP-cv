@@ -311,17 +311,30 @@ def close_source(window_id: int) -> PlaybackSession:
     关闭指定窗口当前播放的内容并重置会话状态。
     :param window_id: 窗口编号（1-4）
     :return: 更新后的播放会话
+
+    实现要点：
+      - 同步把 playback_state 重置为 IDLE 并清空帧/进度字段，避免 UI 因为旧 error/playing 状态
+        持续展示「直播流尚未就绪」「播放器异常」等提示，让"关闭显示"在前端立即可感知；
+      - 仍然保留 media_source 与 CLOSE 指令，等待 player 端 _handle_close 真正释放 adapter
+        与黑屏渲染；player 完成后会再次写入 IDLE，与本次重置幂等。
     """
     session = get_or_create_session(window_id)
 
     # 先发送 close 指令让播放器执行清理
     if session.media_source is not None:
-        session.pending_command = PlaybackCommand.CLOSE
-        session.command_args = {
+        cleanup_args = {
             "cleanup_source_id": session.media_source_id,
         } if session.media_source.is_temporary else {}
+        session.pending_command = PlaybackCommand.CLOSE
+        session.command_args = cleanup_args
+        # 同步立即重置可视字段，让前端 SSE 这一帧就拿到 IDLE，不再卡在过期 error。
+        session.playback_state = PlaybackState.IDLE
+        session.current_slide = 0
+        session.total_slides = 0
+        session.position_ms = 0
+        session.duration_ms = 0
         session.save()
-        logger.info("窗口 %d 发送关闭指令", window_id)
+        logger.info("窗口 %d 发送关闭指令并立即重置 UI 状态", window_id)
     else:
         # 无源则直接重置
         _reset_playback_fields(session)
