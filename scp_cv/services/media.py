@@ -149,12 +149,14 @@ def add_web_url(
     url: str,
     display_name: Optional[str] = None,
     folder_id: Optional[int] = None,
+    keep_alive: bool = True,
 ) -> MediaSource:
     """
     通过 URL 添加网页类型媒体源。
     :param url: 网页 URL（如 https://example.com）
     :param display_name: 显示名称，默认使用 URL
     :param folder_id: 所属文件夹 ID
+    :param keep_alive: 是否在播放器启动时预热并保持后台活跃
     :return: 创建的 MediaSource 实例
     :raises MediaError: URL 为空时
     """
@@ -179,10 +181,71 @@ def add_web_url(
         is_available=True,
         mime_type="text/html",
         folder=folder,
+        keep_alive=keep_alive,
     )
 
-    logger.info("通过 URL 添加网页媒体源「%s」→ %s", display_name, normalized_url)
+    logger.info(
+        "通过 URL 添加网页媒体源「%s」→ %s（keep_alive=%s）",
+        display_name,
+        normalized_url,
+        keep_alive,
+    )
     return media_source
+
+
+def update_source(
+    source_id: int,
+    name: Optional[str] = None,
+    uri: Optional[str] = None,
+    keep_alive: Optional[bool] = None,
+) -> MediaSource:
+    """
+    更新媒体源可编辑字段。
+    :param source_id: 媒体源 ID
+    :param name: 新显示名称（None 表示不修改）
+    :param uri: 新 URI / URL（仅对网页源生效；其它类型若传入会被忽略以防误改本地文件路径）
+    :param keep_alive: 是否保持后台活跃（None 表示不修改）
+    :return: 更新后的 MediaSource 实例
+    :raises MediaError: 源不存在或参数非法时
+    """
+    try:
+        source = MediaSource.objects.get(pk=source_id)
+    except MediaSource.DoesNotExist as not_found:
+        raise MediaError(f"媒体源 id={source_id} 不存在") from not_found
+
+    update_fields: list[str] = []
+
+    if name is not None:
+        trimmed_name = name.strip()
+        if not trimmed_name:
+            raise MediaError("显示名称不能为空")
+        if len(trimmed_name) > 255:
+            raise MediaError("显示名称过长（≤ 255 字符）")
+        if source.name != trimmed_name:
+            source.name = trimmed_name
+            update_fields.append("name")
+
+    if uri is not None and source.source_type == SourceType.WEB:
+        # 仅网页源允许 URI 在此接口被改写；文件型源由独立的上传/重新生成流程负责。
+        normalized_uri = normalize_web_url(uri)
+        if not normalized_uri:
+            raise MediaError("网页 URL 不能为空")
+        if source.uri != normalized_uri:
+            source.uri = normalized_uri
+            update_fields.append("uri")
+
+    if keep_alive is not None and source.keep_alive != bool(keep_alive):
+        source.keep_alive = bool(keep_alive)
+        update_fields.append("keep_alive")
+
+    if update_fields:
+        source.save(update_fields=update_fields)
+        logger.info(
+            "更新媒体源「%s」字段：%s",
+            source.name,
+            ", ".join(update_fields),
+        )
+    return source
 
 
 def normalize_web_url(url: str) -> str:

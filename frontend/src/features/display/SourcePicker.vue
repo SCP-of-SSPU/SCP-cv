@@ -22,8 +22,7 @@ import type { FTabsItem } from '@/design-system';
 import { useToast } from '@/composables/useToast';
 import { useSessionStore } from '@/stores/sessions';
 import { useSourceStore, type SourceCategory } from '@/stores/sources';
-import { formatBytes, formatRelativeTime } from '@/design-system/utils';
-import type { MediaSourceItem } from '@/services/api';
+import { api, type MediaSourceItem } from '@/services/api';
 
 const props = defineProps<{ windowId: number }>();
 
@@ -97,6 +96,19 @@ function categoryIcon(source: MediaSourceItem): string {
   return CATEGORY_ICON[sourceStore.resolveCategory(source.source_type)] ?? 'document_24_regular';
 }
 
+/**
+ * 源缩略预览：
+ *  - image：直接走 download_source 接口（后端原图，浏览器自带缩放）；
+ *  - 其它类型暂不返回 URL，由 categoryIcon 退回到大图标占位。
+ *  PPT / 视频缩略后续若新增 thumbnail_url 字段可在此扩展。
+ */
+function previewUrl(source: MediaSourceItem): string {
+  const category = sourceStore.resolveCategory(source.source_type);
+  if (category !== 'image') return '';
+  if (!source.is_available || !source.file_size) return '';
+  return api.downloadSourceUrl(source.id);
+}
+
 function onFileSelect(event: Event): void {
   const target = event.target as HTMLInputElement;
   fileToUpload.value = target.files?.[0] ?? null;
@@ -157,15 +169,16 @@ const totalLabel = computed(() => `共 ${filteredSources.value.length} 项`);
       </li>
       <li v-for="source in filteredSources" :key="source.id" class="source-picker__item"
         :class="{ 'source-picker__item--unavailable': !source.is_available }" @click="selectSource(source)">
-        <FIcon class="source-picker__icon" :name="categoryIcon(source)" />
+        <span class="source-picker__thumb" :class="{ 'source-picker__thumb--image': previewUrl(source) }">
+          <img v-if="previewUrl(source)" :src="previewUrl(source)" :alt="source.name" loading="lazy" />
+          <FIcon v-else class="source-picker__icon" :name="categoryIcon(source)" />
+        </span>
         <div class="source-picker__meta">
           <p class="source-picker__name">{{ source.name }}</p>
           <p class="source-picker__sub">
             <FTag :tone="source.is_available ? 'subtle' : 'error'">
               {{ source.is_available ? categoryLabel(source) : '离线' }}
             </FTag>
-            <span v-if="source.file_size">{{ formatBytes(source.file_size) }}</span>
-            <span>{{ formatRelativeTime(source.created_at) }}</span>
           </p>
         </div>
       </li>
@@ -262,6 +275,32 @@ const totalLabel = computed(() => `共 ${filteredSources.value.length} 项`);
   background: var(--color-background-disabled);
   cursor: not-allowed;
   opacity: 0.7;
+}
+
+/*
+ * 行首占 40×30 缩略位：image 类型显示原图缩放，其它类型回退到大图标。
+ * 单一固定尺寸保证多类源在同一列表里横向对齐。
+ */
+.source-picker__thumb {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-small);
+  background: var(--color-background-subtle);
+  overflow: hidden;
+}
+
+.source-picker__thumb--image {
+  background: #0f1115;
+}
+
+.source-picker__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .source-picker__icon {

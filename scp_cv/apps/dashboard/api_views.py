@@ -33,6 +33,7 @@ from scp_cv.services.media import (
     replace_ppt_resources,
     sync_streams_to_media_sources,
     update_folder,
+    update_source,
 )
 from scp_cv.services.mediamtx import sync_stream_states
 from scp_cv.services.device import (
@@ -145,6 +146,7 @@ def _source_payload(source: object) -> dict[str, Any]:
         "is_temporary": source.is_temporary,
         "expires_at": source.expires_at.isoformat() if source.expires_at else None,
         "metadata": source.metadata,
+        "keep_alive": bool(getattr(source, "keep_alive", True)),
         "created_at": source.created_at.isoformat() if source.created_at else "",
     }
 
@@ -300,16 +302,53 @@ def add_web_source_api(request: HttpRequest) -> JsonResponse:
     if not web_url:
         return _error_response("缺少 url 字段", code="missing_url")
 
+    keep_alive = _bool_value(body.get("keep_alive"), default=True) if "keep_alive" in body else True
     try:
         source = add_web_url(
             web_url,
             str(body.get("name", "")).strip() or None,
             folder_id=_optional_int(body.get("folder_id")),
+            keep_alive=keep_alive,
         )
     except MediaError as media_error:
         return _error_response(str(media_error), code="media_error")
 
     return _json_response({"success": True, "source": _source_payload(source)}, status=201)
+
+
+@csrf_exempt
+@require_http_methods(["PATCH"])
+def update_source_api(request: HttpRequest, source_id: int) -> JsonResponse:
+    """
+    更新媒体源（显示名称、URI、保持活跃开关）。
+    仅暴露安全可改写的字段；文件型源 URI 不会被本接口修改。
+    :param request: HTTP 请求
+    :param source_id: 媒体源主键
+    :return: 更新后的媒体源
+    """
+    body, error = _body_or_error(request)
+    if error is not None:
+        return error
+
+    raw_name = body.get("name") if "name" in body else None
+    raw_uri = body.get("uri") if "uri" in body else None
+    raw_keep_alive = body.get("keep_alive") if "keep_alive" in body else None
+    keep_alive_value: object | None
+    if raw_keep_alive is None:
+        keep_alive_value = None
+    else:
+        keep_alive_value = _bool_value(raw_keep_alive, default=True)
+
+    try:
+        source = update_source(
+            source_id=int(source_id),
+            name=str(raw_name) if isinstance(raw_name, str) else None,
+            uri=str(raw_uri) if isinstance(raw_uri, str) else None,
+            keep_alive=bool(keep_alive_value) if keep_alive_value is not None else None,
+        )
+    except MediaError as media_error:
+        return _error_response(str(media_error), code="media_error")
+    return _json_response({"success": True, "source": _source_payload(source)})
 
 
 @csrf_exempt
@@ -372,19 +411,26 @@ def ppt_resources_api(request: HttpRequest, source_id: int) -> JsonResponse:
 
 
 @csrf_exempt
-@require_http_methods(["DELETE"])
-def delete_source_api(request: HttpRequest, source_id: int) -> JsonResponse:
+@require_http_methods(["PATCH", "DELETE"])
+def source_detail_api(request: HttpRequest, source_id: int) -> JsonResponse:
     """
-    删除媒体源。
+    媒体源详情接口：PATCH 更新可编辑字段（名称 / URL / keep_alive），DELETE 删除。
     :param request: HTTP 请求
     :param source_id: 媒体源主键
-    :return: 删除结果
+    :return: 操作结果
     """
+    if request.method == "PATCH":
+        return update_source_api(request, source_id)
+
     try:
         delete_media_source(int(source_id))
     except MediaError as media_error:
         return _error_response(str(media_error), code="media_error", status=404)
     return _json_response({"success": True})
+
+
+# 兼容旧导入：早期路由仅暴露 DELETE，保留别名避免外部脚本失效。
+delete_source_api = source_detail_api
 
 
 @require_GET

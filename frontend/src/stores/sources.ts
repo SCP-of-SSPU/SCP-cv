@@ -11,7 +11,7 @@
  */
 import { defineStore } from 'pinia';
 
-import { api, type MediaSourceItem, type UploadOptions } from '@/services/api';
+import { api, type MediaSourceItem, type MediaSourceUpdate, type UploadOptions } from '@/services/api';
 
 /** UI 可视的源大类；与后端 source_type 不一一映射，直播由前端聚合。 */
 export type SourceCategory = 'all' | 'ppt' | 'video' | 'image' | 'web' | 'stream';
@@ -73,10 +73,14 @@ export const useSourceStore = defineStore('sources', {
       }
       return result;
     },
-    /** 当前 Tab + 搜索过滤后的列表，用于渲染 DetailList / 卡片列表。 */
+    /**
+     * 当前 Tab + 搜索过滤后的列表，按显示名称首字母升序排列，
+     * 中文走 `localeCompare('zh-Hans-CN')` 自动按拼音首字母分组，
+     * 英文则按字母顺序，确保大量源时操作员能快速定位。
+     */
     filtered(state): MediaSourceItem[] {
       const keyword = state.searchKeyword.trim().toLowerCase();
-      return state.sources.filter((source) => {
+      const matched = state.sources.filter((source) => {
         if (state.category !== 'all') {
           const cat = SOURCE_TYPE_TO_CATEGORY[source.source_type];
           if (cat !== state.category) return false;
@@ -87,6 +91,10 @@ export const useSourceStore = defineStore('sources', {
         const original = source.original_filename?.toLowerCase() ?? '';
         return name.includes(keyword) || uri.includes(keyword) || original.includes(keyword);
       });
+      // 优先使用 `co-pinyin` collation 按汉语拼音首字母对中文排序，与英文混排；
+      // 不支持该 collation 的运行时（部分 Node / 旧 Chromium）会自动 fallback 到 'zh-Hans-CN'。
+      const collator = new Intl.Collator(['zh-Hans-CN-u-co-pinyin', 'zh-Hans-CN'], { numeric: true, sensitivity: 'base' });
+      return [...matched].sort((a, b) => collator.compare(a.name ?? '', b.name ?? ''));
     },
     /** 占用空间统计（仅文件型源）。 */
     totalBytes(state): number {
@@ -120,11 +128,26 @@ export const useSourceStore = defineStore('sources', {
       }
       return payload.source;
     },
-    /** 添加网页/URL 源。 */
-    async addWebSource(url: string, name?: string): Promise<MediaSourceItem> {
-      const payload = await api.addWebSource({ url, name });
+    /**
+     * 添加网页/URL 源。
+     * @param url 网页地址或 ip:port
+     * @param name 显示名称；省略时后端用 URL 截前 80 字符作名称
+     * @param keepAlive 启动时是否预热并保持后台活跃（默认 true）
+     */
+    async addWebSource(url: string, name?: string, keepAlive: boolean = true): Promise<MediaSourceItem> {
+      const payload = await api.addWebSource({ url, name, keep_alive: keepAlive });
       // 网页源不会是 audio，直接前置即可。
       this.sources = [payload.source, ...this.sources];
+      return payload.source;
+    },
+    /**
+     * 更新已存在源的可编辑字段。
+     * @param sourceId 源主键
+     * @param patch 仅传入需要修改的字段；未传字段保持后端原值
+     */
+    async updateSource(sourceId: number, patch: MediaSourceUpdate): Promise<MediaSourceItem> {
+      const payload = await api.updateSource(sourceId, patch);
+      this.sources = this.sources.map((item) => (item.id === sourceId ? payload.source : item));
       return payload.source;
     },
     /** 删除源；删除当前类型时若列表为空 UI 会自动展示空态。 */

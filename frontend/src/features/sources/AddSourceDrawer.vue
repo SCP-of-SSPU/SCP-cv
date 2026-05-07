@@ -13,6 +13,7 @@ import {
   FInput,
   FMessageBar,
   FProgress,
+  FSwitch,
   FTabs,
 } from '@/design-system';
 import type { FTabsItem } from '@/design-system';
@@ -40,6 +41,9 @@ const fileToUpload = ref<File | null>(null);
 const fileDisplayName = ref('');
 const webUrl = ref('');
 const webName = ref('');
+// 网页源默认开启「保持活跃」：播放器启动时预热并维持后台 QWebEngineView，
+// 减少切换到该网页时的首屏白屏时间。
+const webKeepAlive = ref(true);
 const uploadProgress = ref(0);
 const uploading = ref(false);
 const errorMessage = ref('');
@@ -67,6 +71,7 @@ function reset(): void {
   fileDisplayName.value = '';
   webUrl.value = '';
   webName.value = '';
+  webKeepAlive.value = true;
   uploadProgress.value = 0;
   uploading.value = false;
   errorMessage.value = '';
@@ -120,7 +125,7 @@ async function addWebSource(): Promise<void> {
   uploading.value = true;
   errorMessage.value = '';
   try {
-    await sourceStore.addWebSource(url, webName.value.trim() || undefined);
+    await sourceStore.addWebSource(url, webName.value.trim() || undefined, webKeepAlive.value);
     toast.success('已添加网页源');
     emit('added');
     reset();
@@ -165,6 +170,9 @@ async function addWebSource(): Promise<void> {
       </FField>
       <FField label="显示名称" hint="可选；不填将使用 URL 作为名称">
         <FInput v-model="webName" placeholder="例如：直播首页" />
+      </FField>
+      <FField label="保持活跃" hint="开启后系统启动时自动加载该网页并在后台保持，切换到此源时无需再次首屏加载。">
+        <FSwitch v-model="webKeepAlive" label="启用预热与后台活跃" />
       </FField>
     </template>
 

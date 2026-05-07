@@ -129,6 +129,15 @@ class MediaSource(models.Model):
         verbose_name="扩展元数据",
         help_text="存储 PPT 解析资源 ID 等扩展信息",
     )
+    keep_alive = models.BooleanField(
+        default=True,
+        verbose_name="保持活跃",
+        help_text=(
+            "仅对网页源（source_type=web）有意义；为 True 时播放器在系统启动阶段会预加载该网页"
+            "并保持后台活跃，切换到该源时无需再次发起首次加载，可显著降低呈现延迟。"
+            "其它源类型保留默认 True，但暂不参与预热逻辑。"
+        ),
+    )
     created_at = models.DateTimeField(
         auto_now_add=True,
         verbose_name="创建时间",

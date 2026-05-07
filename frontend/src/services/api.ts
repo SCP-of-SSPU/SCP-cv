@@ -20,7 +20,19 @@ export interface MediaSourceItem {
   is_temporary: boolean;
   expires_at: string | null;
   metadata: Record<string, unknown>;
+  /**
+   * 是否在播放器启动时预热并保持后台活跃。
+   * 仅对网页源有实际预热语义；其它类型默认 true 不影响行为。
+   */
+  keep_alive: boolean;
   created_at: string;
+}
+
+/** PATCH /api/sources/{id}/ 可编辑字段子集。 */
+export interface MediaSourceUpdate {
+  name?: string;
+  uri?: string;
+  keep_alive?: boolean;
 }
 
 export interface SessionSnapshot {
@@ -262,8 +274,9 @@ export const api = {
   listSources: (sourceType = '', folderId: number | null = null) => requestJson<{ success: boolean; sources: MediaSourceItem[] }>(`/api/sources/${sourceQuery(sourceType, folderId)}`),
   uploadSource: (formData: FormData, options?: UploadOptions) => uploadFormData<{ success: boolean; source: MediaSourceItem }>('/api/sources/upload/', formData, options),
   addLocalSource: (payload: { path: string; name?: string; folder_id?: number | null }) => requestJson<{ success: boolean; source: MediaSourceItem }>('/api/sources/local/', { method: 'POST', body: JSON.stringify(payload) }),
-  addWebSource: (payload: { url: string; name?: string; folder_id?: number | null }) => requestJson<{ success: boolean; source: MediaSourceItem }>('/api/sources/web/', { method: 'POST', body: JSON.stringify(payload) }),
+  addWebSource: (payload: { url: string; name?: string; folder_id?: number | null; keep_alive?: boolean }) => requestJson<{ success: boolean; source: MediaSourceItem }>('/api/sources/web/', { method: 'POST', body: JSON.stringify(payload) }),
   moveSource: (sourceId: number, folderId: number | null) => requestJson<{ success: boolean; source: MediaSourceItem }>(`/api/sources/${sourceId}/move/`, { method: 'PATCH', body: JSON.stringify({ folder_id: folderId }) }),
+  updateSource: (sourceId: number, payload: MediaSourceUpdate) => requestJson<{ success: boolean; source: MediaSourceItem }>(`/api/sources/${sourceId}/`, { method: 'PATCH', body: JSON.stringify(payload) }),
   deleteSource: (sourceId: number) => requestJson<{ success: boolean }>(`/api/sources/${sourceId}/`, { method: 'DELETE' }),
   downloadSourceUrl: (sourceId: number) => buildBackendUrl(`/api/sources/${sourceId}/download/`),
   listPptResources: (sourceId: number) => requestJson<{ success: boolean; resources: PptResourceItem[] }>(`/api/sources/${sourceId}/ppt-resources/`),

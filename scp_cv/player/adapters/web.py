@@ -3,6 +3,13 @@
 '''
 网页源适配器，通过 QWebEngineView 在 PlayerWindow 中嵌入可交互的网页。
 支持加载任意 URL，全屏渲染到播放器窗口，并允许鼠标点击、滚动等操作。
+
+TODO: 消费 MediaSource.keep_alive
+    - 后端模型已新增 keep_alive 字段（默认 True，仅网页源有意义）。
+    - 计划在 PlayerController 启动时遍历 keep_alive=True 的 WebSource，
+      在隐藏容器中预创建 QWebEngineView 并保持 alive；
+      WebSourceAdapter.open 时优先认领已预热的 view，避免每次切换网页源都首屏加载 1-2 s。
+    - 当前版本仅完成属性持久化与 UI 控制，预热池作为下一阶段独立改造。
 @Project : SCP-cv
 @File : web.py
 @Author : Qintsg

@@ -24,6 +24,7 @@ import {
 } from '@/design-system';
 import type { FTabsItem, FMenuGroup, TagTone } from '@/design-system';
 import AddSourceDrawer from './AddSourceDrawer.vue';
+import EditSourceDrawer from './EditSourceDrawer.vue';
 import { useBreakpoint } from '@/composables/useBreakpoint';
 import { useDialog } from '@/composables/useDialog';
 import { useToast } from '@/composables/useToast';
@@ -40,6 +41,13 @@ const { isMobile } = useBreakpoint();
 
 const isLoading = ref(false);
 const drawerOpen = ref(false);
+const editDrawerOpen = ref(false);
+const editingSource = ref<MediaSourceItem | null>(null);
+
+function startEdit(source: MediaSourceItem): void {
+  editingSource.value = source;
+  editDrawerOpen.value = true;
+}
 
 interface CategoryDef {
   value: SourceCategory;
@@ -123,6 +131,11 @@ function buildRowMenu(source: MediaSourceItem): FMenuGroup[] {
     },
     {
       items: [
+        {
+          label: '编辑',
+          icon: 'edit_24_regular',
+          onTrigger: () => startEdit(source),
+        },
         {
           label: '下载',
           icon: 'arrow_download_24_regular',
@@ -334,6 +347,7 @@ const totalCaption = computed(() => {
     </div>
 
     <AddSourceDrawer v-model:open="drawerOpen" @added="refresh" />
+    <EditSourceDrawer v-model:open="editDrawerOpen" :source="editingSource" @updated="refresh" />
   </div>
 </template>
 
