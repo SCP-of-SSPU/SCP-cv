@@ -313,13 +313,21 @@ def activate_scenario(scenario_id: int) -> list[dict[str, object]]:
 
 
 def _resolve_source(source_id: Optional[int]) -> Optional[MediaSource]:
-    """根据 ID 查询媒体源，None 或 0 表示不绑定。"""
-    if not source_id:
+    """
+    根据 ID 查询媒体源；None / 0 / 负数（前端 group label 占位）一律视为不绑定，
+    避免下拉分组标题被误选时被 `MediaSource.objects.get(pk=-1)` 抛 DoesNotExist
+    导致整个 PATCH 失败让用户看到「无法保存预案」。
+    """
+    try:
+        normalized_id = int(source_id) if source_id is not None else 0
+    except (TypeError, ValueError):
+        return None
+    if normalized_id <= 0:
         return None
     try:
-        return MediaSource.objects.get(pk=source_id)
+        return MediaSource.objects.get(pk=normalized_id)
     except MediaSource.DoesNotExist as not_found:
-        raise ScenarioError(f"媒体源 id={source_id} 不存在") from not_found
+        raise ScenarioError(f"媒体源 id={normalized_id} 不存在") from not_found
 
 
 def _apply_targets(scenario: Scenario, targets: Optional[list[dict[str, object]]]) -> None:

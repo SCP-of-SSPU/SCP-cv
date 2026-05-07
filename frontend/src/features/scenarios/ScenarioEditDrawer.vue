@@ -90,7 +90,9 @@ const sourceOptionsByCategory = computed<FComboboxOption<number>[]>(() => {
   }
   const options: FComboboxOption<number>[] = [];
   for (const [groupLabel, list] of groups.entries()) {
-    options.push({ label: groupLabel, value: -1, group: groupLabel });
+    // group 头是分类标题、不是真实源；标记 disabled 防止用户点中后把 source_id 设成 -1，
+    // 旧实现会让前端校验通过却被后端 _resolve_source(-1) 拒绝，最终表现为「无法保存预案」。
+    options.push({ label: groupLabel, value: -1, group: groupLabel, disabled: true });
     for (const item of list) {
       options.push({
         label: item.name || item.original_filename || item.uri || `源 ${item.id}`,
@@ -189,7 +191,10 @@ async function save(): Promise<void> {
   if (errorMessage.value) return;
 
   for (const window of draft.value.windows) {
-    if (window.sourceState === 'set' && !window.sourceId) {
+    // 「切换」窗口必须绑定真实存在的源（id ≥ 1）；
+    // 旧实现仅用 `!window.sourceId` 判定，会放过 -1 这种 group 占位值，
+    // 导致后端 _resolve_source(-1) 抛错让用户感觉「无法保存」。
+    if (window.sourceState === 'set' && (window.sourceId === null || window.sourceId === undefined || window.sourceId < 1)) {
       errorMessage.value = `${windowLabel(window.windowId)}：请选择「切换」时的源`;
       return;
     }
