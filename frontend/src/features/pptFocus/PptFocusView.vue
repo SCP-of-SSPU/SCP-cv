@@ -1,15 +1,10 @@
 <script setup lang="ts">
-/**
- * PPT 专注模式：完全替换 Shell 的全屏深色舞台。
- *  - 桌面横屏：当前页大预览 + 下一页缩略 + 进度 + 右下角提词器悬浮卡；
- *  - 竖屏（手机 / 平板竖屏）：当前页 + 控制条 + 提词器纵向堆叠的紧凑布局，
- *    不再阻断访问，由现场需要决定是否使用全屏。
- */
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import {
   FButton,
+  FCombobox,
   FEmpty,
   FIcon,
   FMessageBar,
@@ -19,44 +14,138 @@ import {
 } from '@/design-system';
 import { useBreakpoint } from '@/composables/useBreakpoint';
 import { useToast } from '@/composables/useToast';
+import { api, buildBackendUrl, type PptMediaItem, type PptResourceItem } from '@/services/api';
+import { useRuntimeStore } from '@/stores/runtime';
 import { useSessionStore } from '@/stores/sessions';
-import { api, buildBackendUrl, type PptResourceItem } from '@/services/api';
 
 const route = useRoute();
 const router = useRouter();
 const { isLandscape } = useBreakpoint();
+const runtimeStore = useRuntimeStore();
 const sessionStore = useSessionStore();
 const toast = useToast();
 
 const isFullscreen = ref(false);
-
-const windowId = computed(() => Number.parseInt(String(route.params.windowId ?? '0'), 10));
-const session = computed(() => sessionStore.byWindowId(windowId.value));
-
 const resources = ref<PptResourceItem[]>([]);
 const loadError = ref('');
 const isLoading = ref(false);
+const selectedMediaKey = ref<string | null>(null);
+
+const windowId = computed(() => Number.parseInt(String(route.params.windowId ?? '0'), 10));
+const session = computed(() => sessionStore.byWindowId(windowId.value));
 const pptSourceId = computed(() => (session.value?.source_type === 'ppt' ? session.value.source_id : null));
+const orientationKey = computed<'landscape' | 'portrait'>(() => (isLandscape.value ? 'landscape' : 'portrait'));
 
-// 注意：后端 PptResource.page_index 是 1-based（值与 PowerPoint COM 的 Slide.Index 对齐），
-// session.current_slide 同样是 1-based。早先误用 `current_slide - 1` 会让大图渲染前一页，
-// 与 caption 的「Page N」错位 1，肉眼看就是「页面显示提前了一页」。
+const slidesProgress = computed(() => ({
+  total: session.value?.total_slides ?? 0,
+  current: session.value?.current_slide ?? 0,
+}));
+
 const currentResource = computed(() =>
-  resources.value.find((res) => res.page_index === (session.value?.current_slide ?? 1)),
-);
-const nextResource = computed(() =>
-  resources.value.find((res) => res.page_index === (session.value?.current_slide ?? 1) + 1),
+  resources.value.find((resource) => resource.page_index === (session.value?.current_slide ?? 1)),
 );
 
-const slidesProgress = computed(() => {
-  const total = session.value?.total_slides ?? 0;
-  const current = session.value?.current_slide ?? 0;
-  return { total, current };
+const slideImage = computed(() => {
+  const path = currentResource.value?.slide_image;
+  return path ? buildBackendUrl(path) : '';
 });
 
-// 横屏 / 竖屏由 useBreakpoint 监听 resize + orientationchange 实时更新；
-// PPT 专注模式两种形态共用一套数据源，只通过 :data-orientation 切换 CSS 布局。
-const orientationKey = computed<'landscape' | 'portrait'>(() => (isLandscape.value ? 'landscape' : 'portrait'));
+const nextSlideImage = computed(() => {
+  const path = currentResource.value?.next_slide_image;
+  return path ? buildBackendUrl(path) : '';
+});
+
+const nextSlideNumber = computed(() => {
+  if (slidesProgress.value.total <= 0 || slidesProgress.value.current >= slidesProgress.value.total) return null;
+  return slidesProgress.value.current + 1;
+});
+
+const currentMediaItems = computed(() => currentResource.value?.media_items ?? []);
+
+const currentMediaOptions = computed(() =>
+  currentMediaItems.value.map((media) => ({
+    value: mediaSelectionValue(media),
+    label: media.name || `媒体 ${media.media_index}`,
+    hint: media.media_type === 'audio' ? '音频' : media.media_type === 'video' ? '视频' : media.media_type,
+  })),
+);
+
+const selectedMedia = computed(() =>
+  currentMediaItems.value.find((media) => mediaSelectionValue(media) === selectedMediaKey.value) ?? null,
+);
+
+const canToggleSelectedMedia = computed(() => !!session.value && !!selectedMedia.value);
+const playPauseIcon = computed(() => (session.value?.playback_state === 'playing' ? 'pause_24_regular' : 'play_24_regular'));
+const playPauseLabel = computed(() => (session.value?.playback_state === 'playing' ? '暂停媒体' : '播放媒体'));
+
+const teleprompterText = computed(() => sanitizeSpeakerNotes(
+  currentResource.value?.speaker_notes ?? '',
+  slidesProgress.value.current,
+  slidesProgress.value.total,
+));
+
+const windowLabel = computed(() => {
+  switch (windowId.value) {
+    case 1:
+      return runtimeStore.runtime?.big_screen_mode === 'double' ? '大屏左' : '大屏';
+    case 2:
+      return '大屏右';
+    case 3:
+      return 'TV左';
+    case 4:
+      return 'TV右';
+    default:
+      return `窗口 ${windowId.value}`;
+  }
+});
+
+watch(currentMediaItems, (items) => {
+  if (!items.length) {
+    selectedMediaKey.value = null;
+    return;
+  }
+  if (items.length === 1) {
+    selectedMediaKey.value = mediaSelectionValue(items[0]);
+    return;
+  }
+  if (!items.some((media) => mediaSelectionValue(media) === selectedMediaKey.value)) {
+    selectedMediaKey.value = null;
+  }
+}, { immediate: true });
+
+watch(pptSourceId, loadResources, { immediate: true });
+
+onMounted(() => {
+  void sessionStore.refresh();
+  if (!runtimeStore.runtime) {
+    void runtimeStore.refresh().catch(() => undefined);
+  }
+});
+
+function mediaSelectionValue(media: PptMediaItem): string {
+  return `${media.id}:${media.media_index}`;
+}
+
+function sanitizeSpeakerNotes(notes: string, currentPage: number, totalPages: number): string {
+  if (!notes.trim()) return '';
+  const lines = notes.replace(/\r/g, '').split('\n');
+  while (lines.length && !lines[lines.length - 1]?.trim()) {
+    lines.pop();
+  }
+  const lastLine = lines[lines.length - 1]?.trim() ?? '';
+  const normalizedLastLine = lastLine.toLowerCase().replace(/\s+/g, '');
+  const pageMarkers = new Set([
+    String(currentPage),
+    `第${currentPage}页`,
+    `page${currentPage}`,
+    totalPages > 0 ? `${currentPage}/${totalPages}` : '',
+    totalPages > 0 ? `page${currentPage}/${totalPages}` : '',
+  ].filter(Boolean).map((item) => item.toLowerCase().replace(/\s+/g, '')));
+  if (pageMarkers.has(normalizedLastLine)) {
+    lines.pop();
+  }
+  return lines.join('\n').trim();
+}
 
 async function loadResources(sourceId: number | null): Promise<void> {
   if (!sourceId) {
@@ -83,13 +172,6 @@ async function loadResources(sourceId: number | null): Promise<void> {
   }
 }
 
-watch(pptSourceId, loadResources, { immediate: true });
-
-onMounted(() => {
-  // 进入专注模式时补一次拉取，避免进入页面时 SSE 还没刷新。
-  void sessionStore.refresh();
-});
-
 async function nav(action: 'prev' | 'next'): Promise<void> {
   if (!session.value) return;
   try {
@@ -100,18 +182,19 @@ async function nav(action: 'prev' | 'next'): Promise<void> {
 }
 
 async function togglePlayPause(): Promise<void> {
-  if (!session.value) return;
-  const current = currentResource.value;
-  if (!current?.media_items?.length) {
-    toast.info('当前页无媒体可播放');
+  if (!session.value || !selectedMedia.value) {
+    if (currentMediaItems.value.length > 1) {
+      toast.info('请先选择要控制的媒体');
+    }
     return;
   }
-  const isPlaying = session.value.playback_state === 'playing';
+  const action = session.value.playback_state === 'playing' ? 'pause' : 'play';
   try {
-    await Promise.all(
-      current.media_items.map((media) =>
-        sessionStore.controlPptMedia(session.value!.window_id, isPlaying ? 'pause' : 'play', media.id, media.media_index),
-      ),
+    await sessionStore.controlPptMedia(
+      session.value.window_id,
+      action,
+      selectedMedia.value.id,
+      selectedMedia.value.media_index,
     );
   } catch (error) {
     toast.error('PPT 媒体控制失败', error instanceof Error ? error.message : '请稍后重试');
@@ -119,8 +202,6 @@ async function togglePlayPause(): Promise<void> {
 }
 
 async function toggleFullscreen(): Promise<void> {
-  // 走浏览器 Fullscreen API；首次进入因 user-activation 限制可能被拒绝，
-  // 这种情况静默处理，由用户再次点击重试，避免红色错误干扰演讲流程。
   isFullscreen.value = !isFullscreen.value;
   if (isFullscreen.value && document.documentElement.requestFullscreen) {
     try {
@@ -150,9 +231,6 @@ const windowMappingForExit = computed(() => {
       return 'big-left';
   }
 });
-
-const slideImage = computed(() => (currentResource.value?.slide_image ? buildBackendUrl(currentResource.value.slide_image) : ''));
-const nextSlideImage = computed(() => (nextResource.value?.slide_image ? buildBackendUrl(nextResource.value.slide_image) : ''));
 </script>
 
 <template>
@@ -162,18 +240,20 @@ const nextSlideImage = computed(() => (nextResource.value?.slide_image ? buildBa
         返回屏幕控制
       </FButton>
       <div class="ppt-focus__topbar-center">
-        <FTag tone="info">窗口 {{ windowId }}</FTag>
+        <FTag tone="info">{{ windowLabel }}</FTag>
         <span class="ppt-focus__topbar-title">{{ session?.source_name || '未选择 PPT 源' }}</span>
         <FTag :tone="session?.playback_state === 'playing' ? 'success' : 'subtle'">
           {{ session?.playback_state_label || session?.playback_state || '未知' }}
         </FTag>
-        <span class="ppt-focus__topbar-progress" v-if="slidesProgress.total > 0">
+        <span v-if="slidesProgress.total > 0" class="ppt-focus__topbar-progress">
           {{ slidesProgress.current }} / {{ slidesProgress.total }}
         </span>
       </div>
-      <FButton appearance="subtle"
+      <FButton
+        appearance="subtle"
         :icon-start="isFullscreen ? 'full_screen_minimize_24_regular' : 'full_screen_maximize_24_regular'"
-        @click="toggleFullscreen">
+        @click="toggleFullscreen"
+      >
         {{ isFullscreen ? '退出全屏' : '全屏' }}
       </FButton>
     </header>
@@ -204,51 +284,54 @@ const nextSlideImage = computed(() => (nextResource.value?.slide_image ? buildBa
               <FIcon name="document_24_regular" />
               <span>Page {{ slidesProgress.current }}</span>
             </div>
-            <figcaption class="ppt-focus__current-caption">
-              Page {{ slidesProgress.current }}
-            </figcaption>
           </figure>
 
           <aside class="ppt-focus__side">
             <div class="ppt-focus__next">
               <p class="ppt-focus__side-eyebrow">下一页</p>
               <img v-if="nextSlideImage" :src="nextSlideImage" alt="下一页预览" />
-              <div v-else class="ppt-focus__next-fallback">{{ slidesProgress.current + 1 }}</div>
+              <div v-else class="ppt-focus__next-fallback">{{ nextSlideNumber ?? '—' }}</div>
             </div>
+
             <div class="ppt-focus__progress">
               <p class="ppt-focus__side-eyebrow">进度</p>
               <FProgress :value="slidesProgress.current" :max="slidesProgress.total || 1" show-label />
-              <p class="ppt-focus__progress-meta">
-                资源 {{ resources.length }} · 媒体 {{ currentResource?.media_items?.length ?? 0 }}
-              </p>
+              <p class="ppt-focus__progress-page">Page {{ slidesProgress.current }}/{{ slidesProgress.total }}</p>
             </div>
+
+            <section class="ppt-focus__teleprompter">
+              <header class="ppt-focus__teleprompter-head">
+                <p class="ppt-focus__side-eyebrow">提词器</p>
+                <span class="ppt-focus__teleprompter-page">第 {{ slidesProgress.current }} 页</span>
+              </header>
+              <div class="ppt-focus__teleprompter-body">
+                <p v-if="teleprompterText" class="ppt-focus__teleprompter-text">{{ teleprompterText }}</p>
+                <p v-else class="ppt-focus__teleprompter-empty">该页暂无提词器内容。</p>
+              </div>
+            </section>
           </aside>
         </div>
 
         <div class="ppt-focus__controls">
+          <div v-if="currentMediaOptions.length > 0" class="ppt-focus__media-picker">
+            <FCombobox
+              v-model="selectedMediaKey"
+              :options="currentMediaOptions"
+              :placeholder="currentMediaOptions.length > 1 ? '选择媒体' : '当前媒体'"
+              aria-label="选择当前页媒体"
+              size="large"
+            />
+          </div>
           <FButton appearance="secondary" icon-start="previous_24_regular" @click="nav('prev')">
             上一页
           </FButton>
-          <FButton appearance="primary"
-            :icon-start="session.playback_state === 'playing' ? 'pause_24_regular' : 'play_24_regular'"
-            @click="togglePlayPause">
-            {{ session.playback_state === 'playing' ? '暂停媒体' : '播放媒体' }}
+          <FButton appearance="primary" :icon-start="playPauseIcon" :disabled="!canToggleSelectedMedia" @click="togglePlayPause">
+            {{ playPauseLabel }}
           </FButton>
           <FButton appearance="secondary" icon-start="next_24_regular" @click="nav('next')">
             下一页
           </FButton>
         </div>
-
-        <section class="ppt-focus__teleprompter" :class="`ppt-focus__teleprompter--${orientationKey}`">
-          <header class="ppt-focus__teleprompter-head">
-            <p class="ppt-focus__side-eyebrow">提词器</p>
-            <span class="ppt-focus__teleprompter-page">第 {{ slidesProgress.current }} 页</span>
-          </header>
-          <p v-if="currentResource?.speaker_notes" class="ppt-focus__teleprompter-text">
-            {{ currentResource.speaker_notes }}
-          </p>
-          <p v-else class="ppt-focus__teleprompter-empty">该页暂无提词器内容。</p>
-        </section>
       </template>
     </main>
   </div>
@@ -256,11 +339,11 @@ const nextSlideImage = computed(() => (nextResource.value?.slide_image ? buildBa
 
 <style scoped>
 .ppt-focus {
-  background: #0f1115;
-  color: #f3f3f3;
   min-height: var(--app-height, 100vh);
   display: flex;
   flex-direction: column;
+  background: #0f1115;
+  color: #f3f3f3;
 }
 
 .ppt-focus__topbar {
@@ -281,58 +364,63 @@ const nextSlideImage = computed(() => (nextResource.value?.slide_image ? buildBa
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-s);
+  min-width: 0;
   color: #f3f3f3;
 }
 
 .ppt-focus__topbar-title {
-  font-weight: 600;
   max-width: 320px;
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
 }
 
 .ppt-focus__topbar-progress {
-  font-variant-numeric: tabular-nums;
   color: rgba(255, 255, 255, 0.6);
+  font-variant-numeric: tabular-nums;
 }
 
 .ppt-focus__stage {
-  position: relative;
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-l);
   padding: var(--spacing-2xl);
+  min-height: 0;
 }
 
 .ppt-focus__stage[data-orientation='portrait'] {
-  padding: var(--spacing-l);
   gap: var(--spacing-m);
+  padding: var(--spacing-l);
 }
 
 .ppt-focus__layout {
+  flex: 1 1 auto;
   display: grid;
   grid-template-columns: 6fr 2fr;
   gap: var(--spacing-l);
-  flex: 1 1 auto;
-  /* 给提词器悬浮卡留出底部安全距离，避免遮挡当前页大图。 */
   min-height: 0;
 }
 
 .ppt-focus__stage[data-orientation='portrait'] .ppt-focus__layout {
-  /* 竖屏：当前页 + 下一页 / 进度上下纵向堆叠，去除右栏。 */
   grid-template-columns: 1fr;
-  grid-template-rows: minmax(0, 3fr) auto;
+}
+
+.ppt-focus__current,
+.ppt-focus__next,
+.ppt-focus__progress,
+.ppt-focus__teleprompter {
+  background: #181a20;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-large);
 }
 
 .ppt-focus__current {
   margin: 0;
-  background: #181a20;
-  border-radius: var(--radius-large);
   overflow: hidden;
   display: flex;
-  flex-direction: column;
+  min-height: 0;
 }
 
 .ppt-focus__current img {
@@ -353,31 +441,29 @@ const nextSlideImage = computed(() => (nextResource.value?.slide_image ? buildBa
   font-size: var(--type-title2-size);
 }
 
-.ppt-focus__current-caption {
-  padding: var(--spacing-s) var(--spacing-l);
-  background: rgba(255, 255, 255, 0.06);
-  font-weight: 600;
-}
-
 .ppt-focus__side {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-l);
+  min-height: 0;
+}
+
+.ppt-focus__next,
+.ppt-focus__progress,
+.ppt-focus__teleprompter {
+  padding: var(--spacing-m);
 }
 
 .ppt-focus__next {
-  background: #181a20;
-  border-radius: var(--radius-large);
-  padding: var(--spacing-m);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-xs);
 }
 
 .ppt-focus__next img {
-  border-radius: var(--radius-medium);
   width: 100%;
   aspect-ratio: 16 / 9;
+  border-radius: var(--radius-medium);
   object-fit: cover;
   background: rgba(255, 255, 255, 0.04);
 }
@@ -388,76 +474,41 @@ const nextSlideImage = computed(() => (nextResource.value?.slide_image ? buildBa
   justify-content: center;
   width: 100%;
   aspect-ratio: 16 / 9;
+  border-radius: var(--radius-medium);
   background: linear-gradient(135deg, rgba(40, 153, 245, 0.18), rgba(15, 108, 189, 0.04));
   color: rgba(255, 255, 255, 0.7);
   font-size: var(--type-title3-size);
-  border-radius: var(--radius-medium);
 }
 
 .ppt-focus__progress {
-  background: #181a20;
-  border-radius: var(--radius-large);
-  padding: var(--spacing-m);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-xs);
 }
 
-.ppt-focus__progress-meta {
+.ppt-focus__progress-page,
+.ppt-focus__teleprompter-page {
   margin: 0;
   color: rgba(255, 255, 255, 0.6);
   font-size: var(--type-caption1-size);
+  font-variant-numeric: tabular-nums;
 }
 
 .ppt-focus__side-eyebrow {
   margin: 0;
+  color: rgba(255, 255, 255, 0.55);
   font-size: var(--type-caption1-size);
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.55);
 }
 
-.ppt-focus__controls {
-  display: flex;
-  justify-content: center;
-  gap: var(--spacing-m);
-}
-
-.ppt-focus__controls :deep(.f-button) {
-  min-width: 160px;
-}
-
-/*
- * 提词器：横屏时浮动在右下角作为辅助卡片，不阻挡当前页大图的中心；
- *        竖屏时回归 normal flow 接在控制条之下，按页面宽度排版。
- */
 .ppt-focus__teleprompter {
-  background: rgba(24, 26, 32, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: var(--radius-large);
-  padding: var(--spacing-l);
-  flex-shrink: 0;
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  box-shadow: var(--shadow-3, 0 12px 32px rgba(0, 0, 0, 0.45));
-}
-
-.ppt-focus__teleprompter--landscape {
-  position: absolute;
-  right: var(--spacing-2xl);
-  bottom: var(--spacing-2xl);
-  max-width: min(420px, 38vw);
-  max-height: min(40vh, 360px);
-  overflow-y: auto;
-  z-index: 5;
-}
-
-.ppt-focus__teleprompter--portrait {
-  position: static;
-  width: 100%;
-  max-height: 36vh;
-  overflow-y: auto;
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-height: 220px;
+  overflow: hidden;
 }
 
 .ppt-focus__teleprompter-head {
@@ -465,26 +516,44 @@ const nextSlideImage = computed(() => (nextResource.value?.slide_image ? buildBa
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-s);
-  margin-bottom: var(--spacing-xs);
+  margin-bottom: var(--spacing-s);
 }
 
-.ppt-focus__teleprompter-page {
-  font-size: var(--type-caption1-size);
-  color: rgba(255, 255, 255, 0.55);
-  font-variant-numeric: tabular-nums;
+.ppt-focus__teleprompter-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .ppt-focus__teleprompter-text {
   margin: 0;
-  font-size: 22px;
-  line-height: 30px;
-  white-space: pre-wrap;
   color: rgba(255, 255, 255, 0.92);
+  font-size: 22px;
+  line-height: 1.6;
+  white-space: pre-wrap;
 }
 
 .ppt-focus__teleprompter-empty {
   margin: 0;
   color: rgba(255, 255, 255, 0.45);
+}
+
+.ppt-focus__controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-m);
+  flex-wrap: wrap;
+}
+
+.ppt-focus__media-picker {
+  flex: 0 1 280px;
+  min-width: 220px;
+}
+
+.ppt-focus__controls :deep(.f-button) {
+  min-width: 160px;
 }
 
 .ppt-focus__loading {
@@ -496,7 +565,7 @@ const nextSlideImage = computed(() => (nextResource.value?.slide_image ? buildBa
   color: rgba(255, 255, 255, 0.7);
 }
 
-@media (max-width: 1023px) and (min-aspect-ratio: 1/1) {
+@media (max-width: 1023px) {
   .ppt-focus__layout {
     grid-template-columns: 1fr;
   }
@@ -505,17 +574,44 @@ const nextSlideImage = computed(() => (nextResource.value?.slide_image ? buildBa
 @media (max-width: 767px) {
   .ppt-focus__topbar {
     flex-wrap: wrap;
+    align-items: flex-start;
     padding: var(--spacing-s) var(--spacing-l);
+  }
+
+  .ppt-focus__topbar-center {
+    width: 100%;
+    flex-wrap: wrap;
+    order: 3;
   }
 
   .ppt-focus__topbar-title {
     max-width: 200px;
   }
 
-  .ppt-focus__teleprompter--landscape {
-    right: var(--spacing-l);
-    bottom: var(--spacing-l);
-    max-width: min(320px, 70vw);
+  .ppt-focus__teleprompter {
+    min-height: 0;
+    max-height: 36vh;
+  }
+
+  .ppt-focus__teleprompter-text {
+    font-size: 18px;
+    line-height: 1.7;
+  }
+
+  .ppt-focus__controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ppt-focus__media-picker {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .ppt-focus__controls :deep(.f-button) {
+    width: 100%;
+    min-width: 0;
   }
 }
 </style>

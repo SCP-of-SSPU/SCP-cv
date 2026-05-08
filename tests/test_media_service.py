@@ -354,6 +354,29 @@ class TestPptResources:
         assert resources[0]["media_items"][0]["name"] == "audio1.mp3"
         assert resources[0]["has_media"] is True
 
+    def test_add_local_pptx_deduplicates_duplicate_media_relationships(self, tmp_path: Path) -> None:
+        """同一页重复指向同一媒体时，只保留一条媒体记录。"""
+        pptx_file = tmp_path / "demo.pptx"
+        with zipfile.ZipFile(pptx_file, "w") as archive:
+            archive.writestr("ppt/slides/slide1.xml", "<p:sld xmlns:p='p' />")
+            archive.writestr(
+                "ppt/slides/_rels/slide1.xml.rels",
+                """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/video" Target="../media/video1.mp4" />
+                  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/video" Target="../media/video1.mp4" />
+                </Relationships>
+                """,
+            )
+
+        source = add_local_path(str(pptx_file))
+        resources = list_ppt_resources(source.pk)
+
+        assert len(resources[0]["media_items"]) == 1
+        assert resources[0]["media_items"][0]["name"] == "video1.mp4"
+        assert resources[0]["media_items"][0]["media_index"] == 1
+        assert resources[0]["has_media"] is True
+
     @patch("scp_cv.services.media._export_ppt_slide_previews")
     def test_add_local_pptx_attaches_exported_previews(
         self,

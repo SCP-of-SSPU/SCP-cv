@@ -303,11 +303,16 @@ def _extract_slide_media_items(
         return []
     root = ElementTree.fromstring(archive.read(relationship_name))
     media_items: list[dict[str, object]] = []
+    seen_media_targets: set[tuple[str, str]] = set()
     for relationship in root:
         target = str(relationship.attrib.get("Target", ""))
         relationship_type = str(relationship.attrib.get("Type", "")).lower()
         if not _is_ppt_media_relationship(target, relationship_type):
             continue
+        media_key = (target.lower(), relationship_type)
+        if media_key in seen_media_targets:
+            continue
+        seen_media_targets.add(media_key)
         media_index = len(media_items) + 1
         media_name = Path(target).name or f"media-{media_index}"
         media_items.append({
