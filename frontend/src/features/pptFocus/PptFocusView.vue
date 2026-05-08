@@ -36,6 +36,7 @@ const session = computed(() => sessionStore.byWindowId(windowId.value));
 const resources = ref<PptResourceItem[]>([]);
 const loadError = ref('');
 const isLoading = ref(false);
+const pptSourceId = computed(() => (session.value?.source_type === 'ppt' ? session.value.source_id : null));
 
 // 注意：后端 PptResource.page_index 是 1-based（值与 PowerPoint COM 的 Slide.Index 对齐），
 // session.current_slide 同样是 1-based。早先误用 `current_slide - 1` 会让大图渲染前一页，
@@ -57,24 +58,32 @@ const slidesProgress = computed(() => {
 // PPT 专注模式两种形态共用一套数据源，只通过 :data-orientation 切换 CSS 布局。
 const orientationKey = computed<'landscape' | 'portrait'>(() => (isLandscape.value ? 'landscape' : 'portrait'));
 
-async function loadResources(): Promise<void> {
-  if (!session.value?.source_id || session.value?.source_type !== 'ppt') {
+async function loadResources(sourceId: number | null): Promise<void> {
+  if (!sourceId) {
     resources.value = [];
+    loadError.value = '';
+    isLoading.value = false;
     return;
   }
   isLoading.value = true;
   loadError.value = '';
   try {
-    const payload = await api.listPptResources(session.value.source_id);
-    resources.value = payload.resources;
+    const payload = await api.listPptResources(sourceId);
+    if (pptSourceId.value === sourceId) {
+      resources.value = payload.resources;
+    }
   } catch (error) {
-    loadError.value = error instanceof Error ? error.message : '加载 PPT 资源失败';
+    if (pptSourceId.value === sourceId) {
+      loadError.value = error instanceof Error ? error.message : '加载 PPT 资源失败';
+    }
   } finally {
-    isLoading.value = false;
+    if (pptSourceId.value === sourceId) {
+      isLoading.value = false;
+    }
   }
 }
 
-watch(session, loadResources, { immediate: true });
+watch(pptSourceId, loadResources, { immediate: true });
 
 onMounted(() => {
   // 进入专注模式时补一次拉取，避免进入页面时 SSE 还没刷新。
