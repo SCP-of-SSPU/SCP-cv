@@ -163,9 +163,13 @@ cython_debug/
 .idea/
 
 # Local agent artifacts
+AGENTS.md
+DESIGN.md
 AGENT_TODO.md
+.claude/
 .github/dida365-state.md
 .github/copilot-runtime/
+.oms/
 .omx/
 
 # Local runtime artifacts
@@ -177,7 +181,10 @@ frontend/src/**/*.d.ts
 frontend/vite.config.js
 frontend/vite.config.d.ts
 .playwright-mcp/
+.playwright-mcp
 .playwright-cli/
+.ruff_cache/
+requirements*.txt
 media/uploads/
 media/ppt_previews/
 logs/*

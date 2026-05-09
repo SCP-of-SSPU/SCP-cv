@@ -2,6 +2,13 @@
 
 ## 2026-05-09
 
+### 整理仓库文档、忽略规则与前端环境变量
+
+- 仓库：清理本地 agent / Playwright / pytest / ruff 缓存、历史 `requirements*.txt`、额外 `node_modules/`、废弃脚本和旧 Markdown API / 设计稿文档；API 文档入口保留为 `docs/openapi.yaml`。
+- 配置：`.gitignore` 新增本地 agent 配置、`.oms/`、Playwright MCP/CLI 缓存、ruff 缓存和历史 requirements 清单。
+- 前端：`runall` 启动 Vite 前移除父进程继承的 `VITE_*`，并以 `frontend/.env` 判断端口和后端地址，修复根目录 `.env` 遮蔽前端配置的问题。
+- 文档：重写 `README.md` 与 `docs/使用文档.md`，新增 `docs/维护文档.md`、`CONTRIBUTING.md`、`STYLE.md` 和 MIT `LICENSE`。
+
 ### 优化 PPT 专注模式提词器与媒体控制
 
 - 前端：`PptFocusView` 将提词器固定为右侧底部独立卡片，主预览、下一页和进度卡片重新分配为更稳定的专注布局。

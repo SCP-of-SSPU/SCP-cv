@@ -164,7 +164,9 @@ class SrtStreamAdapter(SourceAdapter):
         :param autoplay: 是否自动开始播放
         """
         if vlc is None:
-            raise RuntimeError("libVLC 初始化失败，请先安装 VLC 运行时或运行 tools/download_third_party.ps1") from _VLC_IMPORT_ERROR
+            raise RuntimeError(
+                "libVLC 初始化失败，请安装系统 VLC，或将 VLC 运行时解压到 tools/third_party/vlc/runtime/"
+            ) from _VLC_IMPORT_ERROR
 
         self._srt_url = uri
         self._window_handle = window_handle

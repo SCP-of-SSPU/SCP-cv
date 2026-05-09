@@ -2,13 +2,10 @@
 
 播放器使用 VLC (libVLC) 实现 SRT 流低延迟播放。
 
-运行前可执行：
+运行前需满足以下任一条件：
 
-```powershell
-.\tools\download_third_party.ps1
-```
-
-脚本会从 VideoLAN 官方下载 Windows x64 VLC zip 包，并解压到：
+- 系统已安装 Windows x64 VLC，默认位于 `C:\Program Files\VideoLAN\VLC`
+- 已将 Windows x64 VLC zip 包解压到项目内置运行时目录：
 
 ```text
 tools/third_party/vlc/runtime/

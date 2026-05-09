@@ -1,6 +1,6 @@
 /*
  * 设计令牌（Design Tokens）。
- * 严格对齐 docs/前端设计稿.md §11.1 与 DESIGN.md §21.1。
+ * 严格对齐 STYLE.md 的前端视觉规范与 DESIGN.md §21.1。
  * 业务组件不得直接写 HEX/PX，必须经由这里的 alias token。
  */
 

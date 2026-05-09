@@ -1,6 +1,6 @@
 /*
  * 响应式断点 composable。
- * 严格对齐 docs/前端设计稿.md §7.1 与 DESIGN.md §17.1：xs/sm/md/lg/xl/2xl。
+ * 严格对齐 STYLE.md 响应式规范与 DESIGN.md §17.1：xs/sm/md/lg/xl/2xl。
  * 使用 matchMedia 监听，避免 resize 反复采样；销毁时自动清理监听。
  */
 import { onMounted, onUnmounted, ref, computed } from 'vue';

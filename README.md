@@ -1,194 +1,166 @@
 # SCP-cv
 
-> 面向 **单机大屏** 场景的统一播放控制系统——通过 Vue Web 控制台、REST API 与保留 gRPC 接口远程操控本地大屏，支持 PPT、视频、音频、图片、网页与 SRT 实时流等多种媒体源。
+SCP-cv 是用于控制 **上海第二工业大学 28#108 多媒体显示系统** 的统一播放控制平台。系统在一台 Windows 主机上协同运行 Vue 控制台、Django 服务端、MediaMTX 流服务和 PySide6 播放器，用于管理 PPT、视频、图片、网页和 SRT 直播流等媒体源，并将内容投放到大屏与电视窗口。
 
----
+## 项目信息
 
-## 功能特性
+| 项目 | 内容 |
+|------|------|
+| 开发者 | Qintsg（饶弘玮，上海第二工业大学 25网工A2） |
+| 单位 | 上海第二工业大学 / 计算机与信息工程学院 / SSPU AI-Lab / 超级棒棒糖 |
+| 应用地点 | 上海第二工业大学 28#108 |
+| 许可证 | MIT |
 
-- **统一媒体源管理**：本地文件上传、路径添加、网页与流媒体源注册，全部媒体在同一界面管理
-- **PPT 全功能控制**：通过 COM 自动化驱动 PowerPoint，支持翻页、跳转、播放/暂停、备注提词和当前页媒体控制
-- **libVLC 低延迟播放**：基于 python-vlc + libVLC 和 MediaMTX 实现低延迟 SRT 直连播放，启动时可选择 SRT 渲染显卡
-- **多显示器拼接**：单屏 / 左右双屏拼接模式，启动时通过 GUI 选择目标屏幕
-- **前后端分离**：`frontend/` Vue 3 控制台通过 REST + SSE 调用 Django 后端
-- **保留 gRPC 集成**：核心播放控制 gRPC 接口继续服务中控系统和自动化脚本
-- **SSE 实时推送**：播放状态和媒体源变更通过 Server-Sent Events 实时同步到浏览器
-- **系统与设备控制**：支持 Windows 系统音量/静音同步，并通过 TCP 指令控制拼接屏和电视电源
-- **一键启动**：`uv run python manage.py runall` 单终端同时启动 MediaMTX、Django、PySide6 播放器
+## 核心能力
+
+- **统一媒体源管理**：上传文件、添加本机路径、添加网页源、自动发现 MediaMTX SRT 流。
+- **四窗口播控**：大屏左、大屏右、TV 左、TV 右分别独立控制，支持 single / double 大屏模式。
+- **PPT 控制**：PowerPoint COM 自动化驱动，支持翻页、跳转、提词器、预览图和页面媒体控制。
+- **SRT 直播播放**：MediaMTX 接收 OBS / 外部设备推流，播放器通过 libVLC 低延迟拉流。
+- **REST + SSE 控制台**：Vue 前端通过 REST 下发指令，通过 SSE 同步播放状态。
+- **保留 gRPC 接口**：用于兼容中控系统和自动化脚本。
+- **设备控制**：支持拼接屏、电视电源 TCP 指令和 Windows 系统音量同步。
 
 ## 架构概览
 
-```
-┌──────────────────────────────────┐
-│       Vue Web 控制台 (frontend/) │
-│ REST + SSE · 四路窗口控制          │
-└──────────┬───────────────────────┘
-           │ REST / SSE
-┌──────────▼───────────────────────┐
-│        Django 服务端               │
-│  REST API + gRPC (端口 50051)     │
-│  SQLite 播放会话 (单例)            │
-└──────────┬───────────────────────┘
-           │ 数据库轮询
-┌──────────▼───────────────────────┐
-│      PySide6 本地播放器             │
-│  PlayerController → 适配器分发     │
-│  ┌─────────┬──────────┬────────┐ │
-│  │ PPT适配  │ 视频适配  │ 流适配 │ │
-│  │ (COM)   │(QMedia)  │(libVLC)│ │
-│  └─────────┴──────────┴────────┘ │
-└──────────────────────────────────┘
-           │ 拉流 (SRT)
-┌──────────▼───────────────────────┐
-│       MediaMTX 流服务器             │
-│ SRT 推流 / 读取 (8890)           │
-└──────────────────────────────────┘
+```text
+Vue 控制台 (frontend/)
+  REST / SSE
+        |
+Django 服务端 (REST + gRPC)
+        |
+SQLite 播放会话状态
+        |
+PySide6 播放器 (PPT / 视频 / 图片 / 网页 / SRT)
+        |
+MediaMTX (SRT publish/read)
 ```
 
-## 技术栈
+## 环境要求
 
-| 类别 | 技术 | 版本 |
-|------|------|------|
-| 后端框架 | Django | 6.0.3 |
-| 前端框架 | Vue + Vite + TypeScript | 3.x / latest |
-| gRPC 集成 | django-socio-grpc | 0.25.0 |
-| 播放器 GUI | PySide6 (Qt 6) | 6.11.0 |
-| 流媒体服务器 | MediaMTX | — |
-| 数据库 | SQLite | 内置 |
-| 代码检查 | Ruff | 0.15.9 |
-| 测试框架 | pytest + pytest-django | 9.0.2 / 4.12.0 |
+- Windows 10/11
+- Python 3.12 或更高版本（推荐使用 `uv` 管理）
+- Node.js 20 或更高版本
+- Microsoft PowerPoint（PPT 播放必需）
+- VLC/libVLC Windows x64 运行时（SRT 播放必需）
+- MediaMTX Windows x64 可执行文件
 
 ## 快速开始
 
-### 环境要求
-
-- **Python** 3.12+
-- **Microsoft PowerPoint**（PPT 播放功能需要，通过 COM 自动化调用）
-
-### 安装
-
 ```powershell
-# 克隆仓库
 git clone <repo-url> SCP-cv
 cd SCP-cv
 
-# 如未安装 uv（Windows PowerShell）
+# 安装 uv（如本机尚未安装）
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 
-# 安装项目 Python（遵循 .python-version）并同步依赖
+# 同步 Python 依赖；本项目不再维护 requirements*.txt
 uv python install
 uv sync
 
-# 准备 VLC/libVLC 播放运行时
-powershell -ExecutionPolicy Bypass -File .\tools\download_third_party.ps1
+# 安装前端依赖
+npm ci --prefix frontend
 
-# 复制环境变量配置
+# 准备本地环境变量
 copy .env.example .env
+copy frontend\.env.example frontend\.env
 
 # 初始化数据库
 uv run python manage.py migrate
-
-# 安装 Vue 前端依赖
-npm install --prefix frontend
 ```
 
-> 项目已切换到 `uv` 工作流；根目录的 `requirements*.txt` 仅作为历史兼容清单保留，不再作为推荐安装入口。仅需运行时依赖时，可将 `uv sync` 改为 `uv sync --no-dev`。
+第三方运行时按以下约定放置：
 
-### 启动
+- `tools/third_party/mediamtx/mediamtx.exe`：MediaMTX 主程序，配置文件同目录放置。
+- `tools/third_party/vlc/runtime/`：项目内置 VLC/libVLC runtime；也可以使用系统安装的 `C:\Program Files\VideoLAN\VLC`。
+
+## 环境变量
+
+后端配置在仓库根目录 `.env`，前端 Vite 配置在 `frontend/.env`。两者分离：
+
+- `.env`：Django、gRPC、MediaMTX、日志和后端运行配置。
+- `frontend/.env`：`VITE_FRONTEND_PORT` 与 `VITE_BACKEND_TARGET`。
+
+`runall` 启动前端时会移除父进程继承的 `VITE_*` 变量，让 `frontend/.env` 成为前端开发服务的实际配置来源。若 `frontend/.env` 未配置 `VITE_BACKEND_TARGET`，`runall` 才会按当前后端监听地址提供兜底值。
+
+局域网手机或其它控制端访问时，请把 `frontend/.env` 中的 `VITE_BACKEND_TARGET` 设置为浏览器可访问的后端地址，例如：
+
+```env
+VITE_FRONTEND_PORT=5173
+VITE_BACKEND_TARGET=http://192.168.1.100:8000
+```
+
+## 启动
+
+推荐一键启动：
 
 ```powershell
-# 一键启动（推荐）：MediaMTX + Django + Vue + 播放器
 uv run python manage.py runall
-
-# 自定义监听地址，便于局域网控制台访问
-uv run python manage.py runall --backend-host 0.0.0.0 --frontend-host 0.0.0.0 --skip-mediamtx
 ```
 
-启动后：
-
-1. 本机浏览器打开 `http://127.0.0.1:5173/` 访问 Vue Web 控制台，手机访问时使用 `http://<本机局域网IP>:5173/`
-2. 播放器启动器 GUI 弹出，多显卡主机可先选择 SRT 渲染显卡，再选择播放窗口对应的目标屏幕
-3. 通过浏览器 Web 控制台上传/添加媒体源，点击播放即可在大屏显示
-
-> **提示**：`DJANGO_DEBUG=True` 时播放器窗口带标题栏（可拖拽缩放），`False` 时全屏无边框置顶。
-> PPT 打开后可从对应显示控制页进入专注模式，专注模式返回时会回到原窗口的显示控制页。
-
-### 分进程启动（调试用）
+常用参数：
 
 ```powershell
-# 终端 1：Django 服务端（REST + gRPC）
+# 允许局域网访问前后端
+uv run python manage.py runall --backend-host 0.0.0.0 --frontend-host 0.0.0.0
+
+# 已手动启动 MediaMTX 时跳过
+uv run python manage.py runall --skip-mediamtx
+
+# 调试时跳过播放器或前端
+uv run python manage.py runall --skip-player
+uv run python manage.py runall --skip-frontend
+```
+
+分进程调试：
+
+```powershell
+# Django REST + gRPC
 uv run python manage.py runserver
 
-# 终端 2：Vue 前端
+# Vue 控制台
 npm --prefix frontend run dev
 
-# 终端 3：PySide6 播放器
+# PySide6 播放器
 uv run python manage.py run_player
 
-# 终端 4：MediaMTX（可选）
-.\tools\third_party\mediamtx\mediamtx.exe
+# MediaMTX
+.\tools\third_party\mediamtx\mediamtx.exe .\tools\third_party\mediamtx\mediamtx.yml
 ```
 
-Vue 前端默认监听 `0.0.0.0:5173`，便于手机和同一局域网设备访问；如仅允许本机访问，可运行 `npm --prefix frontend run dev -- --host 127.0.0.1`。
-后端现在对浏览器直连统一返回放行 CORS 响应头，控制台部署在局域网地址、固定域名或其它端口时，无需再额外配置跨域白名单。
+默认端口：
 
-## 目录结构
+| 端口 | 服务 |
+|------|------|
+| 5173 | Vue 控制台 |
+| 8000 | Django REST / admin / 媒体文件 |
+| 50051 | gRPC |
+| 8890 | MediaMTX SRT publish/read |
+| 9997 | MediaMTX API |
 
-```
-SCP-cv/
-├── manage.py                   # Django 入口
-├── scp_cv/                     # Django 项目配置
-│   ├── settings.py             # 配置（django-environ 读取 .env）
-│   ├── urls.py                 # URL 路由
-│   ├── grpc_handlers.py        # gRPC 处理器注册
-│   ├── grpc_servicers.py       # gRPC 服务实现
-│   ├── apps/
-│   │   ├── dashboard/          # Web 控制台（视图 + 模板 + 管理命令）
-│   │   ├── playback/           # 播放会话模型（PlaybackSession + MediaSource）
-│   │   └── streams/            # 外部流注册模型（StreamSource）
-│   ├── player/                 # PySide6 播放器（窗口 + 控制器 + libVLC 适配）
-│   ├── services/               # 业务服务层（显示、播放、MediaMTX、SSE）
-│   └── grpc_generated/         # protoc 生成的 Python 代码
-├── protos/                     # gRPC Proto 定义
-│   └── scp_cv/v1/control.proto # 统一播放控制服务合约
-├── frontend/                   # Vue 3 + Vite 前端控制台
-├── tests/                      # pytest 测试套件
-├── tools/                      # 第三方可执行文件（MediaMTX、VLC）
-└── docs/                       # 项目文档
-    ├── API.md                  # HTTP + gRPC 接口参考
-    ├── 使用文档.md              # 安装与使用指南
-    ├── CHANGELOG.md            # 变更记录
-    └── 需求I.md                # 原始需求文档
-```
-
-## 端口汇总
-
-| 端口 | 服务 | 说明 |
-|------|------|------|
-| 5173 | Vue 前端 | Web 控制台开发服务器 |
-| 8000 | Django HTTP | REST API + admin + 媒体文件 |
-| 50051 | gRPC | 播放控制 gRPC 服务 |
-| 8890 | MediaMTX SRT Publish/Read | OBS / 外部设备推流入口与播放器读取入口 |
-| 9997 | MediaMTX API | 流管理 REST API |
-
-## 测试
+## 常用验证
 
 ```powershell
-# 运行全部测试
+uv run python manage.py check
+uv run python manage.py makemigrations --check --dry-run
 uv run pytest tests/ -v
 npm --prefix frontend run typecheck
 npm --prefix frontend run build
-
-# 运行特定测试文件
-uv run pytest tests/test_media_service.py -v
 ```
 
 ## 文档
 
-- [API 接口参考](docs/API.md) — HTTP 端点 + gRPC 方法 + SSE 事件
-- [使用文档](docs/使用文档.md) — 安装部署 + 操作指南
-- [变更记录](docs/CHANGELOG.md) — 版本变更明细
+- [使用文档](docs/使用文档.md)：现场部署、环境变量、启动、播控流程和常见问题。
+- [维护文档](docs/维护文档.md)：目录职责、运行时资产、依赖升级、备份、故障定位和发布维护流程。
+- [OpenAPI YAML](docs/openapi.yaml)：REST API 机器可读接口合同。
+- [贡献指南](CONTRIBUTING.md)：开发流程、提交规范和验证要求。
+- [代码风格](STYLE.md)：Python、TypeScript、Vue、CSS 和文档风格约定。
+- [变更记录](docs/CHANGELOG.md)：历史变更说明。
 
-## 许可
+## 仓库整理约定
 
-私有项目，未授权不得分发。
+以下内容不进入版本库：本地 agent 配置、Playwright/Codex 运行缓存、pytest/ruff 缓存、`node_modules/`、上传媒体、日志和历史 `requirements*.txt`。Python 依赖以 `pyproject.toml` + `uv.lock` 为准，前端依赖以 `frontend/package.json` + `frontend/package-lock.json` 为准。
+
+## 许可证
+
+本项目使用 MIT License，详见 [LICENSE](LICENSE)。

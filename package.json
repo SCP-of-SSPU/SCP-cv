@@ -1,7 +1,7 @@
 {
   "name": "scp-cv",
   "version": "1.0.0",
-  "description": "> 面向 **单机大屏** 场景的统一播放控制系统——通过 Web 控制台、gRPC 接口远程操控本地大屏，支持 PPT、视频、音频、图片、RTSP 实时流等多种媒体源。",
+  "description": "用于控制上海第二工业大学 28#108 多媒体显示系统的统一播放控制平台。",
   "main": "index.js",
   "directories": {
     "doc": "docs",
@@ -17,8 +17,8 @@
     "url": "git+https://github.com/SCP-of-SSPU/SCP-cv.git"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "Qintsg (饶弘玮)",
+  "license": "MIT",
   "type": "commonjs",
   "bugs": {
     "url": "https://github.com/SCP-of-SSPU/SCP-cv/issues"

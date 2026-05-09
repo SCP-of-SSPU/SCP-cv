@@ -66,7 +66,7 @@ class Command(BaseCommand):
         parser.add_argument("--backend-host", "--host", type=str, default="0.0.0.0", help="Django 监听地址")
         parser.add_argument("--backend-port", "--port", type=int, default=8000, help="Django 监听端口")
         parser.add_argument("--frontend-host", type=str, default="0.0.0.0", help="Vue 前端监听地址")
-        parser.add_argument("--frontend-port", type=int, default=0, help="Vue 前端监听端口，0 表示使用根 .env 中的 VITE_FRONTEND_PORT 或 Vite 默认值")
+        parser.add_argument("--frontend-port", type=int, default=0, help="Vue 前端监听端口，0 表示使用 frontend/.env 中的 VITE_FRONTEND_PORT 或 Vite 默认值")
         parser.add_argument("--grpc-web-port", type=int, default=8081, help="gRPC-Web 代理监听端口")
         parser.add_argument("--poll-interval", type=float, default=0.2, help="播放器轮询间隔秒数")
         parser.add_argument("--skip-mediamtx", action="store_true", default=False, help="跳过 MediaMTX")
@@ -96,7 +96,7 @@ class Command(BaseCommand):
         frontend_uses_env_port = frontend_port <= 0
         if frontend_uses_env_port:
             self.stdout.write(self.style.WARNING(
-                f"Vue 前端端口未显式指定，使用根 .env / Vite 配置端口 {frontend_display_port}"
+                f"Vue 前端端口未显式指定，使用 frontend/.env / Vite 配置端口 {frontend_display_port}"
             ))
         grpc_web_port = int(options.get("grpc_web_port", 8081))
         poll_interval = float(options.get("poll_interval", 0.2))
@@ -188,10 +188,11 @@ class Command(BaseCommand):
             self.stderr.write(self.style.WARNING("未找到 npm 或 frontend/，跳过 Vue 前端"))
             return
         extra_env: dict[str, str] | None = None
-        configured_target = os.environ.get("VITE_BACKEND_TARGET", "").strip()
+        frontend_env = self._read_frontend_env(frontend_dir)
+        configured_target = frontend_env.get("VITE_BACKEND_TARGET", "").strip()
         if not configured_target:
             backend_target_host = self._public_host(backend_host)
-            # 仅在根目录 .env 未配置时提供兜底值，避免覆盖用户显式配置。
+            # 仅在前端环境文件未配置时提供兜底值，避免覆盖用户显式配置。
             extra_env = {"VITE_BACKEND_TARGET": f"http://{backend_target_host}:{backend_port}"}
         command_args = [npm_path, "run", "dev", "--", "--host", host]
         if port > 0:
@@ -202,18 +203,23 @@ class Command(BaseCommand):
             cwd=frontend_dir,
             required=True,
             extra_env=extra_env,
+            env_remove_prefixes=("VITE_",),
         )
         if port <= 0:
-            self.stdout.write(self.style.WARNING("Vue 前端未追加 --port，端口以根 .env / Vite 配置为准"))
+            self.stdout.write(self.style.WARNING("Vue 前端未追加 --port，端口以 frontend/.env / Vite 配置为准"))
         else:
             self.stdout.write(self.style.WARNING(f"Vue 前端已显式追加 --port {port}"))
 
     def _resolve_frontend_port(self) -> int:
         """
-        解析前端实际监听端口，优先根 .env 中的 VITE_FRONTEND_PORT，缺省回退 Vite 默认值。
+        解析前端实际监听端口，优先 frontend/.env 中的 VITE_FRONTEND_PORT，缺省回退 Vite 默认值。
         :return: 前端端口
         """
-        configured_port = os.environ.get("VITE_FRONTEND_PORT", "").strip()
+        configured_port = (
+            self._read_frontend_env(Path(settings.BASE_DIR) / "frontend")
+            .get("VITE_FRONTEND_PORT", "")
+            .strip()
+        )
         if configured_port:
             try:
                 return int(configured_port)
@@ -221,6 +227,45 @@ class Command(BaseCommand):
                 pass
         return 5173
 
+    def _read_frontend_env(self, frontend_dir: Path) -> dict[str, str]:
+        """
+        读取 Vite 前端环境文件中的 VITE_* 变量，判断 runall 是否需要提供兜底值。
+        :param frontend_dir: 前端项目目录
+        :return: 合并后的前端环境变量
+        """
+        env_values: dict[str, str] = {}
+        for env_name in (".env", ".env.local", ".env.development", ".env.development.local"):
+            env_path = frontend_dir / env_name
+            if not env_path.exists():
+                continue
+            for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+                parsed_pair = self._parse_frontend_env_line(raw_line)
+                if parsed_pair is None:
+                    continue
+                key, value = parsed_pair
+                if key.startswith("VITE_"):
+                    env_values[key] = value
+        return env_values
+
+    def _parse_frontend_env_line(self, raw_line: str) -> tuple[str, str] | None:
+        """
+        解析 Vite .env 的基础 key=value 行，支持常见引号和 export 前缀。
+        :param raw_line: 原始行文本
+        :return: 变量名和值；空行或注释返回 None
+        """
+        stripped_line = raw_line.strip()
+        if not stripped_line or stripped_line.startswith("#") or "=" not in stripped_line:
+            return None
+        if stripped_line.startswith("export "):
+            stripped_line = stripped_line[7:].lstrip()
+        key, value = stripped_line.split("=", 1)
+        normalized_key = key.strip()
+        normalized_value = value.strip()
+        if len(normalized_value) >= 2 and normalized_value[0] == normalized_value[-1] and normalized_value[0] in {"'", '"'}:
+            normalized_value = normalized_value[1:-1]
+        if not normalized_key:
+            return None
+        return normalized_key, normalized_value
 
     def _start_player(self, poll_interval: float) -> None:
         """
@@ -246,6 +291,7 @@ class Command(BaseCommand):
         cwd: Path | None = None,
         required: bool = True,
         extra_env: dict[str, str] | None = None,
+        env_remove_prefixes: tuple[str, ...] = (),
     ) -> None:
         """
         启动子进程并继承控制台输出，避免 PIPE 缓冲区导致阻塞。
@@ -254,6 +300,7 @@ class Command(BaseCommand):
         :param cwd: 工作目录
         :param required: 是否关键服务
         :param extra_env: 追加传给子进程的环境变量
+        :param env_remove_prefixes: 传递前从父进程环境移除的变量名前缀
         :return: None
         """
         log_handle: BinaryIO | None = None
@@ -263,6 +310,10 @@ class Command(BaseCommand):
             process_env.setdefault("PYTHONUTF8", "1")
             process_env.setdefault("PYTHONIOENCODING", "utf-8")
             process_env.setdefault("npm_config_yes", "true")
+            if env_remove_prefixes:
+                for env_key in list(process_env):
+                    if env_key.startswith(env_remove_prefixes):
+                        process_env.pop(env_key, None)
             if extra_env:
                 process_env.update(extra_env)
             log_handle = self._open_process_log(name)
@@ -464,4 +515,3 @@ class Command(BaseCommand):
         self.stdout.write(self.style.WARNING(f"收到信号 {signum}，正在停止所有服务…"))
         self._cleanup_processes()
         sys.exit(0)
-
