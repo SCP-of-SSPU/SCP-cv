@@ -74,9 +74,12 @@ const selectedMedia = computed(() =>
   currentMediaItems.value.find((media) => mediaSelectionValue(media) === selectedMediaKey.value) ?? null,
 );
 
-const canToggleSelectedMedia = computed(() => !!session.value && !!selectedMedia.value);
-const playPauseIcon = computed(() => (session.value?.playback_state === 'playing' ? 'pause_24_regular' : 'play_24_regular'));
-const playPauseLabel = computed(() => (session.value?.playback_state === 'playing' ? '暂停媒体' : '播放媒体'));
+const canControlSelectedMedia = computed(() => !!session.value && !!selectedMedia.value);
+const isMediaPickerDisabled = computed(() => currentMediaOptions.value.length === 0);
+const mediaSelectPlaceholder = computed(() => {
+  if (!currentMediaOptions.value.length) return '当前页无媒体';
+  return currentMediaOptions.value.length === 1 ? '自动选择媒体' : '选择媒体';
+});
 
 const teleprompterText = computed(() => sanitizeSpeakerNotes(
   currentResource.value?.speaker_notes ?? '',
@@ -181,14 +184,13 @@ async function nav(action: 'prev' | 'next'): Promise<void> {
   }
 }
 
-async function togglePlayPause(): Promise<void> {
+async function controlSelectedMedia(action: 'play' | 'pause'): Promise<void> {
   if (!session.value || !selectedMedia.value) {
     if (currentMediaItems.value.length > 1) {
       toast.info('请先选择要控制的媒体');
     }
     return;
   }
-  const action = session.value.playback_state === 'playing' ? 'pause' : 'play';
   try {
     await sessionStore.controlPptMedia(
       session.value.window_id,
@@ -312,12 +314,14 @@ const windowMappingForExit = computed(() => {
           </aside>
         </div>
 
-        <div class="ppt-focus__controls">
-          <div v-if="currentMediaOptions.length > 0" class="ppt-focus__media-picker">
+        <div class="ppt-focus__controls" aria-label="PPT 专注控制条">
+          <div class="ppt-focus__media-picker">
             <FCombobox
               v-model="selectedMediaKey"
               :options="currentMediaOptions"
-              :placeholder="currentMediaOptions.length > 1 ? '选择媒体' : '当前媒体'"
+              :placeholder="mediaSelectPlaceholder"
+              :disabled="isMediaPickerDisabled"
+              :searchable="currentMediaOptions.length >= 10"
               aria-label="选择当前页媒体"
               size="large"
             />
@@ -325,8 +329,11 @@ const windowMappingForExit = computed(() => {
           <FButton appearance="secondary" icon-start="previous_24_regular" @click="nav('prev')">
             上一页
           </FButton>
-          <FButton appearance="primary" :icon-start="playPauseIcon" :disabled="!canToggleSelectedMedia" @click="togglePlayPause">
-            {{ playPauseLabel }}
+          <FButton appearance="secondary" icon-start="pause_24_regular" :disabled="!canControlSelectedMedia" @click="controlSelectedMedia('pause')">
+            暂停媒体
+          </FButton>
+          <FButton appearance="primary" icon-start="play_24_regular" :disabled="!canControlSelectedMedia" @click="controlSelectedMedia('play')">
+            播放媒体
           </FButton>
           <FButton appearance="secondary" icon-start="next_24_regular" @click="nav('next')">
             下一页
@@ -337,281 +344,4 @@ const windowMappingForExit = computed(() => {
   </div>
 </template>
 
-<style scoped>
-.ppt-focus {
-  min-height: var(--app-height, 100vh);
-  display: flex;
-  flex-direction: column;
-  background: #0f1115;
-  color: #f3f3f3;
-}
-
-.ppt-focus__topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-l);
-  padding: var(--spacing-m) var(--spacing-2xl);
-  background: rgba(255, 255, 255, 0.04);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.ppt-focus__topbar :deep(.f-button) {
-  color: inherit;
-}
-
-.ppt-focus__topbar-center {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-s);
-  min-width: 0;
-  color: #f3f3f3;
-}
-
-.ppt-focus__topbar-title {
-  max-width: 320px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 600;
-}
-
-.ppt-focus__topbar-progress {
-  color: rgba(255, 255, 255, 0.6);
-  font-variant-numeric: tabular-nums;
-}
-
-.ppt-focus__stage {
-  flex: 1 1 auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-l);
-  padding: var(--spacing-2xl);
-  min-height: 0;
-}
-
-.ppt-focus__stage[data-orientation='portrait'] {
-  gap: var(--spacing-m);
-  padding: var(--spacing-l);
-}
-
-.ppt-focus__layout {
-  flex: 1 1 auto;
-  display: grid;
-  grid-template-columns: 6fr 2fr;
-  gap: var(--spacing-l);
-  min-height: 0;
-}
-
-.ppt-focus__stage[data-orientation='portrait'] .ppt-focus__layout {
-  grid-template-columns: 1fr;
-}
-
-.ppt-focus__current,
-.ppt-focus__next,
-.ppt-focus__progress,
-.ppt-focus__teleprompter {
-  background: #181a20;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: var(--radius-large);
-}
-
-.ppt-focus__current {
-  margin: 0;
-  overflow: hidden;
-  display: flex;
-  min-height: 0;
-}
-
-.ppt-focus__current img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  flex: 1 1 auto;
-}
-
-.ppt-focus__current-fallback {
-  flex: 1 1 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-s);
-  color: rgba(255, 255, 255, 0.5);
-  font-size: var(--type-title2-size);
-}
-
-.ppt-focus__side {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-l);
-  min-height: 0;
-}
-
-.ppt-focus__next,
-.ppt-focus__progress,
-.ppt-focus__teleprompter {
-  padding: var(--spacing-m);
-}
-
-.ppt-focus__next {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
-}
-
-.ppt-focus__next img {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  border-radius: var(--radius-medium);
-  object-fit: cover;
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.ppt-focus__next-fallback {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  border-radius: var(--radius-medium);
-  background: linear-gradient(135deg, rgba(40, 153, 245, 0.18), rgba(15, 108, 189, 0.04));
-  color: rgba(255, 255, 255, 0.7);
-  font-size: var(--type-title3-size);
-}
-
-.ppt-focus__progress {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
-}
-
-.ppt-focus__progress-page,
-.ppt-focus__teleprompter-page {
-  margin: 0;
-  color: rgba(255, 255, 255, 0.6);
-  font-size: var(--type-caption1-size);
-  font-variant-numeric: tabular-nums;
-}
-
-.ppt-focus__side-eyebrow {
-  margin: 0;
-  color: rgba(255, 255, 255, 0.55);
-  font-size: var(--type-caption1-size);
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.ppt-focus__teleprompter {
-  display: flex;
-  flex: 1 1 0;
-  flex-direction: column;
-  min-height: 220px;
-  overflow: hidden;
-}
-
-.ppt-focus__teleprompter-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-s);
-  margin-bottom: var(--spacing-s);
-}
-
-.ppt-focus__teleprompter-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
-.ppt-focus__teleprompter-text {
-  margin: 0;
-  color: rgba(255, 255, 255, 0.92);
-  font-size: 22px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-}
-
-.ppt-focus__teleprompter-empty {
-  margin: 0;
-  color: rgba(255, 255, 255, 0.45);
-}
-
-.ppt-focus__controls {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-m);
-  flex-wrap: wrap;
-}
-
-.ppt-focus__media-picker {
-  flex: 0 1 280px;
-  min-width: 220px;
-}
-
-.ppt-focus__controls :deep(.f-button) {
-  min-width: 160px;
-}
-
-.ppt-focus__loading {
-  flex: 1 1 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-s);
-  color: rgba(255, 255, 255, 0.7);
-}
-
-@media (max-width: 1023px) {
-  .ppt-focus__layout {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 767px) {
-  .ppt-focus__topbar {
-    flex-wrap: wrap;
-    align-items: flex-start;
-    padding: var(--spacing-s) var(--spacing-l);
-  }
-
-  .ppt-focus__topbar-center {
-    width: 100%;
-    flex-wrap: wrap;
-    order: 3;
-  }
-
-  .ppt-focus__topbar-title {
-    max-width: 200px;
-  }
-
-  .ppt-focus__teleprompter {
-    min-height: 0;
-    max-height: 36vh;
-  }
-
-  .ppt-focus__teleprompter-text {
-    font-size: 18px;
-    line-height: 1.7;
-  }
-
-  .ppt-focus__controls {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .ppt-focus__media-picker {
-    grid-column: 1 / -1;
-    width: 100%;
-    min-width: 0;
-  }
-
-  .ppt-focus__controls :deep(.f-button) {
-    width: 100%;
-    min-width: 0;
-  }
-}
-</style>
+<style scoped src="./PptFocusView.css"></style>
