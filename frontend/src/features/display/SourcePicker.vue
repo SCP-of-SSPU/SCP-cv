@@ -223,12 +223,18 @@ const totalLabel = computed(() => `共 ${filteredSources.value.length} 项`);
   border: 1px solid var(--color-border-subtle);
   background: var(--color-background-card);
   cursor: pointer;
-  transition: background var(--motion-duration-fast) var(--motion-curve-ease);
+  transition:
+    background var(--motion-duration-medium) var(--motion-curve-ease),
+    border-color var(--motion-duration-medium) var(--motion-curve-ease),
+    box-shadow var(--motion-duration-medium) var(--motion-curve-ease),
+    transform var(--motion-duration-medium) var(--motion-curve-ease);
 }
 
 .source-picker__item:hover {
   background: var(--color-background-brand-selected);
   border-color: var(--color-background-brand);
+  box-shadow: var(--shadow-4);
+  transform: translateY(-1px);
 }
 
 .source-picker__item--unavailable {
@@ -289,6 +295,14 @@ const totalLabel = computed(() => `共 ${filteredSources.value.length} 项`);
   border: 1px dashed var(--color-border-default);
   border-radius: var(--radius-medium);
   background: var(--color-background-subtle);
+  transition:
+    border-color var(--motion-duration-medium) var(--motion-curve-ease),
+    background var(--motion-duration-medium) var(--motion-curve-ease);
+}
+
+.source-picker__file:hover {
+  border-color: var(--color-border-focus);
+  background: var(--color-background-card);
 }
 
 .source-picker__file>span {

@@ -19,10 +19,11 @@
   --color-text-warning: #9d5d00;
 
   /* ── 背景（color.background.*） ───────────────────────────── */
-  --color-background-canvas: #f5f5f5;
+  --color-background-canvas: #f6f7f9;
   --color-background-card: #ffffff;
   --color-background-subtle: #fafafa;
   --color-background-raised: #ffffff;
+  --color-background-glass: rgba(255, 255, 255, 0.86);
   --color-background-brand: #1b86e0;
   --color-background-brand-hover: #2899f5;
   --color-background-brand-pressed: #0f6cbd;
@@ -81,11 +82,21 @@
 
   /* ── 阴影（shadow.*） ─────────────────────────────────────── */
   --shadow-none: none;
-  --shadow-2: 0 1px 2px rgb(0 0 0 / 0.07);
-  --shadow-4: 0 2px 4px rgb(0 0 0 / 0.10);
-  --shadow-8: 0 4px 8px rgb(0 0 0 / 0.10);
-  --shadow-16: 0 8px 16px rgb(0 0 0 / 0.14);
-  --shadow-28: 0 14px 28px rgb(0 0 0 / 0.18);
+  --shadow-2: 0 1px 2px rgb(15 23 42 / 0.06), 0 1px 1px rgb(15 23 42 / 0.04);
+  --shadow-4: 0 2px 6px rgb(15 23 42 / 0.08), 0 1px 2px rgb(15 23 42 / 0.05);
+  --shadow-8: 0 8px 20px rgb(15 23 42 / 0.10), 0 2px 6px rgb(15 23 42 / 0.06);
+  --shadow-16: 0 16px 36px rgb(15 23 42 / 0.14), 0 4px 12px rgb(15 23 42 / 0.08);
+  --shadow-28: 0 28px 64px rgb(15 23 42 / 0.18), 0 12px 28px rgb(15 23 42 / 0.12);
+  --shadow-control: 0 1px 1px rgb(15 23 42 / 0.04);
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 22px rgb(15 23 42 / 0.04);
+  --shadow-card-hover: 0 16px 34px rgb(15 23 42 / 0.10), 0 4px 12px rgb(15 23 42 / 0.06);
+  --shadow-chrome: 0 1px 2px rgb(15 23 42 / 0.05), 0 10px 30px rgb(15 23 42 / 0.04);
+  --shadow-tabbar: 0 -10px 30px rgb(15 23 42 / 0.10);
+  --shadow-flyout: 0 18px 42px rgb(15 23 42 / 0.16), 0 6px 18px rgb(15 23 42 / 0.10);
+  --shadow-modal: 0 34px 82px rgb(15 23 42 / 0.22), 0 16px 34px rgb(15 23 42 / 0.14);
+  --shadow-brand: 0 6px 16px color-mix(in srgb, var(--color-background-brand) 24%, transparent);
+  --shadow-brand-hover: 0 10px 24px color-mix(in srgb, var(--color-background-brand) 30%, transparent);
+  --shadow-focus: 0 0 0 3px color-mix(in srgb, var(--color-border-focus) 26%, transparent);
 
   /* ── Z-index（z.*） ───────────────────────────────────────── */
   --z-base: 0;
@@ -111,11 +122,13 @@
   --motion-duration-fast: 100ms;
   --motion-duration-medium: 160ms;
   --motion-duration-normal: 200ms;
+  --motion-duration-entrance: 240ms;
   --motion-duration-slow: 300ms;
   --motion-duration-ultra-slow: 500ms;
   --motion-curve-accelerate: cubic-bezier(0.7, 0, 1, 0.5);
   --motion-curve-decelerate: cubic-bezier(0.1, 0.9, 0.2, 1);
   --motion-curve-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-curve-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
   --motion-curve-spring: cubic-bezier(0.34, 1.2, 0.64, 1);
   --motion-curve-linear: linear;
 
@@ -166,6 +179,7 @@
   --color-background-card: #1b1d23;
   --color-background-subtle: #16181d;
   --color-background-raised: #20232b;
+  --color-background-glass: rgba(27, 29, 35, 0.82);
   --color-background-brand: #2899f5;
   --color-background-brand-selected: rgba(40, 153, 245, 0.16);
 
@@ -174,11 +188,21 @@
   --color-border-strong: rgba(255, 255, 255, 0.32);
   --color-border-focus: #6cb8ff;
 
-  --shadow-2: 0 1px 2px rgb(0 0 0 / 0.5);
-  --shadow-4: 0 2px 4px rgb(0 0 0 / 0.45);
-  --shadow-8: 0 4px 8px rgb(0 0 0 / 0.45);
-  --shadow-16: 0 8px 16px rgb(0 0 0 / 0.5);
-  --shadow-28: 0 14px 28px rgb(0 0 0 / 0.6);
+  --shadow-2: 0 1px 2px rgb(0 0 0 / 0.55);
+  --shadow-4: 0 2px 6px rgb(0 0 0 / 0.52);
+  --shadow-8: 0 8px 20px rgb(0 0 0 / 0.50);
+  --shadow-16: 0 16px 36px rgb(0 0 0 / 0.56);
+  --shadow-28: 0 28px 64px rgb(0 0 0 / 0.64);
+  --shadow-control: 0 1px 1px rgb(0 0 0 / 0.36);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.36), 0 10px 24px rgb(0 0 0 / 0.30);
+  --shadow-card-hover: 0 18px 42px rgb(0 0 0 / 0.46), 0 6px 18px rgb(0 0 0 / 0.34);
+  --shadow-chrome: 0 1px 2px rgb(0 0 0 / 0.42), 0 12px 32px rgb(0 0 0 / 0.34);
+  --shadow-tabbar: 0 -12px 34px rgb(0 0 0 / 0.48);
+  --shadow-flyout: 0 22px 52px rgb(0 0 0 / 0.56), 0 8px 20px rgb(0 0 0 / 0.40);
+  --shadow-modal: 0 34px 82px rgb(0 0 0 / 0.66), 0 16px 34px rgb(0 0 0 / 0.46);
+  --shadow-brand: 0 8px 20px color-mix(in srgb, var(--color-background-brand) 22%, transparent);
+  --shadow-brand-hover: 0 12px 28px color-mix(in srgb, var(--color-background-brand) 28%, transparent);
+  --shadow-focus: 0 0 0 3px color-mix(in srgb, var(--color-border-focus) 32%, transparent);
 }
 
 /* 用户系统级偏好：减少动效。所有 transition / animation 收敛到几乎无感。 */

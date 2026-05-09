@@ -105,6 +105,7 @@ defineEmits<(event: 'click', payload: MouseEvent) => void>();
   background: transparent;
   cursor: pointer;
   user-select: none;
+  box-shadow: var(--shadow-control);
   /*
    * 过渡时间统一到 medium(160ms)：比原 fast(100ms) 略柔，
    * 避免 hover 闪现过于"机械"；同时把 transform 加入过渡目标，
@@ -133,6 +134,7 @@ defineEmits<(event: 'click', payload: MouseEvent) => void>();
   cursor: not-allowed;
   opacity: 0.55;
   box-shadow: none;
+  transform: none;
 }
 
 /* 尺寸：紧凑 / 默认 / 大 / 移动端 100% 宽 */
@@ -171,16 +173,20 @@ defineEmits<(event: 'click', payload: MouseEvent) => void>();
   background: var(--color-background-brand);
   color: var(--color-text-inverse);
   border-color: var(--color-background-brand);
+  box-shadow: var(--shadow-brand);
 }
 
 .f-button--primary:hover:not(:disabled) {
   background: var(--color-background-brand-hover);
   border-color: var(--color-background-brand-hover);
+  box-shadow: var(--shadow-brand-hover);
+  transform: translateY(-1px);
 }
 
 .f-button--primary:active:not(:disabled) {
   background: var(--color-background-brand-pressed);
   border-color: var(--color-background-brand-pressed);
+  box-shadow: var(--shadow-brand);
 }
 
 /* Secondary：透明底 + 边框 */
@@ -192,6 +198,9 @@ defineEmits<(event: 'click', payload: MouseEvent) => void>();
 
 .f-button--secondary:hover:not(:disabled) {
   background: var(--color-background-subtle);
+  border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-4);
+  transform: translateY(-1px);
 }
 
 .f-button--secondary:active:not(:disabled) {
@@ -203,6 +212,7 @@ defineEmits<(event: 'click', payload: MouseEvent) => void>();
   background: transparent;
   color: var(--color-text-brand);
   border-color: transparent;
+  box-shadow: none;
 }
 
 .f-button--subtle:hover:not(:disabled) {
@@ -214,6 +224,7 @@ defineEmits<(event: 'click', payload: MouseEvent) => void>();
   background: transparent;
   color: var(--color-text-secondary);
   border-color: transparent;
+  box-shadow: none;
 }
 
 .f-button--transparent:hover:not(:disabled) {
@@ -226,6 +237,7 @@ defineEmits<(event: 'click', payload: MouseEvent) => void>();
   background: transparent;
   color: var(--color-text-primary);
   border-color: transparent;
+  box-shadow: none;
 }
 
 .f-button--ghost:hover:not(:disabled) {
@@ -238,10 +250,13 @@ defineEmits<(event: 'click', payload: MouseEvent) => void>();
   background: transparent;
   color: var(--color-status-error-foreground);
   border-color: var(--color-status-error-foreground);
+  box-shadow: none;
 }
 
 .f-button--danger:hover:not(:disabled) {
   background: var(--color-status-error-background);
+  box-shadow: var(--shadow-4);
+  transform: translateY(-1px);
 }
 
 .f-button--danger:active:not(:disabled) {
@@ -252,6 +267,15 @@ defineEmits<(event: 'click', payload: MouseEvent) => void>();
 /* Loading：保留宽度，spinner 旋转 */
 .f-button--loading {
   cursor: progress;
+  transform: none;
+}
+
+@media (hover: none) {
+  .f-button--primary:hover:not(:disabled),
+  .f-button--secondary:hover:not(:disabled),
+  .f-button--danger:hover:not(:disabled) {
+    transform: none;
+  }
 }
 
 .f-button__spinner {

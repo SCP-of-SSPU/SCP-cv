@@ -71,20 +71,23 @@ defineExpose({
   color: var(--color-text-primary);
   font: inherit;
   resize: vertical;
+  box-shadow: var(--shadow-control);
   /* 与 FInput 保持一致的 medium(160ms) 过渡 + 2 px 柔光晕。 */
   transition:
     border-color var(--motion-duration-medium) var(--motion-curve-ease),
+    background-color var(--motion-duration-medium) var(--motion-curve-ease),
     box-shadow var(--motion-duration-medium) var(--motion-curve-ease);
 }
 
 .f-textarea:hover:not(:disabled) {
   border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-2);
 }
 
 .f-textarea:focus-visible {
   outline: none;
   border-color: var(--color-border-focus);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-border-focus) 32%, transparent);
+  box-shadow: var(--shadow-focus), var(--shadow-2);
 }
 
 .f-textarea--invalid {

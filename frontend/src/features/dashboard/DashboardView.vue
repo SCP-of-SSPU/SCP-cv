@@ -227,9 +227,15 @@ const hasDeviceError = computed(() =>
   /* Hero 用 xxlarge 大圆角与渐变背景配合，是仪表盘视觉重心。 */
   border-radius: var(--radius-xxlarge);
   background:
-    linear-gradient(135deg, rgba(27, 134, 224, 0.12) 0%, rgba(15, 108, 189, 0.04) 60%),
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--color-background-brand-selected) 90%, var(--color-background-card)) 0%,
+      color-mix(in srgb, var(--color-status-success-background) 42%, var(--color-background-card)) 62%
+    ),
     var(--color-background-card);
   border: 1px solid var(--color-border-subtle);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
 }
 
 .dashboard__hero-eyebrow {
@@ -263,6 +269,11 @@ const hasDeviceError = computed(() =>
 
 .dashboard__card {
   min-height: 220px;
+  transition: transform var(--motion-duration-entrance) var(--motion-curve-emphasized);
+}
+
+.dashboard__card:hover {
+  transform: translateY(-1px);
 }
 
 .dashboard__hint {

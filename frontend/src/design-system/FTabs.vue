@@ -137,7 +137,9 @@ function onKey(event: KeyboardEvent, index: number): void {
   border-radius: var(--radius-medium);
   /* 颜色与底色一并 medium(160ms) 过渡；下划线本体过渡见 ::after 段。 */
   transition: color var(--motion-duration-medium) var(--motion-curve-ease),
-    background var(--motion-duration-medium) var(--motion-curve-ease);
+    background var(--motion-duration-medium) var(--motion-curve-ease),
+    box-shadow var(--motion-duration-medium) var(--motion-curve-ease),
+    transform var(--motion-duration-medium) var(--motion-curve-ease);
 }
 
 .f-tabs--compact .f-tabs__item {
@@ -148,6 +150,7 @@ function onKey(event: KeyboardEvent, index: number): void {
 .f-tabs__item:hover:not(:disabled):not(.f-tabs__item--selected) {
   color: var(--color-text-primary);
   background: var(--color-background-subtle);
+  transform: translateY(-1px);
 }
 
 .f-tabs__item:disabled {
@@ -209,6 +212,7 @@ function onKey(event: KeyboardEvent, index: number): void {
   background: var(--color-background-brand);
   border-color: var(--color-background-brand);
   color: var(--color-text-inverse);
+  box-shadow: var(--shadow-brand);
 }
 
 .f-tabs--pill .f-tabs__item--selected .f-tabs__badge {

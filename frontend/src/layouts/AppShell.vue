@@ -135,8 +135,11 @@ function isPathActive(path: string): boolean {
   gap: var(--spacing-l);
   height: 56px;
   padding: 0 var(--spacing-2xl);
-  background: var(--color-background-card);
+  background: var(--color-background-glass);
   border-bottom: 1px solid var(--color-border-subtle);
+  box-shadow: var(--shadow-chrome);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
 }
 
 .app-shell__brand {
@@ -153,10 +156,11 @@ function isPathActive(path: string): boolean {
   width: 32px;
   height: 32px;
   border-radius: var(--radius-medium);
-  background: var(--color-background-brand);
+  background: linear-gradient(135deg, var(--color-background-brand), var(--color-background-brand-pressed));
   color: var(--color-text-inverse);
   font-weight: 700;
   font-size: var(--type-subtitle2-size);
+  box-shadow: var(--shadow-brand);
 }
 
 .app-shell__brand-meta {
@@ -211,6 +215,7 @@ function isPathActive(path: string): boolean {
   padding: var(--spacing-l) var(--spacing-m);
   background: var(--color-background-card);
   border-right: 1px solid var(--color-border-subtle);
+  box-shadow: var(--shadow-chrome);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-l);
@@ -240,19 +245,24 @@ function isPathActive(path: string): boolean {
   color: var(--color-text-secondary);
   font-weight: 500;
   text-decoration: none;
-  transition: background var(--motion-duration-fast) var(--motion-curve-ease),
-    color var(--motion-duration-fast) var(--motion-curve-ease);
+  transition:
+    background var(--motion-duration-medium) var(--motion-curve-ease),
+    color var(--motion-duration-medium) var(--motion-curve-ease),
+    transform var(--motion-duration-medium) var(--motion-curve-ease),
+    box-shadow var(--motion-duration-medium) var(--motion-curve-ease);
 }
 
 .app-shell__nav-item:hover {
   background: var(--color-background-subtle);
   color: var(--color-text-primary);
+  transform: translateX(2px);
 }
 
 .app-shell__nav-item--active {
   background: var(--color-background-brand-selected);
   color: var(--color-text-brand);
   font-weight: 600;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-background-brand) 16%, transparent);
 }
 
 .app-shell__nav-item--active::before {

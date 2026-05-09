@@ -136,6 +136,8 @@ function onOverlayClick(event: MouseEvent): void {
   align-items: center;
   justify-content: center;
   padding: var(--spacing-2xl);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
 }
 
 .f-dialog {
@@ -145,7 +147,7 @@ function onOverlayClick(event: MouseEvent): void {
   background: var(--color-background-card);
   color: var(--color-text-primary);
   border-radius: var(--radius-large);
-  box-shadow: var(--shadow-28);
+  box-shadow: var(--shadow-modal);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -199,7 +201,7 @@ function onOverlayClick(event: MouseEvent): void {
   gap: var(--spacing-s);
   padding: var(--spacing-l) var(--spacing-2xl) var(--spacing-2xl);
   border-top: 1px solid var(--color-border-subtle);
-  background: var(--color-background-subtle);
+  background: color-mix(in srgb, var(--color-background-subtle) 86%, var(--color-background-card));
 }
 
 /*
@@ -214,7 +216,7 @@ function onOverlayClick(event: MouseEvent): void {
 }
 
 .f-dialog-enter-active .f-dialog {
-  transition: transform var(--motion-duration-normal) var(--motion-curve-decelerate);
+  transition: transform var(--motion-duration-entrance) var(--motion-curve-emphasized);
 }
 
 .f-dialog-leave-active .f-dialog {

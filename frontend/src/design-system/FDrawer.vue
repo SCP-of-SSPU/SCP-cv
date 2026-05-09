@@ -158,6 +158,8 @@ function onOverlayClick(event: MouseEvent): void {
   display: flex;
   align-items: stretch;
   justify-content: flex-end;
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
 }
 
 .f-drawer__overlay--mobile {
@@ -171,7 +173,7 @@ function onOverlayClick(event: MouseEvent): void {
   color: var(--color-text-primary);
   display: flex;
   flex-direction: column;
-  box-shadow: var(--shadow-16);
+  box-shadow: var(--shadow-modal);
   height: 100%;
   max-height: 100%;
 }
@@ -262,7 +264,7 @@ function onOverlayClick(event: MouseEvent): void {
   gap: var(--spacing-s);
   padding: var(--spacing-l) var(--spacing-2xl) var(--spacing-2xl);
   border-top: 1px solid var(--color-border-subtle);
-  background: var(--color-background-subtle);
+  background: color-mix(in srgb, var(--color-background-subtle) 86%, var(--color-background-card));
 }
 
 .f-drawer--mobile .f-drawer__footer {
@@ -284,7 +286,7 @@ function onOverlayClick(event: MouseEvent): void {
 }
 
 .f-drawer-enter-active .f-drawer {
-  transition: transform var(--motion-duration-normal) var(--motion-curve-decelerate);
+  transition: transform var(--motion-duration-entrance) var(--motion-curve-emphasized);
 }
 
 .f-drawer-leave-active .f-drawer {

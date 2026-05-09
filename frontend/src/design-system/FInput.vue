@@ -117,9 +117,11 @@ defineExpose({
   border: 1px solid var(--color-border-default);
   background: var(--color-background-card);
   color: var(--color-text-primary);
+  box-shadow: var(--shadow-control);
   /* 过渡用 medium(160ms) 让 hover/focus 切换更柔，配合 box-shadow 双层光晕。 */
   transition:
     border-color var(--motion-duration-medium) var(--motion-curve-ease),
+    background-color var(--motion-duration-medium) var(--motion-curve-ease),
     box-shadow var(--motion-duration-medium) var(--motion-curve-ease);
 }
 
@@ -138,12 +140,13 @@ defineExpose({
 
 .f-input:hover:not(.f-input--disabled) {
   border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-2);
 }
 
 .f-input:focus-within {
   border-color: var(--color-border-focus);
   /* 2 px 光晕比 1 px 更柔和，避免硬边导致的"实色描边"观感。 */
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-border-focus) 32%, transparent);
+  box-shadow: var(--shadow-focus), var(--shadow-2);
 }
 
 .f-input--invalid {
@@ -151,7 +154,7 @@ defineExpose({
 }
 
 .f-input--invalid:focus-within {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-border-error) 32%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-border-error) 28%, transparent), var(--shadow-2);
 }
 
 .f-input--disabled {

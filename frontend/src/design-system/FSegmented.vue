@@ -71,6 +71,7 @@ function pick(option: FSegmentedOption<string | number>): void {
   border-radius: var(--radius-medium);
   background: var(--color-background-subtle);
   border: 1px solid var(--color-border-subtle);
+  box-shadow: var(--shadow-control);
 }
 
 .f-segmented--full {
@@ -105,7 +106,8 @@ function pick(option: FSegmentedOption<string | number>): void {
    */
   transition: background var(--motion-duration-medium) var(--motion-curve-ease),
     color var(--motion-duration-medium) var(--motion-curve-ease),
-    box-shadow var(--motion-duration-medium) var(--motion-curve-ease);
+    box-shadow var(--motion-duration-medium) var(--motion-curve-ease),
+    transform var(--motion-duration-medium) var(--motion-curve-ease);
 }
 
 .f-segmented--compact .f-segmented__item {
@@ -123,6 +125,7 @@ function pick(option: FSegmentedOption<string | number>): void {
 .f-segmented__item:hover:not(:disabled):not(.f-segmented__item--selected) {
   background: var(--color-background-card);
   color: var(--color-text-primary);
+  transform: translateY(-1px);
 }
 
 .f-segmented__item--selected {
@@ -130,7 +133,7 @@ function pick(option: FSegmentedOption<string | number>): void {
   color: var(--color-text-primary);
   font-weight: 600;
   /* 浮起感：边框 1 px + 微阴影；不再用强品牌底色，避免与 NavList Active 混淆。 */
-  box-shadow: 0 0 0 1px var(--color-border-default), 0 1px 2px rgb(0 0 0 / 0.06);
+  box-shadow: 0 0 0 1px var(--color-border-default), var(--shadow-2);
 }
 
 .f-segmented__item--icon-only {

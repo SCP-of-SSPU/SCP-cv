@@ -71,24 +71,29 @@ const rootClass = computed(() =>
 
 <style scoped>
 .f-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   background: var(--color-background-card);
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-large);
   color: var(--color-text-primary);
+  box-shadow: var(--shadow-card);
+  overflow: clip;
   /*
    * 加入 transform 过渡目标，让 interactive 变体在 hover 时可以轻微上浮；
    * duration 提升到 medium(160ms) 避免视觉突兀。
    */
   transition:
     border-color var(--motion-duration-medium) var(--motion-curve-ease),
-    box-shadow var(--motion-duration-medium) var(--motion-curve-ease),
-    transform var(--motion-duration-medium) var(--motion-curve-ease);
+    background-color var(--motion-duration-medium) var(--motion-curve-ease),
+    box-shadow var(--motion-duration-entrance) var(--motion-curve-ease),
+    transform var(--motion-duration-entrance) var(--motion-curve-emphasized);
 }
 
 .f-card--subtle {
   background: var(--color-background-subtle);
+  box-shadow: var(--shadow-control);
 }
 
 .f-card--pad-none {
@@ -116,20 +121,28 @@ const rootClass = computed(() =>
 
 .f-card--interactive:hover {
   border-color: var(--color-border-default);
-  box-shadow: var(--shadow-8);
-  /* 1 px 上浮让交互卡片在悬浮时形成清晰层次；移动端 @media 下还原以避免 touch 残留。 */
-  transform: translateY(-1px);
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-2px);
+}
+
+.f-card--interactive:active {
+  box-shadow: var(--shadow-card);
+  transform: translateY(0);
 }
 
 @media (hover: none) {
   .f-card--interactive:hover {
     transform: none;
+    box-shadow: var(--shadow-card);
   }
 }
 
 .f-card--selected {
   border-color: var(--color-background-brand);
-  box-shadow: 0 0 0 1px var(--color-background-brand);
+  box-shadow:
+    var(--shadow-card),
+    0 0 0 1px var(--color-background-brand),
+    0 0 0 4px color-mix(in srgb, var(--color-background-brand) 14%, transparent);
 }
 
 .f-card__header {

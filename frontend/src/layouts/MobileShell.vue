@@ -95,8 +95,11 @@ function onTabClick(path: string, event: MouseEvent): void {
   height: 48px;
   padding: 0 var(--spacing-l);
   padding-top: env(safe-area-inset-top, 0px);
-  background: var(--color-background-card);
+  background: var(--color-background-glass);
   border-bottom: 1px solid var(--color-border-subtle);
+  box-shadow: var(--shadow-chrome);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
 }
 
 .mobile-shell__brand {
@@ -114,10 +117,11 @@ function onTabClick(path: string, event: MouseEvent): void {
   width: 28px;
   height: 28px;
   border-radius: var(--radius-medium);
-  background: var(--color-background-brand);
+  background: linear-gradient(135deg, var(--color-background-brand), var(--color-background-brand-pressed));
   color: var(--color-text-inverse);
   font-weight: 700;
   font-size: var(--type-body1-size);
+  box-shadow: var(--shadow-brand);
 }
 
 .mobile-shell__brand-title {
@@ -133,10 +137,12 @@ function onTabClick(path: string, event: MouseEvent): void {
 .mobile-shell__top-caption {
   margin: 0;
   padding: var(--spacing-xs) var(--spacing-l);
-  background: var(--color-background-card);
+  background: var(--color-background-glass);
   font-size: var(--type-caption1-size);
   color: var(--color-text-tertiary);
   border-bottom: 1px solid var(--color-border-subtle);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
 }
 
 .mobile-shell__content {
@@ -163,6 +169,7 @@ function onTabClick(path: string, event: MouseEvent): void {
   padding: var(--spacing-xs) var(--spacing-xs) calc(var(--spacing-xs) + env(safe-area-inset-bottom));
   background: color-mix(in srgb, var(--color-background-card) 92%, transparent);
   border-top: 1px solid var(--color-border-subtle);
+  box-shadow: var(--shadow-tabbar);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
 }
@@ -184,10 +191,16 @@ function onTabClick(path: string, event: MouseEvent): void {
   text-decoration: none;
   color: var(--color-text-secondary);
   border-radius: var(--radius-medium);
+  transition:
+    background var(--motion-duration-medium) var(--motion-curve-ease),
+    color var(--motion-duration-medium) var(--motion-curve-ease),
+    transform var(--motion-duration-medium) var(--motion-curve-ease);
 }
 
 .mobile-shell__tab--active {
+  background: var(--color-background-brand-selected);
   color: var(--color-text-brand);
+  transform: translateY(-1px);
 }
 
 .mobile-shell__tab-icon {

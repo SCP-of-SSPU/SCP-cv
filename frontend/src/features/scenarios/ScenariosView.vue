@@ -209,8 +209,10 @@ void activeId; // 当前后端未提供「激活预案 id」字段；保留 hook
   justify-content: space-between;
   gap: var(--spacing-l);
   padding: var(--spacing-m) 0;
-  background: var(--color-background-canvas);
+  background: color-mix(in srgb, var(--color-background-canvas) 92%, transparent);
   flex-wrap: wrap;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
 }
 
 .scenarios-view__heading {
@@ -247,7 +249,7 @@ void activeId; // 当前后端未提供「激活预案 id」字段；保留 hook
 
 .scenarios-view__card--pinned {
   border-left: 4px solid var(--color-background-brand);
-  box-shadow: var(--shadow-2);
+  box-shadow: var(--shadow-card), inset 0 0 0 1px color-mix(in srgb, var(--color-background-brand) 16%, transparent);
 }
 
 .scenarios-view__pinned {

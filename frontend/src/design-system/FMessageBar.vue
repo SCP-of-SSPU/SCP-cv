@@ -76,6 +76,7 @@ const toneIcon = computed<FluentIconName | string>(() => {
   border: 1px solid transparent;
   font-size: var(--type-body1-size);
   line-height: var(--type-body1-line);
+  box-shadow: var(--shadow-control);
 }
 
 .f-message-bar__icon {

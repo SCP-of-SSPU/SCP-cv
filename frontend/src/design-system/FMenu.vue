@@ -161,7 +161,7 @@ void flatItems; // 显式标记，避免 lint 抱怨
   background: var(--color-background-raised);
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-large);
-  box-shadow: var(--shadow-8);
+  box-shadow: var(--shadow-flyout);
   padding: var(--spacing-xs);
   display: flex;
   flex-direction: column;
@@ -198,11 +198,13 @@ void flatItems; // 显式标记，避免 lint 抱怨
   text-align: left;
   /* hover 时背景过渡走 medium(160ms)，比原来的瞬切更自然。 */
   transition: background var(--motion-duration-medium) var(--motion-curve-ease),
-    color var(--motion-duration-medium) var(--motion-curve-ease);
+    color var(--motion-duration-medium) var(--motion-curve-ease),
+    transform var(--motion-duration-medium) var(--motion-curve-ease);
 }
 
 .f-menu__item:hover:not(:disabled) {
   background: var(--color-background-subtle);
+  transform: translateX(2px);
 }
 
 .f-menu__item--danger {

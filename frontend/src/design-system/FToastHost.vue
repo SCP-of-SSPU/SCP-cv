@@ -104,7 +104,9 @@ async function triggerAction(id: number, action?: { onTrigger: () => void | Prom
   color: var(--color-text-primary);
   border-radius: var(--radius-large);
   border: 1px solid var(--color-border-subtle);
-  box-shadow: var(--shadow-16);
+  box-shadow: var(--shadow-flyout);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
 }
 
 .f-toast-host--top .f-toast {

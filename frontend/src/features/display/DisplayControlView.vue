@@ -156,9 +156,16 @@ void tabItems;
 
 .display-view__hero {
   padding: var(--spacing-2xl) var(--spacing-3xl);
-  background: var(--color-background-brand-selected);
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--color-background-brand-selected) 88%, var(--color-background-card)),
+      color-mix(in srgb, var(--color-background-card) 76%, transparent)
+    ),
+    var(--color-background-card);
   border-radius: var(--radius-large);
   border: 1px solid var(--color-border-subtle);
+  box-shadow: var(--shadow-card);
 }
 
 .display-view__eyebrow {
@@ -205,10 +212,17 @@ void tabItems;
   color: var(--color-text-inverse);
   font-weight: 600;
   cursor: pointer;
+  box-shadow: var(--shadow-brand);
+  transition:
+    background var(--motion-duration-medium) var(--motion-curve-ease),
+    box-shadow var(--motion-duration-medium) var(--motion-curve-ease),
+    transform var(--motion-duration-fast) var(--motion-curve-ease);
 }
 
 .display-view__cta:hover {
   background: var(--color-background-brand-hover);
+  box-shadow: var(--shadow-brand-hover);
+  transform: translateY(-1px);
 }
 
 @media (max-width: 1023px) {

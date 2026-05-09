@@ -70,6 +70,7 @@ function markFailed(): void {
   border-radius: var(--radius-small);
   background: var(--color-background-subtle);
   overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--color-border-subtle);
 }
 
 .source-thumbnail--compact {
@@ -84,6 +85,7 @@ function markFailed(): void {
 
 .source-thumbnail--media {
   background: #0f1115;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.10), var(--shadow-control);
 }
 
 .source-thumbnail img,

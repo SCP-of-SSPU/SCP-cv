@@ -198,7 +198,11 @@ onBeforeUnmount(() => {
   font-family: inherit;
   font-size: var(--type-body1-size);
   cursor: pointer;
-  transition: border-color var(--motion-duration-fast) var(--motion-curve-ease);
+  box-shadow: var(--shadow-control);
+  transition:
+    border-color var(--motion-duration-medium) var(--motion-curve-ease),
+    box-shadow var(--motion-duration-medium) var(--motion-curve-ease),
+    background-color var(--motion-duration-medium) var(--motion-curve-ease);
 }
 
 .f-combobox--compact .f-combobox__trigger {
@@ -211,12 +215,13 @@ onBeforeUnmount(() => {
 
 .f-combobox__trigger:hover:not(:disabled) {
   border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-2);
 }
 
 .f-combobox__trigger--open,
 .f-combobox__trigger:focus-visible {
   border-color: var(--color-border-focus);
-  box-shadow: 0 0 0 1px var(--color-border-focus);
+  box-shadow: var(--shadow-focus), var(--shadow-2);
   outline: none;
 }
 
@@ -273,7 +278,7 @@ onBeforeUnmount(() => {
   background: var(--color-background-raised);
   border-radius: var(--radius-large);
   border: 1px solid var(--color-border-subtle);
-  box-shadow: var(--shadow-4);
+  box-shadow: var(--shadow-flyout);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -324,10 +329,15 @@ onBeforeUnmount(() => {
   cursor: pointer;
   font-family: inherit;
   font-size: var(--type-body1-size);
+  transition:
+    background-color var(--motion-duration-medium) var(--motion-curve-ease),
+    color var(--motion-duration-medium) var(--motion-curve-ease),
+    transform var(--motion-duration-medium) var(--motion-curve-ease);
 }
 
 .f-combobox__option:hover:not(:disabled) {
   background: var(--color-background-subtle);
+  transform: translateX(2px);
 }
 
 .f-combobox__option--selected {
@@ -370,8 +380,8 @@ onBeforeUnmount(() => {
 
 .f-combobox-list-enter-active,
 .f-combobox-list-leave-active {
-  transition: opacity var(--motion-duration-fast) var(--motion-curve-ease),
-    transform var(--motion-duration-fast) var(--motion-curve-decelerate);
+  transition: opacity var(--motion-duration-medium) var(--motion-curve-ease),
+    transform var(--motion-duration-medium) var(--motion-curve-decelerate);
 }
 
 .f-combobox-list-enter-from,
