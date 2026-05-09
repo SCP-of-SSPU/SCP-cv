@@ -6,19 +6,60 @@ from django.db import migrations, models
 def migrate_scenario_targets_to_json(apps, schema_editor):
     Scenario = apps.get_model("playback", "Scenario")
     ScenarioTarget = apps.get_model("playback", "ScenarioTarget")
+    connection = schema_editor.connection
+    quote_name = schema_editor.quote_name
 
-    for scenario in Scenario.objects.all():
+    scenario_table = quote_name(Scenario._meta.db_table)
+    scenario_pk_column = quote_name(Scenario._meta.pk.column)
+    scenario_targets_column = quote_name(Scenario._meta.get_field("targets").column)
+    target_table = quote_name(ScenarioTarget._meta.db_table)
+    target_scenario_column = quote_name(ScenarioTarget._meta.get_field("scenario").column)
+    target_window_column = quote_name(ScenarioTarget._meta.get_field("window_id").column)
+    target_source_state_column = quote_name(ScenarioTarget._meta.get_field("source_state").column)
+    target_source_column = quote_name(ScenarioTarget._meta.get_field("source").column)
+    target_autoplay_column = quote_name(ScenarioTarget._meta.get_field("autoplay").column)
+    target_resume_column = quote_name(ScenarioTarget._meta.get_field("resume").column)
+
+    with connection.cursor() as cursor:
+        cursor.execute(f"SELECT {scenario_pk_column} FROM {scenario_table}")
+        scenario_ids = [row[0] for row in cursor.fetchall()]
+
+    for scenario_id in scenario_ids:
         targets = []
-        for target in ScenarioTarget.objects.filter(scenario_id=scenario.pk).order_by("window_id"):
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT
+                    {target_window_column},
+                    {target_source_state_column},
+                    {target_source_column},
+                    {target_autoplay_column},
+                    {target_resume_column}
+                FROM {target_table}
+                WHERE {target_scenario_column} = %s
+                ORDER BY {target_window_column}
+                """,
+                [scenario_id],
+            )
+            target_rows = cursor.fetchall()
+
+        for window_id, source_state, source_id, autoplay, resume in target_rows:
             targets.append({
-                "window_id": int(target.window_id),
-                "source_state": str(target.source_state),
-                "source_id": int(target.source_id) if target.source_id else None,
-                "autoplay": bool(target.autoplay),
-                "resume": bool(target.resume),
+                "window_id": int(window_id),
+                "source_state": str(source_state),
+                "source_id": int(source_id) if source_id else None,
+                "autoplay": bool(autoplay),
+                "resume": bool(resume),
             })
-        scenario.targets = targets
-        scenario.save(update_fields=["targets"])
+
+        # 迁移状态里旧 related_name="targets" 与新增 JSONField 同名；
+        # 使用 SQL 更新可避开历史模型实例化时的反向关系描述符冲突。
+        adapted_targets = connection.ops.adapt_json_value(targets, None)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"UPDATE {scenario_table} SET {scenario_targets_column} = %s WHERE {scenario_pk_column} = %s",
+                [adapted_targets, scenario_id],
+            )
 
 
 class Migration(migrations.Migration):

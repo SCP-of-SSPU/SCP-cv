@@ -2,6 +2,11 @@
 
 ## 2026-05-09
 
+### 修复预案目标 JSON 迁移失败
+
+- 数据迁移：`playback.0016` 改为通过 SQL 读取旧 `ScenarioTarget` 并写入 `Scenario.targets` JSONField，避开历史模型中旧反向关系 `targets` 与新增字段同名导致的 Django 描述符冲突。
+- 测试：新增迁移回归测试，覆盖从 `0015` 带旧预案目标数据迁移到 `0016` 的场景。
+
 ### 整理仓库文档、忽略规则与前端环境变量
 
 - 仓库：清理本地 agent / Playwright / pytest / ruff 缓存、历史 `requirements*.txt`、额外 `node_modules/`、废弃脚本和旧 Markdown API / 设计稿文档；API 文档入口保留为 `docs/openapi.yaml`。
