@@ -2,14 +2,7 @@
 # -*- coding: UTF-8 -*-
 '''
 网页源适配器，通过 QWebEngineView 在 PlayerWindow 中嵌入可交互的网页。
-支持加载任意 URL，全屏渲染到播放器窗口，并允许鼠标点击、滚动等操作。
-
-TODO: 消费 MediaSource.keep_alive
-    - 后端模型已新增 keep_alive 字段（默认 True，仅网页源有意义）。
-    - 计划在 PlayerController 启动时遍历 keep_alive=True 的 WebSource，
-      在隐藏容器中预创建 QWebEngineView 并保持 alive；
-      WebSourceAdapter.open 时优先认领已预热的 view，避免每次切换网页源都首屏加载 1-2 s。
-    - 当前版本仅完成属性持久化与 UI 控制，预热池作为下一阶段独立改造。
+支持加载任意 URL、复用预热池中的 WebView，并允许鼠标点击、滚动等操作。
 @Project : SCP-cv
 @File : web.py
 @Author : Qintsg
@@ -25,6 +18,7 @@ from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
 from scp_cv.player.adapters.base import AdapterState, SourceAdapter
+from scp_cv.player.web_preheat import WebPreheatPool
 from scp_cv.services.media import normalize_web_url
 
 logger = logging.getLogger(__name__)
@@ -53,6 +47,9 @@ class WebSourceAdapter(SourceAdapter):
         self._error_message: str = ""
         # 标记容器是否由外部显式注入（而非通过句柄查找）
         self._container_injected: bool = False
+        self._source_id: int = 0
+        self._preheat_enabled: bool = False
+        self._preheat_pool: Optional[WebPreheatPool] = None
 
     def set_parent_container(self, container: QWidget) -> None:
         """
@@ -63,6 +60,23 @@ class WebSourceAdapter(SourceAdapter):
         """
         self._parent_widget = container
         self._container_injected = True
+
+    def set_preheat_context(
+        self,
+        source_id: int,
+        preheat_enabled: bool,
+        preheat_pool: Optional[WebPreheatPool],
+    ) -> None:
+        """
+        注入网页预热上下文。
+        :param source_id: 媒体源 ID
+        :param preheat_enabled: 是否启用预热复用
+        :param preheat_pool: WebPreheatPool 实例
+        :return: None
+        """
+        self._source_id = source_id
+        self._preheat_enabled = preheat_enabled
+        self._preheat_pool = preheat_pool
 
     def open(self, uri: str, window_handle: int, autoplay: bool = True) -> None:
         """
@@ -93,24 +107,37 @@ class WebSourceAdapter(SourceAdapter):
             container_layout.setContentsMargins(0, 0, 0, 0)
             container_layout.setSpacing(0)
 
-        # 创建 QWebEngineView 并配置交互属性
-        self._web_view = QWebEngineView(self._parent_widget)
-        self._configure_web_view_interaction(self._web_view)
+        self._web_view = self._take_preheated_view(normalized_url)
+        if self._web_view is None:
+            self._web_view = QWebEngineView(self._parent_widget)
+            self._parent_widget.layout().addWidget(self._web_view)
+            self._web_view.setUrl(QUrl(normalized_url))
 
-        # 将 web view 添加到容器的布局中（自动随窗口缩放）
-        self._parent_widget.layout().addWidget(self._web_view)
+        self._configure_web_view_interaction(self._web_view)
 
         # 监听加载完成事件
         self._web_view.loadFinished.connect(self._on_load_finished)
 
-        # 加载并显示网页
-        self._web_view.setUrl(QUrl(normalized_url))
         self._web_view.show()
         # 将焦点设置到 web view 以接收键盘事件
         self._web_view.setFocus()
 
         self._mark_open()
         self._logger.info("网页已打开：%s", normalized_url)
+
+    def _take_preheated_view(self, normalized_url: str) -> Optional[QWebEngineView]:
+        """
+        从预热池认领已加载的 WebView。
+        :param normalized_url: 规范化后的网页 URL
+        :return: 命中的 QWebEngineView；未命中返回 None
+        """
+        if not self._preheat_enabled or self._preheat_pool is None or self._parent_widget is None:
+            return None
+        return self._preheat_pool.take_preheated_view(
+            self._source_id,
+            normalized_url,
+            self._parent_widget,
+        )
 
     @staticmethod
     def _configure_web_view_interaction(web_view: QWebEngineView) -> None:
@@ -195,19 +222,26 @@ class WebSourceAdapter(SourceAdapter):
     def close(self) -> None:
         """关闭网页并释放资源。"""
         if self._web_view is not None:
-            # 先导航到空白页停止所有网络活动
-            self._web_view.setUrl(QUrl("about:blank"))
-            self._web_view.hide()
-
-            # 从容器布局中移除（避免残留引用）
-            if self._parent_widget is not None and self._parent_widget.layout() is not None:
-                self._parent_widget.layout().removeWidget(self._web_view)
-
-            self._web_view.deleteLater()
+            try:
+                self._web_view.loadFinished.disconnect(self._on_load_finished)
+            except (RuntimeError, TypeError):
+                pass
+            if self._preheat_enabled and self._preheat_pool is not None and self._source_id > 0:
+                self._preheat_pool.release_preheated_view(self._source_id, self._url, self._web_view)
+            else:
+                # 未启用预热时按旧逻辑释放，避免后台网页继续占用资源。
+                self._web_view.setUrl(QUrl("about:blank"))
+                self._web_view.hide()
+                if self._parent_widget is not None and self._parent_widget.layout() is not None:
+                    self._parent_widget.layout().removeWidget(self._web_view)
+                self._web_view.deleteLater()
             self._web_view = None
 
         self._parent_widget = None
         self._container_injected = False
+        self._source_id = 0
+        self._preheat_enabled = False
+        self._preheat_pool = None
         self._url = ""
         self._has_error = False
         self._error_message = ""

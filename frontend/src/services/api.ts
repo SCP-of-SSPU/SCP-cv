@@ -21,10 +21,15 @@ export interface MediaSourceItem {
   expires_at: string | null;
   metadata: Record<string, unknown>;
   /**
-   * 是否在播放器启动时预热并保持后台活跃。
-   * 仅对网页源有实际预热语义；其它类型默认 true 不影响行为。
+   * 是否在播放器启动时预热网页源。
+   * keep_alive 是旧字段兼容别名，后续 UI 只展示 preheat_enabled。
    */
+  preheat_enabled: boolean;
   keep_alive: boolean;
+  preview_url: string;
+  thumbnail_url: string;
+  preview_kind: 'icon' | 'image' | 'video';
+  preview_label: string;
   created_at: string;
 }
 
@@ -32,6 +37,7 @@ export interface MediaSourceItem {
 export interface MediaSourceUpdate {
   name?: string;
   uri?: string;
+  preheat_enabled?: boolean;
   keep_alive?: boolean;
 }
 
@@ -275,7 +281,7 @@ export const api = {
   listSources: (sourceType = '', folderId: number | null = null) => requestJson<{ success: boolean; sources: MediaSourceItem[] }>(`/api/sources/${sourceQuery(sourceType, folderId)}`),
   uploadSource: (formData: FormData, options?: UploadOptions) => uploadFormData<{ success: boolean; source: MediaSourceItem }>('/api/sources/upload/', formData, options),
   addLocalSource: (payload: { path: string; name?: string; folder_id?: number | null }) => requestJson<{ success: boolean; source: MediaSourceItem }>('/api/sources/local/', { method: 'POST', body: JSON.stringify(payload) }),
-  addWebSource: (payload: { url: string; name?: string; folder_id?: number | null; keep_alive?: boolean }) => requestJson<{ success: boolean; source: MediaSourceItem }>('/api/sources/web/', { method: 'POST', body: JSON.stringify(payload) }),
+  addWebSource: (payload: { url: string; name?: string; folder_id?: number | null; preheat_enabled?: boolean; keep_alive?: boolean }) => requestJson<{ success: boolean; source: MediaSourceItem }>('/api/sources/web/', { method: 'POST', body: JSON.stringify(payload) }),
   moveSource: (sourceId: number, folderId: number | null) => requestJson<{ success: boolean; source: MediaSourceItem }>(`/api/sources/${sourceId}/move/`, { method: 'PATCH', body: JSON.stringify({ folder_id: folderId }) }),
   updateSource: (sourceId: number, payload: MediaSourceUpdate) => requestJson<{ success: boolean; source: MediaSourceItem }>(`/api/sources/${sourceId}/`, { method: 'PATCH', body: JSON.stringify(payload) }),
   deleteSource: (sourceId: number) => requestJson<{ success: boolean }>(`/api/sources/${sourceId}/`, { method: 'DELETE' }),

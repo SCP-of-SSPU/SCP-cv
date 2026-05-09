@@ -4,7 +4,7 @@
  * 仅暴露安全可改写的字段：
  *   - 显示名称（所有源类型可编辑）；
  *   - URL（仅网页源；本地文件 / 流类型禁止改 URI 以防误改文件路径）；
- *   - 保持活跃（仅网页源参与播放器启动预热）。
+ *   - 预热（仅网页源参与播放器启动预加载）。
  *
  * 使用 PATCH /api/sources/{id}/，仅传递发生变更的字段，避免误覆盖后端持久值。
  */
@@ -37,7 +37,7 @@ const toast = useToast();
 
 const draftName = ref('');
 const draftUri = ref('');
-const draftKeepAlive = ref(true);
+const draftPreheatEnabled = ref(true);
 const saving = ref(false);
 const errorMessage = ref('');
 
@@ -50,7 +50,7 @@ watch(
     const source = props.source!;
     draftName.value = source.name ?? '';
     draftUri.value = source.uri ?? '';
-    draftKeepAlive.value = source.keep_alive ?? true;
+    draftPreheatEnabled.value = source.preheat_enabled ?? source.keep_alive ?? true;
     errorMessage.value = '';
   },
   { immediate: true },
@@ -68,8 +68,9 @@ function buildPatch(): MediaSourceUpdate | null {
     if (trimmedUri && trimmedUri !== props.source.uri) {
       patch.uri = trimmedUri;
     }
-    if (draftKeepAlive.value !== props.source.keep_alive) {
-      patch.keep_alive = draftKeepAlive.value;
+    const currentPreheat = props.source.preheat_enabled ?? props.source.keep_alive ?? true;
+    if (draftPreheatEnabled.value !== currentPreheat) {
+      patch.preheat_enabled = draftPreheatEnabled.value;
     }
   }
   return Object.keys(patch).length > 0 ? patch : null;
@@ -121,10 +122,10 @@ async function save(): Promise<void> {
           <FInput v-model="draftUri" placeholder="https://" :disabled="saving" />
         </FField>
         <FField
-          label="保持活跃"
-          hint="开启后系统启动时自动加载该网页并在后台保持，切换到此源时无需再次首屏加载。"
+          label="预热"
+          hint="开启后播放器启动时提前加载该网页，切换到此源时可直接复用已加载视图。"
         >
-          <FSwitch v-model="draftKeepAlive" label="启用预热与后台活跃" :disabled="saving" />
+          <FSwitch v-model="draftPreheatEnabled" label="启动时预热该网页" :disabled="saving" />
         </FField>
       </template>
 

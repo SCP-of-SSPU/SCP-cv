@@ -132,10 +132,10 @@ export const useSourceStore = defineStore('sources', {
      * 添加网页/URL 源。
      * @param url 网页地址或 ip:port
      * @param name 显示名称；省略时后端用 URL 截前 80 字符作名称
-     * @param keepAlive 启动时是否预热并保持后台活跃（默认 true）
+     * @param preheatEnabled 启动时是否预热网页（默认 true）
      */
-    async addWebSource(url: string, name?: string, keepAlive: boolean = true): Promise<MediaSourceItem> {
-      const payload = await api.addWebSource({ url, name, keep_alive: keepAlive });
+    async addWebSource(url: string, name?: string, preheatEnabled: boolean = true): Promise<MediaSourceItem> {
+      const payload = await api.addWebSource({ url, name, preheat_enabled: preheatEnabled });
       // 网页源不会是 audio，直接前置即可。
       this.sources = [payload.source, ...this.sources];
       return payload.source;

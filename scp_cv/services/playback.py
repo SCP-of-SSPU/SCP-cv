@@ -170,6 +170,7 @@ def open_source(window_id: int, media_source_id: int, autoplay: bool = True) -> 
         "autoplay": autoplay,
         "volume": session.volume,
         "muted": session.is_muted,
+        "preheat_enabled": bool(getattr(source, "keep_alive", True)),
     }
     if previous_source_is_temporary:
         session.command_args["cleanup_source_id"] = previous_source_id

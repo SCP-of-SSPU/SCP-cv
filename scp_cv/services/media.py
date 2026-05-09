@@ -36,6 +36,16 @@ from scp_cv.services.media_types import (
     detect_source_type,
     guess_mime_type as _guess_mime_type,
 )
+from scp_cv.services.media_previews import get_source_preview_file_info as get_source_preview_file_info
+from scp_cv.services.media_queries import (
+    list_media_sources as list_media_sources,
+    media_source_payload as media_source_payload,
+)
+from scp_cv.services.media_web import (
+    add_web_url as add_web_url,
+    normalize_web_url as normalize_web_url,
+    update_source as update_source,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -145,126 +155,6 @@ def add_local_path(
     return media_source
 
 
-def add_web_url(
-    url: str,
-    display_name: Optional[str] = None,
-    folder_id: Optional[int] = None,
-    keep_alive: bool = True,
-) -> MediaSource:
-    """
-    通过 URL 添加网页类型媒体源。
-    :param url: 网页 URL（如 https://example.com）
-    :param display_name: 显示名称，默认使用 URL
-    :param folder_id: 所属文件夹 ID
-    :param keep_alive: 是否在播放器启动时预热并保持后台活跃
-    :return: 创建的 MediaSource 实例
-    :raises MediaError: URL 为空时
-    """
-    normalized_url = normalize_web_url(url)
-    if not normalized_url:
-        raise MediaError("URL 不能为空")
-
-    if display_name is None:
-        display_name = normalized_url[:80]
-
-    folder = None
-    if folder_id:
-        try:
-            folder = MediaFolder.objects.get(pk=folder_id)
-        except MediaFolder.DoesNotExist:
-            folder = None
-
-    media_source = MediaSource.objects.create(
-        source_type=SourceType.WEB,
-        name=display_name,
-        uri=normalized_url,
-        is_available=True,
-        mime_type="text/html",
-        folder=folder,
-        keep_alive=keep_alive,
-    )
-
-    logger.info(
-        "通过 URL 添加网页媒体源「%s」→ %s（keep_alive=%s）",
-        display_name,
-        normalized_url,
-        keep_alive,
-    )
-    return media_source
-
-
-def update_source(
-    source_id: int,
-    name: Optional[str] = None,
-    uri: Optional[str] = None,
-    keep_alive: Optional[bool] = None,
-) -> MediaSource:
-    """
-    更新媒体源可编辑字段。
-    :param source_id: 媒体源 ID
-    :param name: 新显示名称（None 表示不修改）
-    :param uri: 新 URI / URL（仅对网页源生效；其它类型若传入会被忽略以防误改本地文件路径）
-    :param keep_alive: 是否保持后台活跃（None 表示不修改）
-    :return: 更新后的 MediaSource 实例
-    :raises MediaError: 源不存在或参数非法时
-    """
-    try:
-        source = MediaSource.objects.get(pk=source_id)
-    except MediaSource.DoesNotExist as not_found:
-        raise MediaError(f"媒体源 id={source_id} 不存在") from not_found
-
-    update_fields: list[str] = []
-
-    if name is not None:
-        trimmed_name = name.strip()
-        if not trimmed_name:
-            raise MediaError("显示名称不能为空")
-        if len(trimmed_name) > 255:
-            raise MediaError("显示名称过长（≤ 255 字符）")
-        if source.name != trimmed_name:
-            source.name = trimmed_name
-            update_fields.append("name")
-
-    if uri is not None and source.source_type == SourceType.WEB:
-        # 仅网页源允许 URI 在此接口被改写；文件型源由独立的上传/重新生成流程负责。
-        normalized_uri = normalize_web_url(uri)
-        if not normalized_uri:
-            raise MediaError("网页 URL 不能为空")
-        if source.uri != normalized_uri:
-            source.uri = normalized_uri
-            update_fields.append("uri")
-
-    if keep_alive is not None and source.keep_alive != bool(keep_alive):
-        source.keep_alive = bool(keep_alive)
-        update_fields.append("keep_alive")
-
-    if update_fields:
-        source.save(update_fields=update_fields)
-        logger.info(
-            "更新媒体源「%s」字段：%s",
-            source.name,
-            ", ".join(update_fields),
-        )
-    return source
-
-
-def normalize_web_url(url: str) -> str:
-    """
-    规范化网页源 URL，未写协议时默认使用 http 以兼容局域网设备。
-    :param url: 用户输入的网页地址
-    :return: 可交给 QWebEngineView 加载的 URL，空输入返回空字符串
-    """
-    stripped_url = url.strip()
-    if not stripped_url:
-        return ""
-    lower_url = stripped_url.lower()
-    if lower_url.startswith(("http://", "https://", "file://", "about:")):
-        return stripped_url
-    if len(stripped_url) > 2 and stripped_url[1] == ":":
-        return f"file:///{stripped_url}"
-    return f"http://{stripped_url}"
-
-
 def move_source(source_id: int, folder_id: Optional[int] = None) -> MediaSource:
     """
     移动媒体源到指定文件夹。
@@ -310,33 +200,6 @@ def get_source_download_info(source_id: int) -> tuple[str, str, str]:
     file_name = source.original_filename or os.path.basename(file_path)
     mime_type = source.mime_type or _guess_mime_type(file_name)
     return file_path, file_name, mime_type
-
-
-def list_media_sources(
-    source_type: Optional[str] = None,
-    folder_id: Optional[int] = None,
-) -> list[dict[str, object]]:
-    """
-    查询所有媒体源列表。
-    :param source_type: 可选过滤源类型
-    :param folder_id: 可选过滤文件夹 ID（-1 表示根目录）
-    :return: 媒体源字典列表
-    """
-    queryset = MediaSource.objects.all()
-    if source_type:
-        queryset = queryset.filter(source_type=source_type)
-    if folder_id is not None:
-        if folder_id < 0:
-            queryset = queryset.filter(folder__isnull=True)
-        else:
-            queryset = queryset.filter(folder_id=folder_id)
-
-    return list(queryset.values(
-        "id", "source_type", "name", "uri", "is_available",
-        "stream_identifier", "created_at", "folder_id",
-        "original_filename", "file_size", "mime_type",
-        "is_temporary", "expires_at", "metadata",
-    ))
 
 
 def delete_media_source(media_source_id: int) -> None:

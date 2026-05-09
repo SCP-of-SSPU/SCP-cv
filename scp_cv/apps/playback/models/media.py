@@ -131,10 +131,10 @@ class MediaSource(models.Model):
     )
     keep_alive = models.BooleanField(
         default=True,
-        verbose_name="保持活跃",
+        verbose_name="预热",
         help_text=(
-            "仅对网页源（source_type=web）有意义；为 True 时播放器在系统启动阶段会预加载该网页"
-            "并保持后台活跃，切换到该源时无需再次发起首次加载，可显著降低呈现延迟。"
+            "仅对网页源（source_type=web）有意义；为 True 时播放器会在启动阶段预加载该网页，"
+            "切换到该源时可复用已加载的 WebView，降低首屏呈现延迟。"
             "其它源类型保留默认 True，但暂不参与预热逻辑。"
         ),
     )

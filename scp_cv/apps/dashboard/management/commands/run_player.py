@@ -189,6 +189,7 @@ class Command(BaseCommand):
 
         # 启动时恢复上次保存的显示器目标，确保播放器窗口与 Web 控制台一致。
         controller.apply_current_layout()
+        controller.preheat_web_sources()
 
         # 启动轮询
         controller.start_polling(interval_seconds=poll_interval)

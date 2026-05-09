@@ -244,6 +244,24 @@ paths:
         '404':
           $ref: '#/components/responses/ErrorResponse'
 
+  /sources/{source_id}/preview/:
+    parameters:
+      - $ref: '#/components/parameters/SourceId'
+    get:
+      tags: [sources]
+      summary: 获取图片或视频源 inline 预览
+      operationId: previewSource
+      responses:
+        '200':
+          description: 图片或视频文件流
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
   /sources/{source_id}/ppt-resources/:
     parameters:
       - $ref: '#/components/parameters/SourceId'
@@ -283,6 +301,25 @@ paths:
   /sources/{source_id}/:
     parameters:
       - $ref: '#/components/parameters/SourceId'
+    patch:
+      tags: [sources]
+      summary: 更新媒体源名称、网页 URL 或预热开关
+      operationId: updateSource
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceUpdateRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
     delete:
       tags: [sources]
       summary: 删除媒体源
@@ -1022,7 +1059,7 @@ components:
 
     MediaSource:
       type: object
-      required: [id, source_type, name, uri, is_available, is_temporary, metadata, created_at]
+      required: [id, source_type, name, uri, is_available, is_temporary, metadata, keep_alive, preheat_enabled, preview_url, thumbnail_url, preview_kind, preview_label, created_at]
       properties:
         id:
           type: integer
@@ -1055,6 +1092,24 @@ components:
         metadata:
           type: object
           additionalProperties: true
+        keep_alive:
+          type: boolean
+          deprecated: true
+          description: 旧版网页源保持活跃字段，当前与 preheat_enabled 同步
+        preheat_enabled:
+          type: boolean
+          description: 网页源预热开关；播放器启动时提前加载并复用 WebView
+        preview_url:
+          type: string
+          description: 可嵌入前端缩略位的预览 URL；无真实预览时为空字符串
+        thumbnail_url:
+          type: string
+          description: 缩略图 URL，当前与 preview_url 保持一致
+        preview_kind:
+          type: string
+          enum: [image, video, icon]
+        preview_label:
+          type: string
         created_at:
           type: string
           format: date-time
@@ -1365,6 +1420,30 @@ components:
         folder_id:
           type: integer
           nullable: true
+        preheat_enabled:
+          type: boolean
+          default: true
+          description: 是否在播放器启动时预热网页源
+        keep_alive:
+          type: boolean
+          deprecated: true
+          description: 旧字段兼容别名；建议改用 preheat_enabled
+
+    SourceUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        uri:
+          type: string
+          description: 仅网页源允许通过本接口修改 URL
+        preheat_enabled:
+          type: boolean
+          description: 是否在播放器启动时预热网页源
+        keep_alive:
+          type: boolean
+          deprecated: true
+          description: 旧字段兼容别名；建议改用 preheat_enabled
 
     MoveSourceRequest:
       type: object

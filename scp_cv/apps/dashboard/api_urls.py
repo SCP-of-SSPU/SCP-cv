@@ -23,6 +23,7 @@ urlpatterns = [
     path("sources/web/", api_views.add_web_source_api, name="add_web_source"),
     path("sources/<int:source_id>/move/", api_views.move_source_api, name="move_source"),
     path("sources/<int:source_id>/download/", api_views.download_source_api, name="download_source"),
+    path("sources/<int:source_id>/preview/", api_views.preview_source_api, name="preview_source"),
     path("sources/<int:source_id>/ppt-resources/", api_views.ppt_resources_api, name="ppt_resources"),
     path("sources/<int:source_id>/", api_views.source_detail_api, name="source_detail"),
     path("sessions/", api_playback_views.list_sessions_api, name="list_sessions"),

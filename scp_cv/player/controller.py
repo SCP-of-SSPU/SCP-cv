@@ -72,6 +72,8 @@ class PlayerController(PlayerCommandHandlersMixin, QObject):
         self._adapter_source_types: dict[int, str] = {}
         # 适配器源 ID 记录：切源竞态中用于阻断旧 adapter 状态写回新会话。
         self._adapter_source_ids: dict[int, int] = {}
+        # 网页源预热池：由 Qt 主线程创建和使用，避免切换网页源时重新首屏加载。
+        self._web_preheat_pool: object | None = None
 
         # 轮询线程
         self._poll_thread: Optional[threading.Thread] = None
@@ -154,7 +156,27 @@ class PlayerController(PlayerCommandHandlersMixin, QObject):
         # 关闭所有窗口的适配器
         for wid in list(self._adapters.keys()):
             self._close_adapter(wid)
+        if self._web_preheat_pool is not None:
+            self._web_preheat_pool.close_all()
+            self._web_preheat_pool = None
         logger.info("控制器轮询已停止")
+
+    def preheat_web_sources(self) -> None:
+        """
+        启动时预热启用预热的网页源。
+        :return: None
+        """
+        from scp_cv.apps.playback.models import MediaSource, SourceType
+        from scp_cv.player.web_preheat import WebPreheatPool
+
+        if self._web_preheat_pool is None:
+            self._web_preheat_pool = WebPreheatPool()
+        for source in MediaSource.objects.filter(
+            source_type=SourceType.WEB,
+            is_available=True,
+            keep_alive=True,
+        ).only("id", "uri"):
+            self._web_preheat_pool.preheat_source(source.pk, source.uri)
 
     # ═══════════════════ 窗口定位 ═══════════════════
 

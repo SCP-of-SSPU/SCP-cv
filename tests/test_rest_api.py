@@ -19,7 +19,7 @@ from django.conf import settings
 import pytest
 from django.test import Client
 
-from scp_cv.apps.playback.models import MediaSource, PlaybackCommand, PlaybackSession
+from scp_cv.apps.playback.models import MediaSource, PlaybackCommand, PlaybackSession, SourceType
 from scp_cv.services.playback import get_or_create_session
 
 
@@ -47,6 +47,8 @@ def test_sources_api_lists_media_sources(media_source_ppt: MediaSource) -> None:
     payload = response.json()
     assert payload["success"] is True
     assert payload["sources"][0]["id"] == media_source_ppt.pk
+    assert "preview_url" in payload["sources"][0]
+    assert "thumbnail_url" in payload["sources"][0]
 
 
 @pytest.mark.django_db
@@ -187,6 +189,25 @@ def test_ppt_resources_api_replace_and_list(media_source_ppt: MediaSource) -> No
     assert save_response.status_code == 200
     assert list_response.status_code == 200
     assert list_response.json()["resources"][0]["speaker_notes"] == "提词器"
+
+
+@pytest.mark.django_db
+def test_source_preview_api_returns_inline_file(tmp_path: Path) -> None:
+    """GET /api/sources/{id}/preview/ 应返回图片/视频的 inline 预览文件。"""
+    image_file = tmp_path / "poster.png"
+    image_file.write_bytes(b"fake-image")
+    source = MediaSource.objects.create(
+        source_type=SourceType.IMAGE,
+        name="海报",
+        uri=str(image_file),
+        mime_type="image/png",
+    )
+    client = Client()
+
+    response = client.get(f"/api/sources/{source.pk}/preview/")
+
+    assert response.status_code == 200
+    assert response["Content-Type"] == "image/png"
 
 
 @pytest.mark.django_db

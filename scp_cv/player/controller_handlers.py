@@ -44,6 +44,7 @@ class PlayerCommandHandlersMixin:
         uri = str(command_args.get("uri", ""))
         autoplay = bool(command_args.get("autoplay", True))
         source_id = int(command_args.get("source_id") or 0)
+        preheat_enabled = bool(command_args.get("preheat_enabled", False))
 
         if not source_type or not uri:
             logger.warning("窗口 %d：OPEN 指令缺少 source_type 或 uri", window_id)
@@ -65,6 +66,7 @@ class PlayerCommandHandlersMixin:
                 from scp_cv.player.adapters.web import WebSourceAdapter
                 if isinstance(adapter, WebSourceAdapter):
                     adapter.set_parent_container(window.web_container)
+                    adapter.set_preheat_context(source_id, preheat_enabled, self._web_preheat_pool)
 
         adapter.open(uri=uri, window_handle=window_handle, autoplay=autoplay)
         adapter.set_volume(int(command_args.get("volume", 100)))

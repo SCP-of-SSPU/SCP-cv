@@ -233,10 +233,10 @@ class TestListMediaSources:
         expected_keys = {
             "id", "source_type", "name", "uri", "is_available", "stream_identifier", "created_at",
             "folder_id", "original_filename", "file_size", "mime_type", "is_temporary",
-            "expires_at", "metadata",
+            "expires_at", "metadata", "keep_alive", "preheat_enabled", "preview_url",
+            "thumbnail_url", "preview_kind", "preview_label",
         }
         assert set(sources[0].keys()) == expected_keys
-
 
 # ══════════════════════════════════════════════════════════════
 # delete_media_source

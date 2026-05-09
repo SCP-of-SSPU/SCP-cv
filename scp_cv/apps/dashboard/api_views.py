@@ -26,9 +26,11 @@ from scp_cv.services.media import (
     delete_media_source,
     delete_folder,
     get_source_download_info,
+    get_source_preview_file_info,
     list_folders,
     list_media_sources,
     list_ppt_resources,
+    media_source_payload,
     move_source,
     replace_ppt_resources,
     sync_streams_to_media_sources,
@@ -132,23 +134,7 @@ def _source_payload(source: object) -> dict[str, Any]:
     :param source: MediaSource 实例
     :return: 媒体源字典
     """
-    return {
-        "id": source.pk,
-        "source_type": source.source_type,
-        "name": source.name,
-        "uri": source.uri,
-        "is_available": source.is_available,
-        "stream_identifier": source.stream_identifier,
-        "folder_id": source.folder_id,
-        "original_filename": source.original_filename,
-        "file_size": source.file_size,
-        "mime_type": source.mime_type,
-        "is_temporary": source.is_temporary,
-        "expires_at": source.expires_at.isoformat() if source.expires_at else None,
-        "metadata": source.metadata,
-        "keep_alive": bool(getattr(source, "keep_alive", True)),
-        "created_at": source.created_at.isoformat() if source.created_at else "",
-    }
+    return media_source_payload(source)
 
 
 @require_GET
@@ -302,13 +288,14 @@ def add_web_source_api(request: HttpRequest) -> JsonResponse:
     if not web_url:
         return _error_response("缺少 url 字段", code="missing_url")
 
-    keep_alive = _bool_value(body.get("keep_alive"), default=True) if "keep_alive" in body else True
+    raw_preheat = body.get("preheat_enabled", body.get("keep_alive", True))
+    preheat_enabled = _bool_value(raw_preheat, default=True)
     try:
         source = add_web_url(
             web_url,
             str(body.get("name", "")).strip() or None,
             folder_id=_optional_int(body.get("folder_id")),
-            keep_alive=keep_alive,
+            preheat_enabled=preheat_enabled,
         )
     except MediaError as media_error:
         return _error_response(str(media_error), code="media_error")
@@ -320,7 +307,7 @@ def add_web_source_api(request: HttpRequest) -> JsonResponse:
 @require_http_methods(["PATCH"])
 def update_source_api(request: HttpRequest, source_id: int) -> JsonResponse:
     """
-    更新媒体源（显示名称、URI、保持活跃开关）。
+    更新媒体源（显示名称、URI、网页预热开关）。
     仅暴露安全可改写的字段；文件型源 URI 不会被本接口修改。
     :param request: HTTP 请求
     :param source_id: 媒体源主键
@@ -332,19 +319,19 @@ def update_source_api(request: HttpRequest, source_id: int) -> JsonResponse:
 
     raw_name = body.get("name") if "name" in body else None
     raw_uri = body.get("uri") if "uri" in body else None
-    raw_keep_alive = body.get("keep_alive") if "keep_alive" in body else None
-    keep_alive_value: object | None
-    if raw_keep_alive is None:
-        keep_alive_value = None
+    raw_preheat = body.get("preheat_enabled") if "preheat_enabled" in body else body.get("keep_alive")
+    preheat_value: object | None
+    if raw_preheat is None:
+        preheat_value = None
     else:
-        keep_alive_value = _bool_value(raw_keep_alive, default=True)
+        preheat_value = _bool_value(raw_preheat, default=True)
 
     try:
         source = update_source(
             source_id=int(source_id),
             name=str(raw_name) if isinstance(raw_name, str) else None,
             uri=str(raw_uri) if isinstance(raw_uri, str) else None,
-            keep_alive=bool(keep_alive_value) if keep_alive_value is not None else None,
+            preheat_enabled=bool(preheat_value) if preheat_value is not None else None,
         )
     except MediaError as media_error:
         return _error_response(str(media_error), code="media_error")
@@ -385,6 +372,21 @@ def download_source_api(request: HttpRequest, source_id: int) -> FileResponse | 
     return FileResponse(open(file_path, "rb"), as_attachment=True, filename=file_name, content_type=mime_type)
 
 
+@require_GET
+def preview_source_api(request: HttpRequest, source_id: int) -> FileResponse | JsonResponse:
+    """
+    返回图片/视频源的 inline 预览文件。
+    :param request: HTTP 请求
+    :param source_id: 媒体源主键
+    :return: 可嵌入 img/video 的文件响应
+    """
+    try:
+        file_path, mime_type = get_source_preview_file_info(int(source_id))
+    except MediaError as media_error:
+        return _error_response(str(media_error), code="media_error", status=404)
+    return FileResponse(open(file_path, "rb"), as_attachment=False, content_type=mime_type)
+
+
 @csrf_exempt
 @require_http_methods(["GET", "PUT"])
 def ppt_resources_api(request: HttpRequest, source_id: int) -> JsonResponse:
@@ -414,7 +416,7 @@ def ppt_resources_api(request: HttpRequest, source_id: int) -> JsonResponse:
 @require_http_methods(["PATCH", "DELETE"])
 def source_detail_api(request: HttpRequest, source_id: int) -> JsonResponse:
     """
-    媒体源详情接口：PATCH 更新可编辑字段（名称 / URL / keep_alive），DELETE 删除。
+    媒体源详情接口：PATCH 更新可编辑字段（名称 / URL / preheat_enabled），DELETE 删除。
     :param request: HTTP 请求
     :param source_id: 媒体源主键
     :return: 操作结果

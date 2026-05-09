@@ -9,6 +9,14 @@
 - 结构：拆出 `PptFocusView.css`，避免继续在超过 500 行的 Vue 单文件中堆积实现。
 - 文档：同步更新 PPT 专注模式的设计稿和使用说明。
 
+### 补齐媒体源真实缩略图与网页预热
+
+- API：媒体源对象新增 `preview_url`、`thumbnail_url`、`preview_kind`、`preview_label`；PPT 复用第一页 `slide_image`，图片 / 视频源提供 `/api/sources/{id}/preview/` inline 预览端点。
+- 前端：`SourcesView` 与 `SourcePicker` 共用 `SourceThumbnail`，真实预览加载失败时自动回退类型图标。
+- 网页源：UI 将原「保持活跃」改名为「预热」，REST 新增 `preheat_enabled` 字段并继续兼容 `keep_alive`。
+- 播放器：新增 `WebPreheatPool`，启动时预加载启用预热的网页源，打开网页时优先复用已加载的 `QWebEngineView`。
+- 结构：媒体源查询、网页源编辑和预览字段拆分到 `media_queries.py`、`media_web.py`、`media_previews.py`，避免继续在 `media.py` 中堆积实现。
+
 ## 2026-05-07
 
 ### 修复播放器错误详情被前端泛化
