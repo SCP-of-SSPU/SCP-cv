@@ -196,6 +196,13 @@ function onKey(event: KeyboardEvent, index: number): void {
   height: 2px;
   background: var(--color-background-brand);
   border-radius: var(--radius-circular);
+  /* underline 在切换时左右伸缩，配合颜色过渡形成「下划线流动」效果。 */
+  animation: f-rise var(--motion-duration-entrance) var(--motion-curve-emphasized) both;
+}
+
+.f-tabs__item:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
 }
 
 /* Pill（横滑 Pill） */
@@ -213,10 +220,12 @@ function onKey(event: KeyboardEvent, index: number): void {
   border-color: var(--color-background-brand);
   color: var(--color-text-inverse);
   box-shadow: var(--shadow-brand);
+  /* selected pill 微微浮起，与 hover 的位移区分，避免选中态视觉"贴底"。 */
+  transform: translateY(-1px);
 }
 
 .f-tabs--pill .f-tabs__item--selected .f-tabs__badge {
-  background: rgba(255, 255, 255, 0.18);
+  background: color-mix(in srgb, var(--color-text-inverse) 22%, transparent);
   color: var(--color-text-inverse);
 }
 

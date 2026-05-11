@@ -16,6 +16,8 @@ import { computed } from 'vue';
 
 import { cls } from './utils';
 
+type CardAccent = 'none' | 'brand' | 'success' | 'warning' | 'danger';
+
 interface FCardProps {
   /** 是否在 hover 时浮起一档；常用于「整张可点击」的预案卡。 */
   interactive?: boolean;
@@ -23,8 +25,13 @@ interface FCardProps {
   padding?: 'none' | 'compact' | 'normal' | 'cozy';
   /** 直接选中态（如预案预览中的当前选中卡片）。 */
   selected?: boolean;
-  /** 危险态（仅用于关键删除确认 / 错误兜底卡）。 */
-  variant?: 'default' | 'subtle';
+  /** 视觉变体：default 卡片层；subtle 嵌套层；glass 半透明顶栏卡。 */
+  variant?: 'default' | 'subtle' | 'glass';
+  /**
+   * 左侧 4 px 状态指示条，用于强调卡片语义。
+   * 例如：brand=置顶 / success=正常运行 / warning=待恢复 / danger=异常。
+   */
+  accent?: CardAccent;
 }
 
 const props = withDefaults(defineProps<FCardProps>(), {
@@ -32,6 +39,7 @@ const props = withDefaults(defineProps<FCardProps>(), {
   padding: 'normal',
   selected: false,
   variant: 'default',
+  accent: 'none',
 });
 
 const rootClass = computed(() =>
@@ -39,6 +47,7 @@ const rootClass = computed(() =>
     'f-card',
     `f-card--${props.variant}`,
     `f-card--pad-${props.padding}`,
+    props.accent !== 'none' && `f-card--accent-${props.accent}`,
     props.interactive && 'f-card--interactive',
     props.selected && 'f-card--selected',
   ),
@@ -81,10 +90,11 @@ const rootClass = computed(() =>
   box-shadow: var(--shadow-card);
   overflow: clip;
   transform: translateY(0);
-  animation: f-card-enter var(--motion-duration-entrance) var(--motion-curve-emphasized) both;
+  animation: f-rise var(--motion-duration-entrance) var(--motion-curve-emphasized) both;
   /*
    * 卡片承载信息密度高，默认只调整阴影；interactive 变体再增加位移，
    * 避免普通表单卡在鼠标经过时产生过强的可点击暗示。
+   * transition 中加入「after pseudo opacity」用于 Reveal 高光（::after）平滑显隐。
    */
   transition:
     border-color var(--motion-duration-medium) var(--motion-curve-ease),
@@ -93,15 +103,43 @@ const rootClass = computed(() =>
     transform var(--motion-duration-entrance) var(--motion-curve-emphasized);
 }
 
+/*
+ * Reveal 风格内描边高光：模拟 Fluent 2「light from above」，
+ * 用于提升卡片质感而不占用 box-shadow 通道。
+ */
+.f-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: var(--ring-accent);
+  opacity: 0.55;
+  transition: opacity var(--motion-duration-medium) var(--motion-curve-ease);
+}
+
 .f-card:hover,
 .f-card:focus-within {
   border-color: var(--color-border-default);
   box-shadow: var(--shadow-card-hover);
 }
 
+.f-card:hover::after,
+.f-card:focus-within::after {
+  opacity: 1;
+}
+
 .f-card--subtle {
   background: var(--color-background-subtle);
   box-shadow: var(--shadow-control);
+}
+
+.f-card--glass {
+  background: var(--color-background-glass);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  border-color: color-mix(in srgb, var(--color-border-subtle) 60%, transparent);
+  box-shadow: var(--shadow-card);
 }
 
 .f-card--pad-none {
@@ -128,12 +166,20 @@ const rootClass = computed(() =>
 }
 
 .f-card--interactive:hover {
-  transform: translateY(-3px);
+  transform: translateY(var(--motion-hover-lift-strong));
+  box-shadow: var(--shadow-card-hover), var(--halo-soft);
 }
 
 .f-card--interactive:active {
   box-shadow: var(--shadow-card);
-  transform: translateY(0);
+  transform: translateY(0) scale(var(--motion-press-scale));
+  transition-duration: var(--motion-duration-fast);
+}
+
+.f-card--interactive:focus-visible {
+  outline: none;
+  border-color: var(--color-border-focus);
+  box-shadow: var(--shadow-card-hover), var(--shadow-focus);
 }
 
 @media (hover: none) {
@@ -144,6 +190,7 @@ const rootClass = computed(() =>
 
   .f-card--interactive:hover {
     transform: none;
+    box-shadow: var(--shadow-card);
   }
 }
 
@@ -153,6 +200,38 @@ const rootClass = computed(() =>
     var(--shadow-card),
     0 0 0 1px var(--color-background-brand),
     0 0 0 4px color-mix(in srgb, var(--color-background-brand) 14%, transparent);
+}
+
+.f-card--selected::after {
+  opacity: 1;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-background-brand) 28%, transparent);
+}
+
+/* 左侧 accent 指示条：4 px 圆头条，按语义着色。 */
+.f-card[class*='f-card--accent-']::before {
+  content: '';
+  position: absolute;
+  inset: var(--spacing-m) auto var(--spacing-m) 0;
+  width: 3px;
+  border-radius: var(--radius-circular);
+  background: currentColor;
+  opacity: 0.9;
+}
+
+.f-card--accent-brand::before {
+  background: var(--color-background-brand);
+}
+
+.f-card--accent-success::before {
+  background: var(--color-status-success-accent);
+}
+
+.f-card--accent-warning::before {
+  background: var(--color-status-warning-accent);
+}
+
+.f-card--accent-danger::before {
+  background: var(--color-status-error-accent);
 }
 
 .f-card__header {
@@ -174,7 +253,7 @@ const rootClass = computed(() =>
   font-size: var(--type-caption1-size);
   line-height: var(--type-caption1-line);
   font-weight: 600;
-  letter-spacing: 0;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--color-text-secondary);
 }
@@ -209,17 +288,5 @@ const rootClass = computed(() =>
   margin-top: var(--spacing-s);
   padding-top: var(--spacing-m);
   border-top: 1px solid var(--color-border-subtle);
-}
-
-@keyframes f-card-enter {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 </style>

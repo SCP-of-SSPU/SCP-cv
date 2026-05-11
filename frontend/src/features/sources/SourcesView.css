@@ -19,10 +19,14 @@
   justify-content: space-between;
   gap: var(--spacing-l);
   padding: var(--spacing-m) 0;
-  background: color-mix(in srgb, var(--color-background-canvas) 92%, transparent);
+  margin: 0 calc(-1 * var(--spacing-2xl));
+  padding-left: var(--spacing-2xl);
+  padding-right: var(--spacing-2xl);
+  background: color-mix(in srgb, var(--color-background-canvas) 86%, transparent);
   flex-wrap: wrap;
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border-subtle) 60%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
+  backdrop-filter: blur(14px) saturate(1.1);
 }
 
 .sources-view__heading {
@@ -79,6 +83,7 @@
 }
 
 .sources-view__nav-item {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -103,11 +108,38 @@
   transform: translateX(2px);
 }
 
+.sources-view__nav-item:focus-visible {
+  outline: none;
+  background: var(--color-background-subtle);
+  box-shadow: var(--shadow-focus);
+}
+
 .sources-view__nav-item--active {
   background: var(--color-background-brand-selected);
   color: var(--color-text-brand);
   font-weight: 600;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-background-brand) 18%, transparent);
+}
+
+.sources-view__nav-item::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  width: 3px;
+  height: 0;
+  border-radius: var(--radius-circular);
+  background: var(--color-background-brand);
+  transform: translateY(-50%);
+  transition:
+    height var(--motion-duration-medium) var(--motion-curve-emphasized),
+    opacity var(--motion-duration-medium) var(--motion-curve-ease);
+  opacity: 0;
+}
+
+.sources-view__nav-item--active::before {
+  height: 18px;
+  opacity: 1;
 }
 
 .sources-view__nav-badge {
@@ -161,8 +193,13 @@
 }
 
 .sources-view__table tbody tr:hover {
-  background: color-mix(in srgb, var(--color-background-brand-selected) 64%, transparent);
+  background: color-mix(in srgb, var(--color-background-brand-selected) 56%, transparent);
   box-shadow: inset 3px 0 0 var(--color-background-brand);
+}
+
+.sources-view__table tbody tr:focus-within {
+  background: color-mix(in srgb, var(--color-background-brand-selected) 72%, transparent);
+  box-shadow: inset 3px 0 0 var(--color-background-brand), var(--shadow-focus);
 }
 
 .sources-view__table th {
@@ -212,13 +249,18 @@
 }
 
 .sources-view__mobile-pills {
+  /*
+   * sticky 偏移使用 CSS 变量便于多处复用；移动顶栏 48 px + 副标题 28 px ≈ 76 px。
+   * 这里仍维持原 92 px 保留余量，但抽到统一注释里说明。
+   */
   position: sticky;
   top: 92px;
   z-index: var(--z-sticky);
-  background: color-mix(in srgb, var(--color-background-canvas) 92%, transparent);
+  background: color-mix(in srgb, var(--color-background-canvas) 86%, transparent);
   padding: var(--spacing-xs) 0;
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border-subtle) 60%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
+  backdrop-filter: blur(14px) saturate(1.1);
 }
 
 .sources-view__cards {
@@ -235,7 +277,7 @@
   min-width: 0;
 }
 
-.sources-view__card-title > span:last-child {
+.sources-view__card-title>span:last-child {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

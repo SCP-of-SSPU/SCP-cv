@@ -200,8 +200,8 @@ void activeId; // 当前后端未提供「激活预案 id」字段；保留 hook
           <template #actions>
             <FButton appearance="transparent" size="compact" icon-only
               :icon-start="scenario.sort_order > 0 ? 'pin_off_24_regular' : 'pin_24_regular'"
-              :aria-label="scenario.sort_order > 0 ? '取消置顶预案' : '置顶预案'"
-              :loading="pendingPinId === scenario.id" @click.stop="togglePin(scenario)" />
+              :aria-label="scenario.sort_order > 0 ? '取消置顶预案' : '置顶预案'" :loading="pendingPinId === scenario.id"
+              @click.stop="togglePin(scenario)" />
             <FButton appearance="primary" size="compact" icon-start="play_24_regular"
               :loading="pendingActivateId === scenario.id" @click.stop="activateScenario(scenario)">
               调用
@@ -251,10 +251,14 @@ void activeId; // 当前后端未提供「激活预案 id」字段；保留 hook
   justify-content: space-between;
   gap: var(--spacing-l);
   padding: var(--spacing-m) 0;
-  background: color-mix(in srgb, var(--color-background-canvas) 92%, transparent);
+  margin: 0 calc(-1 * var(--spacing-2xl));
+  padding-left: var(--spacing-2xl);
+  padding-right: var(--spacing-2xl);
+  background: color-mix(in srgb, var(--color-background-canvas) 86%, transparent);
   flex-wrap: wrap;
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border-subtle) 60%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
+  backdrop-filter: blur(14px) saturate(1.1);
 }
 
 .scenarios-view__heading {
@@ -289,11 +293,45 @@ void activeId; // 当前后端未提供「激活预案 id」字段；保留 hook
   gap: var(--spacing-l);
 }
 
+/*
+ * 网格首批卡片错峰入场：前 6 张每张延迟 30 ms。
+ * 第 7 张以后立即入场，避免长列表"等太久"。reduce-motion 下 duration 被 token 收敛到 0，
+ * delay 仍存在但视觉等价于一次性出现。
+ */
+.scenarios-view__grid> :deep(.f-card:nth-child(1)) {
+  animation-delay: 0ms;
+}
+
+.scenarios-view__grid> :deep(.f-card:nth-child(2)) {
+  animation-delay: 30ms;
+}
+
+.scenarios-view__grid> :deep(.f-card:nth-child(3)) {
+  animation-delay: 60ms;
+}
+
+.scenarios-view__grid> :deep(.f-card:nth-child(4)) {
+  animation-delay: 90ms;
+}
+
+.scenarios-view__grid> :deep(.f-card:nth-child(5)) {
+  animation-delay: 120ms;
+}
+
+.scenarios-view__grid> :deep(.f-card:nth-child(6)) {
+  animation-delay: 150ms;
+}
+
+/*
+ * 置顶预案卡：4 px 左侧 accent + 1 px brand 内描边 + 提升一档阴影，
+ * 让"置顶"在网格中的视觉权重明显高于普通卡。
+ */
 .scenarios-view__card--pinned {
   border-left: 4px solid var(--color-background-brand);
   box-shadow:
     var(--shadow-card-hover),
-    inset 0 0 0 1px color-mix(in srgb, var(--color-background-brand) 16%, transparent);
+    inset 0 0 0 1px color-mix(in srgb, var(--color-background-brand) 18%, transparent),
+    var(--halo-brand);
 }
 
 .scenarios-view__pinned {

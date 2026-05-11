@@ -67,16 +67,38 @@ const toneIcon = computed<FluentIconName | string>(() => {
 </template>
 
 <style scoped>
+/*
+ * MessageBar 视觉规范：
+ *   - 浅色填充背景 + 同色系图标；
+ *   - 左侧 3 px accent 强调条，提示 tone；
+ *   - border 改为更浅的 accent 同色 mix，避免之前实色描边显得"硬"；
+ *   - 进入采用 f-rise（8 px 上推 + 淡入），与卡片入场节奏一致；
+ *     不超过 reduce-motion 偏好会自动收敛到几乎无感。
+ */
 .f-message-bar {
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: var(--spacing-m);
   padding: var(--spacing-m) var(--spacing-l);
+  padding-left: calc(var(--spacing-l) + 4px);
   border-radius: var(--radius-medium);
   border: 1px solid transparent;
   font-size: var(--type-body1-size);
   line-height: var(--type-body1-line);
   box-shadow: var(--shadow-control);
+  overflow: hidden;
+  animation: f-rise var(--motion-duration-entrance) var(--motion-curve-emphasized) both;
+}
+
+.f-message-bar::before {
+  content: '';
+  position: absolute;
+  inset: var(--spacing-s) auto var(--spacing-s) var(--spacing-xs);
+  width: 3px;
+  border-radius: var(--radius-circular);
+  background: currentColor;
+  opacity: 0.85;
 }
 
 .f-message-bar__icon {
@@ -115,24 +137,24 @@ const toneIcon = computed<FluentIconName | string>(() => {
 .f-message-bar--info {
   background: var(--color-status-info-background);
   color: var(--color-status-info-foreground);
-  border-color: var(--color-status-info-foreground);
+  border-color: color-mix(in srgb, var(--color-status-info-foreground) 35%, transparent);
 }
 
 .f-message-bar--success {
   background: var(--color-status-success-background);
   color: var(--color-status-success-foreground);
-  border-color: var(--color-status-success-foreground);
+  border-color: color-mix(in srgb, var(--color-status-success-foreground) 35%, transparent);
 }
 
 .f-message-bar--warning {
   background: var(--color-status-warning-background);
   color: var(--color-status-warning-foreground);
-  border-color: var(--color-status-warning-foreground);
+  border-color: color-mix(in srgb, var(--color-status-warning-foreground) 35%, transparent);
 }
 
 .f-message-bar--error {
   background: var(--color-status-error-background);
   color: var(--color-status-error-foreground);
-  border-color: var(--color-status-error-foreground);
+  border-color: color-mix(in srgb, var(--color-status-error-foreground) 35%, transparent);
 }
 </style>

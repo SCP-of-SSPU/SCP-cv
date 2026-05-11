@@ -135,11 +135,12 @@ function isPathActive(path: string): boolean {
   gap: var(--spacing-l);
   height: 56px;
   padding: 0 var(--spacing-2xl);
-  background: var(--color-background-glass);
+  /* glass-strong 在浅色画布上保留可读对比度，避免顶栏内容"浮在画布"。 */
+  background: var(--color-background-glass-strong);
   border-bottom: 1px solid var(--color-border-subtle);
   box-shadow: var(--shadow-chrome);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+  backdrop-filter: blur(18px) saturate(1.1);
 }
 
 .app-shell__brand {
@@ -156,11 +157,22 @@ function isPathActive(path: string): boolean {
   width: 32px;
   height: 32px;
   border-radius: var(--radius-medium);
-  background: linear-gradient(135deg, var(--color-background-brand), var(--color-background-brand-pressed));
+  background: var(--gradient-brand-mark);
   color: var(--color-text-inverse);
   font-weight: 700;
   font-size: var(--type-subtitle2-size);
   box-shadow: var(--shadow-brand);
+  /* 1 px 内描边模拟 Fluent 2 上沿高光，避免 logo 与背景"贴皮"。 */
+  position: relative;
+}
+
+.app-shell__brand-mark::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-text-inverse) 30%, transparent);
+  pointer-events: none;
 }
 
 .app-shell__brand-meta {
@@ -193,11 +205,15 @@ function isPathActive(path: string): boolean {
 }
 
 .app-shell__title-mute {
+  display: inline-flex;
+  align-items: center;
   font-size: var(--type-caption1-size);
+  font-weight: 600;
   color: var(--color-status-warning-foreground);
   background: var(--color-status-warning-background);
   padding: 2px var(--spacing-s);
-  border-radius: var(--radius-small);
+  border-radius: var(--radius-circular);
+  border: 1px solid color-mix(in srgb, var(--color-status-warning-foreground) 28%, transparent);
 }
 
 .app-shell__body {
@@ -213,7 +229,8 @@ function isPathActive(path: string): boolean {
   width: 240px;
   height: calc(var(--app-height, 100vh) - 56px);
   padding: var(--spacing-l) var(--spacing-m);
-  background: var(--color-background-card);
+  /* 侧边栏改为带轻微 elevated 的卡片层，与画布拉开层级。 */
+  background: var(--color-background-elevated);
   border-right: 1px solid var(--color-border-subtle);
   box-shadow: var(--shadow-chrome);
   display: flex;
@@ -237,6 +254,7 @@ function isPathActive(path: string): boolean {
 }
 
 .app-shell__nav-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--spacing-m);
@@ -258,20 +276,42 @@ function isPathActive(path: string): boolean {
   transform: translateX(2px);
 }
 
+.app-shell__nav-item:focus-visible {
+  outline: none;
+  background: var(--color-background-subtle);
+  box-shadow: var(--shadow-focus);
+}
+
 .app-shell__nav-item--active {
   background: var(--color-background-brand-selected);
   color: var(--color-text-brand);
   font-weight: 600;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-background-brand) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-background-brand) 18%, transparent);
+}
+
+/*
+ * Active 指示条：4 px 圆头条置于 NavItem 左侧（绝对定位）。
+ * Fluent 2 推荐做法：始终预留位置但仅 active 时显形，避免列表整体在选中态时左右抖动。
+ */
+.app-shell__nav-item::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  width: 3px;
+  height: 0;
+  border-radius: var(--radius-circular);
+  background: var(--color-background-brand);
+  transform: translateY(-50%);
+  transition:
+    height var(--motion-duration-medium) var(--motion-curve-emphasized),
+    opacity var(--motion-duration-medium) var(--motion-curve-ease);
+  opacity: 0;
 }
 
 .app-shell__nav-item--active::before {
-  content: '';
-  width: 4px;
-  height: 16px;
-  border-radius: var(--radius-circular);
-  background: var(--color-background-brand);
-  margin-right: -8px;
+  height: 18px;
+  opacity: 1;
 }
 
 .app-shell__nav-icon {

@@ -179,3 +179,55 @@ video {
   white-space: nowrap;
   border: 0;
 }
+
+/*
+ * 全局进入动效关键帧。
+ * 业务/组件层引用这些 keyframes 替代各自重写：
+ *   - f-rise：8 px 上推 + 淡入，给卡片 / 行 / 区块默认入场；
+ *   - f-fade：纯淡入，给 MessageBar / Empty 这种"突现"提示；
+ *   - f-pop：1.5% 缩放 + 淡入，给状态徽章、Toast 之类；
+ *   - f-shimmer：骨架横扫高光。
+ */
+@keyframes f-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes f-fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes f-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes f-shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(100%);
+  }
+}

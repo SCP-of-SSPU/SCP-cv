@@ -1,7 +1,12 @@
 /*
  * 设计令牌（Design Tokens）。
- * 严格对齐 STYLE.md 的前端视觉规范与 DESIGN.md §21.1。
- * 业务组件不得直接写 HEX/PX，必须经由这里的 alias token。
+ * 严格对齐 STYLE.md 的前端视觉规范与 DESIGN.md §21.1，并参考 Fluent 2 Design System
+ * 的「Layer」、「Acrylic」、「Reveal」反馈范式：
+ *   - 文本/背景/状态 color 层走 Fluent 2 Web 调色板（neutralGrey + brand sequence）；
+ *   - shadow 用 ambient + key 双层光栅模拟，与 Fluent 2 elevation 一致；
+ *   - motion 沿用 Fluent 2 curves，并补充 press / halo / accent ring 等 micro-interaction token；
+ *   - 业务组件不得直接写 HEX/PX，必须经由这里的 alias token；
+ *   - 业务侧请优先使用 alias / semantic token，不要直接引用 `--*-base` 系列。
  */
 
 :root {
@@ -19,17 +24,28 @@
   --color-text-warning: #9d5d00;
 
   /* ── 背景（color.background.*） ───────────────────────────── */
-  --color-background-canvas: #f6f7f9;
+  /*
+   * canvas / card / subtle 形成 Fluent 2 中三层「Layer」结构：
+   *   - canvas (#f3f5f9)：略带冷调的页面底，与卡片白形成天然层级；
+   *   - card：纯白，承载主要内容；
+   *   - subtle / raised：填色稍冷的辅助层，用于嵌套卡片、表头、空状态背景。
+   * brand 系列在 Fluent 2 上由「Communication blue」体系派生：base 100 / hover 90 / pressed 110。
+   */
+  --color-background-canvas: #f3f5f9;
   --color-background-card: #ffffff;
-  --color-background-subtle: #fafafa;
+  --color-background-subtle: #f7f8fa;
   --color-background-raised: #ffffff;
-  --color-background-glass: rgba(255, 255, 255, 0.86);
+  --color-background-elevated: #fdfdfe;
+  --color-background-inverse: #1b1d23;
+  --color-background-glass: rgba(255, 255, 255, 0.78);
+  --color-background-glass-strong: rgba(255, 255, 255, 0.92);
   --color-background-brand: #1b86e0;
   --color-background-brand-hover: #2899f5;
   --color-background-brand-pressed: #0f6cbd;
   --color-background-brand-selected: #eaf4fe;
   --color-background-disabled: #f0f0f0;
-  --color-background-overlay: rgba(0, 0, 0, 0.4);
+  --color-background-overlay: rgba(15, 23, 42, 0.42);
+  --color-background-scrim: rgba(15, 23, 42, 0.32);
 
   /* ── 边框（color.border.*） ───────────────────────────────── */
   --color-border-subtle: #ebebeb;
@@ -48,6 +64,12 @@
   --color-status-warning-background: #fff4ce;
   --color-status-error-foreground: #c42b1c;
   --color-status-error-background: #fde7e9;
+
+  /* 状态强调线：用于 MessageBar / 卡片左侧 accent，比纯前景色稍暗。 */
+  --color-status-info-accent: #2899f5;
+  --color-status-success-accent: #2aa515;
+  --color-status-warning-accent: #c79100;
+  --color-status-error-accent: #d13438;
 
   /* ── 间距（spacing.*）：4 px 基础网格 ─────────────────────── */
   --spacing-none: 0;
@@ -80,7 +102,13 @@
   --radius-xxlarge: 20px;
   --radius-circular: 9999px;
 
-  /* ── 阴影（shadow.*） ─────────────────────────────────────── */
+  /*
+   * 阴影（shadow.*）。
+   * Fluent 2 阴影模型：ambient + key 双层叠加。
+   *   - ambient 使用 1px / 2px / 4px 的扩散，形成「环境光」
+   *   - key 使用更深的偏移，营造「定向光」
+   * 浅色主题下统一以 #0f172a (slate-900) 作为基色，通过透明度控制层级。
+   */
   --shadow-none: none;
   --shadow-2: 0 1px 2px rgb(15 23 42 / 0.06), 0 1px 1px rgb(15 23 42 / 0.04);
   --shadow-4: 0 2px 6px rgb(15 23 42 / 0.08), 0 1px 2px rgb(15 23 42 / 0.05);
@@ -88,15 +116,72 @@
   --shadow-16: 0 16px 36px rgb(15 23 42 / 0.14), 0 4px 12px rgb(15 23 42 / 0.08);
   --shadow-28: 0 28px 64px rgb(15 23 42 / 0.18), 0 12px 28px rgb(15 23 42 / 0.12);
   --shadow-control: 0 1px 1px rgb(15 23 42 / 0.04);
-  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 22px rgb(15 23 42 / 0.04);
-  --shadow-card-hover: 0 16px 34px rgb(15 23 42 / 0.10), 0 4px 12px rgb(15 23 42 / 0.06);
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.05), 0 8px 22px rgb(15 23 42 / 0.05);
+  --shadow-card-hover: 0 18px 38px rgb(15 23 42 / 0.10), 0 4px 14px rgb(15 23 42 / 0.06);
   --shadow-chrome: 0 1px 2px rgb(15 23 42 / 0.05), 0 10px 30px rgb(15 23 42 / 0.04);
   --shadow-tabbar: 0 -10px 30px rgb(15 23 42 / 0.10);
   --shadow-flyout: 0 18px 42px rgb(15 23 42 / 0.16), 0 6px 18px rgb(15 23 42 / 0.10);
   --shadow-modal: 0 34px 82px rgb(15 23 42 / 0.22), 0 16px 34px rgb(15 23 42 / 0.14);
-  --shadow-brand: 0 6px 16px color-mix(in srgb, var(--color-background-brand) 24%, transparent);
-  --shadow-brand-hover: 0 10px 24px color-mix(in srgb, var(--color-background-brand) 30%, transparent);
-  --shadow-focus: 0 0 0 3px color-mix(in srgb, var(--color-border-focus) 26%, transparent);
+  --shadow-brand: 0 6px 16px color-mix(in srgb, var(--color-background-brand) 26%, transparent);
+  --shadow-brand-hover: 0 12px 28px color-mix(in srgb, var(--color-background-brand) 34%, transparent);
+  --shadow-focus: 0 0 0 3px color-mix(in srgb, var(--color-border-focus) 28%, transparent);
+
+  /*
+   * Halo / Ring 微交互令牌。
+   * Fluent 2 强调可点击元素 hover 时的「光晕反馈」：
+   *   - halo-soft：1 px 内描边 + 6–8 px 散光，给卡片 hover 与 sticky 区使用；
+   *   - halo-brand：品牌色光晕，用于选中/激活态；
+   *   - ring-accent：内描边 1 px，结合 box-shadow 实现 acrylic 边缘高光。
+   */
+  --halo-soft: 0 0 0 1px color-mix(in srgb, var(--color-border-default) 60%, transparent),
+    0 8px 18px color-mix(in srgb, var(--color-text-primary) 8%, transparent);
+  --halo-brand: 0 0 0 1px color-mix(in srgb, var(--color-background-brand) 32%, transparent),
+    0 12px 26px color-mix(in srgb, var(--color-background-brand) 22%, transparent);
+  --halo-success: 0 0 0 1px color-mix(in srgb, var(--color-status-success-foreground) 32%, transparent),
+    0 10px 22px color-mix(in srgb, var(--color-status-success-foreground) 18%, transparent);
+  --halo-warning: 0 0 0 1px color-mix(in srgb, var(--color-status-warning-accent) 32%, transparent),
+    0 10px 22px color-mix(in srgb, var(--color-status-warning-accent) 18%, transparent);
+  --halo-error: 0 0 0 1px color-mix(in srgb, var(--color-status-error-foreground) 32%, transparent),
+    0 10px 22px color-mix(in srgb, var(--color-status-error-foreground) 18%, transparent);
+  --ring-accent: inset 0 0 0 1px color-mix(in srgb, var(--color-background-card) 70%, transparent);
+  --ring-selected: inset 0 0 0 1px color-mix(in srgb, var(--color-background-brand) 32%, transparent);
+
+  /*
+   * 微交互（press / hover lift）。
+   * 集中放置以便业务样式复用，避免散写 transform 数值。
+   */
+  --motion-press-translate: 1px;
+  --motion-press-scale: 0.98;
+  --motion-hover-lift: -2px;
+  --motion-hover-lift-strong: -3px;
+
+  /*
+   * 渐变（gradient.*）。
+   * Hero / Brand mark / Glass 等场景统一从这里取，避免组件层散写。
+   */
+  --gradient-hero: linear-gradient(135deg,
+      color-mix(in srgb, var(--color-background-brand-selected) 92%, var(--color-background-card)) 0%,
+      color-mix(in srgb, var(--color-status-success-background) 38%, var(--color-background-card)) 58%,
+      color-mix(in srgb, var(--color-background-card) 92%, transparent) 100%),
+    var(--color-background-card);
+  --gradient-hero-cool: linear-gradient(135deg,
+      color-mix(in srgb, var(--color-background-brand-selected) 88%, var(--color-background-card)),
+      color-mix(in srgb, var(--color-background-card) 76%, transparent)),
+    var(--color-background-card);
+  --gradient-brand-mark: linear-gradient(135deg,
+      var(--color-background-brand-hover),
+      var(--color-background-brand-pressed));
+  --gradient-glass: linear-gradient(180deg,
+      color-mix(in srgb, var(--color-background-card) 88%, transparent),
+      color-mix(in srgb, var(--color-background-card) 72%, transparent));
+  --gradient-skeleton: linear-gradient(90deg,
+      transparent 0%,
+      color-mix(in srgb, var(--color-background-card) 70%, transparent) 50%,
+      transparent 100%);
+  --gradient-shimmer-strong: linear-gradient(90deg,
+      transparent 0%,
+      color-mix(in srgb, var(--color-background-card) 92%, transparent) 50%,
+      transparent 100%);
 
   /* ── Z-index（z.*） ───────────────────────────────────────── */
   --z-base: 0;
@@ -109,11 +194,12 @@
   --z-toast: 1500;
 
   /*
-   * 动效（motion.*）
+   * 动效（motion.*）。
    * 曲线选择：
    *   - ease：ease-out-quart（cubic-bezier(0.22, 1, 0.36, 1)），进入段更细腻柔缓；
    *   - decelerate：沿用 Fluent 2 decel 曲线，适合浮层进入；
    *   - accelerate：快速退出用，浮层消失；
+   *   - emphasized：Fluent 2 强调曲线（出场重、入场轻），适合 Hero 与卡片入场；
    *   - spring：≤ 5 % 轻微过冲，适合 Toast / Badge 进入，避免"机械感"；
    *   - linear：进度 / 骨架 / spinner 这种需要恒速的元素。
    * Duration 新增 medium=160 ms，填补 fast(100) 与 normal(200) 之间，按钮 hover / 菜单展开更自然。
@@ -164,8 +250,10 @@
   --app-height: 100dvh;
 }
 
-/* 深色模式占位：仅 PPT 专注模式启用，避免“简单反色”导致对比度问题。
-   未来扩展全局深色时再补全 alias 映射。 */
+/*
+ * 深色模式：当前仅 PPT 专注模式启用（在该子树写 [data-theme="dark"]），
+ * 但 alias 已与浅色一一对应，避免视觉对比度失衡。未来引入全局深色时直接复用即可。
+ */
 [data-theme="dark"] {
   color-scheme: dark;
   --color-text-primary: #f3f3f3;
@@ -177,16 +265,29 @@
 
   --color-background-canvas: #0f1115;
   --color-background-card: #1b1d23;
-  --color-background-subtle: #16181d;
+  --color-background-subtle: #161820;
   --color-background-raised: #20232b;
-  --color-background-glass: rgba(27, 29, 35, 0.82);
+  --color-background-elevated: #232730;
+  --color-background-inverse: #f3f5f9;
+  --color-background-glass: rgba(27, 29, 35, 0.78);
+  --color-background-glass-strong: rgba(20, 22, 28, 0.92);
   --color-background-brand: #2899f5;
-  --color-background-brand-selected: rgba(40, 153, 245, 0.16);
+  --color-background-brand-hover: #44a6f7;
+  --color-background-brand-pressed: #0f6cbd;
+  --color-background-brand-selected: rgba(40, 153, 245, 0.18);
+  --color-background-disabled: rgba(255, 255, 255, 0.08);
+  --color-background-overlay: rgba(0, 0, 0, 0.62);
+  --color-background-scrim: rgba(0, 0, 0, 0.48);
 
   --color-border-subtle: rgba(255, 255, 255, 0.08);
   --color-border-default: rgba(255, 255, 255, 0.18);
   --color-border-strong: rgba(255, 255, 255, 0.32);
   --color-border-focus: #6cb8ff;
+
+  --color-status-info-background: rgba(40, 153, 245, 0.18);
+  --color-status-success-background: rgba(38, 165, 21, 0.22);
+  --color-status-warning-background: rgba(255, 196, 61, 0.18);
+  --color-status-error-background: rgba(232, 70, 64, 0.22);
 
   --shadow-2: 0 1px 2px rgb(0 0 0 / 0.55);
   --shadow-4: 0 2px 6px rgb(0 0 0 / 0.52);
@@ -195,14 +296,33 @@
   --shadow-28: 0 28px 64px rgb(0 0 0 / 0.64);
   --shadow-control: 0 1px 1px rgb(0 0 0 / 0.36);
   --shadow-card: 0 1px 2px rgb(0 0 0 / 0.36), 0 10px 24px rgb(0 0 0 / 0.30);
-  --shadow-card-hover: 0 18px 42px rgb(0 0 0 / 0.46), 0 6px 18px rgb(0 0 0 / 0.34);
+  --shadow-card-hover: 0 18px 42px rgb(0 0 0 / 0.46), 0 6px 14px rgb(0 0 0 / 0.32);
   --shadow-chrome: 0 1px 2px rgb(0 0 0 / 0.42), 0 12px 32px rgb(0 0 0 / 0.34);
   --shadow-tabbar: 0 -12px 34px rgb(0 0 0 / 0.48);
   --shadow-flyout: 0 22px 52px rgb(0 0 0 / 0.56), 0 8px 20px rgb(0 0 0 / 0.40);
   --shadow-modal: 0 34px 82px rgb(0 0 0 / 0.66), 0 16px 34px rgb(0 0 0 / 0.46);
-  --shadow-brand: 0 8px 20px color-mix(in srgb, var(--color-background-brand) 22%, transparent);
-  --shadow-brand-hover: 0 12px 28px color-mix(in srgb, var(--color-background-brand) 28%, transparent);
-  --shadow-focus: 0 0 0 3px color-mix(in srgb, var(--color-border-focus) 32%, transparent);
+  --shadow-brand: 0 8px 20px color-mix(in srgb, var(--color-background-brand) 28%, transparent);
+  --shadow-brand-hover: 0 14px 32px color-mix(in srgb, var(--color-background-brand) 34%, transparent);
+  --shadow-focus: 0 0 0 3px color-mix(in srgb, var(--color-border-focus) 36%, transparent);
+
+  /* 深色模式专属：将 hero / glass 重新配色，避免高亮过曝。 */
+  --gradient-hero: linear-gradient(135deg,
+      color-mix(in srgb, var(--color-background-brand-selected) 80%, var(--color-background-card)),
+      color-mix(in srgb, var(--color-background-card) 86%, transparent)),
+    var(--color-background-card);
+  --gradient-hero-cool: linear-gradient(135deg,
+      color-mix(in srgb, var(--color-background-brand-selected) 72%, var(--color-background-card)),
+      color-mix(in srgb, var(--color-background-card) 82%, transparent)),
+    var(--color-background-card);
+  --gradient-glass: linear-gradient(180deg,
+      color-mix(in srgb, var(--color-background-card) 92%, transparent),
+      color-mix(in srgb, var(--color-background-card) 70%, transparent));
+
+  --halo-soft: 0 0 0 1px color-mix(in srgb, var(--color-border-default) 75%, transparent),
+    0 10px 22px rgb(0 0 0 / 0.42);
+  --halo-brand: 0 0 0 1px color-mix(in srgb, var(--color-background-brand) 42%, transparent),
+    0 14px 30px color-mix(in srgb, var(--color-background-brand) 32%, transparent);
+  --ring-accent: inset 0 0 0 1px color-mix(in srgb, var(--color-background-card) 30%, transparent);
 }
 
 /* 用户系统级偏好：减少动效。所有 transition / animation 收敛到几乎无感。 */
@@ -215,5 +335,16 @@
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* 高对比度偏好：加深边框 / 文本 / 焦点环，提升可识别性。 */
+@media (prefers-contrast: more) {
+  :root {
+    --color-border-subtle: #b5b5b5;
+    --color-border-default: #707070;
+    --color-border-strong: #1f1f1f;
+    --color-text-secondary: #1f1f1f;
+    --shadow-focus: 0 0 0 3px var(--color-border-focus);
   }
 }

@@ -89,6 +89,7 @@ defineEmits<(event: 'click', payload: MouseEvent) => void>();
 
 <style scoped>
 .f-button {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -119,15 +120,20 @@ defineEmits<(event: 'click', payload: MouseEvent) => void>();
     transform var(--motion-duration-fast) var(--motion-curve-ease);
 }
 
-/* 按下瞬间轻微下沉 + 微缩，增强点击手感。 */
+/* 按下瞬间下沉 + 微缩，增强点击手感。 */
 .f-button:active:not(:disabled):not(.f-button--loading) {
-  transform: translateY(1px) scale(0.99);
+  transform: translateY(var(--motion-press-translate)) scale(var(--motion-press-scale));
+  transition-duration: var(--motion-duration-ultra-fast);
 }
 
-/* 键盘聚焦时显示 2 px 品牌色外环，鼠标点击不触发（:focus-visible 规范）。 */
+/*
+ * 键盘聚焦时：保留可见 outline，并叠加品牌色软光晕，
+ * 替代之前裸 outline 的硬边观感，避免与 box-shadow 形成"双框"。
+ */
 .f-button:focus-visible {
   outline: 2px solid var(--color-border-focus);
   outline-offset: 2px;
+  box-shadow: var(--shadow-focus), var(--shadow-control);
 }
 
 .f-button:disabled {
@@ -168,7 +174,7 @@ defineEmits<(event: 'click', payload: MouseEvent) => void>();
   width: 40px;
 }
 
-/* Primary：品牌实心，主操作 */
+/* Primary：品牌实心，主操作；hover 时叠加 brand 软光晕。 */
 .f-button--primary {
   background: var(--color-background-brand);
   color: var(--color-text-inverse);
@@ -179,7 +185,7 @@ defineEmits<(event: 'click', payload: MouseEvent) => void>();
 .f-button--primary:hover:not(:disabled) {
   background: var(--color-background-brand-hover);
   border-color: var(--color-background-brand-hover);
-  box-shadow: var(--shadow-brand-hover);
+  box-shadow: var(--shadow-brand-hover), var(--halo-brand);
   transform: translateY(-1px);
 }
 
@@ -187,6 +193,10 @@ defineEmits<(event: 'click', payload: MouseEvent) => void>();
   background: var(--color-background-brand-pressed);
   border-color: var(--color-background-brand-pressed);
   box-shadow: var(--shadow-brand);
+}
+
+.f-button--primary:focus-visible {
+  box-shadow: var(--shadow-brand), var(--shadow-focus);
 }
 
 /* Secondary：透明底 + 边框 */
@@ -255,7 +265,7 @@ defineEmits<(event: 'click', payload: MouseEvent) => void>();
 
 .f-button--danger:hover:not(:disabled) {
   background: var(--color-status-error-background);
-  box-shadow: var(--shadow-4);
+  box-shadow: var(--shadow-4), var(--halo-error);
   transform: translateY(-1px);
 }
 
@@ -271,6 +281,7 @@ defineEmits<(event: 'click', payload: MouseEvent) => void>();
 }
 
 @media (hover: none) {
+
   .f-button--primary:hover:not(:disabled),
   .f-button--secondary:hover:not(:disabled),
   .f-button--danger:hover:not(:disabled) {

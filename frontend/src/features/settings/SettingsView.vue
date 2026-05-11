@@ -413,10 +413,12 @@ const version = '1.0.0';
   justify-content: space-between;
   gap: var(--spacing-l);
   padding: var(--spacing-l) var(--spacing-2xl);
-  background: var(--color-background-card);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-large);
+  background: var(--gradient-hero-cool);
+  border: 1px solid color-mix(in srgb, var(--color-border-subtle) 70%, transparent);
+  border-radius: var(--radius-xlarge);
+  box-shadow: var(--shadow-card), var(--ring-accent);
   flex-wrap: wrap;
+  animation: f-rise var(--motion-duration-entrance) var(--motion-curve-emphasized) both;
 }
 
 .settings-view__brand {
@@ -433,10 +435,11 @@ const version = '1.0.0';
   width: 48px;
   height: 48px;
   border-radius: var(--radius-medium);
-  background: var(--color-background-brand);
+  background: var(--gradient-brand-mark);
   color: var(--color-text-inverse);
   font-weight: 700;
   font-size: var(--type-title3-size);
+  box-shadow: var(--shadow-brand);
 }
 
 .settings-view__brand-eyebrow {
@@ -496,15 +499,29 @@ const version = '1.0.0';
   cursor: pointer;
   font: inherit;
   text-align: left;
+  box-shadow: var(--shadow-control);
+  transition:
+    background var(--motion-duration-medium) var(--motion-curve-ease),
+    border-color var(--motion-duration-medium) var(--motion-curve-ease),
+    box-shadow var(--motion-duration-medium) var(--motion-curve-ease),
+    transform var(--motion-duration-medium) var(--motion-curve-ease);
 }
 
 .settings-view__display-tile:hover:not(:disabled) {
   border-color: var(--color-background-brand);
+  transform: translateY(var(--motion-hover-lift));
+  box-shadow: var(--shadow-card-hover);
+}
+
+.settings-view__display-tile:focus-visible {
+  outline: none;
+  border-color: var(--color-background-brand);
+  box-shadow: var(--shadow-focus);
 }
 
 .settings-view__display-tile--selected {
   border-color: var(--color-background-brand);
-  box-shadow: 0 0 0 1px var(--color-background-brand);
+  box-shadow: var(--shadow-card), var(--halo-brand);
   background: var(--color-background-brand-selected);
 }
 
@@ -515,6 +532,7 @@ const version = '1.0.0';
 .settings-view__display-tile:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  transform: none;
 }
 
 .settings-view__display-name {

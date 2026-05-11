@@ -223,6 +223,7 @@ const totalLabel = computed(() => `共 ${filteredSources.value.length} 项`);
   border: 1px solid var(--color-border-subtle);
   background: var(--color-background-card);
   cursor: pointer;
+  box-shadow: var(--shadow-control);
   transition:
     background var(--motion-duration-medium) var(--motion-curve-ease),
     border-color var(--motion-duration-medium) var(--motion-curve-ease),
@@ -233,14 +234,33 @@ const totalLabel = computed(() => `共 ${filteredSources.value.length} 项`);
 .source-picker__item:hover {
   background: var(--color-background-brand-selected);
   border-color: var(--color-background-brand);
-  box-shadow: var(--shadow-4);
-  transform: translateY(-1px);
+  box-shadow: var(--shadow-4), var(--halo-brand);
+  transform: translateY(var(--motion-hover-lift));
+}
+
+.source-picker__item:focus-visible {
+  outline: none;
+  border-color: var(--color-background-brand);
+  box-shadow: var(--shadow-focus);
+}
+
+.source-picker__item:active {
+  transform: translateY(0) scale(var(--motion-press-scale));
+  transition-duration: var(--motion-duration-fast);
 }
 
 .source-picker__item--unavailable {
   background: var(--color-background-disabled);
   cursor: not-allowed;
   opacity: 0.7;
+  box-shadow: none;
+}
+
+.source-picker__item--unavailable:hover {
+  transform: none;
+  box-shadow: none;
+  background: var(--color-background-disabled);
+  border-color: var(--color-border-subtle);
 }
 
 .source-picker__meta {

@@ -151,6 +151,7 @@ defineExpose({
 
 .f-input--invalid {
   border-color: var(--color-border-error);
+  background: color-mix(in srgb, var(--color-status-error-background) 32%, var(--color-background-card));
 }
 
 .f-input--invalid:focus-within {
@@ -160,7 +161,9 @@ defineExpose({
 .f-input--disabled {
   background: var(--color-background-disabled);
   color: var(--color-text-disabled);
+  border-color: var(--color-border-disabled);
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 .f-input__prefix,

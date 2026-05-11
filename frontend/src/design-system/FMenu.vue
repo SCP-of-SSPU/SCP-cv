@@ -158,14 +158,17 @@ void flatItems; // 显式标记，避免 lint 抱怨
   top: calc(100% + var(--spacing-xs));
   min-width: 200px;
   max-width: 320px;
-  background: var(--color-background-raised);
-  border: 1px solid var(--color-border-subtle);
+  /* Acrylic flyout：半透明 + 高强度模糊，与 Fluent 2 Reveal flyout 一致。 */
+  background: var(--color-background-glass-strong);
+  border: 1px solid color-mix(in srgb, var(--color-border-subtle) 70%, transparent);
   border-radius: var(--radius-large);
   box-shadow: var(--shadow-flyout);
   padding: var(--spacing-xs);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-xxs);
+  -webkit-backdrop-filter: blur(20px) saturate(1.15);
+  backdrop-filter: blur(20px) saturate(1.15);
 }
 
 .f-menu__list--right {

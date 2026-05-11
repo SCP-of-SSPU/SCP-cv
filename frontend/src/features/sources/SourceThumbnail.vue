@@ -33,30 +33,14 @@ function markFailed(): void {
 </script>
 
 <template>
-  <span
-    class="source-thumbnail"
-    :class="[
-      `source-thumbnail--${size}`,
-      { 'source-thumbnail--media': canRenderPreview },
-    ]"
-    :title="source.preview_label || source.name"
-  >
-    <img
-      v-if="canRenderPreview && previewKind === 'image'"
-      :src="previewUrl"
-      :alt="source.name"
-      loading="lazy"
-      @error="markFailed"
-    />
-    <video
-      v-else-if="canRenderPreview && previewKind === 'video'"
-      :src="`${previewUrl}#t=0.1`"
-      muted
-      playsinline
-      preload="metadata"
-      aria-hidden="true"
-      @error="markFailed"
-    />
+  <span class="source-thumbnail" :class="[
+    `source-thumbnail--${size}`,
+    { 'source-thumbnail--media': canRenderPreview },
+  ]" :title="source.preview_label || source.name">
+    <img v-if="canRenderPreview && previewKind === 'image'" :src="previewUrl" :alt="source.name" loading="lazy"
+      @error="markFailed" />
+    <video v-else-if="canRenderPreview && previewKind === 'video'" :src="`${previewUrl}#t=0.1`" muted playsinline
+      preload="metadata" aria-hidden="true" @error="markFailed" />
     <FIcon v-else class="source-thumbnail__icon" :name="fallbackIcon" />
   </span>
 </template>
@@ -84,8 +68,15 @@ function markFailed(): void {
 }
 
 .source-thumbnail--media {
-  background: #0f1115;
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.10), var(--shadow-control);
+  /*
+   * 媒体型缩略图（图片 / 视频）使用 inverse canvas 作为底色，
+   * 让真实预览图在浅色界面下有自然的 letterbox 黑边；
+   * 内描边走 token 的高光 mix，避免直接写 rgba。
+   */
+  background: var(--color-background-inverse);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--color-text-inverse) 12%, transparent),
+    var(--shadow-control);
 }
 
 .source-thumbnail img,

@@ -42,6 +42,7 @@ withDefaults(defineProps<FEmptyProps>(), {
   gap: var(--spacing-m);
   padding: var(--spacing-3xl) var(--spacing-2xl);
   color: var(--color-text-primary);
+  animation: f-rise var(--motion-duration-entrance) var(--motion-curve-emphasized) both;
 }
 
 .f-empty__icon {
@@ -52,6 +53,10 @@ withDefaults(defineProps<FEmptyProps>(), {
   border-radius: var(--radius-circular);
   padding: var(--spacing-m);
   box-sizing: content-box;
+  /* 图标外加一圈极浅光晕，避免与白卡背景"贴皮"。 */
+  box-shadow:
+    inset 0 0 0 1px var(--color-border-subtle),
+    0 4px 12px color-mix(in srgb, var(--color-text-primary) 6%, transparent);
 }
 
 .f-empty__title {

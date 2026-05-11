@@ -90,14 +90,8 @@ void tabItems;
 
 <template>
   <div class="display-view">
-    <FSegmented
-      v-if="isMobile"
-      :model-value="targetParam"
-      :options="segmentOptions"
-      full-width
-      aria-label="窗口选择"
-      @update:modelValue="(value) => changeTarget(value as string)"
-    />
+    <FSegmented v-if="isMobile" :model-value="targetParam" :options="segmentOptions" full-width aria-label="窗口选择"
+      @update:modelValue="(value) => changeTarget(value as string)" />
 
     <header class="display-view__hero">
       <p class="display-view__eyebrow">Window {{ targetMeta?.windowId ?? '?' }}</p>
@@ -108,11 +102,7 @@ void tabItems;
     </header>
 
     <FCard v-if="blocksForSingleMode" padding="cozy">
-      <FEmpty
-        title="单屏模式下「大屏右」不可控"
-        description="当前运行态为单屏；窗口 2 由系统自动静音。如需独立控制，请切换到双屏模式。"
-        icon="tv_24_regular"
-      >
+      <FEmpty title="单屏模式下「大屏右」不可控" description="当前运行态为单屏；窗口 2 由系统自动静音。如需独立控制，请切换到双屏模式。" icon="tv_24_regular">
         <template #actions>
           <button class="display-view__cta" @click="switchToDouble">切换到双屏</button>
         </template>
@@ -121,11 +111,7 @@ void tabItems;
 
     <template v-else-if="!currentSession">
       <FCard padding="cozy">
-        <FEmpty
-          title="正在加载会话状态"
-          description="若长时间无响应，请检查后端服务或在「应急 → 重置全部窗口」恢复。"
-          icon="info_24_regular"
-        />
+        <FEmpty title="正在加载会话状态" description="若长时间无响应，请检查后端服务或在「应急 → 重置全部窗口」恢复。" icon="info_24_regular" />
       </FCard>
     </template>
 
@@ -155,17 +141,33 @@ void tabItems;
 }
 
 .display-view__hero {
+  position: relative;
   padding: var(--spacing-2xl) var(--spacing-3xl);
-  background:
-    linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--color-background-brand-selected) 88%, var(--color-background-card)),
-      color-mix(in srgb, var(--color-background-card) 76%, transparent)
-    ),
-    var(--color-background-card);
-  border-radius: var(--radius-large);
-  border: 1px solid var(--color-border-subtle);
-  box-shadow: var(--shadow-card);
+  background: var(--gradient-hero-cool);
+  border-radius: var(--radius-xlarge);
+  border: 1px solid color-mix(in srgb, var(--color-border-subtle) 70%, transparent);
+  box-shadow: var(--shadow-card), var(--ring-accent);
+  overflow: hidden;
+  animation: f-rise var(--motion-duration-entrance) var(--motion-curve-emphasized) both;
+}
+
+.display-view__hero::after {
+  content: '';
+  position: absolute;
+  right: -80px;
+  top: -80px;
+  width: 220px;
+  height: 220px;
+  border-radius: var(--radius-circular);
+  background: radial-gradient(circle at center,
+      color-mix(in srgb, var(--color-background-brand) 22%, transparent),
+      transparent 70%);
+  pointer-events: none;
+}
+
+.display-view__hero>* {
+  position: relative;
+  z-index: 1;
 }
 
 .display-view__eyebrow {

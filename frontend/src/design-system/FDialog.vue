@@ -136,8 +136,12 @@ function onOverlayClick(event: MouseEvent): void {
   align-items: center;
   justify-content: center;
   padding: var(--spacing-2xl);
-  -webkit-backdrop-filter: blur(2px);
-  backdrop-filter: blur(2px);
+  /*
+   * Fluent 2 Acrylic：遮罩用 6 px 模糊 + saturate 增强让后景有明显的「失焦」感，
+   * 同时提升对话框前景对比度。2 px 太弱、视觉上"未真正生效"。
+   */
+  -webkit-backdrop-filter: blur(6px) saturate(1.05);
+  backdrop-filter: blur(6px) saturate(1.05);
 }
 
 .f-dialog {
@@ -151,6 +155,8 @@ function onOverlayClick(event: MouseEvent): void {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* 顶部 1 px 高光，模拟 Fluent 2「Reveal」上沿光感。 */
+  border: 1px solid color-mix(in srgb, var(--color-border-subtle) 60%, transparent);
 }
 
 .f-dialog__header {
@@ -175,11 +181,20 @@ function onOverlayClick(event: MouseEvent): void {
   color: var(--color-text-secondary);
   padding: var(--spacing-xs);
   border-radius: var(--radius-medium);
-  transition: background var(--motion-duration-fast) var(--motion-curve-ease);
+  transition:
+    background var(--motion-duration-medium) var(--motion-curve-ease),
+    color var(--motion-duration-medium) var(--motion-curve-ease),
+    box-shadow var(--motion-duration-medium) var(--motion-curve-ease);
 }
 
 .f-dialog__close:hover {
   background: var(--color-background-subtle);
+  color: var(--color-text-primary);
+}
+
+.f-dialog__close:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
   color: var(--color-text-primary);
 }
 

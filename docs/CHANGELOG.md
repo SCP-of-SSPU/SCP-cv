@@ -2,6 +2,16 @@
 
 ## 2026-05-11
 
+### 全面对齐 Fluent 2 视觉规范
+
+- 设计令牌：新增 `--gradient-*`（hero / brand mark / glass / skeleton）、`--halo-*`（brand / success / warning / error）、`--ring-accent` / `--ring-selected`、`--motion-press-*` / `--motion-hover-lift-*` 等微交互令牌；调整 canvas / subtle / elevated 层级和 brand 系列阴影，统一深色模式 alias，新增 `prefers-contrast: more` 兜底。
+- 基础样式：抽取 `f-rise` / `f-fade` / `f-pop` / `f-shimmer` 通用关键帧，组件层不再重复定义入场动画。
+- 通用组件：`FCard` 引入 Reveal 高光、focus-visible 焦点环、左侧状态 accent 与 glass 变体；`FButton` 主操作 hover 叠加品牌 halo，press 改用 token 控制下沉量；`FMessageBar` 增加 accent 条与上滑入场；`FInput` 优化无效态背景；`FSkeleton` shimmer 走 token；`FSwitch` 增加 hover 光晕；`FDialog` / `FDrawer` 改用 acrylic 模糊 + 关闭按钮焦点环；`FTabs` pill 选中态微浮起；`FEmpty` 图标加微光晕；`FTag` 变成 pill 形态并带 spring 入场；`FMenu` 升级为 acrylic flyout。
+- 布局：`AppShell` 顶栏与侧栏改用 glass-strong + saturate 模糊，导航选中态使用绝对定位 brand 指示条避免布局抖动；`MobileShell` 顶栏、副标题同步 acrylic，底部 Tab 选中改用顶部 brand 指示条 + 按压缩放反馈。
+- 业务页面：仪表盘与显示控制 Hero 改用 gradient token + 角部辉光 + 错峰入场；预案与媒体源 sticky toolbar 改为带 saturate 模糊的卡片层；预案卡置顶态叠加 brand halo；媒体源左侧导航与表格行补齐 focus-within 焦点反馈；设置页显示选项卡新增 hover lift + brand halo。
+- PPT 专注模式：`PptFocusView.css` 全部硬编码 rgba / hex 切换为 alias token，背景叠加 brand 辉光，控制条与提词器改用 acrylic + 品牌色 ring，自动复用全局深色 token，便于未来全局深色模式上线。
+- 媒体缩略图：`SourceThumbnail` 媒体型底色改用 `--color-background-inverse`，移除硬编码 hex。
+
 ### 优化预案列表操作与卡片动效
 
 - 前端：预案列表卡片新增直接「调用」按钮与置顶 / 取消置顶图标按钮，不再需要先进入预览抽屉才能调用预案。

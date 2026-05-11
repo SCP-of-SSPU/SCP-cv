@@ -158,8 +158,9 @@ function onOverlayClick(event: MouseEvent): void {
   display: flex;
   align-items: stretch;
   justify-content: flex-end;
-  -webkit-backdrop-filter: blur(2px);
-  backdrop-filter: blur(2px);
+  /* 与 Dialog 一致的 acrylic 模糊力度，让 Drawer 在桌面端不再"贴皮"。 */
+  -webkit-backdrop-filter: blur(6px) saturate(1.05);
+  backdrop-filter: blur(6px) saturate(1.05);
 }
 
 .f-drawer__overlay--mobile {
@@ -198,9 +199,11 @@ function onOverlayClick(event: MouseEvent): void {
 .f-drawer__handle {
   width: 36px;
   height: 4px;
-  background: var(--color-border-default);
+  /* 把手在浅色背景上对比偏弱，提升到 strong border，并加 1 px 内描边形成可识别的轮廓。 */
+  background: var(--color-border-strong);
   border-radius: var(--radius-circular);
   margin: var(--spacing-s) auto 0;
+  opacity: 0.7;
 }
 
 .f-drawer__header {
@@ -240,12 +243,21 @@ function onOverlayClick(event: MouseEvent): void {
   color: var(--color-text-secondary);
   padding: var(--spacing-xs);
   border-radius: var(--radius-medium);
-  transition: background var(--motion-duration-fast) var(--motion-curve-ease);
+  transition:
+    background var(--motion-duration-medium) var(--motion-curve-ease),
+    color var(--motion-duration-medium) var(--motion-curve-ease),
+    box-shadow var(--motion-duration-medium) var(--motion-curve-ease);
   flex-shrink: 0;
 }
 
 .f-drawer__close:hover {
   background: var(--color-background-subtle);
+  color: var(--color-text-primary);
+}
+
+.f-drawer__close:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
   color: var(--color-text-primary);
 }
 

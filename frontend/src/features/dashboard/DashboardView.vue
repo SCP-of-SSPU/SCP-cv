@@ -220,34 +220,49 @@ const hasDeviceError = computed(() =>
 }
 
 .dashboard__hero {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-s);
   padding: var(--spacing-2xl) var(--spacing-3xl);
-  /* Hero 用 xxlarge 大圆角与渐变背景配合，是仪表盘视觉重心。 */
+  /* Hero 用 xxlarge 大圆角与渐变背景配合，是仪表盘视觉重心。渐变来自 token，便于深色模式复用。 */
   border-radius: var(--radius-xxlarge);
-  background:
-    linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--color-background-brand-selected) 90%, var(--color-background-card)) 0%,
-      color-mix(in srgb, var(--color-status-success-background) 42%, var(--color-background-card)) 62%
-    ),
-    var(--color-background-card);
-  border: 1px solid var(--color-border-subtle);
-  box-shadow: var(--shadow-card);
+  background: var(--gradient-hero);
+  border: 1px solid color-mix(in srgb, var(--color-border-subtle) 60%, transparent);
+  box-shadow: var(--shadow-card), var(--ring-accent);
   overflow: hidden;
+  animation: f-rise var(--motion-duration-entrance) var(--motion-curve-emphasized) both;
+}
+
+/* 装饰性光晕：右下角放一颗模糊的 brand 色光球，让 hero 有"现场感"。 */
+.dashboard__hero::after {
+  content: '';
+  position: absolute;
+  right: -120px;
+  bottom: -120px;
+  width: 320px;
+  height: 320px;
+  border-radius: var(--radius-circular);
+  background: radial-gradient(circle at center,
+      color-mix(in srgb, var(--color-background-brand) 24%, transparent) 0%,
+      transparent 70%);
+  pointer-events: none;
 }
 
 .dashboard__hero-eyebrow {
+  position: relative;
+  z-index: 1;
   margin: 0;
   font-size: var(--type-caption1-size);
-  letter-spacing: 0.12em;
-  font-weight: 600;
+  letter-spacing: 0.16em;
+  font-weight: 700;
   color: var(--color-text-brand);
   text-transform: uppercase;
 }
 
 .dashboard__hero-title {
+  position: relative;
+  z-index: 1;
   margin: 0;
   font-size: var(--type-title1-size);
   line-height: var(--type-title1-line);
@@ -256,6 +271,8 @@ const hasDeviceError = computed(() =>
 }
 
 .dashboard__hero-caption {
+  position: relative;
+  z-index: 1;
   margin: 0;
   color: var(--color-text-secondary);
   max-width: 720px;
@@ -273,7 +290,20 @@ const hasDeviceError = computed(() =>
 }
 
 .dashboard__card:hover {
-  transform: translateY(-1px);
+  transform: translateY(var(--motion-hover-lift));
+}
+
+/*
+ * 列表内卡片入场加 30 ms 错峰，整组卡片"瀑布式"浮起。
+ * 当浏览器命中 prefers-reduced-motion 时，delay 仍生效但 duration 已被 token 收敛到 0，
+ * 视觉上等价于一次性同时出现。
+ */
+.dashboard__grid>.dashboard__card:nth-child(2) {
+  animation-delay: 40ms;
+}
+
+.dashboard__grid>.dashboard__card:nth-child(3) {
+  animation-delay: 80ms;
 }
 
 .dashboard__hint {

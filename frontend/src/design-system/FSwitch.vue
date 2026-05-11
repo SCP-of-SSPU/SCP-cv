@@ -82,7 +82,18 @@ function onKey(event: KeyboardEvent): void {
   border: 1px solid var(--color-border-default);
   /* 拨动时背景与边框过渡走 medium(160ms) ease，让深色 / 浅色对比有"逐渐变化"的观感。 */
   transition: background var(--motion-duration-medium) var(--motion-curve-ease),
-    border-color var(--motion-duration-medium) var(--motion-curve-ease);
+    border-color var(--motion-duration-medium) var(--motion-curve-ease),
+    box-shadow var(--motion-duration-medium) var(--motion-curve-ease);
+}
+
+.f-switch:hover:not(.f-switch--disabled) .f-switch__track {
+  border-color: var(--color-border-strong);
+}
+
+.f-switch--on:hover:not(.f-switch--disabled) .f-switch__track {
+  background: var(--color-background-brand-hover);
+  border-color: var(--color-background-brand-hover);
+  box-shadow: var(--halo-brand);
 }
 
 .f-switch--compact .f-switch__track {

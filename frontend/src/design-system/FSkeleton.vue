@@ -41,8 +41,8 @@ const style = computed(() => ({
 
 <style scoped>
 /*
- * 骨架基色用 `--color-background-subtle`，pulse 模式下叠加从左到右的高光带 shimmer 效果，
- * 比单纯的 opacity 闪烁更现代；track 用 `--color-background-disabled` 形成对比。
+ * 骨架基色用 `--color-background-subtle`，pulse 模式下叠加从左到右的高光带 shimmer 效果。
+ * 高光带颜色经 `--gradient-skeleton` 统一管理，深色 / 浅色主题下都能自然适配。
  */
 .f-skeleton {
   display: inline-block;
@@ -50,6 +50,8 @@ const style = computed(() => ({
   overflow: hidden;
   background: var(--color-background-subtle);
   border-radius: var(--radius-medium);
+  /* 默认 0.85 透明度模拟"半透明态"，避免与正式内容混淆。 */
+  opacity: 0.92;
 }
 
 .f-skeleton--text {
@@ -69,29 +71,12 @@ const style = computed(() => ({
   border-radius: var(--radius-circular);
 }
 
-/*
- * shimmer：在骨架表面横扫一道半透明高光，比单纯 opacity 闪烁更现代。
- * 高光颜色用 color-mix 让深色 / 浅色主题都自然适配。
- */
 .f-skeleton--pulse::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg,
-      transparent 0%,
-      color-mix(in srgb, var(--color-background-card) 60%, transparent) 50%,
-      transparent 100%);
+  background: var(--gradient-skeleton);
   transform: translateX(-100%);
-  animation: f-skeleton-shimmer 1500ms var(--motion-curve-linear) infinite;
-}
-
-@keyframes f-skeleton-shimmer {
-  0% {
-    transform: translateX(-100%);
-  }
-
-  100% {
-    transform: translateX(100%);
-  }
+  animation: f-shimmer 1500ms var(--motion-curve-linear) infinite;
 }
 </style>

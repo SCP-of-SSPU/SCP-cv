@@ -374,11 +374,24 @@ const errorBarDescription = computed(() => {
   color: var(--color-text-brand);
   font-weight: 600;
   text-decoration: none;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-background-brand) 18%, transparent);
+  transition:
+    background var(--motion-duration-medium) var(--motion-curve-ease),
+    color var(--motion-duration-medium) var(--motion-curve-ease),
+    box-shadow var(--motion-duration-medium) var(--motion-curve-ease),
+    transform var(--motion-duration-medium) var(--motion-curve-ease);
 }
 
 .playback-control__focus-link:hover {
   background: var(--color-background-brand);
   color: var(--color-text-inverse);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-brand);
+}
+
+.playback-control__focus-link:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
 }
 
 .playback-control__section {

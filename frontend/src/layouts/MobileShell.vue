@@ -95,11 +95,11 @@ function onTabClick(path: string, event: MouseEvent): void {
   height: 48px;
   padding: 0 var(--spacing-l);
   padding-top: env(safe-area-inset-top, 0px);
-  background: var(--color-background-glass);
+  background: var(--color-background-glass-strong);
   border-bottom: 1px solid var(--color-border-subtle);
   box-shadow: var(--shadow-chrome);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+  backdrop-filter: blur(18px) saturate(1.1);
 }
 
 .mobile-shell__brand {
@@ -117,7 +117,7 @@ function onTabClick(path: string, event: MouseEvent): void {
   width: 28px;
   height: 28px;
   border-radius: var(--radius-medium);
-  background: linear-gradient(135deg, var(--color-background-brand), var(--color-background-brand-pressed));
+  background: var(--gradient-brand-mark);
   color: var(--color-text-inverse);
   font-weight: 700;
   font-size: var(--type-body1-size);
@@ -135,14 +135,17 @@ function onTabClick(path: string, event: MouseEvent): void {
 }
 
 .mobile-shell__top-caption {
+  position: sticky;
+  top: calc(48px + env(safe-area-inset-top, 0px));
+  z-index: calc(var(--z-sticky) - 1);
   margin: 0;
   padding: var(--spacing-xs) var(--spacing-l);
   background: var(--color-background-glass);
   font-size: var(--type-caption1-size);
   color: var(--color-text-tertiary);
   border-bottom: 1px solid var(--color-border-subtle);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+  backdrop-filter: blur(18px) saturate(1.1);
 }
 
 .mobile-shell__content {
@@ -181,6 +184,7 @@ function onTabClick(path: string, event: MouseEvent): void {
 }
 
 .mobile-shell__tab {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -197,10 +201,34 @@ function onTabClick(path: string, event: MouseEvent): void {
     transform var(--motion-duration-medium) var(--motion-curve-ease);
 }
 
+.mobile-shell__tab:active {
+  transform: scale(var(--motion-press-scale));
+  transition-duration: var(--motion-duration-fast);
+}
+
+.mobile-shell__tab:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
 .mobile-shell__tab--active {
   background: var(--color-background-brand-selected);
   color: var(--color-text-brand);
   transform: translateY(-1px);
+}
+
+/* 顶部 2 px brand 指示条，与桌面 Nav 选中态语义保持一致。 */
+.mobile-shell__tab--active::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  width: 18px;
+  height: 2px;
+  border-radius: var(--radius-circular);
+  background: var(--color-background-brand);
+  transform: translateX(-50%);
+  animation: f-rise var(--motion-duration-entrance) var(--motion-curve-emphasized) both;
 }
 
 .mobile-shell__tab-icon {

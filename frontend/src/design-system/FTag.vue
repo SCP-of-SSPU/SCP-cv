@@ -50,12 +50,14 @@ const rootClass = computed(() => [
   align-items: center;
   gap: var(--spacing-xs);
   padding: 2px var(--spacing-s);
-  border-radius: var(--radius-small);
+  /* Pill 形状比方块徽章更接近 Fluent 2 badge 语义。 */
+  border-radius: var(--radius-circular);
   font-size: var(--type-caption1-size);
   line-height: var(--type-caption1-line);
   font-weight: 600;
   white-space: nowrap;
   border: 1px solid transparent;
+  animation: f-pop var(--motion-duration-medium) var(--motion-curve-spring) both;
 }
 
 .f-tag--compact {
