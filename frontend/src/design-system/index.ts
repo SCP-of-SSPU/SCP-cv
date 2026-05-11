@@ -23,6 +23,7 @@ export { default as FEmpty } from './FEmpty.vue';
 export { default as FTabs } from './FTabs.vue';
 export { default as FCombobox } from './FCombobox.vue';
 export { default as FMenu } from './FMenu.vue';
+export { default as FTooltip } from './FTooltip.vue';
 
 export type { FluentIconName } from './icons';
 export {

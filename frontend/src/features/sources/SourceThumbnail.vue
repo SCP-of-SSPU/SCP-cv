@@ -5,7 +5,7 @@
  */
 import { computed, ref, watch } from 'vue';
 
-import { FIcon } from '@/design-system';
+import { FIcon, FTooltip } from '@/design-system';
 import { buildBackendUrl, type MediaSourceItem } from '@/services/api';
 import { sourceCategoryIcon } from './sourcePresentation';
 
@@ -33,16 +33,18 @@ function markFailed(): void {
 </script>
 
 <template>
-  <span class="source-thumbnail" :class="[
-    `source-thumbnail--${size}`,
-    { 'source-thumbnail--media': canRenderPreview },
-  ]" :title="source.preview_label || source.name">
-    <img v-if="canRenderPreview && previewKind === 'image'" :src="previewUrl" :alt="source.name" loading="lazy"
-      @error="markFailed" />
-    <video v-else-if="canRenderPreview && previewKind === 'video'" :src="`${previewUrl}#t=0.1`" muted playsinline
-      preload="metadata" aria-hidden="true" @error="markFailed" />
-    <FIcon v-else class="source-thumbnail__icon" :name="fallbackIcon" />
-  </span>
+  <FTooltip :content="source.preview_label || source.name">
+    <span class="source-thumbnail" :class="[
+      `source-thumbnail--${size}`,
+      { 'source-thumbnail--media': canRenderPreview },
+    ]">
+      <img v-if="canRenderPreview && previewKind === 'image'" :src="previewUrl" :alt="source.name" loading="lazy"
+        @error="markFailed" />
+      <video v-else-if="canRenderPreview && previewKind === 'video'" :src="`${previewUrl}#t=0.1`" muted playsinline
+        preload="metadata" aria-hidden="true" @error="markFailed" />
+      <FIcon v-else class="source-thumbnail__icon" :name="fallbackIcon" />
+    </span>
+  </FTooltip>
 </template>
 
 <style scoped>

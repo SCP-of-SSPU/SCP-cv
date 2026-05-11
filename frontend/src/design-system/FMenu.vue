@@ -11,6 +11,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 
 import FButton from './FButton.vue';
 import FIcon from './FIcon.vue';
+import FTooltip from './FTooltip.vue';
 import type { FluentIconName } from './icons';
 import type { ButtonAppearance, FMenuGroup, FMenuItem } from './types';
 
@@ -127,14 +128,16 @@ void flatItems; // 显式标记，避免 lint 抱怨
       <div v-if="open" ref="menuRef" class="f-menu__list" :class="`f-menu__list--${placement}`" role="menu">
         <template v-for="(group, gIndex) in groups" :key="gIndex">
           <p v-if="group.label" class="f-menu__group">{{ group.label }}</p>
-          <button v-for="(item, idx) in group.items" :key="`${gIndex}-${idx}`" type="button" role="menuitem"
-            class="f-menu__item"
-            :class="{ 'f-menu__item--danger': item.danger, 'f-menu__item--disabled': item.disabled }"
-            :disabled="item.disabled" :title="item.hint" @click="trigger(item)">
-            <FIcon v-if="item.icon" class="f-menu__icon" :name="item.icon" />
-            <span class="f-menu__label">{{ item.label }}</span>
-            <span v-if="item.hint && !item.disabled" class="f-menu__hint">{{ item.hint }}</span>
-          </button>
+          <FTooltip v-for="(item, idx) in group.items" :key="`${gIndex}-${idx}`"
+            :content="item.disabled && item.hint ? item.hint : ''" placement="right">
+            <button type="button" role="menuitem" class="f-menu__item"
+              :class="{ 'f-menu__item--danger': item.danger, 'f-menu__item--disabled': item.disabled }"
+              :disabled="item.disabled" @click="trigger(item)">
+              <FIcon v-if="item.icon" class="f-menu__icon" :name="item.icon" />
+              <span class="f-menu__label">{{ item.label }}</span>
+              <span v-if="item.hint && !item.disabled" class="f-menu__hint">{{ item.hint }}</span>
+            </button>
+          </FTooltip>
           <hr v-if="gIndex < groups.length - 1" class="f-menu__divider" />
         </template>
       </div>
