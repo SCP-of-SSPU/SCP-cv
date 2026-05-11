@@ -275,13 +275,25 @@ onBeforeUnmount(() => {
   left: 0;
   width: 100%;
   max-height: 320px;
-  background: var(--color-background-raised);
+  /*
+   * Acrylic 浮层：与 FMenu / FTooltip / FToast 同款，避免不同浮层视觉风格分裂。
+   * @supports not (backdrop-filter) 回退到原 raised 实色，老浏览器仍可用。
+   */
+  background: var(--color-background-glass-strong);
   border-radius: var(--radius-large);
-  border: 1px solid var(--color-border-subtle);
+  border: var(--stroke-width-thin) solid color-mix(in srgb, var(--color-border-subtle) 70%, transparent);
   box-shadow: var(--shadow-flyout);
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  -webkit-backdrop-filter: blur(20px) saturate(1.15);
+  backdrop-filter: blur(20px) saturate(1.15);
+}
+
+@supports not (backdrop-filter: blur(20px)) {
+  .f-combobox__list {
+    background: var(--color-background-raised);
+  }
 }
 
 .f-combobox__search {
