@@ -14,8 +14,8 @@ import type { FTabsItem } from './types';
 interface FTabsProps<TValue extends string | number = string> {
   modelValue: TValue;
   items: ReadonlyArray<FTabsItem<TValue>>;
-  /** 视觉风格：line（下划线，默认）/ pill（Pills 横滑）。 */
-  appearance?: 'line' | 'pill';
+  /** 视觉风格：line（下划线，默认）/ pill（Pills 横滑）/ subtle（无下划线，嵌入卡片）。 */
+  appearance?: 'line' | 'pill' | 'subtle';
   /** 整组撑满父容器（移动端）。 */
   fullWidth?: boolean;
   size?: 'compact' | 'medium';
@@ -203,6 +203,23 @@ function onKey(event: KeyboardEvent, index: number): void {
 .f-tabs__item:focus-visible {
   outline: none;
   box-shadow: var(--shadow-focus);
+}
+
+/*
+ * Subtle：卡片内嵌的次级 Tab。
+ *   - 无下划线（与 line 区分）；
+ *   - 选中态用 brand-selected 软底色 + brand 文字，与 NavItem active 态视觉同源；
+ *   - 不放在容器底部，因此不需要 border-bottom。
+ */
+.f-tabs--subtle .f-tabs__item--selected {
+  color: var(--color-text-brand);
+  background: var(--color-background-brand-selected);
+  font-weight: var(--font-weight-semibold);
+}
+
+.f-tabs--subtle .f-tabs__item--selected .f-tabs__badge {
+  background: color-mix(in srgb, var(--color-background-brand) 22%, transparent);
+  color: var(--color-text-brand);
 }
 
 /* Pill（横滑 Pill） */

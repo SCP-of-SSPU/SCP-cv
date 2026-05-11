@@ -6,7 +6,7 @@
 import type { FluentIconName } from './icons';
 
 export type ButtonAppearance = 'primary' | 'secondary' | 'subtle' | 'transparent' | 'danger' | 'ghost';
-export type ButtonSize = 'compact' | 'medium' | 'large';
+export type ButtonSize = 'small' | 'compact' | 'medium' | 'large';
 export type TagTone = 'neutral' | 'info' | 'success' | 'warning' | 'error' | 'brand' | 'subtle';
 export type MessageTone = 'info' | 'success' | 'warning' | 'error';
 

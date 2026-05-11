@@ -143,7 +143,14 @@ defineEmits<(event: 'click', payload: MouseEvent) => void>();
   transform: none;
 }
 
-/* 尺寸：紧凑 / 默认 / 大 / 移动端 100% 宽 */
+/* 尺寸：small 24 / compact 28 / medium 32（默认） / large 40 / 移动端 100% 宽 */
+.f-button--small {
+  height: 24px;
+  padding: 0 var(--spacing-snudge);
+  font-size: var(--type-caption1-size);
+  gap: var(--spacing-xs);
+}
+
 .f-button--compact {
   height: 28px;
   padding: 0 var(--spacing-m);
@@ -164,6 +171,10 @@ defineEmits<(event: 'click', payload: MouseEvent) => void>();
   width: 32px;
   padding: 0;
   font-size: 0;
+}
+
+.f-button--icon-only.f-button--small {
+  width: 24px;
 }
 
 .f-button--icon-only.f-button--compact {
