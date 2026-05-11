@@ -17,7 +17,7 @@ import {
   resolveDisplayLabel,
 } from './navItems';
 import { useRuntimeStore } from '@/stores/runtime';
-import { FIcon, FTag } from '@/design-system';
+import { FDivider, FIcon, FTag } from '@/design-system';
 import type { NavItemDef } from './types';
 
 const runtime = useRuntimeStore();
@@ -98,7 +98,7 @@ function isPathActive(path: string): boolean {
             </RouterLink>
           </li>
         </ul>
-        <div class="app-shell__nav-divider" aria-hidden="true" />
+        <FDivider appearance="subtle" />
         <ul class="app-shell__nav-list">
           <li v-for="item in DESKTOP_SECONDARY_NAV" :key="item.path">
             <RouterLink :to="item.path" class="app-shell__nav-item"
@@ -246,11 +246,6 @@ function isPathActive(path: string): boolean {
   display: flex;
   flex-direction: column;
   gap: 2px;
-}
-
-.app-shell__nav-divider {
-  border-top: 1px solid var(--color-border-subtle);
-  margin: var(--spacing-s) 0;
 }
 
 .app-shell__nav-item {

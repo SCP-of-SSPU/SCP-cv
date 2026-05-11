@@ -24,6 +24,7 @@ export { default as FTabs } from './FTabs.vue';
 export { default as FCombobox } from './FCombobox.vue';
 export { default as FMenu } from './FMenu.vue';
 export { default as FTooltip } from './FTooltip.vue';
+export { default as FDivider } from './FDivider.vue';
 
 export type { FluentIconName } from './icons';
 export {
