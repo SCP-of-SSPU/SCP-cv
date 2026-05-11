@@ -26,6 +26,8 @@ export { default as FMenu } from './FMenu.vue';
 export { default as FTooltip } from './FTooltip.vue';
 export { default as FDivider } from './FDivider.vue';
 export { default as FCheckbox } from './FCheckbox.vue';
+export { default as FRadio } from './FRadio.vue';
+export { default as FRadioGroup } from './FRadioGroup.vue';
 
 export type { FluentIconName } from './icons';
 export {
