@@ -144,12 +144,34 @@ video {
 .t-body1-strong {
   font-size: var(--type-body1-size);
   line-height: var(--type-body1-line);
-  font-weight: 600;
+  font-weight: var(--type-body1-strong-weight);
+}
+
+/*
+ * body2：16/22，正文偏大版本。
+ * 移动端长文本说明用此尺寸避免 14 px 视觉过密；
+ * 与 Fluent 2 v9 Body2 token 一致。
+ */
+.t-body2 {
+  font-size: var(--type-body2-size);
+  line-height: var(--type-body2-line);
+}
+
+.t-largetitle {
+  font-size: var(--type-largetitle-size);
+  line-height: var(--type-largetitle-line);
+  font-weight: var(--font-weight-bold);
 }
 
 .t-caption1 {
   font-size: var(--type-caption1-size);
   line-height: var(--type-caption1-line);
+}
+
+.t-caption1-strong {
+  font-size: var(--type-caption1-size);
+  line-height: var(--type-caption1-line);
+  font-weight: var(--type-caption1-strong-weight);
 }
 
 .t-caption2 {

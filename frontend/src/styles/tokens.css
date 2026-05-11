@@ -84,6 +84,12 @@
   --spacing-4xl: 40px;
   --spacing-5xl: 48px;
   --spacing-6xl: 56px;
+  /*
+   * Fluent 2 小台阶：snudge=6 / mnudge=10，介于 xs/s 与 s/m 之间。
+   * 用于按钮 icon-text gap、菜单项纵向 padding 等需要"半步"调整的场景。
+   */
+  --spacing-snudge: 6px;
+  --spacing-mnudge: 10px;
 
   /*
    * 圆角（radius.*）
@@ -101,6 +107,17 @@
   --radius-xlarge: 14px;
   --radius-xxlarge: 20px;
   --radius-circular: 9999px;
+
+  /*
+   * 笔画宽度（stroke-width.*）。
+   * 对应 Fluent 2 strokeWidthThin / Thick / Thicker / Thickest，
+   * 业务侧写 `border: var(--stroke-width-thin) solid var(--color-border-...)`，
+   * 避免散落的 `1px solid` 与 `2px solid` 字面量。
+   */
+  --stroke-width-thin: 1px;
+  --stroke-width-thick: 2px;
+  --stroke-width-thicker: 3px;
+  --stroke-width-thickest: 4px;
 
   /*
    * 阴影（shadow.*）。
@@ -224,7 +241,19 @@
   --font-family-mono: "Cascadia Code", "JetBrains Mono", "SFMono-Regular", Consolas,
     "Liberation Mono", Menlo, monospace;
 
+  /*
+   * 字重（font-weight.*）。
+   * 对应 Fluent 2 fontWeightRegular / Medium / Semibold / Bold；
+   * 业务侧用 `font-weight: var(--font-weight-semibold)`，避免散写 600/700。
+   */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
   /* type.* 字号/行高/字重，便于在文字工具类中复用 */
+  --type-largetitle-size: 40px;
+  --type-largetitle-line: 52px;
   --type-title1-size: 28px;
   --type-title1-line: 36px;
   --type-title2-size: 24px;
@@ -235,10 +264,20 @@
   --type-subtitle1-line: 24px;
   --type-subtitle2-size: 16px;
   --type-subtitle2-line: 22px;
+  /*
+   * body 段：与 Fluent 2 v9 对齐：
+   *   - body1 = 14/20 regular（最常用正文）；
+   *   - body1Strong = 14/20 semibold（卡片标题、菜单激活态）；
+   *   - body2 = 16/22 regular（移动端正文 / 设置说明，避免长行 14 px 视觉过密）。
+   */
   --type-body1-size: 14px;
   --type-body1-line: 20px;
+  --type-body1-strong-weight: 600;
+  --type-body2-size: 16px;
+  --type-body2-line: 22px;
   --type-caption1-size: 12px;
   --type-caption1-line: 16px;
+  --type-caption1-strong-weight: 600;
   --type-caption2-size: 10px;
   --type-caption2-line: 14px;
 
