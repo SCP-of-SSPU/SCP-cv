@@ -83,6 +83,10 @@ import more_horizontal_20_regular from '@fluentui/svg-icons/icons/more_horizonta
 import link_24_regular from '@fluentui/svg-icons/icons/link_24_regular.svg?raw';
 import checkmark_24_regular from '@fluentui/svg-icons/icons/checkmark_24_regular.svg?raw';
 import checkmark_20_regular from '@fluentui/svg-icons/icons/checkmark_20_regular.svg?raw';
+import checkmark_16_filled from '@fluentui/svg-icons/icons/checkmark_16_filled.svg?raw';
+import subtract_16_filled from '@fluentui/svg-icons/icons/subtract_16_filled.svg?raw';
+import radio_button_24_regular from '@fluentui/svg-icons/icons/radio_button_24_regular.svg?raw';
+import radio_button_24_filled from '@fluentui/svg-icons/icons/radio_button_24_filled.svg?raw';
 import checkmark_circle_24_filled from '@fluentui/svg-icons/icons/checkmark_circle_24_filled.svg?raw';
 import error_circle_24_filled from '@fluentui/svg-icons/icons/error_circle_24_filled.svg?raw';
 import error_circle_20_filled from '@fluentui/svg-icons/icons/error_circle_20_filled.svg?raw';
@@ -173,6 +177,10 @@ const ICONS = {
   link_24_regular,
   checkmark_24_regular,
   checkmark_20_regular,
+  checkmark_16_filled,
+  subtract_16_filled,
+  radio_button_24_regular,
+  radio_button_24_filled,
   checkmark_circle_24_filled,
   error_circle_24_filled,
   error_circle_20_filled,
