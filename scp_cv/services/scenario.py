@@ -167,7 +167,7 @@ def update_scenario(
 
 def pin_scenario(scenario_id: int) -> Scenario:
     """
-    置顶预案（提升排序权重到最高）。
+    切换预案置顶状态；已置顶时取消置顶，未置顶时提升到最高。
     :param scenario_id: 预案主键
     :return: 更新后的 Scenario 实例
     :raises ScenarioError: 预案不存在时
@@ -176,6 +176,12 @@ def pin_scenario(scenario_id: int) -> Scenario:
         scenario = Scenario.objects.get(pk=scenario_id)
     except Scenario.DoesNotExist as not_found:
         raise ScenarioError(f"预案 id={scenario_id} 不存在") from not_found
+
+    if scenario.sort_order > 0:
+        scenario.sort_order = 0
+        scenario.save(update_fields=["sort_order"])
+        logger.info("取消置顶预案「%s」", scenario.name)
+        return scenario
 
     max_order = Scenario.objects.order_by("-sort_order").values_list("sort_order", flat=True).first() or 0
     scenario.sort_order = max_order + 1

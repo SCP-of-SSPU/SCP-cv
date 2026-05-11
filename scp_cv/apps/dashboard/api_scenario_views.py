@@ -164,7 +164,7 @@ def scenario_detail_api(request: HttpRequest, scenario_id: int) -> JsonResponse:
 @require_http_methods(["POST"])
 def pin_scenario_api(request: HttpRequest, scenario_id: int) -> JsonResponse:
     """
-    置顶指定预案。
+    切换指定预案置顶状态。
     :param request: HTTP 请求
     :param scenario_id: 预案主键
     :return: 更新后的预案

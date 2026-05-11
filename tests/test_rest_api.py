@@ -19,7 +19,7 @@ from django.conf import settings
 import pytest
 from django.test import Client
 
-from scp_cv.apps.playback.models import MediaSource, PlaybackCommand, PlaybackSession, SourceType
+from scp_cv.apps.playback.models import MediaSource, PlaybackCommand, PlaybackSession, Scenario, SourceType
 from scp_cv.services.playback import get_or_create_session
 
 
@@ -172,6 +172,21 @@ def test_scenarios_api_create_and_delete(media_source_ppt: MediaSource) -> None:
 
     delete_response = client.delete(f"/api/scenarios/{scenario_id}/")
     assert delete_response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_scenarios_pin_api_toggles_sort_order() -> None:
+    """POST /api/scenarios/{id}/pin/ 应支持置顶和取消置顶。"""
+    client = Client()
+    scenario = Scenario.objects.create(name="置顶切换预案")
+
+    pin_response = client.post(f"/api/scenarios/{scenario.pk}/pin/")
+    unpin_response = client.post(f"/api/scenarios/{scenario.pk}/pin/")
+
+    assert pin_response.status_code == 200
+    assert pin_response.json()["scenario"]["sort_order"] > 0
+    assert unpin_response.status_code == 200
+    assert unpin_response.json()["scenario"]["sort_order"] == 0
 
 
 @pytest.mark.django_db

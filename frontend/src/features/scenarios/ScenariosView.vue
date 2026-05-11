@@ -34,12 +34,18 @@ const toast = useToast();
 const previewOpen = ref(false);
 const editOpen = ref(false);
 const isLoading = ref(false);
+const pendingActivateId = ref<number | null>(null);
+const pendingPinId = ref<number | null>(null);
 
-const previewScenario = ref<ScenarioItem | null>(null);
+const previewScenarioId = ref<number | null>(null);
 const editingScenario = ref<ScenarioItem | null>(null);
 const prefillDraft = ref<ScenarioDraft | undefined>(undefined);
 
 const sortedScenarios = computed(() => scenarioStore.sorted);
+const previewScenario = computed<ScenarioItem | null>(() => {
+  if (previewScenarioId.value === null) return null;
+  return scenarioStore.scenarios.find((scenario) => scenario.id === previewScenarioId.value) ?? null;
+});
 
 async function refresh(): Promise<void> {
   isLoading.value = true;
@@ -53,7 +59,7 @@ async function refresh(): Promise<void> {
 }
 
 function openPreview(scenario: ScenarioItem): void {
-  previewScenario.value = scenario;
+  previewScenarioId.value = scenario.id;
   previewOpen.value = true;
 }
 
@@ -98,6 +104,7 @@ function captureFromCurrent(): void {
 
 function onAfterDelete(): void {
   // 删除后预览抽屉已自动关闭，这里再触发一次 refresh 防止漂移。
+  previewScenarioId.value = null;
   void refresh();
 }
 
@@ -107,8 +114,33 @@ function onSaved(scenario: ScenarioItem): void {
   prefillDraft.value = undefined;
   editOpen.value = false;
   // 立即把刚保存的预案打开预览，便于继续微调或激活。
-  previewScenario.value = scenario;
+  previewScenarioId.value = scenario.id;
   previewOpen.value = true;
+}
+
+async function activateScenario(scenario: ScenarioItem): Promise<void> {
+  pendingActivateId.value = scenario.id;
+  try {
+    await scenarioStore.activate(scenario.id);
+    toast.success('预案已调用', `已应用「${scenario.name}」到所有窗口`);
+  } catch (error) {
+    toast.error('调用预案失败', error instanceof Error ? error.message : '请稍后重试');
+  } finally {
+    pendingActivateId.value = null;
+  }
+}
+
+async function togglePin(scenario: ScenarioItem): Promise<void> {
+  const wasPinned = scenario.sort_order > 0;
+  pendingPinId.value = scenario.id;
+  try {
+    const next = await scenarioStore.pin(scenario.id);
+    toast.success(next.sort_order > 0 ? '预案已置顶' : '预案已取消置顶');
+  } catch (error) {
+    toast.error(wasPinned ? '取消置顶失败' : '置顶失败', error instanceof Error ? error.message : '请稍后重试');
+  } finally {
+    pendingPinId.value = null;
+  }
 }
 
 const activeId = computed(() => sessionStore.sessions[0]?.session_id ?? null);
@@ -164,6 +196,16 @@ void activeId; // 当前后端未提供「激活预案 id」字段；保留 hook
               <FIcon name="pin_24_filled" /> 置顶
             </span>
             <span v-else>预案</span>
+          </template>
+          <template #actions>
+            <FButton appearance="transparent" size="compact" icon-only
+              :icon-start="scenario.sort_order > 0 ? 'pin_off_24_regular' : 'pin_24_regular'"
+              :aria-label="scenario.sort_order > 0 ? '取消置顶预案' : '置顶预案'"
+              :loading="pendingPinId === scenario.id" @click.stop="togglePin(scenario)" />
+            <FButton appearance="primary" size="compact" icon-start="play_24_regular"
+              :loading="pendingActivateId === scenario.id" @click.stop="activateScenario(scenario)">
+              调用
+            </FButton>
           </template>
           <template #title>{{ scenario.name }}</template>
           <p class="scenarios-view__meta">
@@ -249,7 +291,9 @@ void activeId; // 当前后端未提供「激活预案 id」字段；保留 hook
 
 .scenarios-view__card--pinned {
   border-left: 4px solid var(--color-background-brand);
-  box-shadow: var(--shadow-card), inset 0 0 0 1px color-mix(in srgb, var(--color-background-brand) 16%, transparent);
+  box-shadow:
+    var(--shadow-card-hover),
+    inset 0 0 0 1px color-mix(in srgb, var(--color-background-brand) 16%, transparent);
 }
 
 .scenarios-view__pinned {
@@ -293,6 +337,15 @@ void activeId; // 当前后端未提供「激活预案 id」字段；保留 hook
 
   .scenarios-view__actions {
     justify-content: space-between;
+  }
+
+  .scenarios-view :deep(.f-card__header) {
+    flex-direction: column;
+  }
+
+  .scenarios-view :deep(.f-card__actions) {
+    width: 100%;
+    justify-content: flex-end;
   }
 
   .scenarios-view__grid {

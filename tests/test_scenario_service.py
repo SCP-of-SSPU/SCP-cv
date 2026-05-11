@@ -23,6 +23,7 @@ from scp_cv.services.scenario import (
     ScenarioError,
     capture_scenario_from_current_state,
     list_scenarios,
+    pin_scenario,
 )
 
 
@@ -137,3 +138,13 @@ class TestScenarioList:
         targets = {target["window_id"]: target for target in scenario_dict["targets"]}
         assert targets[1]["source_name"] == "测试演示文稿"
         assert targets[2]["source_name"] == "测试视频"
+
+    def test_pin_scenario_toggles_sort_order(self) -> None:
+        """重复调用置顶接口应在置顶和取消置顶之间切换。"""
+        scenario = Scenario.objects.create(name="可切换预案")
+
+        pinned = pin_scenario(scenario.pk)
+        assert pinned.sort_order > 0
+
+        unpinned = pin_scenario(scenario.pk)
+        assert unpinned.sort_order == 0

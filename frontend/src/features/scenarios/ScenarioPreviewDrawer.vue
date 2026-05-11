@@ -3,7 +3,7 @@
  * 预案预览抽屉：列出四窗口配置；
  * 桌面 480 px 右侧 Drawer，移动端自动改全屏 Sheet。
  */
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
 import {
   FButton,
@@ -38,6 +38,8 @@ const sourceStore = useSourceStore();
 const runtime = useRuntimeStore();
 const dialog = useDialog();
 const toast = useToast();
+const isActivating = ref(false);
+const isPinning = ref(false);
 
 const meta = computed(() => {
   if (!props.scenario) return '';
@@ -120,22 +122,28 @@ function targetIcon(target: ScenarioTargetItem): string {
 
 async function activate(): Promise<void> {
   if (!props.scenario) return;
+  isActivating.value = true;
   try {
     await scenarioStore.activate(props.scenario.id);
     toast.success('预案已调用', `已应用「${props.scenario.name}」到所有窗口`);
   } catch (error) {
     toast.error('调用预案失败', error instanceof Error ? error.message : '请稍后重试');
+  } finally {
+    isActivating.value = false;
   }
 }
 
 async function pinToggle(): Promise<void> {
   if (!props.scenario) return;
   const wasPinned = props.scenario.sort_order > 0;
+  isPinning.value = true;
   try {
     const next = await scenarioStore.pin(props.scenario.id);
     toast.success(next.sort_order > 0 ? '预案已置顶' : '预案已取消置顶');
   } catch (error) {
     toast.error(wasPinned ? '取消置顶失败' : '置顶失败', error instanceof Error ? error.message : '请稍后重试');
+  } finally {
+    isPinning.value = false;
   }
 }
 
@@ -199,7 +207,8 @@ void currentBigScreenSnapshotMode; // 保留以备未来在预览中显示模式
 
     <template #actions="{ cancel }">
       <FButton appearance="secondary" @click="cancel">关闭</FButton>
-      <FButton appearance="subtle" :icon-start="isPinned ? 'pin_off_24_regular' : 'pin_24_regular'" @click="pinToggle">
+      <FButton appearance="subtle" :icon-start="isPinned ? 'pin_off_24_regular' : 'pin_24_regular'" :loading="isPinning"
+        @click="pinToggle">
         {{ isPinned ? '取消置顶' : '置顶' }}
       </FButton>
       <FButton appearance="danger" icon-start="delete_24_regular" @click="remove">
@@ -208,7 +217,7 @@ void currentBigScreenSnapshotMode; // 保留以备未来在预览中显示模式
       <FButton appearance="secondary" icon-start="edit_24_regular" @click="edit">
         编辑
       </FButton>
-      <FButton appearance="primary" icon-start="play_24_regular" @click="activate">
+      <FButton appearance="primary" icon-start="play_24_regular" :loading="isActivating" @click="activate">
         激活
       </FButton>
     </template>

@@ -857,7 +857,7 @@ paths:
       - $ref: '#/components/parameters/ScenarioId'
     post:
       tags: [scenarios]
-      summary: 置顶预案
+      summary: 切换预案置顶状态
       operationId: pinScenario
       responses:
         '200':

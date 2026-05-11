@@ -17,14 +17,15 @@ export const useScenarioStore = defineStore('scenarios', {
     scenarios: [],
   }),
   getters: {
-    /** 置顶预案排在前；同优先级按 sort_order 升序。 */
+    /** 置顶预案排在前；置顶组内以后置顶的更靠前。 */
     sorted(state): ScenarioItem[] {
       const list = [...state.scenarios];
       list.sort((a, b) => {
         const aPinned = a.sort_order > 0 ? 0 : 1;
         const bPinned = b.sort_order > 0 ? 0 : 1;
         if (aPinned !== bPinned) return aPinned - bPinned;
-        return a.sort_order - b.sort_order || a.name.localeCompare(b.name, 'zh-Hans-CN');
+        if (aPinned === 0) return b.sort_order - a.sort_order || a.name.localeCompare(b.name, 'zh-Hans-CN');
+        return a.name.localeCompare(b.name, 'zh-Hans-CN');
       });
       return list;
     },

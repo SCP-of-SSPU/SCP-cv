@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 通用卡片容器：默认无阴影，靠 `border.subtle` 区分；hover 可以提升到 shadow.2。
+ * 通用卡片容器：默认带轻量阴影；hover / focus-within 会提升层级。
  *
  * 设计稿 §5.6：
  *   - 容器层级：canvas → card → 嵌套 subtle；
@@ -80,15 +80,23 @@ const rootClass = computed(() =>
   color: var(--color-text-primary);
   box-shadow: var(--shadow-card);
   overflow: clip;
+  transform: translateY(0);
+  animation: f-card-enter var(--motion-duration-entrance) var(--motion-curve-emphasized) both;
   /*
-   * 加入 transform 过渡目标，让 interactive 变体在 hover 时可以轻微上浮；
-   * duration 提升到 medium(160ms) 避免视觉突兀。
+   * 卡片承载信息密度高，默认只调整阴影；interactive 变体再增加位移，
+   * 避免普通表单卡在鼠标经过时产生过强的可点击暗示。
    */
   transition:
     border-color var(--motion-duration-medium) var(--motion-curve-ease),
     background-color var(--motion-duration-medium) var(--motion-curve-ease),
     box-shadow var(--motion-duration-entrance) var(--motion-curve-ease),
     transform var(--motion-duration-entrance) var(--motion-curve-emphasized);
+}
+
+.f-card:hover,
+.f-card:focus-within {
+  border-color: var(--color-border-default);
+  box-shadow: var(--shadow-card-hover);
 }
 
 .f-card--subtle {
@@ -120,9 +128,7 @@ const rootClass = computed(() =>
 }
 
 .f-card--interactive:hover {
-  border-color: var(--color-border-default);
-  box-shadow: var(--shadow-card-hover);
-  transform: translateY(-2px);
+  transform: translateY(-3px);
 }
 
 .f-card--interactive:active {
@@ -131,9 +137,13 @@ const rootClass = computed(() =>
 }
 
 @media (hover: none) {
+  .f-card:hover {
+    border-color: var(--color-border-subtle);
+    box-shadow: var(--shadow-card);
+  }
+
   .f-card--interactive:hover {
     transform: none;
-    box-shadow: var(--shadow-card);
   }
 }
 
@@ -164,7 +174,7 @@ const rootClass = computed(() =>
   font-size: var(--type-caption1-size);
   line-height: var(--type-caption1-line);
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   text-transform: uppercase;
   color: var(--color-text-secondary);
 }
@@ -199,5 +209,17 @@ const rootClass = computed(() =>
   margin-top: var(--spacing-s);
   padding-top: var(--spacing-m);
   border-top: 1px solid var(--color-border-subtle);
+}
+
+@keyframes f-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>
