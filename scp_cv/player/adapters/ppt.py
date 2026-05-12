@@ -1,16 +1,16 @@
 #!/user/bin/env python
 # -*- coding: UTF-8 -*-
-'''
+"""
 PPT 源适配器，通过 PowerPoint COM 自动化控制幻灯片放映。
 在指定屏幕上以放映模式展示 PPT/PPTX/PPSX 文件。
 @Project : SCP-cv
 @File : ppt.py
 @Author : Qintsg
 @Date : 2026-04-15
-'''
+"""
+
 from __future__ import annotations
 
-import logging
 import os
 import threading
 from typing import Optional
@@ -23,14 +23,15 @@ from scp_cv.player.adapters.ppt_constants import (
     PP_SLIDE_SHOW_PAUSED as _PP_SLIDE_SHOW_PAUSED,
     PP_SLIDE_SHOW_RUNNING as _PP_SLIDE_SHOW_RUNNING,
 )
+from scp_cv.player.adapters.ppt_media import control_slide_media
 from scp_cv.player.adapters.ppt_window import (
+    configure_windowed_slideshow,
     detach_slideshow_window,
     embed_slideshow_window,
     find_slideshow_hwnd,
     resize_slideshow_window,
+    snapshot_slideshow_hwnds,
 )
-
-logger = logging.getLogger(__name__)
 
 
 class PptSourceAdapter(SourceAdapter):
@@ -47,8 +48,8 @@ class PptSourceAdapter(SourceAdapter):
 
     def __init__(self) -> None:
         super().__init__(adapter_name="ppt")
-        self._ppt_app: Optional[object] = None        # PowerPoint.Application COM 对象
-        self._presentation: Optional[object] = None    # Presentation 对象
+        self._ppt_app: Optional[object] = None  # PowerPoint.Application COM 对象
+        self._presentation: Optional[object] = None  # Presentation 对象
         self._slideshow_view: Optional[object] = None  # SlideShowView 对象
         self._slideshow_window: Optional[object] = None  # SlideShowWindow 对象
         self._total_slides: int = 0
@@ -122,10 +123,15 @@ class PptSourceAdapter(SourceAdapter):
             return
 
         # 仅更新必要的页码范围，尽量减少对演示文稿持久化设置的改写。
-        settings = self._presentation.SlideShowSettings
-        settings.StartingSlide = max(1, min(start_slide, self._total_slides or 1))
-        settings.EndingSlide = self._total_slides
+        settings = configure_windowed_slideshow(
+            self._presentation.SlideShowSettings,
+            start_slide,
+            self._total_slides,
+        )
         self._mark_presentation_clean()
+
+        # COM 无法直接给出 HWND 时，Win32 回退只能接受本次 Run 后新增的窗口。
+        existing_hwnds = snapshot_slideshow_hwnds(self._logger)
 
         # 启动放映
         self._slideshow_window = settings.Run()
@@ -134,19 +140,26 @@ class PptSourceAdapter(SourceAdapter):
         self._is_paused = False
 
         # 获取 PowerPoint 放映窗口的 HWND
-        ppt_hwnd = find_slideshow_hwnd(self._slideshow_window, self._logger)
+        ppt_hwnd = find_slideshow_hwnd(
+            self._slideshow_window, self._logger, existing_hwnds
+        )
         if ppt_hwnd == 0:
             self._logger.warning("未找到 PowerPoint 放映窗口句柄，无法嵌入")
             return
 
         self._ppt_hwnd = ppt_hwnd
         embed_slideshow_window(ppt_hwnd, self._window_handle)
-        container_width, container_height = resize_slideshow_window(ppt_hwnd, self._window_handle)
-        self._logger.debug("PPT 窗口已调整大小：%dx%d", container_width, container_height)
+        container_width, container_height = resize_slideshow_window(
+            ppt_hwnd, self._window_handle
+        )
+        self._logger.debug(
+            "PPT 窗口已调整大小：%dx%d", container_width, container_height
+        )
 
         self._logger.info(
             "PPT 放映已启动并嵌入到播放器窗口（HWND=%d，共 %d 页）",
-            ppt_hwnd, self._total_slides,
+            ppt_hwnd,
+            self._total_slides,
         )
 
     def close(self) -> None:
@@ -275,7 +288,10 @@ class PptSourceAdapter(SourceAdapter):
         with self._com_lock:
             if self._slideshow_view is not None:
                 try:
-                    self._last_slide_index = int(self._slideshow_view.CurrentShowPosition or self._last_slide_index)
+                    self._last_slide_index = int(
+                        self._slideshow_view.CurrentShowPosition
+                        or self._last_slide_index
+                    )
                     self._mark_presentation_clean()
                     self._slideshow_view.Exit()
                 except Exception:
@@ -379,76 +395,15 @@ class PptSourceAdapter(SourceAdapter):
         :param media_index: 当前页媒体序号（从 1 开始）
         :return: None
         """
-        normalized_action = action.strip().lower()
-        if normalized_action not in {"play", "pause", "stop"}:
-            self._logger.warning("未知 PPT 媒体控制动作：%s", action)
-            return
         with self._com_lock:
-            if self._slideshow_view is None:
-                self._logger.warning("PPT 放映未运行，无法控制页面媒体")
-                return
-            player = self._resolve_media_player(media_id, media_index)
-            if player is None:
-                self._logger.warning("未找到 PPT 页面媒体：media_id=%s, index=%d", media_id, media_index)
-                return
-            try:
-                getattr(player, normalized_action.capitalize())()
-            except Exception as media_error:
-                self._logger.warning("PPT 页面媒体 %s 执行 %s 失败：%s", media_id, action, media_error)
-
-    def _resolve_media_player(self, media_id: str, media_index: int) -> Optional[object]:
-        """
-        根据 shape id 或当前页媒体序号获取 PowerPoint Player 对象。
-        :param media_id: 媒体对象标识
-        :param media_index: 媒体序号
-        :return: PowerPoint Player COM 对象；找不到时返回 None
-        """
-        for shape_id in self._candidate_media_shape_ids(media_id, media_index):
-            try:
-                return self._slideshow_view.Player(shape_id)
-            except Exception:
-                continue
-        return None
-
-    def _candidate_media_shape_ids(self, media_id: str, media_index: int) -> list[int]:
-        """
-        生成可尝试的媒体 shape id 列表。
-        :param media_id: 前端媒体对象标识
-        :param media_index: 当前页媒体序号
-        :return: shape id 列表
-        """
-        candidate_ids: list[int] = []
-        try:
-            parsed_media_id = int(media_id)
-        except (TypeError, ValueError):
-            parsed_media_id = 0
-        if parsed_media_id > 0:
-            candidate_ids.append(parsed_media_id)
-        candidate_ids.extend(self._current_slide_media_shape_ids())
-        if media_index > 0 and len(candidate_ids) >= media_index:
-            return [candidate_ids[media_index - 1]] + candidate_ids
-        return candidate_ids
-
-    def _current_slide_media_shape_ids(self) -> list[int]:
-        """
-        枚举当前页可作为媒体控制目标的 shape id。
-        :return: 当前页媒体 shape id 列表
-        """
-        if self._presentation is None or self._slideshow_view is None:
-            return []
-        try:
-            current_slide = self._presentation.Slides(self._slideshow_view.CurrentShowPosition)
-        except Exception:
-            return []
-        shape_ids: list[int] = []
-        for shape_index in range(1, int(current_slide.Shapes.Count) + 1):
-            shape = current_slide.Shapes(shape_index)
-            try:
-                _ = shape.MediaFormat
-                shape_ids.append(int(shape.Id))
-            except Exception:
-                continue
-        return shape_ids
+            control_slide_media(
+                self._slideshow_view,
+                self._presentation,
+                self._logger,
+                media_id,
+                action,
+                media_index,
+            )
 
     # ═══════════════════ 状态获取 ═══════════════════
 
@@ -486,8 +441,12 @@ class PptSourceAdapter(SourceAdapter):
                     else:
                         self._slideshow_view = None
                         self._slideshow_window = None
-                        current_slide = self._last_slide_index if self._total_slides else 0
-                        playback_state = "stopped" if self._presentation is not None else "idle"
+                        current_slide = (
+                            self._last_slide_index if self._total_slides else 0
+                        )
+                        playback_state = (
+                            "stopped" if self._presentation is not None else "idle"
+                        )
             elif self._presentation is not None:
                 # 文件已打开但未在放映
                 playback_state = "stopped"

@@ -110,7 +110,18 @@ uv run python manage.py runall --skip-mediamtx
 # 调试时跳过播放器或前端
 uv run python manage.py runall --skip-player
 uv run python manage.py runall --skip-frontend
+
+# 无启动器 GUI 启动全部服务和 4 个播放窗口
+uv run python manage.py runall --headless
+
+# 后台启动，不绑定当前终端生命周期；输出写入 logs/runall-service.log
+uv run python manage.py runall --headless --service
+
+# 指定窗口到 Windows 显示器 ID，并指定 GPU ID
+uv run python manage.py runall --headless --window1 1 --window2 2 --window3 3 --window4 4 --gpu 0
 ```
+
+`--headless` 默认把窗口 1/2/3/4 分别映射到 Windows 显示器 ID 1/2/3/4；未传 `--gpu` 时使用系统默认 GPU。`--window3` 与兼容别名 `--windows3` 等价。
 
 分进程调试：
 
@@ -123,6 +134,9 @@ npm --prefix frontend run dev
 
 # PySide6 播放器
 uv run python manage.py run_player
+
+# PySide6 播放器无 GUI 启动
+uv run python manage.py run_player --headless --window1 1 --window2 2 --window3 3 --window4 4
 
 # MediaMTX
 .\tools\third_party\mediamtx\mediamtx.exe .\tools\third_party\mediamtx\mediamtx.yml

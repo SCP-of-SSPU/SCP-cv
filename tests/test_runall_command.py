@@ -1,20 +1,23 @@
 #!/user/bin/env python
 # -*- coding: UTF-8 -*-
-'''
+"""
 runall 管理命令测试。
 覆盖通配监听地址健康检查和 Windows 子进程树清理。
 @Project : SCP-cv
 @File : test_runall_command.py
 @Author : Qintsg
 @Date : 2026-04-29
-'''
+"""
+
 from __future__ import annotations
 
 from pathlib import Path
 import shutil
 from typing import Any
 
+from scp_cv.apps.dashboard.management import runall_processes
 from scp_cv.apps.dashboard.management.commands import runall
+from scp_cv.apps.dashboard.management.runall_frontend import resolve_frontend_port
 
 
 def test_handle_checks_django_via_loopback_for_wildcard_host(monkeypatch: Any) -> None:
@@ -85,17 +88,23 @@ def test_start_frontend_respects_configured_backend_target(monkeypatch: Any) -> 
         :param extra_env: 额外环境变量
         :return: None
         """
-        spawned_processes.append({
-            "name": name,
-            "command_args": command_args,
-            "cwd": cwd,
-            "required": required,
-            "extra_env": extra_env,
-            "env_remove_prefixes": env_remove_prefixes,
-        })
+        spawned_processes.append(
+            {
+                "name": name,
+                "command_args": command_args,
+                "cwd": cwd,
+                "required": required,
+                "extra_env": extra_env,
+                "env_remove_prefixes": env_remove_prefixes,
+            }
+        )
 
     project_dir = Path("E:/Projects/SCP-cv")
-    monkeypatch.setattr(shutil, "which", lambda command_name: "npm.cmd" if command_name == "npm" else None)
+    monkeypatch.setattr(
+        shutil,
+        "which",
+        lambda command_name: "npm.cmd" if command_name == "npm" else None,
+    )
     monkeypatch.setattr(command, "_spawn", record_spawn)
     monkeypatch.setattr(runall.settings, "BASE_DIR", project_dir)
     monkeypatch.setenv("VITE_BACKEND_TARGET", "http://root-env-should-not-win:8000")
@@ -109,7 +118,9 @@ def test_start_frontend_respects_configured_backend_target(monkeypatch: Any) -> 
     assert spawned_processes[0]["command_args"][-2:] == ["--port", "5173"]
 
 
-def test_start_frontend_uses_env_port_when_port_is_not_explicit(monkeypatch: Any, tmp_path: Path) -> None:
+def test_start_frontend_uses_env_port_when_port_is_not_explicit(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
     """
     未显式指定 frontend_port 时，runall 不应覆盖 frontend/.env 中的 VITE_FRONTEND_PORT。
     :param monkeypatch: pytest monkeypatch fixture
@@ -127,14 +138,16 @@ def test_start_frontend_uses_env_port_when_port_is_not_explicit(monkeypatch: Any
         extra_env: dict[str, str] | None = None,
         env_remove_prefixes: tuple[str, ...] = (),
     ) -> None:
-        spawned_processes.append({
-            "name": name,
-            "command_args": command_args,
-            "cwd": cwd,
-            "required": required,
-            "extra_env": extra_env,
-            "env_remove_prefixes": env_remove_prefixes,
-        })
+        spawned_processes.append(
+            {
+                "name": name,
+                "command_args": command_args,
+                "cwd": cwd,
+                "required": required,
+                "extra_env": extra_env,
+                "env_remove_prefixes": env_remove_prefixes,
+            }
+        )
 
     frontend_dir = tmp_path / "frontend"
     frontend_dir.mkdir()
@@ -142,7 +155,11 @@ def test_start_frontend_uses_env_port_when_port_is_not_explicit(monkeypatch: Any
         "VITE_FRONTEND_PORT=5260\nVITE_BACKEND_TARGET=http://192.168.1.50:8000\n",
         encoding="utf-8",
     )
-    monkeypatch.setattr(shutil, "which", lambda command_name: "npm.cmd" if command_name == "npm" else None)
+    monkeypatch.setattr(
+        shutil,
+        "which",
+        lambda command_name: "npm.cmd" if command_name == "npm" else None,
+    )
     monkeypatch.setattr(command, "_spawn", record_spawn)
     monkeypatch.setattr(runall.settings, "BASE_DIR", tmp_path)
     monkeypatch.setenv("VITE_FRONTEND_PORT", "9999")
@@ -151,11 +168,20 @@ def test_start_frontend_uses_env_port_when_port_is_not_explicit(monkeypatch: Any
     command._start_frontend("0.0.0.0", 0, "0.0.0.0", 8000)
 
     assert len(spawned_processes) == 1
-    assert spawned_processes[0]["command_args"] == ["npm.cmd", "run", "dev", "--", "--host", "0.0.0.0"]
-    assert command._resolve_frontend_port() == 5260
+    assert spawned_processes[0]["command_args"] == [
+        "npm.cmd",
+        "run",
+        "dev",
+        "--",
+        "--host",
+        "0.0.0.0",
+    ]
+    assert resolve_frontend_port(frontend_dir) == 5260
 
 
-def test_resolve_frontend_port_falls_back_to_vite_default(monkeypatch: Any, tmp_path: Path) -> None:
+def test_resolve_frontend_port_falls_back_to_vite_default(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
     """
     frontend/.env 未配置或配置非法时，应回退到 Vite 默认端口 5173。
     :param monkeypatch: pytest monkeypatch fixture
@@ -164,15 +190,16 @@ def test_resolve_frontend_port_falls_back_to_vite_default(monkeypatch: Any, tmp_
     """
     frontend_dir = tmp_path / "frontend"
     frontend_dir.mkdir()
-    command = runall.Command()
     monkeypatch.setattr(runall.settings, "BASE_DIR", tmp_path)
     monkeypatch.setenv("VITE_FRONTEND_PORT", "9999")
-    assert command._resolve_frontend_port() == 5173
+    assert resolve_frontend_port(frontend_dir) == 5173
     (frontend_dir / ".env").write_text("VITE_FRONTEND_PORT=invalid\n", encoding="utf-8")
-    assert command._resolve_frontend_port() == 5173
+    assert resolve_frontend_port(frontend_dir) == 5173
 
 
-def test_start_frontend_injects_backend_target_when_config_missing(monkeypatch: Any, tmp_path: Path) -> None:
+def test_start_frontend_injects_backend_target_when_config_missing(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
     """
     frontend/.env 缺少 VITE_BACKEND_TARGET 时，runall 应为前端提供可访问的兜底值。
     :param monkeypatch: pytest monkeypatch fixture
@@ -199,28 +226,36 @@ def test_start_frontend_injects_backend_target_when_config_missing(monkeypatch: 
         :param extra_env: 额外环境变量
         :return: None
         """
-        spawned_processes.append({
-            "name": name,
-            "command_args": command_args,
-            "cwd": cwd,
-            "required": required,
-            "extra_env": extra_env,
-            "env_remove_prefixes": env_remove_prefixes,
-        })
+        spawned_processes.append(
+            {
+                "name": name,
+                "command_args": command_args,
+                "cwd": cwd,
+                "required": required,
+                "extra_env": extra_env,
+                "env_remove_prefixes": env_remove_prefixes,
+            }
+        )
 
     frontend_dir = tmp_path / "frontend"
     frontend_dir.mkdir()
     (frontend_dir / ".env").write_text("VITE_FRONTEND_PORT=5173\n", encoding="utf-8")
-    monkeypatch.setattr(shutil, "which", lambda command_name: "npm.cmd" if command_name == "npm" else None)
+    monkeypatch.setattr(
+        shutil,
+        "which",
+        lambda command_name: "npm.cmd" if command_name == "npm" else None,
+    )
     monkeypatch.setattr(command, "_spawn", record_spawn)
     monkeypatch.setattr(runall.settings, "BASE_DIR", tmp_path)
     monkeypatch.setenv("VITE_BACKEND_TARGET", "http://root-env-should-not-win:8000")
-    monkeypatch.setattr(command, "_public_host", lambda listen_host: "192.168.1.50")
+    monkeypatch.setattr(runall, "public_host", lambda listen_host: "192.168.1.50")
 
     command._start_frontend("0.0.0.0", 5173, "0.0.0.0", 8000)
 
     assert len(spawned_processes) == 1
-    assert spawned_processes[0]["extra_env"] == {"VITE_BACKEND_TARGET": "http://192.168.1.50:8000"}
+    assert spawned_processes[0]["extra_env"] == {
+        "VITE_BACKEND_TARGET": "http://192.168.1.50:8000"
+    }
     assert spawned_processes[0]["env_remove_prefixes"] == ("VITE_",)
 
 
@@ -267,8 +302,8 @@ def test_spawn_removes_prefixed_environment(monkeypatch: Any) -> None:
     command = runall.Command()
     monkeypatch.setenv("VITE_BACKEND_TARGET", "http://root-env-should-not-win:8000")
     monkeypatch.setenv("VITE_FRONTEND_PORT", "9999")
-    monkeypatch.setattr(command, "_open_process_log", lambda _name: FakeLog())
-    monkeypatch.setattr(runall.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(runall, "open_process_log", lambda _log_dir, _name: FakeLog())
+    monkeypatch.setattr(runall_processes.subprocess, "Popen", fake_popen)
 
     command._spawn(
         "Vue 前端",
@@ -279,6 +314,73 @@ def test_spawn_removes_prefixed_environment(monkeypatch: Any) -> None:
 
     assert captured_env["VITE_BACKEND_TARGET"] == "http://127.0.0.1:8000"
     assert "VITE_FRONTEND_PORT" not in captured_env
+
+
+def test_start_player_forwards_headless_display_and_gpu_options(
+    monkeypatch: Any,
+) -> None:
+    """
+    runall --headless 应把窗口显示器 ID 和 GPU ID 透传给 run_player。
+    :param monkeypatch: pytest monkeypatch fixture
+    :return: None
+    """
+    spawned_processes: list[dict[str, Any]] = []
+    command = runall.Command()
+
+    def record_spawn(
+        name: str,
+        command_args: list[str],
+        cwd: object = None,
+        required: bool = True,
+        extra_env: dict[str, str] | None = None,
+        env_remove_prefixes: tuple[str, ...] = (),
+    ) -> None:
+        """
+        记录播放器启动命令，避免测试拉起 Qt。
+        :param name: 服务名称
+        :param command_args: 命令参数
+        :param cwd: 工作目录
+        :param required: 是否关键服务
+        :param extra_env: 额外环境变量
+        :param env_remove_prefixes: 环境变量清理前缀
+        :return: None
+        """
+        spawned_processes.append(
+            {
+                "name": name,
+                "command_args": command_args,
+                "cwd": cwd,
+                "required": required,
+                "extra_env": extra_env,
+                "env_remove_prefixes": env_remove_prefixes,
+            }
+        )
+
+    monkeypatch.setattr(command, "_spawn", record_spawn)
+    monkeypatch.setattr(runall.settings, "DEBUG", False)
+
+    command._start_player(
+        poll_interval=0.3,
+        headless=True,
+        window_assignments={1: 4, 2: 3, 3: 2, 4: 1},
+        gpu_id=2,
+    )
+
+    assert len(spawned_processes) == 1
+    assert spawned_processes[0]["name"] == "PySide 播放器"
+    assert spawned_processes[0]["command_args"][-11:] == [
+        "--headless",
+        "--window1",
+        "4",
+        "--window2",
+        "3",
+        "--window3",
+        "2",
+        "--window4",
+        "1",
+        "--gpu",
+        "2",
+    ]
 
 
 def test_terminate_process_tree_stops_children_before_parent(monkeypatch: Any) -> None:
@@ -293,7 +395,9 @@ def test_terminate_process_tree_stops_children_before_parent(monkeypatch: Any) -
     class FakeProcessNode:
         """模拟 psutil 进程节点，记录终止顺序。"""
 
-        def __init__(self, process_id: int, children: list["FakeProcessNode"] | None = None) -> None:
+        def __init__(
+            self, process_id: int, children: list["FakeProcessNode"] | None = None
+        ) -> None:
             """
             初始化模拟进程节点。
             :param process_id: 模拟 PID
@@ -329,7 +433,9 @@ def test_terminate_process_tree_stops_children_before_parent(monkeypatch: Any) -
     child_process = FakeProcessNode(11)
     parent_process = FakeProcessNode(10, [child_process])
 
-    def fake_wait_procs(processes: list[FakeProcessNode], timeout: int) -> tuple[list[FakeProcessNode], list[FakeProcessNode]]:
+    def fake_wait_procs(
+        processes: list[FakeProcessNode], timeout: int
+    ) -> tuple[list[FakeProcessNode], list[FakeProcessNode]]:
         """
         模拟进程均在超时前退出。
         :param processes: 等待进程集合
@@ -339,10 +445,14 @@ def test_terminate_process_tree_stops_children_before_parent(monkeypatch: Any) -
         waited_batches.append(([process.pid for process in processes], timeout))
         return processes, []
 
-    monkeypatch.setattr(runall.psutil, "Process", lambda process_id: parent_process if process_id == 10 else None)
-    monkeypatch.setattr(runall.psutil, "wait_procs", fake_wait_procs)
+    monkeypatch.setattr(
+        runall_processes.psutil,
+        "Process",
+        lambda process_id: parent_process if process_id == 10 else None,
+    )
+    monkeypatch.setattr(runall_processes.psutil, "wait_procs", fake_wait_procs)
 
-    runall.Command()._terminate_process_tree(10)
+    runall_processes.terminate_process_tree(10)
 
     assert terminated_processes == [11, 10]
     assert waited_batches == [([11, 10], 8)]

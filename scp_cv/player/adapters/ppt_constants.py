@@ -11,7 +11,7 @@ from __future__ import annotations
 
 # PowerPoint 放映推进类型常量
 PP_ADVANCE_MODE_ON_CLICK = 1  # ppAdvanceOnClick
-PP_SLIDE_SHOW_WINDOW = 1      # ppShowTypeWindow
+PP_SLIDE_SHOW_WINDOW = 2      # ppShowTypeWindow
 PP_SLIDE_SHOW_SPEAKER = 1     # ppShowTypeSpeaker
 PP_SLIDE_SHOW_KIOSK = 3       # ppShowTypeKiosk
 

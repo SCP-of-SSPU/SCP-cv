@@ -1,24 +1,80 @@
 #!/user/bin/env python
 # -*- coding: UTF-8 -*-
-'''
+"""
 PowerPoint 放映窗口 Win32 操作工具，封装 HWND 查找、嵌入和尺寸同步。
 @Project : SCP-cv
 @File : ppt_window.py
 @Author : Qintsg
 @Date : 2026-05-02
-'''
+"""
+
 from __future__ import annotations
 
 import logging
 from typing import Optional
 
+from scp_cv.player.adapters.ppt_constants import PP_SLIDE_SHOW_WINDOW
 
-def find_slideshow_hwnd(slideshow_window: Optional[object], logger: logging.Logger) -> int:
+SLIDESHOW_CLASS_NAMES = frozenset({"screenClass", "paneClassDC"})
+
+
+def configure_windowed_slideshow(
+    settings: object, start_slide: int, total_slides: int
+) -> object:
+    """
+    配置 PowerPoint 为窗口化放映，允许多个播放器窗口同时嵌入各自 PPT。
+    :param settings: PowerPoint SlideShowSettings COM 对象
+    :param start_slide: 起始页码
+    :param total_slides: 总页数
+    :return: 原始 settings 对象，便于调用方继续 Run
+    """
+    settings.ShowType = PP_SLIDE_SHOW_WINDOW
+    settings.StartingSlide = max(1, min(start_slide, total_slides or 1))
+    settings.EndingSlide = total_slides
+    return settings
+
+
+def snapshot_slideshow_hwnds(logger: Optional[logging.Logger] = None) -> set[int]:
+    """
+    获取当前系统中可见的 PowerPoint 放映窗口句柄快照。
+    :param logger: 可选日志器；导入 Win32 失败时记录调试信息
+    :return: 可见放映窗口 HWND 集合
+    """
+    try:
+        import win32gui
+    except Exception as import_error:
+        if logger is not None:
+            logger.debug("Win32 模块不可用，跳过放映窗口快照：%s", import_error)
+        return set()
+
+    slideshow_hwnds: set[int] = set()
+
+    def enum_callback(hwnd: int, _extra: object) -> bool:
+        if win32gui.IsWindowVisible(hwnd):
+            class_name = win32gui.GetClassName(hwnd)
+            if class_name in SLIDESHOW_CLASS_NAMES:
+                slideshow_hwnds.add(int(hwnd))
+        return True
+
+    try:
+        win32gui.EnumWindows(enum_callback, None)
+    except Exception as enum_error:
+        if logger is not None:
+            logger.debug("枚举 PowerPoint 放映窗口快照失败：%s", enum_error)
+    return slideshow_hwnds
+
+
+def find_slideshow_hwnd(
+    slideshow_window: Optional[object],
+    logger: logging.Logger,
+    existing_hwnds: Optional[set[int]] = None,
+) -> int:
     """
     查找 PowerPoint 放映窗口的 HWND。
     :param slideshow_window: COM SlideShowWindow 对象
     :param logger: 适配器日志器
-    :return: 放映窗口句柄，找不到返回 0
+    :param existing_hwnds: 启动本次放映前已存在的放映 HWND，用于排除其他窗口
+    :return: 本次放映窗口句柄，无法唯一确定时返回 0
     """
     if slideshow_window is not None:
         try:
@@ -29,31 +85,39 @@ def find_slideshow_hwnd(slideshow_window: Optional[object], logger: logging.Logg
         except Exception as com_error:
             logger.debug("COM 获取 HWND 失败：%s，尝试枚举窗口", com_error)
 
-    import win32gui
+    try:
+        import win32gui
+    except Exception as import_error:
+        logger.warning(
+            "Win32 模块不可用，无法查找 PowerPoint 放映窗口：%s", import_error
+        )
+        return 0
 
-    found_hwnd = 0
-    slideshow_class_names = ["screenClass", "paneClassDC"]
+    excluded_hwnds = existing_hwnds or set()
+    matched_hwnds: list[int] = []
 
     def enum_callback(hwnd: int, _extra: object) -> bool:
-        nonlocal found_hwnd
         if win32gui.IsWindowVisible(hwnd):
             class_name = win32gui.GetClassName(hwnd)
-            if class_name in slideshow_class_names:
-                found_hwnd = hwnd
-                return False
+            if class_name in SLIDESHOW_CLASS_NAMES and int(hwnd) not in excluded_hwnds:
+                matched_hwnds.append(int(hwnd))
         return True
 
     try:
         win32gui.EnumWindows(enum_callback, None)
-    except Exception:
-        # EnumWindows 在回调返回 False 时会抛异常，属于停止枚举的正常路径。
-        pass
+    except Exception as enum_error:
+        logger.debug("枚举 PowerPoint 放映窗口失败：%s", enum_error)
 
-    if found_hwnd > 0:
-        logger.debug("通过枚举窗口找到放映 HWND=%d", found_hwnd)
+    if len(matched_hwnds) == 1:
+        logger.debug("通过枚举窗口找到本次放映 HWND=%d", matched_hwnds[0])
+        return matched_hwnds[0]
+    if len(matched_hwnds) > 1:
+        logger.warning(
+            "找到多个候选 PowerPoint 放映窗口，无法唯一确定：%s", matched_hwnds
+        )
     else:
         logger.warning("未能找到 PowerPoint 放映窗口")
-    return found_hwnd
+    return 0
 
 
 def embed_slideshow_window(ppt_hwnd: int, parent_hwnd: int) -> None:
@@ -67,11 +131,7 @@ def embed_slideshow_window(ppt_hwnd: int, parent_hwnd: int) -> None:
     import win32gui
 
     original_style = win32gui.GetWindowLong(ppt_hwnd, win32con.GWL_STYLE)
-    embedded_style = (
-        original_style
-        & ~win32con.WS_OVERLAPPEDWINDOW
-        | win32con.WS_CHILD
-    )
+    embedded_style = original_style & ~win32con.WS_OVERLAPPEDWINDOW | win32con.WS_CHILD
     win32gui.SetWindowLong(ppt_hwnd, win32con.GWL_STYLE, embedded_style)
 
     extended_style = win32gui.GetWindowLong(ppt_hwnd, win32con.GWL_EXSTYLE)

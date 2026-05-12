@@ -1,6 +1,6 @@
 #!/user/bin/env python
 # -*- coding: UTF-8 -*-
-'''
+"""
 Django 管理命令：启动 PySide6 多窗口播放器。
 先显示启动器 GUI 供用户逐个选择 4 个输出窗口的目标屏幕，
 选择完成后创建播放窗口并启动轮询。
@@ -8,7 +8,8 @@ Django 管理命令：启动 PySide6 多窗口播放器。
 @File : run_player.py
 @Author : Qintsg
 @Date : 2026-04-14
-'''
+"""
+
 from __future__ import annotations
 
 import signal
@@ -38,13 +39,39 @@ class Command(BaseCommand):
             default=0.2,
             help="轮询会话状态的间隔秒数（默认 0.2）",
         )
+        parser.add_argument(
+            "--headless",
+            action="store_true",
+            default=False,
+            help="跳过启动器 GUI，按命令行显示器配置直接创建播放窗口",
+        )
+        parser.add_argument(
+            "--window1", type=int, default=0, help="窗口 1 使用的 Windows 显示器 ID"
+        )
+        parser.add_argument(
+            "--window2", type=int, default=0, help="窗口 2 使用的 Windows 显示器 ID"
+        )
+        parser.add_argument(
+            "--window3",
+            "--windows3",
+            type=int,
+            default=0,
+            help="窗口 3 使用的 Windows 显示器 ID",
+        )
+        parser.add_argument(
+            "--window4", type=int, default=0, help="窗口 4 使用的 Windows 显示器 ID"
+        )
+        parser.add_argument(
+            "--gpu", type=int, default=-1, help="GPU ID；未指定时使用系统默认 GPU"
+        )
 
     def handle(self, **options: object) -> None:
         """
-        入口：配置日志 → 显示启动器 GUI → 创建播放窗口。
+        入口：配置日志 → 解析 GUI 或 headless 窗口分配 → 创建播放窗口。
         :param options: 命令行参数字典
         """
         import logging
+
         logging.basicConfig(
             level=logging.DEBUG,
             format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
@@ -56,13 +83,15 @@ class Command(BaseCommand):
         dev_mode = bool(options.get("dev", False)) or settings.DEBUG
         poll_interval = float(options.get("poll_interval", 0.2))
 
-        # 启动时自动选择显卡（优先独显），供后续适配器使用
+        # GUI 模式保留自动选择显卡；headless 未显式给 --gpu 时交给系统默认 GPU。
         from scp_cv.player.gpu_detector import auto_select_gpu
-        auto_select_gpu()
 
-        self.stdout.write(self.style.SUCCESS(
-            f"启动播放器（dev={dev_mode}, poll={poll_interval}s）"
-        ))
+        if not bool(options.get("headless", False)):
+            auto_select_gpu()
+
+        self.stdout.write(
+            self.style.SUCCESS(f"启动播放器（dev={dev_mode}, poll={poll_interval}s）")
+        )
 
         # 创建 Qt 应用
         qt_app = QApplication.instance()
@@ -82,24 +111,26 @@ class Command(BaseCommand):
         signal.signal(signal.SIGINT, request_qt_shutdown)
         signal.signal(signal.SIGTERM, request_qt_shutdown)
 
-        # 显示启动器 GUI，等待用户选择屏幕分配
         from scp_cv.player.launcher_gui import LauncherResult, LauncherWindow
 
         launcher_result_holder: list[LauncherResult] = []
 
-        def on_launch_requested(launch_result: LauncherResult) -> None:
-            """
-            启动器回调：保存选择结果。
-            :param launch_result: 用户选择的窗口→屏幕分配
-            """
-            launcher_result_holder.append(launch_result)
+        if bool(options.get("headless", False)):
+            launcher_result_holder.append(self._build_headless_result(options))
+        else:
 
-        launcher = LauncherWindow(debug_mode=dev_mode)
-        launcher.launch_requested.connect(on_launch_requested)
-        launcher.show()
+            def on_launch_requested(launch_result: LauncherResult) -> None:
+                """
+                启动器回调：保存选择结果。
+                :param launch_result: 用户选择的窗口→屏幕分配
+                :return: None
+                """
+                launcher_result_holder.append(launch_result)
 
-        # 运行事件循环（启动器关闭后返回）
-        qt_app.exec()
+            launcher = LauncherWindow(debug_mode=dev_mode)
+            launcher.launch_requested.connect(on_launch_requested)
+            launcher.show()
+            qt_app.exec()
 
         # 检查用户是否完成了选择
         if not launcher_result_holder:
@@ -108,20 +139,46 @@ class Command(BaseCommand):
 
         launch_result = launcher_result_holder[0]
         assigned_count = len(launch_result.window_assignments)
-        self.stdout.write(self.style.SUCCESS(
-            f"用户分配了 {assigned_count} 个播放窗口"
-        ))
+        self.stdout.write(self.style.SUCCESS(f"用户分配了 {assigned_count} 个播放窗口"))
 
         # 应用用户选择的显卡到全局配置（供 libVLC 适配器读取）
         from scp_cv.player.gpu_detector import set_selected_gpu
+
         if launch_result.selected_gpu is not None:
             set_selected_gpu(launch_result.selected_gpu)
-            self.stdout.write(self.style.SUCCESS(
-                f"显卡已选择：{launch_result.selected_gpu.display_label}"
-            ))
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"显卡已选择：{launch_result.selected_gpu.display_label}"
+                )
+            )
 
         # ═══ 根据分配结果创建播放窗口 ═══
         self._start_player(qt_app, launch_result, dev_mode, poll_interval)
+
+    def _build_headless_result(self, options: dict[str, object]) -> object:
+        """
+        从命令行参数构造无 GUI 启动结果。
+        :param options: Django 管理命令参数
+        :return: LauncherResult
+        """
+        from django.core.management.base import CommandError
+
+        from scp_cv.player.headless_launcher import build_headless_launch_result
+
+        window_display_ids = {
+            1: int(options.get("window1", 0) or 0),
+            2: int(options.get("window2", 0) or 0),
+            3: int(options.get("window3", 0) or 0),
+            4: int(options.get("window4", 0) or 0),
+        }
+        gpu_id = int(options.get("gpu", -1))
+        try:
+            return build_headless_launch_result(
+                window_display_ids=window_display_ids,
+                gpu_id=gpu_id if gpu_id >= 0 else None,
+            )
+        except ValueError as launch_error:
+            raise CommandError(str(launch_error)) from launch_error
 
     def _start_player(
         self,
@@ -166,15 +223,19 @@ class Command(BaseCommand):
 
             # 定位窗口到目标屏幕
             target_rect = QRect(
-                display_target.x, display_target.y,
-                display_target.width, display_target.height,
+                display_target.x,
+                display_target.y,
+                display_target.width,
+                display_target.height,
             )
             player_window.position_on_display(target_rect)
 
-            self.stdout.write(self.style.SUCCESS(
-                f"窗口 {window_id} → {display_target.name} "
-                f"({display_target.geometry_label})"
-            ))
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"窗口 {window_id} → {display_target.name} "
+                    f"({display_target.geometry_label})"
+                )
+            )
 
         # 任意窗口关闭时退出应用（仅非 dev 模式）
         if not dev_mode:
@@ -194,13 +255,15 @@ class Command(BaseCommand):
         # 启动轮询
         controller.start_polling(interval_seconds=poll_interval)
 
-        self.stdout.write(self.style.SUCCESS(
-            "本地控制面板已移除，请使用 Web 控制台完成播放控制"
-        ))
+        self.stdout.write(
+            self.style.SUCCESS("本地控制面板已移除，请使用 Web 控制台完成播放控制")
+        )
 
-        self.stdout.write(self.style.SUCCESS(
-            f"播放器已启动（{len(all_windows)} 窗口），等待播放指令…"
-        ))
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"播放器已启动（{len(all_windows)} 窗口），等待播放指令…"
+            )
+        )
 
         try:
             # 进入 Qt 事件循环；退出时始终停止轮询线程和播放器适配器。
