@@ -1,7 +1,7 @@
 # AGENTS.md
 
 ## 0.基础信息
-	
+
 本仓库为项目仓库，项目名称为：SCP-cv
 
 ## 1. 适用范围
@@ -243,7 +243,7 @@ chore(repo): 任务开始前保存未提交内容
 
 ### 6.6 Python专项注释要求
 
-Python除文件头、函数注释外均使用PEP 8标准
+Python除文件头、函数注释外均使用PEP 8标准，Author固定为Qintsg
 
 #### 6.6.1 Python 文件头
 默认模板：

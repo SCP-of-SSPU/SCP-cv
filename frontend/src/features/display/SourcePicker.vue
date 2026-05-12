@@ -118,7 +118,7 @@ const totalLabel = computed(() => `共 ${filteredSources.value.length} 项`);
       <span class="source-picker__count">{{ totalLabel }}</span>
     </template>
 
-    <FInput v-model="searchKeyword" placeholder="搜索源名称或 URL" aria-label="搜索源">
+    <FInput v-model="searchKeyword" placeholder="搜索源名称或 URL" aria-label="搜索源" clearable>
       <template #prefix>
         <FIcon name="search_20_regular" />
       </template>

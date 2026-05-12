@@ -177,7 +177,7 @@ const totalCaption = computed(() => {
       </div>
       <div class="sources-view__actions">
         <FInput :model-value="sourceStore.searchKeyword" placeholder="搜索源名称或 URL" aria-label="搜索源名称或 URL"
-          @update:modelValue="sourceStore.setSearchKeyword">
+          clearable @update:modelValue="sourceStore.setSearchKeyword">
           <template #prefix>
             <FIcon name="search_20_regular" />
           </template>

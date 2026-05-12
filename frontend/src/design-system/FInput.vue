@@ -7,6 +7,8 @@
  */
 import { computed, inject, ref, watch, type Ref } from 'vue';
 
+import FIcon from './FIcon.vue';
+
 interface FInputProps {
   modelValue: string;
   placeholder?: string;
@@ -26,6 +28,11 @@ interface FInputProps {
   size?: 'compact' | 'medium' | 'large';
   /** 自动获取焦点（仅在显式需要时启用，避免对话框打开后劫持焦点）。 */
   autofocus?: boolean;
+  /**
+   * 是否在 modelValue 非空时显示尾部清除按钮。
+   * 清除按钮自身可获得焦点；按 Enter / Space 清空 modelValue 并保持输入框焦点。
+   */
+  clearable?: boolean;
 }
 
 const props = withDefaults(defineProps<FInputProps>(), {
@@ -39,6 +46,7 @@ const props = withDefaults(defineProps<FInputProps>(), {
   appearance: 'outline',
   size: 'medium',
   autofocus: false,
+  clearable: false,
 });
 
 const emit = defineEmits<{
@@ -73,6 +81,15 @@ function onInput(event: Event): void {
   emit('update:modelValue', (event.target as HTMLInputElement).value);
 }
 
+/**
+ * 清空当前输入并把焦点放回 input，便于用户立即继续输入。
+ */
+function clearValue(): void {
+  emit('update:modelValue', '');
+  // 用 raf 等同步赋值完成后再聚焦，避免某些浏览器在 click 后立即 focus 被吞掉。
+  requestAnimationFrame(() => innerEl.value?.focus());
+}
+
 function onKeyDown(event: KeyboardEvent): void {
   if (event.key === 'Enter') emit('enter');
 }
@@ -99,6 +116,10 @@ defineExpose({
       :placeholder="placeholder" :disabled="disabled" :readonly="readonly" :maxlength="maxLength"
       :aria-label="ariaLabel" :aria-describedby="describedBy" :aria-invalid="isInvalid || undefined"
       :aria-required="field?.required.value || undefined" @input="onInput" @keydown="onKeyDown" />
+    <button v-if="clearable && modelValue && !disabled && !readonly" type="button" class="f-input__clear"
+      aria-label="清除输入" @click="clearValue">
+      <FIcon name="dismiss_16_regular" />
+    </button>
     <span v-if="$slots.suffix" class="f-input__suffix">
       <slot name="suffix" />
     </span>
@@ -193,6 +214,67 @@ defineExpose({
 .f-input__inner:disabled {
   cursor: not-allowed;
   color: inherit;
+}
+
+/*
+ * 内置清除按钮：与 FCombobox 清除按钮同款节奏；24×24 触控目标在移动端足够大。
+ * hover 用 subtle 灰底色提示可交互；按下时圆角恒定不抖。
+ */
+.f-input__clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-circular);
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  transition: background var(--motion-duration-fast) var(--motion-curve-ease),
+    color var(--motion-duration-fast) var(--motion-curve-ease);
+  flex-shrink: 0;
+}
+
+.f-input__clear:hover {
+  background: var(--color-background-subtle);
+  color: var(--color-text-primary);
+}
+
+.f-input__clear:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+/*
+ * 当 prefix / suffix 内放置可交互按钮时（如 reveal-password、单位切换），
+ * 自动启用 hover / focus 反馈，业务侧无需再写 :deep。
+ */
+.f-input__prefix :deep(button),
+.f-input__suffix :deep(button),
+.f-input__prefix :deep([role='button']),
+.f-input__suffix :deep([role='button']) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  min-height: 20px;
+  padding: 0 var(--spacing-xxs);
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-small);
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  transition: background var(--motion-duration-fast) var(--motion-curve-ease),
+    color var(--motion-duration-fast) var(--motion-curve-ease);
+}
+
+.f-input__prefix :deep(button:hover),
+.f-input__suffix :deep(button:hover),
+.f-input__prefix :deep([role='button']:hover),
+.f-input__suffix :deep([role='button']:hover) {
+  background: var(--color-background-subtle);
+  color: var(--color-text-primary);
 }
 
 @media (max-width: 767px) {
