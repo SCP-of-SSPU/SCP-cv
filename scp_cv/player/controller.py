@@ -24,7 +24,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from typing import Optional
+from typing import Callable, Optional
 
 from PySide6.QtCore import QObject, QRect, Signal, Slot
 
@@ -74,6 +74,8 @@ class PlayerController(PlayerCommandHandlersMixin, QObject):
         self._adapter_source_ids: dict[int, int] = {}
         # 网页源预热池：由 Qt 主线程创建和使用，避免切换网页源时重新首屏加载。
         self._web_preheat_pool: object | None = None
+        # 非 dev 模式下由 run_player 注入关闭回调，窗口重建后仍需保持相同行为。
+        self._window_closed_callback: Callable[[], None] | None = None
 
         # 轮询线程
         self._poll_thread: Optional[threading.Thread] = None
@@ -88,6 +90,14 @@ class PlayerController(PlayerCommandHandlersMixin, QObject):
         self.sig_dispatch_command.connect(self._execute_command_on_main_thread)
         self.sig_report_states.connect(self._report_all_adapter_states)
 
+    def set_window_closed_callback(self, callback: Callable[[], None] | None) -> None:
+        """
+        设置窗口被用户关闭时的统一回调。
+        :param callback: 关闭回调；None 表示不处理窗口关闭事件
+        :return: None
+        """
+        self._window_closed_callback = callback
+
     def register_window(self, window_id: int, player_window: object) -> None:
         """
         注册播放器窗口到控制器。
@@ -100,6 +110,8 @@ class PlayerController(PlayerCommandHandlersMixin, QObject):
 
         self._windows[window_id] = player_window
         self.sig_stop_all.connect(player_window.stop_all)
+        if self._window_closed_callback is not None:
+            player_window.window_closed.connect(self._window_closed_callback)
         logger.info("控制器已注册窗口：%d", window_id)
 
     def get_window(self, window_id: int) -> Optional[object]:
@@ -207,6 +219,51 @@ class PlayerController(PlayerCommandHandlersMixin, QObject):
     def apply_current_layout(self) -> None:
         """按数据库中持久化的显示器目标恢复播放器窗口位置。"""
         self.apply_display_positions()
+
+    def rebuild_registered_windows(self) -> None:
+        """
+        关闭并替换当前已注册窗口，然后按持久化显示配置重新显示。
+        :return: None
+        """
+        from scp_cv.player.window import PlayerWindow
+
+        old_windows = list(self._windows.items())
+        self._windows = {}
+        for window_id, old_window in old_windows:
+            self._disconnect_window_signals(old_window)
+            if hasattr(old_window, "close_for_rebuild"):
+                old_window.close_for_rebuild()
+            else:
+                old_window.hide()
+                old_window.deleteLater()
+            logger.info("窗口 %d 已为全局重置关闭", window_id)
+
+        for window_id, old_window in old_windows:
+            debug_mode = bool(getattr(old_window, "debug_mode", False))
+            new_window = PlayerWindow(window_id=window_id, debug_mode=debug_mode)
+            self.register_window(window_id, new_window)
+            if debug_mode:
+                new_window.resize(960, 540)
+                new_window.show()
+
+        self.apply_current_layout()
+        logger.info("已按当前显示配置重建 %d 个播放器窗口", len(old_windows))
+
+    def _disconnect_window_signals(self, player_window: object) -> None:
+        """
+        断开控制器持有的窗口信号，避免旧窗口销毁后继续响应广播。
+        :param player_window: 待销毁的 PlayerWindow 实例
+        :return: None
+        """
+        try:
+            self.sig_stop_all.disconnect(player_window.stop_all)
+        except (RuntimeError, TypeError):
+            pass
+        if self._window_closed_callback is not None:
+            try:
+                player_window.window_closed.disconnect(self._window_closed_callback)
+            except (RuntimeError, TypeError):
+                pass
 
     # ═══════════════════ 轮询逻辑 ═══════════════════
 

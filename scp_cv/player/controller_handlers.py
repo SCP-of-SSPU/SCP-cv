@@ -110,6 +110,12 @@ class PlayerCommandHandlersMixin:
 
     def _handle_close(self, window_id: int, command_args: dict[str, object]) -> None:
         """处理 CLOSE 指令：关闭适配器并重置会话。"""
+        from scp_cv.services.playback import RESET_ALL_WINDOWS_ARG
+
+        if bool(command_args.get(RESET_ALL_WINDOWS_ARG)):
+            self._handle_reset_all_windows()
+            return
+
         self._close_adapter(window_id)
         self._cleanup_temporary_source(command_args)
 
@@ -128,6 +134,58 @@ class PlayerCommandHandlersMixin:
             session.position_ms = 0
             session.duration_ms = 0
             session.save()
+
+    def _handle_reset_all_windows(self) -> None:
+        """
+        处理全局重置：关闭全部播放资源、替换窗口并重新建立网页预热池。
+        :return: None
+        """
+        for adapter_window_id in list(self._adapters.keys()):
+            self._close_adapter(adapter_window_id)
+        self._adapter_source_types.clear()
+        self._adapter_source_ids.clear()
+        self._last_reported_states.clear()
+
+        if self._web_preheat_pool is not None:
+            self._web_preheat_pool.close_all()
+            self._web_preheat_pool = None
+
+        for registered_window_id in self.registered_window_ids:
+            self._reset_window_session_to_idle(registered_window_id)
+
+        self.rebuild_registered_windows()
+        self.preheat_web_sources()
+        logger.info("播放器已完成全部窗口重置和网页预热重建")
+
+    @staticmethod
+    def _reset_window_session_to_idle(window_id: int) -> None:
+        """
+        将播放器侧确认过的窗口会话字段保持为空闲状态。
+        :param window_id: 窗口编号
+        :return: None
+        """
+        from scp_cv.apps.playback.models import PlaybackState, PlaybackSession
+
+        session = PlaybackSession.objects.filter(window_id=window_id).first()
+        if session is None:
+            return
+        session.media_source = None
+        session.playback_state = PlaybackState.IDLE
+        session.error_message = ""
+        session.current_slide = 0
+        session.total_slides = 0
+        session.position_ms = 0
+        session.duration_ms = 0
+        session.save(update_fields=[
+            "media_source",
+            "playback_state",
+            "error_message",
+            "current_slide",
+            "total_slides",
+            "position_ms",
+            "duration_ms",
+            "last_updated_at",
+        ])
 
     @staticmethod
     def _cleanup_temporary_source(command_args: dict[str, object]) -> None:

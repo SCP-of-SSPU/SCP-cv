@@ -622,7 +622,8 @@ paths:
   /playback/reset-all/:
     post:
       tags: [playback]
-      summary: 重置全部窗口为待机状态
+      summary: 重置全部窗口并重建播放器窗口
+      description: 清空全部播放会话，通知运行中的 PySide 播放器关闭并重建窗口，同时重建网页预热池。
       operationId: resetAllSessions
       responses:
         '200':

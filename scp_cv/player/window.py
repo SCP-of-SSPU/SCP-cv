@@ -62,6 +62,7 @@ class PlayerWindow(QWidget):
         self._window_id = window_id
         self._debug_mode = debug_mode
         self._is_showing_video = False
+        self._suppress_close_signal = False
 
         # ═══ 窗口属性 ═══
         self.setWindowTitle(f"SCP-cv 播放器 [窗口{window_id}]")
@@ -164,6 +165,11 @@ class PlayerWindow(QWidget):
     def is_showing_video(self) -> bool:
         """当前是否正在显示视频。"""
         return self._is_showing_video
+
+    @property
+    def debug_mode(self) -> bool:
+        """当前窗口是否使用开发调试模式。"""
+        return self._debug_mode
 
     @property
     def web_container(self) -> QWidget:
@@ -313,6 +319,18 @@ class PlayerWindow(QWidget):
         """隐藏窗口但不销毁。"""
         self.hide()
 
+    def close_for_rebuild(self) -> None:
+        """
+        为全局重置关闭窗口，不触发用户关闭导致的应用退出回调。
+        :return: None
+        """
+        self._suppress_close_signal = True
+        try:
+            self.close()
+            self.deleteLater()
+        finally:
+            self._suppress_close_signal = False
+
     # ═══════════════════ 窗口 ID 覆盖层 ═══════════════════
 
     @Slot()
@@ -361,7 +379,8 @@ class PlayerWindow(QWidget):
     def closeEvent(self, event: object) -> None:
         """窗口关闭时停止所有内容。"""
         self.stop_all()
-        self.window_closed.emit()
+        if not self._suppress_close_signal:
+            self.window_closed.emit()
         super().closeEvent(event)
 
     def keyPressEvent(self, event: object) -> None:

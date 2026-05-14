@@ -205,6 +205,8 @@ class Command(BaseCommand):
 
         # 创建控制器
         controller = PlayerController()
+        if not dev_mode:
+            controller.set_window_closed_callback(qt_app.quit)
         all_windows: list[PlayerWindow] = []
 
         # 逐个创建播放窗口并注册到控制器
@@ -236,11 +238,6 @@ class Command(BaseCommand):
                     f"({display_target.geometry_label})"
                 )
             )
-
-        # 任意窗口关闭时退出应用（仅非 dev 模式）
-        if not dev_mode:
-            for player_window in all_windows:
-                player_window.window_closed.connect(qt_app.quit)
 
         # dev 模式下额外处理：调整窗口尺寸显示
         if dev_mode:

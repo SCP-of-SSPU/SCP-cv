@@ -20,7 +20,7 @@ import pytest
 from django.test import Client
 
 from scp_cv.apps.playback.models import MediaSource, PlaybackCommand, PlaybackSession, Scenario, SourceType
-from scp_cv.services.playback import get_or_create_session
+from scp_cv.services.playback import RESET_ALL_WINDOWS_ARG, get_or_create_session
 
 
 @dataclass(frozen=True)
@@ -114,7 +114,8 @@ def test_reset_all_sessions_api_sets_windows_idle(media_source_ppt: MediaSource)
     assert response.status_code == 200
     assert response.json()["sessions"][0]["playback_state"] == "idle"
     assert session.media_source is None
-    assert session.pending_command == PlaybackCommand.SET_MUTE
+    assert session.pending_command == PlaybackCommand.CLOSE
+    assert session.command_args == {RESET_ALL_WINDOWS_ARG: True}
 
 
 @pytest.mark.django_db

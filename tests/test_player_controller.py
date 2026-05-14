@@ -16,7 +16,7 @@ import pytest
 from scp_cv.apps.playback.models import MediaSource, PlaybackState
 from scp_cv.player.adapters.base import AdapterState
 from scp_cv.player.controller import PlayerController
-from scp_cv.services.playback import get_session_snapshot, open_source
+from scp_cv.services.playback import RESET_ALL_WINDOWS_ARG, get_session_snapshot, open_source
 
 
 class _StateAdapter:
@@ -129,3 +129,141 @@ def test_report_persists_adapter_error_message(media_source_video: MediaSource) 
     assert session.playback_state == PlaybackState.ERROR
     assert session.error_message == "libVLC 播放 SRT 流失败"
     assert snapshot["error_message"] == "libVLC 播放 SRT 流失败"
+
+
+@pytest.mark.django_db
+def test_reset_all_windows_command_rebuilds_player_runtime(
+    media_source_video: MediaSource,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """全局 reset 指令应关闭全部资源、替换窗口并重新执行网页预热。"""
+    closed_adapters: list[int] = []
+    closed_windows: list[int] = []
+    created_windows: list[int] = []
+    preheat_pool_closed: list[bool] = []
+    layout_applied: list[bool] = []
+    preheated: list[bool] = []
+    close_callbacks: list[object] = []
+
+    class _FakeSignal:
+        """记录窗口关闭信号连接的测试替身。"""
+
+        def connect(self, callback: object) -> None:
+            """
+            记录连接的回调。
+            :param callback: 回调对象
+            :return: None
+            """
+            close_callbacks.append(callback)
+
+        def disconnect(self, callback: object) -> None:
+            """
+            记录断开请求；PySide 信号测试中无需真实解绑。
+            :param callback: 回调对象
+            :return: None
+            """
+            return
+
+    class _FakePlayerWindow:
+        """播放器窗口替身，用于避免测试创建真实 QWidget。"""
+
+        def __init__(self, window_id: int, debug_mode: bool = False) -> None:
+            """
+            初始化测试窗口。
+            :param window_id: 窗口编号
+            :param debug_mode: 是否调试模式
+            :return: None
+            """
+            self.window_id = window_id
+            self.debug_mode = debug_mode
+            self.window_closed = _FakeSignal()
+            created_windows.append(window_id)
+
+        def stop_all(self) -> None:
+            """
+            测试中无需渲染黑屏。
+            :return: None
+            """
+            return
+
+        def close_for_rebuild(self) -> None:
+            """
+            记录窗口被全局重置关闭。
+            :return: None
+            """
+            closed_windows.append(self.window_id)
+
+        def resize(self, width: int, height: int) -> None:
+            """
+            记录调试窗口尺寸接口存在。
+            :param width: 宽度
+            :param height: 高度
+            :return: None
+            """
+            return
+
+        def show(self) -> None:
+            """
+            记录显示接口存在。
+            :return: None
+            """
+            return
+
+    class _FakeAdapter:
+        """播放适配器替身，记录 close 调用。"""
+
+        def __init__(self, window_id: int) -> None:
+            """
+            初始化适配器替身。
+            :param window_id: 窗口编号
+            :return: None
+            """
+            self.window_id = window_id
+
+        def close(self) -> None:
+            """
+            记录适配器关闭。
+            :return: None
+            """
+            closed_adapters.append(self.window_id)
+
+    class _FakeWebPreheatPool:
+        """网页预热池替身，记录释放调用。"""
+
+        def close_all(self) -> None:
+            """
+            记录预热池关闭。
+            :return: None
+            """
+            preheat_pool_closed.append(True)
+
+    monkeypatch.setattr("scp_cv.player.window.PlayerWindow", _FakePlayerWindow)
+    open_source(1, media_source_video.pk)
+    open_source(2, media_source_video.pk)
+
+    controller = PlayerController()
+    controller.set_window_closed_callback(lambda: None)
+    controller.register_window(1, _FakePlayerWindow(1))
+    controller.register_window(2, _FakePlayerWindow(2))
+    controller._adapters[1] = _FakeAdapter(1)
+    controller._adapters[2] = _FakeAdapter(2)
+    controller._adapter_source_types[1] = "video"
+    controller._adapter_source_ids[1] = media_source_video.pk
+    controller._last_reported_states[1] = (PlaybackState.PLAYING, "", 0, 0, 1, 2)
+    controller._web_preheat_pool = _FakeWebPreheatPool()
+    monkeypatch.setattr(controller, "apply_current_layout", lambda: layout_applied.append(True))
+    monkeypatch.setattr(controller, "preheat_web_sources", lambda: preheated.append(True))
+
+    controller._handle_close(1, {RESET_ALL_WINDOWS_ARG: True})
+
+    assert closed_adapters == [1, 2]
+    assert preheat_pool_closed == [True]
+    assert closed_windows == [1, 2]
+    assert created_windows == [1, 2, 1, 2]
+    assert controller.registered_window_ids == [1, 2]
+    assert controller._adapter_source_types == {}
+    assert controller._adapter_source_ids == {}
+    assert controller._last_reported_states == {}
+    assert layout_applied == [True]
+    assert preheated == [True]
+    assert len(close_callbacks) == 4

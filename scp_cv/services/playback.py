@@ -48,10 +48,12 @@ from scp_cv.services.video_wall import VideoWallError, apply_big_screen_mode as 
 
 logger = logging.getLogger(__name__)
 
+RESET_ALL_WINDOWS_ARG = "reset_all_windows"
+
 
 def reset_all_sessions_to_idle() -> list[PlaybackSession]:
     """
-    将所有播放窗口重置为待机状态。
+    将所有播放窗口重置为待机状态，并请求播放器重建窗口。
     :return: 重置后的会话列表
     """
     reset_sessions: list[PlaybackSession] = []
@@ -61,7 +63,8 @@ def reset_all_sessions_to_idle() -> list[PlaybackSession]:
         session.save()
         reset_sessions.append(session)
     apply_runtime_audio_policy()
-    logger.info("已将所有窗口重置为待机状态")
+    _request_player_windows_rebuild()
+    logger.info("已将所有窗口重置为待机状态，并请求播放器重建窗口")
     return reset_sessions
 
 
@@ -455,6 +458,18 @@ def select_display_target(
         window_id, session.get_display_mode_display(), session.target_display_label,
     )
     return session
+
+
+def _request_player_windows_rebuild() -> None:
+    """
+    请求播放器进程在主线程关闭并重建全部窗口。
+    :return: None
+    """
+    coordinator_window_id = min(VALID_WINDOW_IDS)
+    session = get_or_create_session(coordinator_window_id)
+    session.pending_command = PlaybackCommand.CLOSE
+    session.command_args = {RESET_ALL_WINDOWS_ARG: True}
+    session.save(update_fields=["pending_command", "command_args", "last_updated_at"])
 
 
 def _reset_playback_fields(session: PlaybackSession) -> None:
