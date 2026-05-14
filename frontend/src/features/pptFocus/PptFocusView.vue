@@ -18,6 +18,14 @@ import { api, buildBackendUrl, type PptMediaItem, type PptResourceItem } from '@
 import { useRuntimeStore } from '@/stores/runtime';
 import { useSessionStore } from '@/stores/sessions';
 
+import PptSlideRail from './PptSlideRail.vue';
+
+interface PptSlideRailItem {
+  pageIndex: number;
+  imageUrl: string;
+  hasMedia: boolean;
+}
+
 const route = useRoute();
 const router = useRouter();
 const { isLandscape } = useBreakpoint();
@@ -43,6 +51,16 @@ const slidesProgress = computed(() => ({
 
 const currentResource = computed(() =>
   resources.value.find((resource) => resource.page_index === (session.value?.current_slide ?? 1)),
+);
+
+const thumbnailItems = computed<PptSlideRailItem[]>(() =>
+  [...resources.value]
+    .sort((left, right) => left.page_index - right.page_index)
+    .map((resource) => ({
+      pageIndex: resource.page_index,
+      imageUrl: resource.slide_image ? buildBackendUrl(resource.slide_image) : '',
+      hasMedia: resource.has_media,
+    })),
 );
 
 const slideImage = computed(() => {
@@ -184,6 +202,15 @@ async function nav(action: 'prev' | 'next'): Promise<void> {
   }
 }
 
+async function jumpToSlide(pageIndex: number): Promise<void> {
+  if (!session.value || pageIndex === session.value.current_slide) return;
+  try {
+    await sessionStore.navigate(session.value.window_id, 'goto', pageIndex);
+  } catch (error) {
+    toast.error('跳页失败', error instanceof Error ? error.message : '请稍后重试');
+  }
+}
+
 async function controlSelectedMedia(action: 'play' | 'pause'): Promise<void> {
   if (!session.value || !selectedMedia.value) {
     if (currentMediaItems.value.length > 1) {
@@ -280,6 +307,14 @@ const windowMappingForExit = computed(() => {
 
       <template v-else>
         <div class="ppt-focus__layout">
+          <PptSlideRail
+            class="ppt-focus__slide-rail"
+            :items="thumbnailItems"
+            :current-page="slidesProgress.current"
+            :total-pages="slidesProgress.total"
+            @jump="jumpToSlide"
+          />
+
           <figure class="ppt-focus__current">
             <img v-if="slideImage" :src="slideImage" :alt="`Page ${slidesProgress.current}`" />
             <div v-else class="ppt-focus__current-fallback">

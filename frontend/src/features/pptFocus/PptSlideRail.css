@@ -1,0 +1,163 @@
+/*
+ * PPT 专注页左侧缩略图栏样式。
+ * 独立拆分是为了避免主专注页样式文件继续膨胀。
+ */
+.ppt-slide-rail {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-s);
+  padding: var(--spacing-s);
+  background: var(--ppt-focus-panel-bg);
+  border: 1px solid var(--ppt-focus-panel-border);
+  border-radius: var(--radius-large);
+  box-shadow: var(--ppt-focus-panel-shadow);
+  animation: f-rise var(--motion-duration-entrance) var(--motion-curve-emphasized) both;
+}
+
+.ppt-slide-rail__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-xs);
+  min-height: 28px;
+  padding: 0 var(--spacing-xs);
+  color: var(--color-text-secondary);
+}
+
+.ppt-slide-rail__title {
+  font-size: var(--type-caption1-size);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ppt-slide-rail__count {
+  color: var(--color-text-tertiary);
+  font-size: var(--type-caption1-size);
+  font-variant-numeric: tabular-nums;
+}
+
+.ppt-slide-rail__list {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.ppt-slide-rail__item {
+  display: grid;
+  grid-template-rows: auto 24px;
+  gap: 4px;
+  width: 100%;
+  padding: 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-medium);
+  background: color-mix(in srgb, var(--color-text-primary) 4%, transparent);
+  color: var(--color-text-secondary);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-duration-medium) var(--motion-curve-ease),
+    border-color var(--motion-duration-medium) var(--motion-curve-ease),
+    box-shadow var(--motion-duration-medium) var(--motion-curve-ease),
+    transform var(--motion-duration-fast) var(--motion-curve-ease);
+}
+
+.ppt-slide-rail__item:hover {
+  background: color-mix(in srgb, var(--color-text-primary) 8%, transparent);
+  border-color: color-mix(in srgb, var(--color-border-default) 64%, transparent);
+  transform: translateY(var(--motion-hover-lift));
+}
+
+.ppt-slide-rail__item:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+  box-shadow: var(--shadow-focus);
+}
+
+.ppt-slide-rail__item--active {
+  background: color-mix(in srgb, var(--color-background-brand) 22%, transparent);
+  border-color: color-mix(in srgb, var(--color-background-brand) 78%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-background-brand) 28%, transparent),
+    0 10px 28px color-mix(in srgb, var(--color-background-brand) 20%, transparent);
+  color: var(--color-text-primary);
+}
+
+.ppt-slide-rail__thumb {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: calc(var(--radius-medium) - 2px);
+  background: color-mix(in srgb, var(--color-background-inverse) 88%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-border-subtle) 72%, transparent);
+}
+
+.ppt-slide-rail__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ppt-slide-rail__fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--color-text-tertiary);
+  background: linear-gradient(135deg,
+      color-mix(in srgb, var(--color-background-brand) 18%, transparent),
+      color-mix(in srgb, var(--color-status-success-foreground) 10%, transparent));
+}
+
+.ppt-slide-rail__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-xs);
+  min-width: 0;
+}
+
+.ppt-slide-rail__page {
+  font-size: var(--type-caption1-size);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.ppt-slide-rail__media {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-circular);
+  background: var(--color-status-success-foreground);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-status-success-foreground) 18%, transparent);
+}
+
+.ppt-slide-rail__empty {
+  margin: var(--spacing-m) 0 0;
+  color: var(--color-text-tertiary);
+  font-size: var(--type-caption1-size);
+  text-align: center;
+}
+
+@media (hover: none) {
+  .ppt-slide-rail__item:hover {
+    background: color-mix(in srgb, var(--color-text-primary) 4%, transparent);
+    border-color: transparent;
+    transform: none;
+  }
+
+  .ppt-slide-rail__item--active:hover {
+    background: color-mix(in srgb, var(--color-background-brand) 22%, transparent);
+    border-color: color-mix(in srgb, var(--color-background-brand) 78%, transparent);
+  }
+}

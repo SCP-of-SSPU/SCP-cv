@@ -110,13 +110,17 @@
 .ppt-focus__layout {
   flex: 1 1 auto;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  grid-template-columns: minmax(136px, 168px) minmax(0, 1fr) minmax(300px, 360px);
   gap: var(--spacing-l);
   min-height: 0;
 }
 
 .ppt-focus__stage[data-orientation='portrait'] .ppt-focus__layout {
   grid-template-columns: 1fr;
+}
+
+.ppt-focus__stage[data-orientation='portrait'] .ppt-focus__slide-rail {
+  display: none;
 }
 
 .ppt-focus__current,
@@ -351,7 +355,7 @@
 
 @media (max-width: 1199px) {
   .ppt-focus__layout {
-    grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);
+    grid-template-columns: minmax(128px, 148px) minmax(0, 1fr) minmax(280px, 320px);
   }
 
   .ppt-focus__controls {
@@ -362,6 +366,10 @@
 @media (max-width: 1023px) {
   .ppt-focus__layout {
     grid-template-columns: 1fr;
+  }
+
+  .ppt-focus__slide-rail {
+    display: none;
   }
 
   .ppt-focus__side {
