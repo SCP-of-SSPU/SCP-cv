@@ -2,7 +2,7 @@
   "name": "scp-cv-frontend",
   "version": "1.0.0",
   "private": true,
-  "license": "MIT",
+  "license": "Artistic-2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

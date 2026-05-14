@@ -9,7 +9,8 @@ SCP-cv 是用于控制 **上海第二工业大学 28#108 多媒体显示系统**
 | 开发者 | Qintsg（饶弘玮，上海第二工业大学 25网工A2） |
 | 单位 | 上海第二工业大学 / 计算机与信息工程学院 / SSPU AI-Lab / 超级棒棒糖 |
 | 应用地点 | 上海第二工业大学 28#108 |
-| 许可证 | MIT |
+| 许可证 | Artistic-2.0 |
+| 镜像仓库 | `http://git.bbt.sspu.edu.cn/Qintsg/scp-cv`（仅作为同步镜像，不作为主开发入口） |
 
 ## 核心能力
 
@@ -177,4 +178,4 @@ npm --prefix frontend run build
 
 ## 许可证
 
-本项目使用 MIT License，详见 [LICENSE](LICENSE)。
+本项目主代码使用 Artistic License 2.0，详见 [LICENSE](LICENSE)。第三方运行时与依赖遵循其各自许可证。
