@@ -164,6 +164,7 @@ cython_debug/
 
 # Local agent artifacts
 AGENTS.md
+CLAUDE.md
 DESIGN.md
 AGENT_TODO.md
 .claude/
