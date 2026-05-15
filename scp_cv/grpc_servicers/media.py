@@ -18,6 +18,7 @@ from scp_cv.services.media import (
     add_web_url,
     delete_media_source,
     list_media_sources,
+    update_source,
 )
 from scp_cv.services.playback import (
     PlaybackError,
@@ -28,6 +29,7 @@ from scp_cv.services.playback import (
 from .helpers import (
     _error_reply,
     _extract_window_id,
+    _media_source_model_to_proto,
     _publish_playback_state_event,
     _source_to_proto,
     _success_reply,
@@ -120,25 +122,19 @@ class MediaSourceServicerMixin:
 
         display_name = request.name.strip() or None
         source_type = request.source_type.strip() or None
+        folder_id = int(request.folder_id) if request.HasField("folder_id") else None
 
         try:
             media_source = add_local_path(
-                local_path, display_name=display_name, source_type=source_type,
-            )
-            source_item = control_pb2.SourceItem(
-                id=media_source.pk,
-                source_type=media_source.source_type,
-                name=media_source.name,
-                uri=media_source.uri,
-                is_available=media_source.is_available,
-                stream_identifier=media_source.stream_identifier or "",
-                created_at=(
-                    media_source.created_at.isoformat()
-                    if media_source.created_at else ""
-                ),
+                local_path,
+                display_name=display_name,
+                source_type=source_type,
+                folder_id=folder_id,
             )
             return control_pb2.SourceReply(
-                success=True, message="添加成功", source=source_item,
+                success=True,
+                message="添加成功",
+                source=_media_source_model_to_proto(media_source),
             )
         except MediaError as media_err:
             return control_pb2.SourceReply(success=False, message=str(media_err))
@@ -159,23 +155,77 @@ class MediaSourceServicerMixin:
             return control_pb2.SourceReply(success=False, message="url 不能为空")
 
         display_name = request.name.strip() or None
+        folder_id = int(request.folder_id) if request.HasField("folder_id") else None
+        preheat_enabled = (
+            request.preheat_enabled
+            if request.HasField("preheat_enabled")
+            else True
+        )
+        keep_alive = (
+            request.keep_alive
+            if not request.HasField("preheat_enabled")
+            and request.HasField("keep_alive")
+            else None
+        )
 
         try:
-            media_source = add_web_url(web_url, display_name=display_name)
-            source_item = control_pb2.SourceItem(
-                id=media_source.pk,
-                source_type=media_source.source_type,
-                name=media_source.name,
-                uri=media_source.uri,
-                is_available=media_source.is_available,
-                stream_identifier=media_source.stream_identifier or "",
-                created_at=(
-                    media_source.created_at.isoformat()
-                    if media_source.created_at else ""
-                ),
+            media_source = add_web_url(
+                web_url,
+                display_name=display_name,
+                folder_id=folder_id,
+                preheat_enabled=preheat_enabled,
+                keep_alive=keep_alive,
             )
             return control_pb2.SourceReply(
-                success=True, message="添加成功", source=source_item,
+                success=True,
+                message="添加成功",
+                source=_media_source_model_to_proto(media_source),
+            )
+        except MediaError as media_err:
+            return control_pb2.SourceReply(success=False, message=str(media_err))
+
+    def UpdateSource(
+        self,
+        request: control_pb2.UpdateSourceRequest,
+        context: grpc.ServicerContext,
+    ) -> control_pb2.SourceReply:
+        """
+        更新媒体源的安全可编辑字段。
+        :param request: UpdateSourceRequest（media_source_id, name, uri, preheat_enabled）
+        :param context: gRPC 服务上下文
+        :return: SourceReply
+        """
+        if request.media_source_id <= 0:
+            return control_pb2.SourceReply(
+                success=False, message="media_source_id 必须大于 0",
+            )
+
+        source_name = request.name if request.HasField("name") else None
+        source_uri = request.uri if request.HasField("uri") else None
+        preheat_enabled = (
+            request.preheat_enabled
+            if request.HasField("preheat_enabled")
+            else None
+        )
+        keep_alive = (
+            request.keep_alive
+            if not request.HasField("preheat_enabled")
+            and request.HasField("keep_alive")
+            else None
+        )
+
+        try:
+            media_source = update_source(
+                source_id=int(request.media_source_id),
+                name=source_name,
+                uri=source_uri,
+                preheat_enabled=preheat_enabled,
+                keep_alive=keep_alive,
+            )
+            return control_pb2.SourceReply(
+                success=True,
+                message="媒体源已更新",
+                source=_media_source_model_to_proto(media_source),
             )
         except MediaError as media_err:
             return control_pb2.SourceReply(success=False, message=str(media_err))

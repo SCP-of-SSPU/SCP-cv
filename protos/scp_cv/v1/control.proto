@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package scp_cv.v1;
 
+import "google/protobuf/struct.proto";
+
 // ──────────────────────────────────────────────────────────────
 // PlaybackControlService — SCP-cv 统一播放控制 gRPC 服务
 //
@@ -72,6 +74,9 @@ service PlaybackControlService {
 
   // 通过 URL 添加网页类型媒体源。
   rpc AddWebUrlSource(AddWebUrlSourceRequest) returns (SourceReply);
+
+  // 更新媒体源可编辑字段（名称、网页 URL、预热开关）。
+  rpc UpdateSource(UpdateSourceRequest) returns (SourceReply);
 
   // 删除指定媒体源。
   rpc DeleteSource(DeleteSourceRequest) returns (OperationReply);
@@ -290,6 +295,19 @@ message SourceItem {
   bool is_available = 5;        // 是否可用
   string stream_identifier = 6; // 流标识符（仅流类型有值）
   string created_at = 7;        // 创建时间 ISO 格式
+  int64 folder_id = 8;          // 所属文件夹 ID（0 表示根目录）
+  string original_filename = 9; // 原始文件名
+  int64 file_size = 10;         // 文件大小（字节）
+  string mime_type = 11;        // MIME 类型
+  bool is_temporary = 12;       // 是否为临时源
+  string expires_at = 13;       // 临时源过期时间 ISO 格式
+  google.protobuf.Struct metadata = 14; // 源扩展元数据
+  bool keep_alive = 15;         // 网页源是否保持活跃
+  bool preheat_enabled = 16;    // 网页源是否启用预热
+  string preview_url = 17;      // 预览资源 URL
+  string thumbnail_url = 18;    // 缩略图 URL
+  string preview_kind = 19;     // 预览类型（image / video / icon）
+  string preview_label = 20;    // 预览兜底标签
 }
 
 // 媒体源列表响应（ListSources）。
@@ -303,12 +321,16 @@ message AddLocalPathSourceRequest {
   string path = 1;           // 本地文件绝对路径（必填）
   string name = 2;           // 显示名称（可选，默认用文件名）
   string source_type = 3;    // 源类型（可选，默认自动检测）
+  optional int64 folder_id = 4; // 所属文件夹 ID（可选）
 }
 
 // 通过 URL 添加网页媒体源请求（AddWebUrlSource）。
 message AddWebUrlSourceRequest {
   string url = 1;            // 网页 URL（必填）
   string name = 2;           // 显示名称（可选，默认用 URL）
+  optional bool preheat_enabled = 3; // 是否启用网页预热（可选，默认 true）
+  optional bool keep_alive = 4;      // 旧字段兼容；preheat_enabled 优先
+  optional int64 folder_id = 5;      // 所属文件夹 ID（可选）
 }
 
 // 媒体源操作响应（AddLocalPathSource、AddWebUrlSource）。
@@ -316,6 +338,15 @@ message SourceReply {
   bool success = 1;
   string message = 2;
   SourceItem source = 3;     // 创建成功的源信息
+}
+
+// 更新媒体源请求（UpdateSource）。
+message UpdateSourceRequest {
+  int64 media_source_id = 1;       // 要更新的 MediaSource 主键
+  optional string name = 2;        // 新显示名称；未传则不修改
+  optional string uri = 3;         // 新 URI；仅网页源可修改
+  optional bool preheat_enabled = 4; // 是否启用网页预热；未传则不修改
+  optional bool keep_alive = 5;      // 旧字段兼容；preheat_enabled 优先
 }
 
 // 删除媒体源请求（DeleteSource）。

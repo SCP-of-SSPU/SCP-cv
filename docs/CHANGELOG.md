@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 2026-05-15
+
+### 完善 gRPC 媒体源接口与状态端点
+
+- gRPC：`SourceItem` 补齐 REST 媒体源 payload 中的文件属性、预热开关、预览信息和结构化 `metadata` 字段，`ListSources`、本地路径新增和网页新增统一复用同一套序列化。
+- gRPC：新增 `UpdateSource`，支持安全更新媒体源名称、网页 URL 和网页预热开关；请求使用 proto3 optional presence，未传字段不会覆盖原值。
+- 状态查询：`GetRuntimeStatus.grpc_endpoint` 不再返回 `0.0.0.0:<port>` 或 `::<port>` 这类不可连接地址，wildcard 监听会展示为 `127.0.0.1:<port>`。
+- 测试：补充媒体源更新服务测试、gRPC 扩展字段测试、非法 source_id 失败路径和真实 channel 的 create/list/update 往返验证。
+
 ## 2026-05-14
 
 ### 增强 PPT 专注模式缩略图跳页

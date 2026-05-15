@@ -13,6 +13,8 @@ import json
 import logging
 from typing import Any
 
+from google.protobuf import struct_pb2
+
 from scp_cv.grpc_generated.scp_cv.v1 import control_pb2
 
 logger = logging.getLogger(__name__)
@@ -106,6 +108,8 @@ def _source_to_proto(source_dict: dict[str, Any]) -> control_pb2.SourceItem:
     :param source_dict: list_media_sources() 返回的字典元素
     :return: proto SourceItem 实例
     """
+    metadata = struct_pb2.Struct()
+    metadata.update(dict(source_dict.get("metadata") or {}))
     return control_pb2.SourceItem(
         id=int(source_dict["id"]),
         source_type=str(source_dict["source_type"]),
@@ -114,7 +118,32 @@ def _source_to_proto(source_dict: dict[str, Any]) -> control_pb2.SourceItem:
         is_available=bool(source_dict["is_available"]),
         stream_identifier=str(source_dict.get("stream_identifier", "") or ""),
         created_at=str(source_dict.get("created_at", "")),
+        folder_id=int(source_dict.get("folder_id") or 0),
+        original_filename=str(source_dict.get("original_filename", "") or ""),
+        file_size=int(source_dict.get("file_size") or 0),
+        mime_type=str(source_dict.get("mime_type", "") or ""),
+        is_temporary=bool(source_dict.get("is_temporary", False)),
+        expires_at=str(source_dict.get("expires_at", "") or ""),
+        metadata=metadata,
+        keep_alive=bool(source_dict.get("keep_alive", True)),
+        preheat_enabled=bool(source_dict.get("preheat_enabled", True)),
+        preview_url=str(source_dict.get("preview_url", "") or ""),
+        thumbnail_url=str(source_dict.get("thumbnail_url", "") or ""),
+        preview_kind=str(source_dict.get("preview_kind", "") or ""),
+        preview_label=str(source_dict.get("preview_label", "") or ""),
     )
+
+
+def _media_source_model_to_proto(media_source: Any) -> control_pb2.SourceItem:
+    """
+    将 MediaSource 模型实例转换为 proto SourceItem 消息。
+    复用 REST 侧共享 payload，保证 gRPC 新增字段与控制台字段保持一致。
+    :param media_source: MediaSource 模型实例
+    :return: proto SourceItem 实例
+    """
+    from scp_cv.services.media import media_source_payload
+
+    return _source_to_proto(media_source_payload(media_source))
 
 
 def _session_snapshot_signature(snapshots: list[dict[str, Any]]) -> str:

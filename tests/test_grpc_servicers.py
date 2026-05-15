@@ -12,12 +12,13 @@ from __future__ import annotations
 
 from collections.abc import Generator
 from concurrent import futures
+from pathlib import Path
 from unittest.mock import patch
 
 import grpc
 import pytest
 
-from scp_cv.apps.playback.models import MediaSource, PlaybackState
+from scp_cv.apps.playback.models import MediaSource, PlaybackState, SourceType
 from scp_cv.grpc_generated.scp_cv.v1 import control_pb2
 from scp_cv.grpc_generated.scp_cv.v1 import control_pb2_grpc
 from scp_cv.grpc_servicers import PlaybackControlServicer
@@ -135,3 +136,135 @@ def test_grpc_display_rpc_uses_display_targets() -> None:
         response = servicer.ListDisplayTargets(control_pb2.EmptyRequest(), None)
 
     assert response.targets[0].name == "Display 1"
+
+
+@pytest.mark.django_db
+def test_list_sources_returns_extended_payload(
+    media_source_ppt: MediaSource,
+) -> None:
+    """ListSources 应返回与 REST 源 payload 对齐的扩展字段。"""
+    media_source_ppt.metadata = {"total_slides": 3}
+    media_source_ppt.original_filename = "demo.pptx"
+    media_source_ppt.file_size = 4096
+    media_source_ppt.mime_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    media_source_ppt.save(update_fields=[
+        "metadata",
+        "original_filename",
+        "file_size",
+        "mime_type",
+    ])
+    servicer = PlaybackControlServicer()
+
+    response = servicer.ListSources(
+        control_pb2.ListSourcesRequest(source_type=SourceType.PPT),
+        None,
+    )
+
+    assert response.success is True
+    assert len(response.sources) == 1
+    source = response.sources[0]
+    assert source.id == media_source_ppt.pk
+    assert source.original_filename == "demo.pptx"
+    assert source.file_size == 4096
+    assert source.metadata.fields["total_slides"].number_value == 3
+    assert source.preheat_enabled is True
+
+
+@pytest.mark.django_db
+def test_add_web_url_source_returns_preheat_and_preview_fields() -> None:
+    """AddWebUrlSource 应返回完整 SourceItem，并尊重新预热字段。"""
+    servicer = PlaybackControlServicer()
+
+    response = servicer.AddWebUrlSource(
+        control_pb2.AddWebUrlSourceRequest(
+            url="panel.local",
+            name="现场面板",
+            preheat_enabled=False,
+        ),
+        None,
+    )
+
+    assert response.success is True
+    assert response.source.name == "现场面板"
+    assert response.source.uri == "http://panel.local"
+    assert response.source.source_type == SourceType.WEB
+    assert response.source.keep_alive is False
+    assert response.source.preheat_enabled is False
+    assert response.source.preview_kind
+
+
+@pytest.mark.django_db
+def test_update_source_updates_web_source_and_rejects_invalid_id() -> None:
+    """UpdateSource 应支持部分更新，并稳定拒绝非法 source_id。"""
+    servicer = PlaybackControlServicer()
+    create_response = servicer.AddWebUrlSource(
+        control_pb2.AddWebUrlSourceRequest(url="old.local", name="旧面板"),
+        None,
+    )
+
+    invalid_response = servicer.UpdateSource(
+        control_pb2.UpdateSourceRequest(media_source_id=0, name="无效"),
+        None,
+    )
+    update_response = servicer.UpdateSource(
+        control_pb2.UpdateSourceRequest(
+            media_source_id=create_response.source.id,
+            name="新面板",
+            uri="new.local:9000",
+            preheat_enabled=False,
+        ),
+        None,
+    )
+
+    assert invalid_response.success is False
+    assert "media_source_id" in invalid_response.message
+    assert update_response.success is True
+    assert update_response.source.name == "新面板"
+    assert update_response.source.uri == "http://new.local:9000"
+    assert update_response.source.preheat_enabled is False
+
+
+@pytest.mark.django_db
+def test_runtime_status_endpoint_uses_client_visible_host(settings) -> None:
+    """GetRuntimeStatus 不应返回不可连接的 wildcard 监听地址。"""
+    settings.GRPC_HOST = "0.0.0.0"
+    settings.GRPC_PORT = 50051
+    servicer = PlaybackControlServicer()
+
+    response = servicer.GetRuntimeStatus(control_pb2.WindowRequest(window_id=1), None)
+
+    assert response.grpc_endpoint == "127.0.0.1:50051"
+
+
+@pytest.mark.django_db(transaction=True)
+def test_grpc_real_channel_source_create_list_update(tmp_path: Path) -> None:
+    """真实 channel 应支持媒体源 create/list/update 完整往返。"""
+    local_file = tmp_path / "channel-video.mp4"
+    local_file.write_bytes(b"fake-video")
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=2))
+    control_pb2_grpc.add_PlaybackControlServiceServicer_to_server(
+        PlaybackControlServicer(), server,
+    )
+    port = server.add_insecure_port("127.0.0.1:0")
+    server.start()
+
+    try:
+        with grpc.insecure_channel(f"127.0.0.1:{port}") as channel:
+            stub = control_pb2_grpc.PlaybackControlServiceStub(channel)
+            add_reply = stub.AddLocalPathSource(control_pb2.AddLocalPathSourceRequest(
+                path=str(local_file),
+                name="Channel Video",
+            ))
+            list_reply = stub.ListSources(control_pb2.ListSourcesRequest(source_type=SourceType.VIDEO))
+            update_reply = stub.UpdateSource(control_pb2.UpdateSourceRequest(
+                media_source_id=add_reply.source.id,
+                name="Updated Channel Video",
+            ))
+
+        assert add_reply.success is True
+        assert add_reply.source.original_filename == "channel-video.mp4"
+        assert any(source.id == add_reply.source.id for source in list_reply.sources)
+        assert update_reply.success is True
+        assert update_reply.source.name == "Updated Channel Video"
+    finally:
+        server.stop(grace=0)

@@ -102,6 +102,11 @@ class PlaybackControlServiceStub(object):
                 request_serializer=scp__cv_dot_v1_dot_control__pb2.AddWebUrlSourceRequest.SerializeToString,
                 response_deserializer=scp__cv_dot_v1_dot_control__pb2.SourceReply.FromString,
                 _registered_method=True)
+        self.UpdateSource = channel.unary_unary(
+                '/scp_cv.v1.PlaybackControlService/UpdateSource',
+                request_serializer=scp__cv_dot_v1_dot_control__pb2.UpdateSourceRequest.SerializeToString,
+                response_deserializer=scp__cv_dot_v1_dot_control__pb2.SourceReply.FromString,
+                _registered_method=True)
         self.DeleteSource = channel.unary_unary(
                 '/scp_cv.v1.PlaybackControlService/DeleteSource',
                 request_serializer=scp__cv_dot_v1_dot_control__pb2.DeleteSourceRequest.SerializeToString,
@@ -280,6 +285,13 @@ class PlaybackControlServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def UpdateSource(self, request, context):
+        """更新媒体源可编辑字段（名称、网页 URL、预热开关）。
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def DeleteSource(self, request, context):
         """删除指定媒体源。
         """
@@ -430,6 +442,11 @@ def add_PlaybackControlServiceServicer_to_server(servicer, server):
             'AddWebUrlSource': grpc.unary_unary_rpc_method_handler(
                     servicer.AddWebUrlSource,
                     request_deserializer=scp__cv_dot_v1_dot_control__pb2.AddWebUrlSourceRequest.FromString,
+                    response_serializer=scp__cv_dot_v1_dot_control__pb2.SourceReply.SerializeToString,
+            ),
+            'UpdateSource': grpc.unary_unary_rpc_method_handler(
+                    servicer.UpdateSource,
+                    request_deserializer=scp__cv_dot_v1_dot_control__pb2.UpdateSourceRequest.FromString,
                     response_serializer=scp__cv_dot_v1_dot_control__pb2.SourceReply.SerializeToString,
             ),
             'DeleteSource': grpc.unary_unary_rpc_method_handler(
@@ -802,6 +819,33 @@ class PlaybackControlService(object):
             target,
             '/scp_cv.v1.PlaybackControlService/AddWebUrlSource',
             scp__cv_dot_v1_dot_control__pb2.AddWebUrlSourceRequest.SerializeToString,
+            scp__cv_dot_v1_dot_control__pb2.SourceReply.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def UpdateSource(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/scp_cv.v1.PlaybackControlService/UpdateSource',
+            scp__cv_dot_v1_dot_control__pb2.UpdateSourceRequest.SerializeToString,
             scp__cv_dot_v1_dot_control__pb2.SourceReply.FromString,
             options,
             channel_credentials,

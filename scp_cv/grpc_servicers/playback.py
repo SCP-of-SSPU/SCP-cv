@@ -102,6 +102,7 @@ class PlaybackControlMixin:
         """
         window_id = _extract_window_id(request)
         snapshot = get_session_snapshot(window_id)
+        grpc_host: str = getattr(settings, "GRPC_HOST", "127.0.0.1")
         grpc_port: int = getattr(settings, "GRPC_PORT", 50051)
         is_debug: bool = getattr(settings, "DEBUG", False)
 
@@ -110,7 +111,7 @@ class PlaybackControlMixin:
             source_name=str(snapshot["source_name"]),
             playback_state=str(snapshot["playback_state"]),
             display_mode=str(snapshot["display_mode"]),
-            grpc_endpoint=f"0.0.0.0:{grpc_port}",
+            grpc_endpoint=f"{_client_visible_grpc_host(grpc_host)}:{grpc_port}",
             debug_mode=is_debug,
         )
 
@@ -222,3 +223,15 @@ class PlaybackControlMixin:
             success=True,
             sessions=session_protos,
         )
+
+
+def _client_visible_grpc_host(configured_host: str) -> str:
+    """
+    将监听地址转换为客户端可直接连接的展示地址。
+    :param configured_host: settings.GRPC_HOST 中的监听主机
+    :return: 可用于客户端连接的主机名
+    """
+    normalized_host = configured_host.strip() or "127.0.0.1"
+    if normalized_host in {"0.0.0.0", "::"}:
+        return "127.0.0.1"
+    return normalized_host
