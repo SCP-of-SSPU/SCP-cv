@@ -75,9 +75,9 @@
 }
 
 .ppt-slide-rail__item:focus-visible {
-  outline: 2px solid var(--colorBrandStroke1);
+  /* --shadow-focus 与 outline 同色同位会产生双圈，这里只保留 outline。 */
+  outline: var(--strokeWidthThick) solid var(--colorBrandStroke1);
   outline-offset: 2px;
-  box-shadow: var(--shadow-focus);
 }
 
 .ppt-slide-rail__item--active {

@@ -77,7 +77,17 @@ function requestJump(pageIndex: number): void {
         @click="requestJump(item.pageIndex)"
       >
         <span class="ppt-slide-rail__thumb">
-          <img v-if="item.imageUrl" :src="item.imageUrl" :alt="t('pptRail.pagePreview', { n: item.pageIndex })" />
+          <!--
+            PPT 可能有几十/上百页，缩略图统一 lazy 加载，避免首屏一次性发起
+            大量请求；同时 decoding="async" 让解码不阻塞主线程。
+          -->
+          <img
+            v-if="item.imageUrl"
+            :src="item.imageUrl"
+            :alt="t('pptRail.pagePreview', { n: item.pageIndex })"
+            loading="lazy"
+            decoding="async"
+          />
           <span v-else class="ppt-slide-rail__fallback">
             <FIcon name="document_24_regular" />
           </span>

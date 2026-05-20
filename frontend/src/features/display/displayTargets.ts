@@ -30,3 +30,13 @@ export const DISPLAY_TARGETS: DisplayTargetMeta[] = [
 export function resolveDisplayTarget(param: string): DisplayTargetMeta | undefined {
   return DISPLAY_TARGETS.find((target) => target.param === param);
 }
+
+/**
+ * 通过窗口 id 反查路由 param。
+ * 未匹配时回退到大屏左（windowId=1），保证导航链路始终可用。
+ * @param windowId 窗口 id（1–4）
+ * @return 对应的路由 :target 片段
+ */
+export function windowIdToSlug(windowId: number): string {
+  return DISPLAY_TARGETS.find((target) => target.windowId === windowId)?.param ?? 'big-left';
+}

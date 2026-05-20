@@ -14,12 +14,18 @@ import {
   FTag,
 } from '@/design-system';
 import { useBreakpoint } from '@/composables/useBreakpoint';
+import { useTheme, type ThemeMode } from '@/composables/useTheme';
 import { useToast } from '@/composables/useToast';
 import { api, buildBackendUrl, type PptMediaItem, type PptResourceItem } from '@/services/api';
 import { useRuntimeStore } from '@/stores/runtime';
 import { useSessionStore } from '@/stores/sessions';
+import { windowIdToSlug } from '@/features/display/displayTargets';
 
 import PptSlideRail from './PptSlideRail.vue';
+import { sanitizeSpeakerNotes } from './speakerNotes';
+
+type KnownMediaType = 'audio' | 'video' | 'image';
+const KNOWN_MEDIA_TYPES = new Set<KnownMediaType>(['audio', 'video', 'image']);
 
 interface PptSlideRailItem {
   pageIndex: number;
@@ -34,14 +40,15 @@ const { isLandscape } = useBreakpoint();
 const runtimeStore = useRuntimeStore();
 const sessionStore = useSessionStore();
 const toast = useToast();
+const { pushOverride, popOverride } = useTheme();
 
 const isFullscreen = ref(false);
 const resources = ref<PptResourceItem[]>([]);
 const loadError = ref('');
 const isLoading = ref(false);
 const selectedMediaKey = ref<string | null>(null);
-let previousRootTheme: string | null = null;
-let rootThemeApplied = false;
+// 进入 focus 前的主题，仅用于诊断；真正恢复由 popOverride 完成。
+const _restoreTheme = ref<ThemeMode | null>(null);
 
 const windowId = computed(() => Number.parseInt(String(route.params.windowId ?? '0'), 10));
 const session = computed(() => sessionStore.byWindowId(windowId.value));
@@ -88,9 +95,15 @@ const currentMediaOptions = computed(() =>
   currentMediaItems.value.map((media) => ({
     value: mediaSelectionValue(media),
     label: media.name || t('pptFocus.mediaFallback', { n: media.media_index }),
-    hint: media.media_type === 'audio' ? t('pptFocus.audio') : media.media_type === 'video' ? t('pptFocus.video') : media.media_type,
+    hint: mediaTypeHint(media.media_type),
   })),
 );
+
+function mediaTypeHint(rawType: string): string {
+  const key = rawType?.toLowerCase() as KnownMediaType;
+  if (KNOWN_MEDIA_TYPES.has(key)) return t(`pptFocus.mediaType.${key}`);
+  return t('pptFocus.mediaType.other');
+}
 
 const selectedMedia = computed(() =>
   currentMediaItems.value.find((media) => mediaSelectionValue(media) === selectedMediaKey.value) ?? null,
@@ -140,26 +153,15 @@ watch(currentMediaItems, (items) => {
 
 watch(pptSourceId, loadResources, { immediate: true });
 
-function applyFocusTheme(): void {
-  const root = document.documentElement;
-  previousRootTheme = root.getAttribute('data-theme');
-  root.setAttribute('data-theme', 'dark');
-  rootThemeApplied = true;
-}
-
-function restoreFocusTheme(): void {
-  if (!rootThemeApplied) return;
-  const root = document.documentElement;
-  if (previousRootTheme) {
-    root.setAttribute('data-theme', previousRootTheme);
-  } else {
-    root.removeAttribute('data-theme');
-  }
-  rootThemeApplied = false;
+function syncFullscreen(): void {
+  isFullscreen.value = !!document.fullscreenElement;
 }
 
 onMounted(() => {
-  applyFocusTheme();
+  // 进入专注页：用 useTheme 的 override 通道临时锁定 dark，
+  // 不污染 localStorage；退出时 popOverride 立即回到用户偏好。
+  pushOverride('dark');
+  document.addEventListener('fullscreenchange', syncFullscreen);
   void sessionStore.refresh();
   if (!runtimeStore.runtime) {
     void runtimeStore.refresh().catch(() => undefined);
@@ -167,32 +169,12 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
-  restoreFocusTheme();
+  popOverride();
+  document.removeEventListener('fullscreenchange', syncFullscreen);
 });
 
 function mediaSelectionValue(media: PptMediaItem): string {
   return `${media.id}:${media.media_index}`;
-}
-
-function sanitizeSpeakerNotes(notes: string, currentPage: number, totalPages: number): string {
-  if (!notes.trim()) return '';
-  const lines = notes.replace(/\r/g, '').split('\n');
-  while (lines.length && !lines[lines.length - 1]?.trim()) {
-    lines.pop();
-  }
-  const lastLine = lines[lines.length - 1]?.trim() ?? '';
-  const normalizedLastLine = lastLine.toLowerCase().replace(/\s+/g, '');
-  const pageMarkers = new Set([
-    String(currentPage),
-    `第${currentPage}页`,
-    `page${currentPage}`,
-    totalPages > 0 ? `${currentPage}/${totalPages}` : '',
-    totalPages > 0 ? `page${currentPage}/${totalPages}` : '',
-  ].filter(Boolean).map((item) => item.toLowerCase().replace(/\s+/g, '')));
-  if (pageMarkers.has(normalizedLastLine)) {
-    lines.pop();
-  }
-  return lines.join('\n').trim();
 }
 
 async function loadResources(sourceId: number | null): Promise<void> {
@@ -258,39 +240,31 @@ async function controlSelectedMedia(action: 'play' | 'pause'): Promise<void> {
 }
 
 async function toggleFullscreen(): Promise<void> {
-  isFullscreen.value = !isFullscreen.value;
-  if (isFullscreen.value && document.documentElement.requestFullscreen) {
-    try {
+  // 实际状态由 fullscreenchange 监听器同步，这里只发起请求。
+  try {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+    } else if (document.documentElement.requestFullscreen) {
       await document.documentElement.requestFullscreen();
-    } catch {
-      isFullscreen.value = !!document.fullscreenElement;
     }
-  } else if (!isFullscreen.value && document.fullscreenElement) {
-    await document.exitFullscreen();
+  } catch {
+    // Safari 在某些容器上会拒绝退出全屏；忽略错误，依赖事件回填状态。
+    syncFullscreen();
   }
 }
 
 function exitFocus(): void {
-  void router.push(`/display/${windowMappingForExit.value}`);
+  void router.push(`/display/${windowIdToSlug(windowId.value)}`);
 }
-
-const windowMappingForExit = computed(() => {
-  switch (windowId.value) {
-    case 2:
-      return 'big-right';
-    case 3:
-      return 'tv-left';
-    case 4:
-      return 'tv-right';
-    case 1:
-    default:
-      return 'big-left';
-  }
-});
 </script>
 
 <template>
-  <div class="ppt-focus" data-theme="dark">
+  <!--
+    根容器不再写 data-theme="dark"：tokens.css 的 dark 块绑在 :root[data-theme='dark']，
+    放在子节点上对 CSS 变量无作用；真实主题切换由 useTheme().pushOverride('dark')
+    在 onMounted 中完成，退出时自动恢复。
+  -->
+  <div class="ppt-focus">
     <header class="ppt-focus__topbar">
       <FButton appearance="subtle" icon-start="arrow_left_24_regular" @click="exitFocus">
         {{ t('pptFocus.back') }}
@@ -334,7 +308,12 @@ const windowMappingForExit = computed(() => {
 
       <template v-else>
         <div class="ppt-focus__layout">
+          <!--
+            竖屏 (portrait) 时缩略图栏在视觉上隐藏，组件也不挂载，
+            避免后台仍然发起几十/上百张缩略图请求并占用 DOM。
+          -->
           <PptSlideRail
+            v-if="isLandscape"
             class="ppt-focus__slide-rail"
             :items="thumbnailItems"
             :current-page="slidesProgress.current"
@@ -359,8 +338,11 @@ const windowMappingForExit = computed(() => {
 
             <div class="ppt-focus__progress">
               <p class="ppt-focus__side-eyebrow">{{ t('pptFocus.progressEyebrow') }}</p>
-              <FProgress :value="slidesProgress.current" :max="slidesProgress.total || 1" show-label />
-              <p class="ppt-focus__progress-page">{{ t('pptFocus.progressPage', { current: slidesProgress.current, total: slidesProgress.total }) }}</p>
+              <template v-if="slidesProgress.total > 0">
+                <FProgress :value="slidesProgress.current" :max="slidesProgress.total" show-label />
+                <p class="ppt-focus__progress-page">{{ t('pptFocus.progressPage', { current: slidesProgress.current, total: slidesProgress.total }) }}</p>
+              </template>
+              <p v-else class="ppt-focus__progress-page">{{ t('pptFocus.progressUnknown') }}</p>
             </div>
 
             <section class="ppt-focus__teleprompter">
