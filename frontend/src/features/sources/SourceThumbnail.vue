@@ -53,10 +53,10 @@ function markFailed(): void {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-small);
-  background: var(--color-background-subtle);
+  border-radius: var(--borderRadiusSmall);
+  background: var(--colorNeutralBackground2);
   overflow: hidden;
-  box-shadow: inset 0 0 0 1px var(--color-border-subtle);
+  box-shadow: inset 0 0 0 1px var(--colorNeutralStroke2);
 }
 
 .source-thumbnail--compact {
@@ -91,6 +91,6 @@ function markFailed(): void {
 
 .source-thumbnail__icon {
   font-size: 1.375rem;
-  color: var(--color-text-secondary);
+  color: var(--colorNeutralForeground2);
 }
 </style>

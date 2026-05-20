@@ -22,9 +22,9 @@
   margin: 0 calc(-1 * var(--spacing-2xl));
   padding-left: var(--spacing-2xl);
   padding-right: var(--spacing-2xl);
-  background: color-mix(in srgb, var(--color-background-canvas) 86%, transparent);
+  background: color-mix(in srgb, var(--colorNeutralBackgroundCanvas) 86%, transparent);
   flex-wrap: wrap;
-  border-bottom: 1px solid color-mix(in srgb, var(--color-border-subtle) 60%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--colorNeutralStroke2) 60%, transparent);
   -webkit-backdrop-filter: blur(14px) saturate(1.1);
   backdrop-filter: blur(14px) saturate(1.1);
 }
@@ -37,15 +37,15 @@
 
 .sources-view__title {
   margin: 0;
-  font-size: var(--type-title2-size);
-  line-height: var(--type-title2-line);
+  font-size: var(--fontSizeHero700);
+  line-height: var(--lineHeightHero700);
   font-weight: 600;
 }
 
 .sources-view__caption {
   margin: 0;
-  font-size: var(--type-caption1-size);
-  color: var(--color-text-tertiary);
+  font-size: var(--fontSizeBase200);
+  color: var(--colorNeutralForeground3);
 }
 
 .sources-view__actions {
@@ -77,8 +77,8 @@
   gap: 2px;
   padding: var(--spacing-s);
   background: var(--color-background-card);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-large);
+  border: 1px solid var(--colorNeutralStroke2);
+  border-radius: var(--borderRadiusLarge);
   box-shadow: var(--shadow-card);
 }
 
@@ -89,10 +89,10 @@
   justify-content: space-between;
   gap: var(--spacing-s);
   padding: var(--spacing-s) var(--spacing-m);
-  border-radius: var(--radius-medium);
+  border-radius: var(--borderRadiusMedium);
   background: transparent;
   border: none;
-  color: var(--color-text-secondary);
+  color: var(--colorNeutralForeground2);
   font: inherit;
   cursor: pointer;
   transition:
@@ -103,22 +103,22 @@
 }
 
 .sources-view__nav-item:hover {
-  background: var(--color-background-subtle);
-  color: var(--color-text-primary);
+  background: var(--colorNeutralBackground2);
+  color: var(--colorNeutralForeground1);
   transform: translateX(2px);
 }
 
 .sources-view__nav-item:focus-visible {
   outline: none;
-  background: var(--color-background-subtle);
+  background: var(--colorNeutralBackground2);
   box-shadow: var(--shadow-focus);
 }
 
 .sources-view__nav-item--active {
-  background: var(--color-background-brand-selected);
-  color: var(--color-text-brand);
+  background: var(--colorBrandBackgroundSelected);
+  color: var(--colorBrandForeground1);
   font-weight: 600;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-background-brand) 18%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--colorBrandBackground) 18%, transparent);
 }
 
 .sources-view__nav-item::before {
@@ -128,8 +128,8 @@
   top: 50%;
   width: 3px;
   height: 0;
-  border-radius: var(--radius-circular);
-  background: var(--color-background-brand);
+  border-radius: var(--borderRadiusCircular);
+  background: var(--colorBrandBackground);
   transform: translateY(-50%);
   transition:
     height var(--motion-duration-medium) var(--motion-curve-emphasized),
@@ -145,12 +145,12 @@
 .sources-view__nav-badge {
   min-width: 24px;
   text-align: center;
-  font-size: var(--type-caption1-size);
-  color: var(--color-text-tertiary);
+  font-size: var(--fontSizeBase200);
+  color: var(--colorNeutralForeground3);
 }
 
 .sources-view__nav-item--active .sources-view__nav-badge {
-  color: var(--color-text-brand);
+  color: var(--colorBrandForeground1);
 }
 
 .sources-view__main {
@@ -174,14 +174,14 @@
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: var(--type-body1-size);
+  font-size: var(--fontSizeBase300);
 }
 
 .sources-view__table th,
 .sources-view__table td {
   text-align: left;
   padding: var(--spacing-m) var(--spacing-l);
-  border-bottom: 1px solid var(--color-border-subtle);
+  border-bottom: 1px solid var(--colorNeutralStroke2);
   vertical-align: middle;
 }
 
@@ -193,20 +193,20 @@
 }
 
 .sources-view__table tbody tr:hover {
-  background: color-mix(in srgb, var(--color-background-brand-selected) 56%, transparent);
-  box-shadow: inset 3px 0 0 var(--color-background-brand);
+  background: color-mix(in srgb, var(--colorBrandBackgroundSelected) 56%, transparent);
+  box-shadow: inset 3px 0 0 var(--colorBrandBackground);
 }
 
 .sources-view__table tbody tr:focus-within {
-  background: color-mix(in srgb, var(--color-background-brand-selected) 72%, transparent);
-  box-shadow: inset 3px 0 0 var(--color-background-brand), var(--shadow-focus);
+  background: color-mix(in srgb, var(--colorBrandBackgroundSelected) 72%, transparent);
+  box-shadow: inset 3px 0 0 var(--colorBrandBackground), var(--shadow-focus);
 }
 
 .sources-view__table th {
-  background: var(--color-background-subtle);
-  font-size: var(--type-caption1-size);
+  background: var(--colorNeutralBackground2);
+  font-size: var(--fontSizeBase200);
   font-weight: 600;
-  color: var(--color-text-tertiary);
+  color: var(--colorNeutralForeground3);
   position: sticky;
   top: 0;
   z-index: 1;
@@ -236,8 +236,8 @@
 
 .sources-view__uri {
   margin: 0;
-  font-size: var(--type-caption1-size);
-  color: var(--color-text-tertiary);
+  font-size: var(--fontSizeBase200);
+  color: var(--colorNeutralForeground3);
   max-width: 320px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -256,9 +256,9 @@
   position: sticky;
   top: 92px;
   z-index: var(--z-sticky);
-  background: color-mix(in srgb, var(--color-background-canvas) 86%, transparent);
+  background: color-mix(in srgb, var(--colorNeutralBackgroundCanvas) 86%, transparent);
   padding: var(--spacing-xs) 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--color-border-subtle) 60%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--colorNeutralStroke2) 60%, transparent);
   -webkit-backdrop-filter: blur(14px) saturate(1.1);
   backdrop-filter: blur(14px) saturate(1.1);
 }
@@ -288,8 +288,8 @@
   align-items: center;
   gap: var(--spacing-s);
   flex-wrap: wrap;
-  color: var(--color-text-secondary);
-  font-size: var(--type-caption1-size);
+  color: var(--colorNeutralForeground2);
+  font-size: var(--fontSizeBase200);
 }
 
 @media (max-width: 767px) {

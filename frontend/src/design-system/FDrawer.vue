@@ -158,8 +158,8 @@ function onOverlayClick(event: MouseEvent): void {
 .f-drawer__overlay {
   position: fixed;
   inset: 0;
-  background: var(--color-background-overlay);
-  z-index: var(--z-drawer);
+  background: var(--colorBackgroundOverlay);
+  z-index: var(--f-z-drawer);
   display: flex;
   align-items: stretch;
   justify-content: flex-end;
@@ -176,7 +176,7 @@ function onOverlayClick(event: MouseEvent): void {
 .f-drawer {
   position: relative;
   background: var(--color-background-card);
-  color: var(--color-text-primary);
+  color: var(--colorNeutralForeground1);
   display: flex;
   flex-direction: column;
   box-shadow: var(--shadow-modal);
@@ -188,7 +188,7 @@ function onOverlayClick(event: MouseEvent): void {
   width: 100%;
   height: auto;
   max-height: 88vh;
-  border-radius: var(--radius-xlarge) var(--radius-xlarge) 0 0;
+  border-radius: var(--borderRadiusXLarge) var(--borderRadiusXLarge) 0 0;
   padding-bottom: env(safe-area-inset-bottom);
 }
 
@@ -205,8 +205,8 @@ function onOverlayClick(event: MouseEvent): void {
   width: 36px;
   height: 4px;
   /* 把手在浅色背景上对比偏弱，提升到 strong border，并加 1 px 内描边形成可识别的轮廓。 */
-  background: var(--color-border-strong);
-  border-radius: var(--radius-circular);
+  background: var(--colorNeutralStroke1Hover);
+  border-radius: var(--borderRadiusCircular);
   margin: var(--spacing-s) auto 0;
   opacity: 0.7;
 }
@@ -217,7 +217,7 @@ function onOverlayClick(event: MouseEvent): void {
   justify-content: space-between;
   gap: var(--spacing-m);
   padding: var(--spacing-2xl) var(--spacing-2xl) var(--spacing-l);
-  border-bottom: 1px solid var(--color-border-subtle);
+  border-bottom: 1px solid var(--colorNeutralStroke2);
 }
 
 .f-drawer__heading {
@@ -229,25 +229,25 @@ function onOverlayClick(event: MouseEvent): void {
 
 .f-drawer__title {
   margin: 0;
-  font-size: var(--type-title3-size);
-  line-height: var(--type-title3-line);
+  font-size: var(--fontSizeBase600);
+  line-height: var(--lineHeightBase600);
   font-weight: 600;
 }
 
 .f-drawer__description {
   margin: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--type-caption1-size);
-  line-height: var(--type-caption1-line);
+  color: var(--colorNeutralForeground2);
+  font-size: var(--fontSizeBase200);
+  line-height: var(--lineHeightBase200);
 }
 
 .f-drawer__close {
   border: none;
   background: transparent;
   cursor: pointer;
-  color: var(--color-text-secondary);
+  color: var(--colorNeutralForeground2);
   padding: var(--spacing-xs);
-  border-radius: var(--radius-medium);
+  border-radius: var(--borderRadiusMedium);
   transition:
     background var(--motion-duration-medium) var(--motion-curve-ease),
     color var(--motion-duration-medium) var(--motion-curve-ease),
@@ -256,14 +256,14 @@ function onOverlayClick(event: MouseEvent): void {
 }
 
 .f-drawer__close:hover {
-  background: var(--color-background-subtle);
-  color: var(--color-text-primary);
+  background: var(--colorNeutralBackground2);
+  color: var(--colorNeutralForeground1);
 }
 
 .f-drawer__close:focus-visible {
   outline: none;
   box-shadow: var(--shadow-focus);
-  color: var(--color-text-primary);
+  color: var(--colorNeutralForeground1);
 }
 
 .f-drawer__body {
@@ -280,8 +280,8 @@ function onOverlayClick(event: MouseEvent): void {
   justify-content: flex-end;
   gap: var(--spacing-s);
   padding: var(--spacing-l) var(--spacing-2xl) var(--spacing-2xl);
-  border-top: 1px solid var(--color-border-subtle);
-  background: color-mix(in srgb, var(--color-background-subtle) 86%, var(--color-background-card));
+  border-top: 1px solid var(--colorNeutralStroke2);
+  background: color-mix(in srgb, var(--colorNeutralBackground2) 86%, var(--color-background-card));
 }
 
 .f-drawer--mobile .f-drawer__footer {

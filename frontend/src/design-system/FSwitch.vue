@@ -64,22 +64,22 @@ function onKey(event: KeyboardEvent): void {
   gap: var(--spacing-s);
   cursor: pointer;
   user-select: none;
-  font-size: var(--type-body1-size);
-  color: var(--color-text-primary);
+  font-size: var(--fontSizeBase300);
+  color: var(--colorNeutralForeground1);
 }
 
 .f-switch--disabled {
   cursor: not-allowed;
-  color: var(--color-text-disabled);
+  color: var(--colorNeutralForegroundDisabled);
 }
 
 .f-switch__track {
   position: relative;
   width: 40px;
   height: 20px;
-  border-radius: var(--radius-circular);
+  border-radius: var(--borderRadiusCircular);
   background: var(--color-background-disabled);
-  border: 1px solid var(--color-border-default);
+  border: 1px solid var(--colorNeutralStroke1);
   /* 拨动时背景与边框过渡走 medium(160ms) ease，让深色 / 浅色对比有"逐渐变化"的观感。 */
   transition: background var(--motion-duration-medium) var(--motion-curve-ease),
     border-color var(--motion-duration-medium) var(--motion-curve-ease),
@@ -87,12 +87,12 @@ function onKey(event: KeyboardEvent): void {
 }
 
 .f-switch:hover:not(.f-switch--disabled) .f-switch__track {
-  border-color: var(--color-border-strong);
+  border-color: var(--colorNeutralStroke1Hover);
 }
 
 .f-switch--on:hover:not(.f-switch--disabled) .f-switch__track {
-  background: var(--color-background-brand-hover);
-  border-color: var(--color-background-brand-hover);
+  background: var(--colorBrandBackgroundHover);
+  border-color: var(--colorBrandBackgroundHover);
   box-shadow: var(--halo-brand);
 }
 
@@ -107,8 +107,8 @@ function onKey(event: KeyboardEvent): void {
   left: 2px;
   width: 14px;
   height: 14px;
-  border-radius: var(--radius-circular);
-  background: var(--color-text-secondary);
+  border-radius: var(--borderRadiusCircular);
+  background: var(--colorNeutralForeground2);
   transform: translateY(-50%);
   /* 拇指位移采用 spring 曲线，弹性更明显但仅 ≤5% 过冲；duration 提升到 medium。 */
   transition: transform var(--motion-duration-medium) var(--motion-curve-spring),
@@ -121,8 +121,8 @@ function onKey(event: KeyboardEvent): void {
 }
 
 .f-switch--on .f-switch__track {
-  background: var(--color-background-brand);
-  border-color: var(--color-background-brand);
+  background: var(--colorBrandBackground);
+  border-color: var(--colorBrandBackground);
 }
 
 .f-switch--on .f-switch__thumb {
@@ -135,7 +135,7 @@ function onKey(event: KeyboardEvent): void {
 }
 
 .f-switch:focus-within .f-switch__track {
-  box-shadow: 0 0 0 2px var(--color-border-focus);
+  box-shadow: 0 0 0 2px var(--colorBrandStroke1);
 }
 
 .f-switch--disabled .f-switch__track {

@@ -89,178 +89,208 @@ defineEmits<(event: 'click', payload: MouseEvent) => void>();
 
 <style scoped>
 /*
- * M3 按钮（DESIGN.md §10.1）：药丸形（corner-full）、label-large 文本、
- * 状态层（hover 8% / focus 12% / pressed 12%）表达交互、克制运动（M1）。
- * appearance 映射：primary→Filled，secondary→Filled tonal，
- * subtle/transparent/ghost→Text，danger→Error。
+ * Fluent 2 按钮（DESIGN.md §6.1）。
+ *   形状  borderRadiusMedium = 4px（替代 M3 的药丸）
+ *   尺寸  small 24 / medium 32 / large 40
+ *   外观  primary / secondary / outline / subtle / transparent + 项目扩展 danger / ghost / compact
+ *   交互  使用 *Hover / *Pressed 令牌，禁用走 *Disabled；过渡 --durationFaster
+ *   焦点  outline = --strokeWidthThick + --colorBrandStroke1 + 1 px offset
  */
 .f-button {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-sm);
-  block-size: 2.5rem;
-  padding-inline: var(--space-lg);
-  border-radius: var(--md-sys-shape-corner-full);
-  border: none;
-  font-family: inherit;
-  font-size: var(--md-sys-typescale-label-large-size);
-  line-height: var(--md-sys-typescale-label-large-line-height);
-  font-weight: var(--md-sys-typescale-label-large-weight);
-  color: var(--md-sys-color-on-surface);
+  gap: var(--spacingHorizontalXS);
+  block-size: 32px;
+  padding-inline: var(--spacingHorizontalM);
+  border: var(--strokeWidthThin) solid transparent;
+  border-radius: var(--borderRadiusMedium);
+  font-family: var(--fontFamilyBase);
+  font-size: var(--fontSizeBase300);
+  line-height: var(--lineHeightBase300);
+  font-weight: var(--fontWeightSemibold);
+  color: var(--colorNeutralForeground1);
   background: transparent;
   cursor: pointer;
   user-select: none;
   transition:
-    background-color var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard),
-    color var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard),
-    box-shadow var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
+    background-color var(--durationFaster) var(--curveEasyEase),
+    color var(--durationFaster) var(--curveEasyEase),
+    border-color var(--durationFaster) var(--curveEasyEase),
+    box-shadow var(--durationFaster) var(--curveEasyEase);
 }
 
 .f-button:focus-visible {
-  outline: 2px solid var(--md-sys-color-primary);
-  outline-offset: 2px;
+  outline: var(--strokeWidthThick) solid var(--colorBrandStroke1);
+  outline-offset: 1px;
 }
 
 .f-button:disabled {
   cursor: not-allowed;
-  color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent);
-  background: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent);
+  color: var(--colorNeutralForegroundDisabled);
+  background: var(--colorNeutralBackgroundDisabled);
+  border-color: var(--colorNeutralStrokeDisabled);
   box-shadow: none;
 }
 
 .f-button--subtle:disabled,
 .f-button--transparent:disabled,
-.f-button--ghost:disabled,
-.f-button--danger:disabled {
+.f-button--ghost:disabled {
   background: transparent;
+  border-color: transparent;
 }
 
-/* 尺寸：small / compact / medium（默认 40） / large / full */
+/* —— 尺寸 —— */
 .f-button--small {
-  block-size: 1.75rem;
-  padding-inline: var(--space-md);
-  font-size: var(--md-sys-typescale-label-medium-size);
-  line-height: var(--md-sys-typescale-label-medium-line-height);
-  gap: var(--space-xs);
+  block-size: 24px;
+  padding-inline: var(--spacingHorizontalS);
+  font-size: var(--fontSizeBase200);
+  line-height: var(--lineHeightBase200);
 }
 
 .f-button--compact {
-  block-size: 2rem;
-  padding-inline: var(--space-md);
+  block-size: 28px;
+  padding-inline: var(--spacingHorizontalSNudge);
 }
 
 .f-button--large {
-  block-size: 3rem;
-  padding-inline: var(--space-xl);
+  block-size: 40px;
+  padding-inline: var(--spacingHorizontalL);
+  font-size: var(--fontSizeBase400);
+  line-height: var(--lineHeightBase400);
 }
 
 .f-button--full {
   inline-size: 100%;
-  min-block-size: var(--touch-target-pref);
 }
 
 .f-button--icon-only {
-  inline-size: 2.5rem;
+  inline-size: 32px;
   padding: 0;
-  font-size: 0;
 }
 
 .f-button--icon-only.f-button--small {
-  inline-size: 1.75rem;
+  inline-size: 24px;
 }
 
 .f-button--icon-only.f-button--compact {
-  inline-size: 2rem;
+  inline-size: 28px;
 }
 
 .f-button--icon-only.f-button--large {
-  inline-size: 3rem;
+  inline-size: 40px;
 }
 
-/* Primary → M3 Filled */
+/* —— Primary（主操作，一屏至多一个） —— */
 .f-button--primary {
-  background: var(--md-sys-color-primary);
-  color: var(--md-sys-color-on-primary);
+  background: var(--colorBrandBackground);
+  color: var(--colorNeutralForegroundOnBrand);
+  border-color: transparent;
 }
 
 .f-button--primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--md-sys-color-on-primary) 8%, var(--md-sys-color-primary));
-  box-shadow: var(--md-sys-elevation-1);
+  background: var(--colorBrandBackgroundHover);
 }
 
 .f-button--primary:active:not(:disabled) {
-  background: color-mix(in srgb, var(--md-sys-color-on-primary) 12%, var(--md-sys-color-primary));
+  background: var(--colorBrandBackgroundPressed);
 }
 
-/* Secondary → M3 Filled tonal */
+/* —— Secondary（默认） —— */
 .f-button--secondary {
-  background: var(--md-sys-color-secondary-container);
-  color: var(--md-sys-color-on-secondary-container);
+  background: var(--colorNeutralBackground1);
+  color: var(--colorNeutralForeground1);
+  border-color: var(--colorNeutralStroke1);
 }
 
 .f-button--secondary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--md-sys-color-on-secondary-container) 8%, var(--md-sys-color-secondary-container));
-  box-shadow: var(--md-sys-elevation-1);
+  background: var(--colorNeutralBackground1Hover);
+  border-color: var(--colorNeutralStroke1Hover);
 }
 
 .f-button--secondary:active:not(:disabled) {
-  background: color-mix(in srgb, var(--md-sys-color-on-secondary-container) 12%, var(--md-sys-color-secondary-container));
+  background: var(--colorNeutralBackground1Pressed);
+  border-color: var(--colorNeutralStroke1Pressed);
 }
 
-/* Subtle / Transparent / Ghost → M3 Text button */
+/* —— Outline（次要操作） —— */
+.f-button--outline {
+  background: transparent;
+  color: var(--colorNeutralForeground1);
+  border-color: var(--colorNeutralStroke1);
+}
+
+.f-button--outline:hover:not(:disabled) {
+  background: var(--colorSubtleBackgroundHover);
+  border-color: var(--colorNeutralStroke1Hover);
+}
+
+.f-button--outline:active:not(:disabled) {
+  background: var(--colorSubtleBackgroundPressed);
+}
+
+/* —— Subtle / Ghost：低强调 —— */
 .f-button--subtle,
-.f-button--transparent,
 .f-button--ghost {
   background: transparent;
-  color: var(--md-sys-color-primary);
-  padding-inline: var(--space-md);
-}
-
-.f-button--transparent {
-  color: var(--md-sys-color-on-surface-variant);
+  color: var(--colorNeutralForeground2);
+  border-color: transparent;
 }
 
 .f-button--subtle:hover:not(:disabled),
 .f-button--ghost:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--md-sys-color-primary) 8%, transparent);
-}
-
-.f-button--transparent:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent);
-  color: var(--md-sys-color-on-surface);
+  background: var(--colorSubtleBackgroundHover);
+  color: var(--colorNeutralForeground2Hover);
 }
 
 .f-button--subtle:active:not(:disabled),
 .f-button--ghost:active:not(:disabled) {
-  background: color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent);
+  background: var(--colorSubtleBackgroundPressed);
+  color: var(--colorNeutralForeground2Pressed);
 }
 
-/* Danger → M3 Error（不可逆/危险操作，B4） */
+/* —— Transparent：类链接操作 —— */
+.f-button--transparent {
+  background: transparent;
+  color: var(--colorBrandForeground1);
+  border-color: transparent;
+}
+
+.f-button--transparent:hover:not(:disabled) {
+  background: var(--colorSubtleBackgroundHover);
+  color: var(--colorBrandForeground2Hover);
+}
+
+.f-button--transparent:active:not(:disabled) {
+  background: var(--colorSubtleBackgroundPressed);
+  color: var(--colorBrandForeground2Pressed);
+}
+
+/* —— Danger：危险/不可逆操作（项目扩展） —— */
 .f-button--danger {
-  background: var(--md-sys-color-error);
-  color: var(--md-sys-color-on-error);
+  background: var(--colorStatusDangerBackground3);
+  color: var(--colorNeutralForegroundOnBrand);
+  border-color: transparent;
 }
 
 .f-button--danger:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--md-sys-color-on-error) 8%, var(--md-sys-color-error));
-  box-shadow: var(--md-sys-elevation-1);
+  background: var(--colorStatusDangerBackground3Hover);
 }
 
 .f-button--danger:active:not(:disabled) {
-  background: color-mix(in srgb, var(--md-sys-color-on-error) 12%, var(--md-sys-color-error));
+  background: var(--colorStatusDangerBackground3Pressed);
 }
 
-/* Loading：保留宽度，spinner 旋转 */
+/* —— Loading：保留宽度，spinner 旋转 —— */
 .f-button--loading {
   cursor: progress;
 }
 
 .f-button__spinner {
   display: inline-flex;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   animation: f-button-spin 600ms linear infinite;
 }
 
@@ -271,8 +301,12 @@ defineEmits<(event: 'click', payload: MouseEvent) => void>();
 }
 
 .f-button__icon {
-  font-size: 1.125rem;
+  font-size: 16px;
   flex-shrink: 0;
+}
+
+.f-button--large .f-button__icon {
+  font-size: 20px;
 }
 
 .f-button__label {

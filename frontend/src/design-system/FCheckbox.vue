@@ -99,13 +99,13 @@ function onKey(event: KeyboardEvent): void {
   gap: var(--spacing-s);
   cursor: pointer;
   user-select: none;
-  font-size: var(--type-body1-size);
-  color: var(--color-text-primary);
+  font-size: var(--fontSizeBase300);
+  color: var(--colorNeutralForeground1);
 }
 
 .f-checkbox--disabled {
   cursor: not-allowed;
-  color: var(--color-text-disabled);
+  color: var(--colorNeutralForegroundDisabled);
 }
 
 .f-checkbox__box {
@@ -116,8 +116,8 @@ function onKey(event: KeyboardEvent): void {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
-  border-radius: var(--radius-small);
-  border: var(--stroke-width-thin) solid var(--color-border-strong);
+  border-radius: var(--borderRadiusSmall);
+  border: var(--stroke-width-thin) solid var(--colorNeutralStroke1Hover);
   background: var(--color-background-card);
   /* hover/checked/focus 颜色与底色一并 medium(160ms) 过渡，状态切换更柔。 */
   transition: background var(--motion-duration-medium) var(--motion-curve-ease),
@@ -129,25 +129,25 @@ function onKey(event: KeyboardEvent): void {
 .f-checkbox--large .f-checkbox__box {
   width: 20px;
   height: 20px;
-  border-radius: var(--radius-medium);
+  border-radius: var(--borderRadiusMedium);
 }
 
 .f-checkbox:hover:not(.f-checkbox--disabled) .f-checkbox__box {
-  border-color: var(--color-background-brand);
+  border-color: var(--colorBrandBackground);
   box-shadow: var(--shadow-2);
 }
 
 .f-checkbox--checked .f-checkbox__box,
 .f-checkbox--indeterminate .f-checkbox__box {
-  background: var(--color-background-brand);
-  border-color: var(--color-background-brand);
+  background: var(--colorBrandBackground);
+  border-color: var(--colorBrandBackground);
   color: var(--color-text-inverse);
 }
 
 .f-checkbox--checked:hover:not(.f-checkbox--disabled) .f-checkbox__box,
 .f-checkbox--indeterminate:hover:not(.f-checkbox--disabled) .f-checkbox__box {
-  background: var(--color-background-brand-hover);
-  border-color: var(--color-background-brand-hover);
+  background: var(--colorBrandBackgroundHover);
+  border-color: var(--colorBrandBackgroundHover);
   box-shadow: var(--halo-brand);
 }
 

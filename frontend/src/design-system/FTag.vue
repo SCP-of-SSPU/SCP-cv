@@ -51,9 +51,9 @@ const rootClass = computed(() => [
   gap: var(--spacing-xs);
   padding: 2px var(--spacing-s);
   /* Pill 形状比方块徽章更接近 Fluent 2 badge 语义。 */
-  border-radius: var(--radius-circular);
-  font-size: var(--type-caption1-size);
-  line-height: var(--type-caption1-line);
+  border-radius: var(--borderRadiusCircular);
+  font-size: var(--fontSizeBase200);
+  line-height: var(--lineHeightBase200);
   font-weight: 600;
   white-space: nowrap;
   border: 1px solid transparent;
@@ -62,8 +62,8 @@ const rootClass = computed(() => [
 
 .f-tag--compact {
   padding: 1px var(--spacing-xs);
-  font-size: var(--type-caption2-size);
-  line-height: var(--type-caption2-line);
+  font-size: var(--fontSizeBase100);
+  line-height: var(--lineHeightBase100);
 }
 
 .f-tag__icon {
@@ -72,14 +72,14 @@ const rootClass = computed(() => [
 }
 
 .f-tag--neutral {
-  color: var(--color-text-tertiary);
-  background: var(--color-background-subtle);
+  color: var(--colorNeutralForeground3);
+  background: var(--colorNeutralBackground2);
 }
 
 .f-tag--subtle {
-  color: var(--color-text-secondary);
+  color: var(--colorNeutralForeground2);
   background: transparent;
-  border-color: var(--color-border-default);
+  border-color: var(--colorNeutralStroke1);
 }
 
 .f-tag--info {
@@ -104,13 +104,13 @@ const rootClass = computed(() => [
 
 .f-tag--brand {
   color: var(--color-text-inverse);
-  background: var(--color-background-brand);
+  background: var(--colorBrandBackground);
 }
 
 .f-tag__dot {
   width: 6px;
   height: 6px;
-  border-radius: var(--radius-circular);
+  border-radius: var(--borderRadiusCircular);
   background: currentColor;
   flex-shrink: 0;
 }

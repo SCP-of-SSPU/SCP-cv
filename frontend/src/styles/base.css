@@ -1,9 +1,131 @@
 /*
- * 全局基础样式：HTML/Body 重置 + 字体栈 + 焦点环统一 + 滚动条克制处理。
- * 不在这里写业务样式；业务样式必须通过 alias token 与组件 scoped 样式表达。
+ * 全局基础样式（DESIGN.md §4 / §7）。
+ *   - 引入 Fluent 2 令牌（tokens.css）作为唯一令牌真源；
+ *   - HTML / body / 表单控件的归一化重置；
+ *   - 焦点环统一为 --strokeWidthThick + --colorBrandStroke1；
+ *   - 字阶工具类 .fluent-*（§4.5），并保留旧 .t-* 别名平滑迁移；
+ *   - prefers-reduced-motion 全局降级（§7）。
+ *
+ * 业务样式禁止在此处堆积，必须放进组件 scoped 样式并只引用 var(--token)。
  */
 
 @import "./tokens.css";
+
+/*
+ * 项目业务令牌（DESIGN.md §3.1 的 Component Tokens 层）。
+ * 所有组件级语义化令牌都在此一处定义并指向 Fluent 2 别名令牌，
+ * 组件样式只读这些短名，调整时只改一处。
+ */
+:root {
+  /* 表面 / 背景 */
+  --color-background-card: var(--colorNeutralBackground1);
+  --color-background-raised: var(--colorNeutralBackground2);
+  --color-background-glass: var(--colorNeutralBackgroundAlpha);
+  --color-background-glass-strong: var(--colorNeutralBackground1);
+  --color-background-disabled: var(--colorNeutralBackgroundDisabled);
+  --color-background-inverse: var(--colorNeutralBackgroundInverted);
+
+  /* 文本 */
+  --color-text-inverse: var(--colorNeutralForegroundInverted);
+  --color-text-error: var(--colorStatusDangerForeground1);
+
+  /* 边框 */
+  --color-border-error: var(--colorStatusDangerBorder1);
+  --color-border-disabled: var(--colorNeutralStrokeDisabled);
+
+  /* 状态对（DESIGN.md §3.2.3） */
+  --color-status-info-foreground: var(--colorBrandForeground1);
+  --color-status-info-background: var(--colorBrandBackground2);
+  --color-status-info-accent: var(--colorBrandStroke1);
+  --color-status-success-foreground: var(--colorStatusSuccessForeground1);
+  --color-status-success-background: var(--colorStatusSuccessBackground1);
+  --color-status-success-accent: var(--colorStatusSuccessBorder1);
+  --color-status-warning-foreground: var(--colorStatusWarningForeground1);
+  --color-status-warning-background: var(--colorStatusWarningBackground1);
+  --color-status-warning-accent: var(--colorStatusWarningBorder1);
+  --color-status-error-foreground: var(--colorStatusDangerForeground1);
+  --color-status-error-background: var(--colorStatusDangerBackground1);
+  --color-status-error-accent: var(--colorStatusDangerBorder1);
+
+  /* 阴影别名 */
+  --shadow-2: var(--shadow2);
+  --shadow-4: var(--shadow4);
+  --shadow-card: var(--shadow2);
+  --shadow-card-hover: var(--shadow8);
+  --shadow-control: var(--shadow2);
+  --shadow-flyout: var(--shadow16);
+  --shadow-modal: var(--shadow28);
+  --shadow-focus: 0 0 0 var(--strokeWidthThick) var(--colorBrandStroke1);
+  --shadow-brand: var(--shadow2Brand);
+  --shadow-brand-hover: var(--shadow8Brand);
+
+  /* 触达区域（DESIGN.md §7） */
+  --touch-target-min: 44px;
+  --touch-target-pref: 48px;
+
+  /* 层级 z-index */
+  --f-z-toast: 9000;
+  --f-z-dialog: 8000;
+  --f-z-drawer: 7500;
+  --z-popover: 7000;
+  --z-dropdown: 6000;
+  --z-sticky: 200;
+
+  /* 状态层不透明度（兼容历史样式中的 color-mix 计算） */
+  --f-state-hover-opacity: 0.08;
+  --f-state-focus-opacity: 0.12;
+  --f-state-pressed-opacity: 0.12;
+  --f-state-dragged-opacity: 0.16;
+
+  /* 间距补充 */
+  --f-spacing-xxxxl: 48px;
+  --radius-xxlarge: var(--borderRadius2XLarge);
+
+  /* 旧 spacing 别名（值与 Fluent 命名对照） */
+  --spacing-xxs: var(--spacingHorizontalXXS);
+  --spacing-xs: var(--spacingHorizontalXS);
+  --spacing-s: var(--spacingHorizontalS);
+  --spacing-m: var(--spacingHorizontalM);
+  --spacing-l: var(--spacingHorizontalL);
+  --spacing-xl: var(--spacingHorizontalXL);
+  --spacing-2xl: var(--spacingHorizontalXXL);
+  --spacing-3xl: var(--spacingHorizontalXXXL);
+  --spacing-4xl: 48px;
+
+  /* 旧 motion 别名（指向 Fluent duration / curve） */
+  --motion-duration-fast: var(--durationFaster);
+  --motion-duration-short: var(--durationFast);
+  --motion-duration-medium: var(--durationNormal);
+  --motion-duration-entrance: var(--durationFast);
+  --motion-duration-long: var(--durationSlow);
+  --motion-curve-ease: var(--curveEasyEase);
+  --motion-curve-emphasized: var(--curveDecelerateMid);
+  --motion-curve-accelerate: var(--curveAccelerateMid);
+
+  /* 微动效（hover 抬升、按下缩放）；Fluent 2 克制使用，置 0 / 1 */
+  --motion-hover-lift: 0px;
+  --motion-hover-lift-strong: -1px;
+  --motion-press-scale: 0.995;
+
+  /* 装饰效果（Fluent 2 不强调，置为透明影；保留变量供旧代码引用） */
+  --ring-accent: none;
+  --halo-soft: none;
+  --halo-brand: none;
+
+  /* Hero / 顶部强调区背景（Fluent 用克制的色相而非渐变） */
+  --gradient-hero: linear-gradient(135deg,
+    var(--colorBrandBackground2) 0%,
+    var(--colorNeutralBackground2) 100%);
+  --gradient-hero-cool: linear-gradient(135deg,
+    var(--colorNeutralBackground2) 0%,
+    var(--colorNeutralBackground3) 100%);
+  --gradient-brand-mark: linear-gradient(135deg,
+    var(--colorBrandBackground) 0%,
+    var(--colorBrandBackgroundHover) 100%);
+
+  /* iOS 视口高度兜底（由 useAppHeight composable 写入实际值） */
+  --app-height: 100vh;
+}
 
 *,
 *::before,
@@ -17,48 +139,43 @@ body,
   margin: 0;
   padding: 0;
   min-height: 100%;
-  background: var(--color-background-canvas);
-  color: var(--color-text-primary);
-  font-family: var(--font-family-base);
-  font-size: var(--type-body1-size);
-  line-height: var(--type-body1-line);
+  background: var(--colorNeutralBackgroundCanvas);
+  color: var(--colorNeutralForeground1);
+  font-family: var(--fontFamilyBase);
+  font-size: var(--fontSizeBase300);
+  line-height: var(--lineHeightBase300);
+  font-weight: var(--fontWeightRegular);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-variant-numeric: tabular-nums;
 }
 
 #app {
-  /* iOS Safari 与桌面浏览器一致的视口高度。 */
   min-height: var(--app-height, 100vh);
   display: flex;
   flex-direction: column;
 }
 
-/*
- * 可访问焦点：按钮 / 链接 / 表单控件公用 2 px 蓝色焦点环。
- * 不再写死 border-radius，让 outline 自动跟随元素自身圆角（Chromium 94+ / Firefox 88+），
- * 既能匹配新的 medium=6 / large=10 token，也不会让圆形头像类元素产生方角错位。
- */
 :focus {
   outline: none;
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-border-focus);
+  outline: var(--strokeWidthThick) solid var(--colorBrandStroke1);
   outline-offset: 2px;
 }
 
-/* 链接默认样式：仅基础态，复杂语义交给业务组件。 */
 a {
-  color: var(--color-text-brand);
+  color: var(--colorBrandForeground1);
   text-decoration: none;
+  transition: color var(--durationFaster) var(--curveEasyEase);
 }
 
 a:hover {
+  color: var(--colorBrandForeground2Hover);
   text-decoration: underline;
 }
 
-/* 让原生表单控件继承字体，统一在组件层重写视觉。 */
 button,
 input,
 select,
@@ -80,13 +197,11 @@ video {
   max-width: 100%;
 }
 
-/* 选区颜色与品牌一致，但保持柔和不刺眼。 */
 ::selection {
-  background: var(--color-background-brand-selected);
-  color: var(--color-text-brand);
+  background: var(--colorBrandBackgroundSelected);
+  color: var(--colorNeutralForegroundOnBrand);
 }
 
-/* 滚动条：仅在桌面浏览器上做轻量化处理，不强行修改移动端原生体验。 */
 @media (pointer: fine) {
   ::-webkit-scrollbar {
     width: 10px;
@@ -94,14 +209,14 @@ video {
   }
 
   ::-webkit-scrollbar-thumb {
-    background: var(--color-border-default);
-    border-radius: var(--radius-circular);
+    background: var(--colorNeutralStroke1);
+    border-radius: var(--borderRadiusCircular);
     border: 2px solid transparent;
     background-clip: padding-box;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: var(--color-border-strong);
+    background: var(--colorNeutralStroke1Hover);
     background-clip: padding-box;
     border: 2px solid transparent;
   }
@@ -111,113 +226,142 @@ video {
   }
 }
 
-/* 通用工具类，仅暴露给“无组件可用、需要纯文本排版”的极少数场景使用。 */
-.t-title1 {
-  font-size: var(--type-title1-size);
-  line-height: var(--type-title1-line);
-  font-weight: 600;
-}
-
-.t-title2 {
-  font-size: var(--type-title2-size);
-  line-height: var(--type-title2-line);
-  font-weight: 600;
-}
-
-.t-title3 {
-  font-size: var(--type-title3-size);
-  line-height: var(--type-title3-line);
-  font-weight: 600;
-}
-
-.t-subtitle2 {
-  font-size: var(--type-subtitle2-size);
-  line-height: var(--type-subtitle2-line);
-  font-weight: 600;
-}
-
-.t-body1 {
-  font-size: var(--type-body1-size);
-  line-height: var(--type-body1-line);
-}
-
-.t-body1-strong {
-  font-size: var(--type-body1-size);
-  line-height: var(--type-body1-line);
-  font-weight: var(--type-body1-strong-weight);
-}
-
 /*
- * body2：16/22，正文偏大版本。
- * 移动端长文本说明用此尺寸避免 14 px 视觉过密；
- * 与 Fluent 2 v9 Body2 token 一致。
+ * 字阶工具类（DESIGN.md §4.5）。
+ * 主入口 .fluent-*，并保留旧 .t-* 别名以减小迁移面。
  */
-.t-body2 {
-  font-size: var(--type-body2-size);
-  line-height: var(--type-body2-line);
-}
-
-.t-largetitle {
-  font-size: var(--type-largetitle-size);
-  line-height: var(--type-largetitle-line);
-  font-weight: var(--font-weight-bold);
-}
-
-.t-caption1 {
-  font-size: var(--type-caption1-size);
-  line-height: var(--type-caption1-line);
-}
-
-.t-caption1-strong {
-  font-size: var(--type-caption1-size);
-  line-height: var(--type-caption1-line);
-  font-weight: var(--type-caption1-strong-weight);
-}
-
+.fluent-caption2,
 .t-caption2 {
-  font-size: var(--type-caption2-size);
-  line-height: var(--type-caption2-line);
+  font-family: var(--fontFamilyBase);
+  font-size: var(--fontSizeBase100);
+  line-height: var(--lineHeightBase100);
+  font-weight: var(--fontWeightRegular);
 }
 
+.fluent-caption1,
+.t-caption1 {
+  font-family: var(--fontFamilyBase);
+  font-size: var(--fontSizeBase200);
+  line-height: var(--lineHeightBase200);
+  font-weight: var(--fontWeightRegular);
+}
+
+.fluent-caption1-strong,
+.t-caption1-strong {
+  font-family: var(--fontFamilyBase);
+  font-size: var(--fontSizeBase200);
+  line-height: var(--lineHeightBase200);
+  font-weight: var(--fontWeightSemibold);
+}
+
+.fluent-body1,
+.t-body1 {
+  font-family: var(--fontFamilyBase);
+  font-size: var(--fontSizeBase300);
+  line-height: var(--lineHeightBase300);
+  font-weight: var(--fontWeightRegular);
+}
+
+.fluent-body1-strong,
+.t-body1-strong {
+  font-family: var(--fontFamilyBase);
+  font-size: var(--fontSizeBase300);
+  line-height: var(--lineHeightBase300);
+  font-weight: var(--fontWeightSemibold);
+}
+
+.fluent-body2,
+.t-body2 {
+  font-family: var(--fontFamilyBase);
+  font-size: var(--fontSizeBase400);
+  line-height: var(--lineHeightBase400);
+  font-weight: var(--fontWeightRegular);
+}
+
+.fluent-subtitle2,
+.t-subtitle2 {
+  font-family: var(--fontFamilyBase);
+  font-size: var(--fontSizeBase400);
+  line-height: var(--lineHeightBase400);
+  font-weight: var(--fontWeightSemibold);
+}
+
+.fluent-subtitle1 {
+  font-family: var(--fontFamilyBase);
+  font-size: var(--fontSizeBase500);
+  line-height: var(--lineHeightBase500);
+  font-weight: var(--fontWeightSemibold);
+}
+
+.fluent-title3,
+.t-title3 {
+  font-family: var(--fontFamilyBase);
+  font-size: var(--fontSizeBase600);
+  line-height: var(--lineHeightBase600);
+  font-weight: var(--fontWeightSemibold);
+}
+
+.fluent-title2,
+.t-title2 {
+  font-family: var(--fontFamilyBase);
+  font-size: var(--fontSizeHero700);
+  line-height: var(--lineHeightHero700);
+  font-weight: var(--fontWeightSemibold);
+}
+
+.fluent-title1,
+.t-title1 {
+  font-family: var(--fontFamilyBase);
+  font-size: var(--fontSizeHero800);
+  line-height: var(--lineHeightHero800);
+  font-weight: var(--fontWeightSemibold);
+}
+
+.fluent-largetitle,
+.t-largetitle {
+  font-family: var(--fontFamilyBase);
+  font-size: var(--fontSizeHero900);
+  line-height: var(--lineHeightHero900);
+  font-weight: var(--fontWeightSemibold);
+}
+
+.fluent-eyebrow,
 .t-eyebrow {
-  font-size: var(--type-caption1-size);
-  line-height: var(--type-caption1-line);
-  font-weight: 600;
+  font-family: var(--fontFamilyBase);
+  font-size: var(--fontSizeBase200);
+  line-height: var(--lineHeightBase200);
+  font-weight: var(--fontWeightSemibold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--color-text-secondary);
+  color: var(--colorNeutralForeground2);
 }
 
-/*
- * 跳到主内容（§13.1 A4）：作为页面第一个可聚焦元素，
- * 默认离屏，键盘聚焦时滑入视口左上。
- */
 .skip-link {
   position: fixed;
-  inset-block-start: var(--space-sm);
-  inset-inline-start: var(--space-sm);
-  z-index: var(--z-toast);
+  inset-block-start: var(--spacingVerticalS);
+  inset-inline-start: var(--spacingHorizontalS);
+  z-index: 9999;
   transform: translateY(-200%);
-  padding: var(--space-sm) var(--space-md);
-  border-radius: var(--md-sys-shape-corner-small);
-  background: var(--md-sys-color-primary);
-  color: var(--md-sys-color-on-primary);
-  font-size: var(--md-sys-typescale-label-large-size);
-  line-height: var(--md-sys-typescale-label-large-line-height);
-  font-weight: var(--md-sys-typescale-label-large-weight);
+  padding: var(--spacingVerticalS) var(--spacingHorizontalM);
+  border-radius: var(--borderRadiusMedium);
+  background: var(--colorBrandBackground);
+  color: var(--colorNeutralForegroundOnBrand);
+  font-family: var(--fontFamilyBase);
+  font-size: var(--fontSizeBase300);
+  line-height: var(--lineHeightBase300);
+  font-weight: var(--fontWeightSemibold);
   text-decoration: none;
-  box-shadow: var(--md-sys-elevation-3);
-  transition: transform var(--md-sys-motion-duration-short)
-    var(--md-sys-motion-easing-emphasized-decelerate);
+  box-shadow: var(--shadow8);
+  transition: transform var(--durationFast)
+    var(--curveDecelerateMid);
 }
 
 .skip-link:focus-visible {
   transform: translateY(0);
-  outline: 2px solid var(--md-sys-color-on-primary);
+  outline: var(--strokeWidthThick) solid var(--colorNeutralForegroundOnBrand);
   outline-offset: 2px;
 }
 
-/* 视觉隐藏（屏幕阅读器仍可读到）。 */
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -232,12 +376,9 @@ video {
 }
 
 /*
- * 全局进入动效关键帧。
- * 业务/组件层引用这些 keyframes 替代各自重写：
- *   - f-rise：8 px 上推 + 淡入，给卡片 / 行 / 区块默认入场；
- *   - f-fade：纯淡入，给 MessageBar / Empty 这种"突现"提示；
- *   - f-pop：1.5% 缩放 + 淡入，给状态徽章、Toast 之类；
- *   - f-shimmer：骨架横扫高光。
+ * 全局入场动效关键帧。组件 transition 选择对应曲线：
+ *   进入：--curveDecelerateMid（DESIGN.md §3.8）
+ *   退出：--curveAccelerateMid
  */
 @keyframes f-rise {
   from {
@@ -280,5 +421,15 @@ video {
 
   to {
     transform: translateX(100%);
+  }
+}
+
+/* 尊重系统"减弱动态效果"偏好（DESIGN.md §7）。 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
   }
 }

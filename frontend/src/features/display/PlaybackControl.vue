@@ -355,15 +355,15 @@ const errorBarDescription = computed(() => {
 
 .playback-control__source-name {
   margin: var(--spacing-xs) 0 0;
-  font-size: var(--type-title3-size);
-  line-height: var(--type-title3-line);
+  font-size: var(--fontSizeBase600);
+  line-height: var(--lineHeightBase600);
   font-weight: 600;
 }
 
 .playback-control__caption {
   margin: var(--spacing-xs) 0 0;
-  color: var(--color-text-secondary);
-  font-size: var(--type-caption1-size);
+  color: var(--colorNeutralForeground2);
+  font-size: var(--fontSizeBase200);
 }
 
 .playback-control__focus-link {
@@ -371,12 +371,12 @@ const errorBarDescription = computed(() => {
   align-items: center;
   gap: var(--spacing-xs);
   padding: var(--spacing-s) var(--spacing-m);
-  border-radius: var(--radius-medium);
-  background: var(--color-background-brand-selected);
-  color: var(--color-text-brand);
+  border-radius: var(--borderRadiusMedium);
+  background: var(--colorBrandBackgroundSelected);
+  color: var(--colorBrandForeground1);
   font-weight: 600;
   text-decoration: none;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-background-brand) 18%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--colorBrandBackground) 18%, transparent);
   transition:
     background var(--motion-duration-medium) var(--motion-curve-ease),
     color var(--motion-duration-medium) var(--motion-curve-ease),
@@ -385,7 +385,7 @@ const errorBarDescription = computed(() => {
 }
 
 .playback-control__focus-link:hover {
-  background: var(--color-background-brand);
+  background: var(--colorBrandBackground);
   color: var(--color-text-inverse);
   transform: translateY(-1px);
   box-shadow: var(--shadow-brand);
@@ -401,9 +401,9 @@ const errorBarDescription = computed(() => {
   flex-direction: column;
   gap: var(--spacing-m);
   padding: var(--spacing-l);
-  border-radius: var(--radius-large);
-  background: var(--color-background-subtle);
-  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--borderRadiusLarge);
+  background: var(--colorNeutralBackground2);
+  border: 1px solid var(--colorNeutralStroke2);
 }
 
 .playback-control__row {
@@ -436,13 +436,13 @@ const errorBarDescription = computed(() => {
 
 .playback-control__progress-label {
   font-variant-numeric: tabular-nums;
-  color: var(--color-text-secondary);
+  color: var(--colorNeutralForeground2);
   flex-shrink: 0;
 }
 
 .playback-control__media-title {
   margin: 0;
-  font-size: var(--type-subtitle2-size);
+  font-size: var(--fontSizeBase400);
   font-weight: 600;
 }
 
@@ -462,8 +462,8 @@ const errorBarDescription = computed(() => {
   gap: var(--spacing-m);
   padding: var(--spacing-s) var(--spacing-m);
   background: var(--color-background-card);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-medium);
+  border: 1px solid var(--colorNeutralStroke2);
+  border-radius: var(--borderRadiusMedium);
 }
 
 .playback-control__media-name {
@@ -483,8 +483,8 @@ const errorBarDescription = computed(() => {
 
 .playback-control__uri {
   margin: 0;
-  font-family: var(--font-family-mono);
-  color: var(--color-text-secondary);
+  font-family: var(--fontFamilyMonospace);
+  color: var(--colorNeutralForeground2);
   word-break: break-all;
 }
 

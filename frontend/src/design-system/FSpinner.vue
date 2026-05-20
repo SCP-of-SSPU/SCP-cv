@@ -33,9 +33,9 @@ const label = computed(() => props.ariaLabel ?? t('ds.spinnerLoading'));
 <style scoped>
 .f-spinner {
   display: inline-block;
-  border-radius: var(--radius-circular);
-  border: 2px solid var(--color-border-default);
-  border-top-color: var(--color-background-brand);
+  border-radius: var(--borderRadiusCircular);
+  border: 2px solid var(--colorNeutralStroke1);
+  border-top-color: var(--colorBrandBackground);
   animation: f-spinner-rotate 600ms linear infinite;
   vertical-align: middle;
 }

@@ -95,22 +95,22 @@ function onChange(event: Event): void {
 
 .f-slider__input::-webkit-slider-runnable-track {
   height: var(--f-slider-track-height);
-  border-radius: var(--radius-circular);
+  border-radius: var(--borderRadiusCircular);
   background: linear-gradient(to right,
-      var(--color-background-brand) var(--f-slider-percent, 0%),
-      var(--color-border-default) var(--f-slider-percent, 0%));
+      var(--colorBrandBackground) var(--f-slider-percent, 0%),
+      var(--colorNeutralStroke1) var(--f-slider-percent, 0%));
 }
 
 .f-slider__input::-moz-range-track {
   height: var(--f-slider-track-height);
-  border-radius: var(--radius-circular);
-  background: var(--color-border-default);
+  border-radius: var(--borderRadiusCircular);
+  background: var(--colorNeutralStroke1);
 }
 
 .f-slider__input::-moz-range-progress {
   height: var(--f-slider-track-height);
-  border-radius: var(--radius-circular);
-  background: var(--color-background-brand);
+  border-radius: var(--borderRadiusCircular);
+  background: var(--colorBrandBackground);
 }
 
 .f-slider__input::-webkit-slider-thumb {
@@ -118,9 +118,9 @@ function onChange(event: Event): void {
   -webkit-appearance: none;
   width: var(--f-slider-thumb-size);
   height: var(--f-slider-thumb-size);
-  border-radius: var(--radius-circular);
+  border-radius: var(--borderRadiusCircular);
   background: var(--color-text-inverse);
-  border: 2px solid var(--color-background-brand);
+  border: 2px solid var(--colorBrandBackground);
   box-shadow: var(--shadow-2);
   margin-top: calc((var(--f-slider-track-height) - var(--f-slider-thumb-size)) / 2);
   /* hover/active 缩放走 spring 曲线，按下回弹更"有手感"。 */
@@ -131,15 +131,15 @@ function onChange(event: Event): void {
 .f-slider__input::-moz-range-thumb {
   width: var(--f-slider-thumb-size);
   height: var(--f-slider-thumb-size);
-  border-radius: var(--radius-circular);
+  border-radius: var(--borderRadiusCircular);
   background: var(--color-text-inverse);
-  border: 2px solid var(--color-background-brand);
+  border: 2px solid var(--colorBrandBackground);
   box-shadow: var(--shadow-2);
 }
 
 /* 键盘聚焦时光晕用 4 px color-mix 半透明，与 FInput 同样柔感。 */
 .f-slider__input:focus-visible::-webkit-slider-thumb {
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-border-focus) 32%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--colorBrandStroke1) 32%, transparent);
 }
 
 .f-slider__input:hover:not(:disabled)::-webkit-slider-thumb {
@@ -157,10 +157,10 @@ function onChange(event: Event): void {
 
 .f-slider__value {
   min-width: 36px;
-  font-size: var(--type-body1-size);
+  font-size: var(--fontSizeBase300);
   font-variant-numeric: tabular-nums;
   text-align: right;
-  color: var(--color-text-primary);
+  color: var(--colorNeutralForeground1);
 }
 
 @media (max-width: 767px) {

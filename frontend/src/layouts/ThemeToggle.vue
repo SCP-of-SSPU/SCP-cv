@@ -58,20 +58,20 @@ function cycle(): void {
   display: inline-grid;
   place-items: center;
   border: none;
-  border-radius: var(--md-sys-shape-corner-full);
+  border-radius: var(--borderRadiusCircular);
   background: transparent;
-  color: var(--md-sys-color-on-surface-variant);
+  color: var(--colorNeutralForeground2);
   cursor: pointer;
-  transition: background var(--md-sys-motion-duration-short)
-    var(--md-sys-motion-easing-standard);
+  transition: background var(--durationFast)
+    var(--curveEasyEase);
 }
 
 .theme-toggle:hover {
-  background: color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent);
+  background: color-mix(in srgb, var(--colorNeutralForeground1) 8%, transparent);
 }
 
 .theme-toggle:focus-visible {
-  outline: 2px solid var(--md-sys-color-primary);
+  outline: 2px solid var(--colorBrandBackground);
   outline-offset: 2px;
 }
 

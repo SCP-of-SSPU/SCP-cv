@@ -85,10 +85,10 @@ const toneIcon = computed<FluentIconName | string>(() => {
   gap: var(--spacing-m);
   padding: var(--spacing-m) var(--spacing-l);
   padding-left: calc(var(--spacing-l) + 4px);
-  border-radius: var(--radius-medium);
+  border-radius: var(--borderRadiusMedium);
   border: 1px solid transparent;
-  font-size: var(--type-body1-size);
-  line-height: var(--type-body1-line);
+  font-size: var(--fontSizeBase300);
+  line-height: var(--lineHeightBase300);
   box-shadow: var(--shadow-control);
   overflow: hidden;
   animation: f-rise var(--motion-duration-entrance) var(--motion-curve-emphasized) both;
@@ -99,7 +99,7 @@ const toneIcon = computed<FluentIconName | string>(() => {
   position: absolute;
   inset: var(--spacing-s) auto var(--spacing-s) var(--spacing-xs);
   width: 3px;
-  border-radius: var(--radius-circular);
+  border-radius: var(--borderRadiusCircular);
   background: currentColor;
   opacity: 0.85;
 }

@@ -146,8 +146,8 @@ void tabItems;
   position: relative;
   padding: var(--spacing-2xl) var(--spacing-3xl);
   background: var(--gradient-hero-cool);
-  border-radius: var(--radius-xlarge);
-  border: 1px solid color-mix(in srgb, var(--color-border-subtle) 70%, transparent);
+  border-radius: var(--borderRadiusXLarge);
+  border: 1px solid color-mix(in srgb, var(--colorNeutralStroke2) 70%, transparent);
   box-shadow: var(--shadow-card), var(--ring-accent);
   overflow: hidden;
   animation: f-rise var(--motion-duration-entrance) var(--motion-curve-emphasized) both;
@@ -160,9 +160,9 @@ void tabItems;
   top: -80px;
   width: 220px;
   height: 220px;
-  border-radius: var(--radius-circular);
+  border-radius: var(--borderRadiusCircular);
   background: radial-gradient(circle at center,
-      color-mix(in srgb, var(--color-background-brand) 22%, transparent),
+      color-mix(in srgb, var(--colorBrandBackground) 22%, transparent),
       transparent 70%);
   pointer-events: none;
 }
@@ -174,23 +174,23 @@ void tabItems;
 
 .display-view__eyebrow {
   margin: 0;
-  font-size: var(--type-caption1-size);
+  font-size: var(--fontSizeBase200);
   font-weight: 600;
-  color: var(--color-text-brand);
+  color: var(--colorBrandForeground1);
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
 .display-view__title {
   margin: var(--spacing-xs) 0;
-  font-size: var(--type-title2-size);
-  line-height: var(--type-title2-line);
+  font-size: var(--fontSizeHero700);
+  line-height: var(--lineHeightHero700);
   font-weight: 600;
 }
 
 .display-view__caption {
   margin: 0;
-  color: var(--color-text-secondary);
+  color: var(--colorNeutralForeground2);
 }
 
 .display-view__columns {
@@ -211,8 +211,8 @@ void tabItems;
   padding: 0 var(--spacing-l);
   height: 40px;
   border: none;
-  border-radius: var(--radius-medium);
-  background: var(--color-background-brand);
+  border-radius: var(--borderRadiusMedium);
+  background: var(--colorBrandBackground);
   color: var(--color-text-inverse);
   font-weight: 600;
   cursor: pointer;
@@ -224,7 +224,7 @@ void tabItems;
 }
 
 .display-view__cta:hover {
-  background: var(--color-background-brand-hover);
+  background: var(--colorBrandBackgroundHover);
   box-shadow: var(--shadow-brand-hover);
   transform: translateY(-1px);
 }
@@ -241,8 +241,8 @@ void tabItems;
   }
 
   .display-view__title {
-    font-size: var(--type-title3-size);
-    line-height: var(--type-title3-line);
+    font-size: var(--fontSizeBase600);
+    line-height: var(--lineHeightBase600);
   }
 }
 </style>

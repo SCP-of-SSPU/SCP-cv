@@ -70,7 +70,7 @@ async function triggerAction(id: number, action?: { onTrigger: () => void | Prom
 <style scoped>
 .f-toast-host {
   position: fixed;
-  z-index: var(--z-toast);
+  z-index: var(--f-z-toast);
   pointer-events: none;
   display: flex;
   flex-direction: column;
@@ -103,9 +103,9 @@ async function triggerAction(id: number, action?: { onTrigger: () => void | Prom
   width: min(360px, 100%);
   padding: var(--spacing-m) var(--spacing-l);
   background: var(--color-background-card);
-  color: var(--color-text-primary);
-  border-radius: var(--radius-large);
-  border: 1px solid var(--color-border-subtle);
+  color: var(--colorNeutralForeground1);
+  border-radius: var(--borderRadiusLarge);
+  border: 1px solid var(--colorNeutralStroke2);
   box-shadow: var(--shadow-flyout);
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
@@ -153,9 +153,9 @@ async function triggerAction(id: number, action?: { onTrigger: () => void | Prom
 
 .f-toast__description {
   margin: 0;
-  font-size: var(--type-caption1-size);
-  line-height: var(--type-caption1-line);
-  color: var(--color-text-secondary);
+  font-size: var(--fontSizeBase200);
+  line-height: var(--lineHeightBase200);
+  color: var(--colorNeutralForeground2);
 }
 
 .f-toast__actions {

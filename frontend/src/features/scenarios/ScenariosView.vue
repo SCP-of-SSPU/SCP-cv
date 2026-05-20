@@ -256,9 +256,9 @@ void activeId; // 当前后端未提供「激活预案 id」字段；保留 hook
   margin: 0 calc(-1 * var(--spacing-2xl));
   padding-left: var(--spacing-2xl);
   padding-right: var(--spacing-2xl);
-  background: color-mix(in srgb, var(--color-background-canvas) 86%, transparent);
+  background: color-mix(in srgb, var(--colorNeutralBackgroundCanvas) 86%, transparent);
   flex-wrap: wrap;
-  border-bottom: 1px solid color-mix(in srgb, var(--color-border-subtle) 60%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--colorNeutralStroke2) 60%, transparent);
   -webkit-backdrop-filter: blur(14px) saturate(1.1);
   backdrop-filter: blur(14px) saturate(1.1);
 }
@@ -271,15 +271,15 @@ void activeId; // 当前后端未提供「激活预案 id」字段；保留 hook
 
 .scenarios-view__title {
   margin: 0;
-  font-size: var(--type-title2-size);
-  line-height: var(--type-title2-line);
+  font-size: var(--fontSizeHero700);
+  line-height: var(--lineHeightHero700);
   font-weight: 600;
 }
 
 .scenarios-view__caption {
   margin: 0;
-  color: var(--color-text-tertiary);
-  font-size: var(--type-caption1-size);
+  color: var(--colorNeutralForeground3);
+  font-size: var(--fontSizeBase200);
 }
 
 .scenarios-view__actions {
@@ -329,10 +329,10 @@ void activeId; // 当前后端未提供「激活预案 id」字段；保留 hook
  * 让"置顶"在网格中的视觉权重明显高于普通卡。
  */
 .scenarios-view__card--pinned {
-  border-left: 4px solid var(--color-background-brand);
+  border-left: 4px solid var(--colorBrandBackground);
   box-shadow:
     var(--shadow-card-hover),
-    inset 0 0 0 1px color-mix(in srgb, var(--color-background-brand) 18%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--colorBrandBackground) 18%, transparent),
     var(--halo-brand);
 }
 
@@ -340,7 +340,7 @@ void activeId; // 当前后端未提供「激活预案 id」字段；保留 hook
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-xs);
-  color: var(--color-text-brand);
+  color: var(--colorBrandForeground1);
 }
 
 .scenarios-view__meta {
@@ -353,9 +353,9 @@ void activeId; // 当前后端未提供「激活预案 id」字段；保留 hook
 
 .scenarios-view__desc {
   margin: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--type-caption1-size);
-  line-height: var(--type-body1-line);
+  color: var(--colorNeutralForeground2);
+  font-size: var(--fontSizeBase200);
+  line-height: var(--lineHeightBase300);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -364,8 +364,8 @@ void activeId; // 当前后端未提供「激活预案 id」字段；保留 hook
 
 .scenarios-view__updated {
   margin: 0;
-  color: var(--color-text-tertiary);
-  font-size: var(--type-caption1-size);
+  color: var(--colorNeutralForeground3);
+  font-size: var(--fontSizeBase200);
 }
 
 @media (max-width: 767px) {

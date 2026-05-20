@@ -63,12 +63,12 @@ defineExpose({
 .f-textarea {
   display: block;
   width: 100%;
-  min-height: calc(var(--type-body1-line) * 3 + 16px);
+  min-height: calc(var(--lineHeightBase300) * 3 + 16px);
   padding: var(--spacing-s) var(--spacing-m);
-  border-radius: var(--radius-medium);
-  border: 1px solid var(--color-border-default);
+  border-radius: var(--borderRadiusMedium);
+  border: 1px solid var(--colorNeutralStroke1);
   background: var(--color-background-card);
-  color: var(--color-text-primary);
+  color: var(--colorNeutralForeground1);
   font: inherit;
   resize: vertical;
   box-shadow: var(--shadow-control);
@@ -80,13 +80,13 @@ defineExpose({
 }
 
 .f-textarea:hover:not(:disabled) {
-  border-color: var(--color-border-strong);
+  border-color: var(--colorNeutralStroke1Hover);
   box-shadow: var(--shadow-2);
 }
 
 .f-textarea:focus-visible {
   outline: none;
-  border-color: var(--color-border-focus);
+  border-color: var(--colorBrandStroke1);
   box-shadow: var(--shadow-focus), var(--shadow-2);
 }
 
@@ -97,7 +97,7 @@ defineExpose({
 .f-textarea--disabled,
 .f-textarea:disabled {
   background: var(--color-background-disabled);
-  color: var(--color-text-disabled);
+  color: var(--colorNeutralForegroundDisabled);
   cursor: not-allowed;
 }
 </style>

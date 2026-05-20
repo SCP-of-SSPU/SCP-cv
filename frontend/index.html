@@ -2,9 +2,28 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#292929" />
     <link rel="icon" href="data:," />
     <title>SCP-cv 播放控制台</title>
+    <script>
+      /*
+       * Fluent 2 防闪烁脚本（DESIGN.md §5）。
+       * 在 main.ts 加载前同步根据 localStorage / prefers-color-scheme
+       * 决定 data-theme，使 tokens.css 的 [data-theme='dark'] 块在首屏即生效。
+       */
+      (function () {
+        try {
+          var stored = localStorage.getItem('scp-cv-theme');
+          var mode = stored === 'light' || stored === 'dark' ? stored : 'system';
+          if (mode === 'system') return;
+          document.documentElement.setAttribute('data-theme', mode);
+        } catch (_) {
+          /* 隐私模式或 localStorage 不可用：让 prefers-color-scheme 接管。 */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>

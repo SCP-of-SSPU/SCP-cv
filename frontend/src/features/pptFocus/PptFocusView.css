@@ -13,13 +13,13 @@
   /* 面板：玻璃质感容器；用 background-card 加少量透明度，保留 acrylic 效果。 */
   --ppt-focus-panel-bg: color-mix(in srgb, var(--color-background-card) 88%, transparent);
   --ppt-focus-panel-bg-strong: color-mix(in srgb, var(--color-background-card) 94%, transparent);
-  --ppt-focus-panel-border: color-mix(in srgb, var(--color-border-default) 40%, transparent);
+  --ppt-focus-panel-border: color-mix(in srgb, var(--colorNeutralStroke1) 40%, transparent);
   --ppt-focus-panel-shadow: 0 18px 44px rgb(0 0 0 / 0.32), 0 2px 10px rgb(0 0 0 / 0.20);
   --ppt-focus-panel-shadow-strong: 0 24px 58px rgb(0 0 0 / 0.40), 0 8px 22px rgb(0 0 0 / 0.26);
 
   /* 提词专属：品牌色提升 24% 的内描边。 */
-  --ppt-focus-prompter-ring: 0 0 0 1px color-mix(in srgb, var(--color-background-brand) 22%, transparent);
-  --ppt-focus-prompter-ring-strong: 0 0 0 1px color-mix(in srgb, var(--color-background-brand) 32%, transparent);
+  --ppt-focus-prompter-ring: 0 0 0 1px color-mix(in srgb, var(--colorBrandBackground) 22%, transparent);
+  --ppt-focus-prompter-ring-strong: 0 0 0 1px color-mix(in srgb, var(--colorBrandBackground) 32%, transparent);
 
   min-height: var(--app-height, 100vh);
   display: flex;
@@ -31,9 +31,9 @@
   background:
     linear-gradient(180deg,
       color-mix(in srgb, var(--color-background-raised) 92%, transparent),
-      var(--color-background-canvas)),
-    var(--color-background-canvas);
-  color: var(--color-text-primary);
+      var(--colorNeutralBackgroundCanvas)),
+    var(--colorNeutralBackgroundCanvas);
+  color: var(--colorNeutralForeground1);
   position: relative;
 }
 
@@ -43,9 +43,9 @@
   inset: -10% auto auto -10%;
   width: 60vw;
   height: 60vw;
-  border-radius: var(--radius-circular);
+  border-radius: var(--borderRadiusCircular);
   background: radial-gradient(circle at center,
-      color-mix(in srgb, var(--color-background-brand) 18%, transparent),
+      color-mix(in srgb, var(--colorBrandBackground) 18%, transparent),
       transparent 70%);
   pointer-events: none;
   z-index: 0;
@@ -77,7 +77,7 @@
   align-items: center;
   gap: var(--spacing-s);
   min-width: 0;
-  color: var(--color-text-primary);
+  color: var(--colorNeutralForeground1);
 }
 
 .ppt-focus__topbar-title {
@@ -89,7 +89,7 @@
 }
 
 .ppt-focus__topbar-progress {
-  color: var(--color-text-secondary);
+  color: var(--colorNeutralForeground2);
   font-variant-numeric: tabular-nums;
 }
 
@@ -129,7 +129,7 @@
 .ppt-focus__teleprompter {
   background: var(--ppt-focus-panel-bg);
   border: 1px solid var(--ppt-focus-panel-border);
-  border-radius: var(--radius-large);
+  border-radius: var(--borderRadiusLarge);
   box-shadow: var(--ppt-focus-panel-shadow);
   animation: f-rise var(--motion-duration-entrance) var(--motion-curve-emphasized) both;
   transition:
@@ -162,8 +162,8 @@
   align-items: center;
   justify-content: center;
   gap: var(--spacing-s);
-  color: var(--color-text-tertiary);
-  font-size: var(--type-title2-size);
+  color: var(--colorNeutralForeground3);
+  font-size: var(--fontSizeHero700);
 }
 
 .ppt-focus__side {
@@ -188,10 +188,10 @@
 .ppt-focus__next img {
   width: 100%;
   aspect-ratio: 16 / 9;
-  border-radius: var(--radius-medium);
+  border-radius: var(--borderRadiusMedium);
   object-fit: cover;
-  background: color-mix(in srgb, var(--color-background-subtle) 88%, transparent);
-  box-shadow: inset 0 0 0 1px var(--color-border-subtle);
+  background: color-mix(in srgb, var(--colorNeutralBackground2) 88%, transparent);
+  box-shadow: inset 0 0 0 1px var(--colorNeutralStroke2);
 }
 
 .ppt-focus__next-fallback {
@@ -200,12 +200,12 @@
   justify-content: center;
   width: 100%;
   aspect-ratio: 16 / 9;
-  border-radius: var(--radius-medium);
+  border-radius: var(--borderRadiusMedium);
   background: linear-gradient(135deg,
-      color-mix(in srgb, var(--color-background-brand) 24%, transparent),
+      color-mix(in srgb, var(--colorBrandBackground) 24%, transparent),
       color-mix(in srgb, var(--color-status-success-foreground) 14%, transparent));
-  color: var(--color-text-secondary);
-  font-size: var(--type-title3-size);
+  color: var(--colorNeutralForeground2);
+  font-size: var(--fontSizeBase600);
 }
 
 .ppt-focus__progress {
@@ -217,15 +217,15 @@
 .ppt-focus__progress-page,
 .ppt-focus__teleprompter-page {
   margin: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--type-caption1-size);
+  color: var(--colorNeutralForeground2);
+  font-size: var(--fontSizeBase200);
   font-variant-numeric: tabular-nums;
 }
 
 .ppt-focus__side-eyebrow {
   margin: 0;
-  color: var(--color-text-tertiary);
-  font-size: var(--type-caption1-size);
+  color: var(--colorNeutralForeground3);
+  font-size: var(--fontSizeBase200);
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -236,7 +236,7 @@
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-  border-color: color-mix(in srgb, var(--color-background-brand) 32%, transparent);
+  border-color: color-mix(in srgb, var(--colorBrandBackground) 32%, transparent);
   box-shadow:
     var(--ppt-focus-panel-shadow),
     var(--ppt-focus-prompter-ring);
@@ -250,7 +250,7 @@
 }
 
 .ppt-focus__teleprompter:hover {
-  border-color: color-mix(in srgb, var(--color-background-brand) 42%, transparent);
+  border-color: color-mix(in srgb, var(--colorBrandBackground) 42%, transparent);
   box-shadow:
     var(--ppt-focus-panel-shadow-strong),
     var(--ppt-focus-prompter-ring-strong);
@@ -275,7 +275,7 @@
 
 .ppt-focus__teleprompter-text {
   margin: 0;
-  color: var(--color-text-primary);
+  color: var(--colorNeutralForeground1);
   font-size: 22px;
   line-height: 1.6;
   white-space: pre-wrap;
@@ -283,7 +283,7 @@
 
 .ppt-focus__teleprompter-empty {
   margin: 0;
-  color: var(--color-text-tertiary);
+  color: var(--colorNeutralForeground3);
 }
 
 /*
@@ -301,7 +301,7 @@
   margin: 0 auto;
   padding: var(--spacing-s);
   border: 1px solid var(--ppt-focus-panel-border);
-  border-radius: var(--radius-large);
+  border-radius: var(--borderRadiusLarge);
   background: var(--ppt-focus-panel-bg-strong);
   box-shadow: var(--ppt-focus-panel-shadow-strong);
   -webkit-backdrop-filter: blur(20px) saturate(1.1);
@@ -318,14 +318,14 @@
 }
 
 .ppt-focus__controls :deep(.f-combobox__trigger) {
-  background: color-mix(in srgb, var(--color-text-primary) 6%, transparent);
+  background: color-mix(in srgb, var(--colorNeutralForeground1) 6%, transparent);
   border-color: var(--ppt-focus-panel-border);
-  color: var(--color-text-primary);
+  color: var(--colorNeutralForeground1);
 }
 
 .ppt-focus__controls :deep(.f-combobox__placeholder),
 .ppt-focus__controls :deep(.f-combobox__chevrons) {
-  color: var(--color-text-secondary);
+  color: var(--colorNeutralForeground2);
 }
 
 .ppt-focus__loading {
@@ -334,7 +334,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--spacing-s);
-  color: var(--color-text-secondary);
+  color: var(--colorNeutralForeground2);
 }
 
 @media (hover: none) {

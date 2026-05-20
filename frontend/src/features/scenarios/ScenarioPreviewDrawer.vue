@@ -248,14 +248,14 @@ void currentBigScreenSnapshotMode; // 保留以备未来在预览中显示模式
 
 .scenario-preview__hint {
   margin: 0;
-  color: var(--color-text-tertiary);
-  font-size: var(--type-caption1-size);
+  color: var(--colorNeutralForeground3);
+  font-size: var(--fontSizeBase200);
 }
 
 .scenario-preview__settings {
   margin: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--type-caption1-size);
+  color: var(--colorNeutralForeground2);
+  font-size: var(--fontSizeBase200);
 }
 
 @media (max-width: 767px) {

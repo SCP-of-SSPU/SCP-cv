@@ -229,7 +229,7 @@ const hasDeviceError = computed(() =>
   /* Hero 用 xxlarge 大圆角与渐变背景配合，是仪表盘视觉重心。渐变来自 token，便于深色模式复用。 */
   border-radius: var(--radius-xxlarge);
   background: var(--gradient-hero);
-  border: 1px solid color-mix(in srgb, var(--color-border-subtle) 60%, transparent);
+  border: 1px solid color-mix(in srgb, var(--colorNeutralStroke2) 60%, transparent);
   box-shadow: var(--shadow-card), var(--ring-accent);
   overflow: hidden;
   animation: f-rise var(--motion-duration-entrance) var(--motion-curve-emphasized) both;
@@ -243,9 +243,9 @@ const hasDeviceError = computed(() =>
   bottom: -120px;
   width: 320px;
   height: 320px;
-  border-radius: var(--radius-circular);
+  border-radius: var(--borderRadiusCircular);
   background: radial-gradient(circle at center,
-      color-mix(in srgb, var(--color-background-brand) 24%, transparent) 0%,
+      color-mix(in srgb, var(--colorBrandBackground) 24%, transparent) 0%,
       transparent 70%);
   pointer-events: none;
 }
@@ -254,10 +254,10 @@ const hasDeviceError = computed(() =>
   position: relative;
   z-index: 1;
   margin: 0;
-  font-size: var(--type-caption1-size);
+  font-size: var(--fontSizeBase200);
   letter-spacing: 0.16em;
   font-weight: 700;
-  color: var(--color-text-brand);
+  color: var(--colorBrandForeground1);
   text-transform: uppercase;
 }
 
@@ -265,17 +265,17 @@ const hasDeviceError = computed(() =>
   position: relative;
   z-index: 1;
   margin: 0;
-  font-size: var(--type-title1-size);
-  line-height: var(--type-title1-line);
+  font-size: var(--fontSizeHero800);
+  line-height: var(--lineHeightHero800);
   font-weight: 600;
-  color: var(--color-text-primary);
+  color: var(--colorNeutralForeground1);
 }
 
 .dashboard__hero-caption {
   position: relative;
   z-index: 1;
   margin: 0;
-  color: var(--color-text-secondary);
+  color: var(--colorNeutralForeground2);
   max-width: 720px;
 }
 
@@ -309,15 +309,15 @@ const hasDeviceError = computed(() =>
 
 .dashboard__hint {
   margin: 0;
-  color: var(--color-text-tertiary);
-  font-size: var(--type-caption1-size);
+  color: var(--colorNeutralForeground3);
+  font-size: var(--fontSizeBase200);
 }
 
 .dashboard__hint--switching {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-xs);
-  color: var(--color-text-brand);
+  color: var(--colorBrandForeground1);
   font-weight: 600;
 }
 
@@ -339,8 +339,8 @@ const hasDeviceError = computed(() =>
   }
 
   .dashboard__hero-title {
-    font-size: var(--type-title2-size);
-    line-height: var(--type-title2-line);
+    font-size: var(--fontSizeHero700);
+    line-height: var(--lineHeightHero700);
   }
 
   .dashboard__grid {

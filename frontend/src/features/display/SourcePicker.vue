@@ -194,8 +194,8 @@ const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.v
 }
 
 .source-picker__count {
-  font-size: var(--type-caption1-size);
-  color: var(--color-text-tertiary);
+  font-size: var(--fontSizeBase200);
+  color: var(--colorNeutralForeground3);
 }
 
 .source-picker__list {
@@ -212,8 +212,8 @@ const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.v
 .source-picker__empty {
   padding: var(--spacing-l);
   text-align: center;
-  color: var(--color-text-tertiary);
-  font-size: var(--type-caption1-size);
+  color: var(--colorNeutralForeground3);
+  font-size: var(--fontSizeBase200);
 }
 
 .source-picker__item {
@@ -221,8 +221,8 @@ const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.v
   align-items: center;
   gap: var(--spacing-s);
   padding: var(--spacing-s) var(--spacing-m);
-  border-radius: var(--radius-medium);
-  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--borderRadiusMedium);
+  border: 1px solid var(--colorNeutralStroke2);
   background: var(--color-background-card);
   cursor: pointer;
   box-shadow: var(--shadow-control);
@@ -234,15 +234,15 @@ const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.v
 }
 
 .source-picker__item:hover {
-  background: var(--color-background-brand-selected);
-  border-color: var(--color-background-brand);
+  background: var(--colorBrandBackgroundSelected);
+  border-color: var(--colorBrandBackground);
   box-shadow: var(--shadow-4), var(--halo-brand);
   transform: translateY(var(--motion-hover-lift));
 }
 
 .source-picker__item:focus-visible {
   outline: none;
-  border-color: var(--color-background-brand);
+  border-color: var(--colorBrandBackground);
   box-shadow: var(--shadow-focus);
 }
 
@@ -262,7 +262,7 @@ const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.v
   transform: none;
   box-shadow: none;
   background: var(--color-background-disabled);
-  border-color: var(--color-border-subtle);
+  border-color: var(--colorNeutralStroke2);
 }
 
 .source-picker__meta {
@@ -284,12 +284,12 @@ const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.v
   align-items: center;
   gap: var(--spacing-s);
   flex-wrap: wrap;
-  color: var(--color-text-secondary);
-  font-size: var(--type-caption1-size);
+  color: var(--colorNeutralForeground2);
+  font-size: var(--fontSizeBase200);
 }
 
 .source-picker__upload {
-  border-top: 1px solid var(--color-border-subtle);
+  border-top: 1px solid var(--colorNeutralStroke2);
   padding-top: var(--spacing-s);
 }
 
@@ -299,7 +299,7 @@ const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.v
   gap: var(--spacing-s);
   cursor: pointer;
   font-weight: 600;
-  color: var(--color-text-secondary);
+  color: var(--colorNeutralForeground2);
 }
 
 .source-picker__upload-body {
@@ -314,23 +314,23 @@ const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.v
   align-items: center;
   gap: var(--spacing-s);
   padding: var(--spacing-s) var(--spacing-m);
-  border: 1px dashed var(--color-border-default);
-  border-radius: var(--radius-medium);
-  background: var(--color-background-subtle);
+  border: 1px dashed var(--colorNeutralStroke1);
+  border-radius: var(--borderRadiusMedium);
+  background: var(--colorNeutralBackground2);
   transition:
     border-color var(--motion-duration-medium) var(--motion-curve-ease),
     background var(--motion-duration-medium) var(--motion-curve-ease);
 }
 
 .source-picker__file:hover {
-  border-color: var(--color-border-focus);
+  border-color: var(--colorBrandStroke1);
   background: var(--color-background-card);
 }
 
 .source-picker__file>span {
   flex: 1 1 auto;
-  color: var(--color-text-secondary);
-  font-size: var(--type-caption1-size);
+  color: var(--colorNeutralForeground2);
+  font-size: var(--fontSizeBase200);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -344,7 +344,7 @@ const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.v
 .source-picker__upload-error {
   margin: 0;
   color: var(--color-text-error);
-  font-size: var(--type-caption1-size);
+  font-size: var(--fontSizeBase200);
 }
 
 .source-picker__upload-state {
@@ -352,7 +352,7 @@ const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.v
   align-items: center;
   gap: var(--spacing-s);
   margin: 0;
-  font-size: var(--type-caption1-size);
-  color: var(--color-text-secondary);
+  font-size: var(--fontSizeBase200);
+  color: var(--colorNeutralForeground2);
 }
 </style>

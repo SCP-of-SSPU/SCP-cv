@@ -111,7 +111,7 @@ void FIcon;
 <style scoped>
 .more-sheet__hint {
   margin: 0;
-  color: var(--color-text-tertiary);
-  font-size: var(--type-caption1-size);
+  color: var(--colorNeutralForeground3);
+  font-size: var(--fontSizeBase200);
 }
 </style>

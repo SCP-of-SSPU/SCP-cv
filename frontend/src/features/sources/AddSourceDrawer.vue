@@ -208,28 +208,28 @@ async function addWebSource(): Promise<void> {
   justify-content: space-between;
   gap: var(--spacing-m);
   padding: var(--spacing-m);
-  border: 1px dashed var(--color-border-default);
-  border-radius: var(--radius-medium);
+  border: 1px dashed var(--colorNeutralStroke1);
+  border-radius: var(--borderRadiusMedium);
   cursor: pointer;
-  background: var(--color-background-subtle);
+  background: var(--colorNeutralBackground2);
 }
 
 .add-source__file:hover {
-  border-color: var(--color-border-focus);
+  border-color: var(--colorBrandStroke1);
 }
 
 .add-source__file-info {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-s);
-  color: var(--color-text-secondary);
+  color: var(--colorNeutralForeground2);
   flex: 1 1 auto;
   min-width: 0;
 }
 
 .add-source__file-size {
-  color: var(--color-text-tertiary);
-  font-size: var(--type-caption1-size);
+  color: var(--colorNeutralForeground3);
+  font-size: var(--fontSizeBase200);
 }
 
 @media (max-width: 767px) {
