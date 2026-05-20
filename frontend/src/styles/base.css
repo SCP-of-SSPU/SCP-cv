@@ -188,6 +188,35 @@ video {
   color: var(--color-text-secondary);
 }
 
+/*
+ * 跳到主内容（§13.1 A4）：作为页面第一个可聚焦元素，
+ * 默认离屏，键盘聚焦时滑入视口左上。
+ */
+.skip-link {
+  position: fixed;
+  inset-block-start: var(--space-sm);
+  inset-inline-start: var(--space-sm);
+  z-index: var(--z-toast);
+  transform: translateY(-200%);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+  font-size: var(--md-sys-typescale-label-large-size);
+  line-height: var(--md-sys-typescale-label-large-line-height);
+  font-weight: var(--md-sys-typescale-label-large-weight);
+  text-decoration: none;
+  box-shadow: var(--md-sys-elevation-3);
+  transition: transform var(--md-sys-motion-duration-short)
+    var(--md-sys-motion-easing-emphasized-decelerate);
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+  outline: 2px solid var(--md-sys-color-on-primary);
+  outline-offset: 2px;
+}
+
 /* 视觉隐藏（屏幕阅读器仍可读到）。 */
 .visually-hidden {
   position: absolute;

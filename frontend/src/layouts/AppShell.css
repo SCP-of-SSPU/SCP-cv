@@ -1,0 +1,302 @@
+/*
+ * M3 自适应 AppShell 样式。
+ * 顶栏、rail/drawer、compact bottom navigation 由子组件共享这些类名，故使用普通 CSS。
+ */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-block-size: var(--app-height, 100dvh);
+  background: var(--md-sys-color-surface);
+}
+
+/* ── 顶部 App bar：Level 0 → Level 2（E3） ─────────────────── */
+.app-shell__bar {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  min-block-size: 3.5rem;
+  padding-inline: var(--space-md);
+  padding-block: var(--space-sm);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  transition:
+    background var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard),
+    box-shadow var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
+}
+
+.app-shell__bar--scrolled {
+  background: var(--md-sys-color-surface-container);
+  box-shadow: var(--md-sys-elevation-2);
+}
+
+.app-shell__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-inline-size: 0;
+}
+
+.app-shell__brand-mark {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--gradient-brand-mark);
+  color: var(--md-sys-color-on-primary);
+  font-weight: 700;
+}
+
+.app-shell__brand-meta {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+  min-inline-size: 0;
+}
+
+.app-shell__brand-eyebrow {
+  margin: 0;
+  font-size: var(--md-sys-typescale-label-small-size);
+  line-height: var(--md-sys-typescale-label-small-line-height);
+  letter-spacing: 0.08em;
+  color: var(--md-sys-color-on-surface-variant);
+  text-transform: uppercase;
+}
+
+.app-shell__brand-title {
+  margin: 0;
+  font-size: var(--md-sys-typescale-title-medium-size);
+  line-height: var(--md-sys-typescale-title-medium-line-height);
+  font-weight: var(--md-sys-typescale-title-medium-weight);
+  color: var(--md-sys-color-on-surface);
+}
+
+.app-shell__bar-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.app-shell__mute {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--space-sm);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-warning-container);
+  color: var(--md-sys-color-on-warning-container);
+  font-size: var(--md-sys-typescale-label-medium-size);
+  line-height: var(--md-sys-typescale-label-medium-line-height);
+  font-weight: var(--md-sys-typescale-label-medium-weight);
+}
+
+.app-shell__body {
+  display: flex;
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+
+/* ── 导航：rail / drawer 共用骨架 ─────────────────────────── */
+.app-shell__nav {
+  position: sticky;
+  inset-block-start: 3.5rem;
+  align-self: flex-start;
+  block-size: calc(var(--app-height, 100dvh) - 3.5rem);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding-block: var(--space-md);
+  padding-inline: var(--space-sm);
+  overflow-y: auto;
+  background: var(--md-sys-color-surface);
+}
+
+.app-shell__nav[data-variant='drawer'] {
+  inline-size: 15rem;
+  padding-inline: var(--space-md);
+  background: var(--md-sys-color-surface-container-low);
+}
+
+.app-shell__nav[data-variant='rail'] {
+  inline-size: 5.5rem;
+  align-items: center;
+}
+
+.app-shell__nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  inline-size: 100%;
+}
+
+.app-shell__nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding-block: var(--space-sm);
+  padding-inline: var(--space-md);
+  border-radius: var(--md-sys-shape-corner-full);
+  color: var(--md-sys-color-on-surface-variant);
+  text-decoration: none;
+  font-size: var(--md-sys-typescale-label-large-size);
+  line-height: var(--md-sys-typescale-label-large-line-height);
+  font-weight: var(--md-sys-typescale-label-large-weight);
+  min-block-size: 3rem;
+  transition: background var(--md-sys-motion-duration-short)
+    var(--md-sys-motion-easing-standard);
+}
+
+/* Rail：图标在上、短标签在下，垂直堆叠（M3 navigation rail）。 */
+.app-shell__nav[data-variant='rail'] .app-shell__nav-item {
+  flex-direction: column;
+  gap: var(--space-xs);
+  inline-size: 100%;
+  padding-inline: var(--space-xs);
+  border-radius: var(--md-sys-shape-corner-large);
+  text-align: center;
+}
+
+.app-shell__nav-item:hover {
+  background: color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent);
+  color: var(--md-sys-color-on-surface);
+}
+
+.app-shell__nav-item:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+/* 活动指示器：M3 用 secondary-container 药丸承托图标。 */
+.app-shell__nav-indicator {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.app-shell__nav[data-variant='rail'] .app-shell__nav-indicator {
+  inline-size: 3.5rem;
+  block-size: 2rem;
+  border-radius: var(--md-sys-shape-corner-full);
+  transition: background var(--md-sys-motion-duration-short)
+    var(--md-sys-motion-easing-standard);
+}
+
+.app-shell__nav-item--active {
+  color: var(--md-sys-color-on-secondary-container);
+  font-weight: 700;
+}
+
+.app-shell__nav[data-variant='drawer'] .app-shell__nav-item--active {
+  background: var(--md-sys-color-secondary-container);
+}
+
+.app-shell__nav[data-variant='rail'] .app-shell__nav-item--active .app-shell__nav-indicator {
+  background: var(--md-sys-color-secondary-container);
+}
+
+.app-shell__nav-icon {
+  font-size: 1.5rem;
+}
+
+.app-shell__nav-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-shell__nav[data-variant='rail'] .app-shell__nav-label {
+  font-size: var(--md-sys-typescale-label-medium-size);
+  line-height: var(--md-sys-typescale-label-medium-line-height);
+  max-inline-size: 100%;
+}
+
+.app-shell__content {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-inline: var(--space-md);
+  padding-block: var(--space-lg) var(--space-xxl);
+  scroll-behavior: smooth;
+}
+
+.app-shell[data-nav='rail'] .app-shell__content,
+.app-shell[data-nav='drawer'] .app-shell__content {
+  padding-inline: var(--space-lg);
+}
+
+.app-shell[data-size='extraLarge'] .app-shell__content > * {
+  margin-inline: auto;
+}
+
+.app-shell__content:focus-visible {
+  outline: none;
+}
+
+/* ── Compact：底部导航栏 ─────────────────────────────────── */
+.app-shell__bottom {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: var(--z-sticky);
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--space-xs);
+  padding-block: var(--space-sm);
+  padding-inline: var(--space-xs);
+  padding-block-end: calc(var(--space-sm) + env(safe-area-inset-bottom, 0px));
+  background: var(--md-sys-color-surface-container);
+  box-shadow: var(--md-sys-elevation-2);
+}
+
+.app-shell__bottom-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-block-size: 3.25rem;
+  padding-block: var(--space-xs);
+  text-decoration: none;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.app-shell__bottom-indicator {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 4rem;
+  block-size: 2rem;
+  border-radius: var(--md-sys-shape-corner-full);
+  transition: background var(--md-sys-motion-duration-short)
+    var(--md-sys-motion-easing-standard);
+}
+
+.app-shell__bottom-item--active {
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+.app-shell__bottom-item--active .app-shell__bottom-indicator {
+  background: var(--md-sys-color-secondary-container);
+}
+
+.app-shell__bottom-item:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+  border-radius: var(--md-sys-shape-corner-small);
+}
+
+.app-shell__bottom-icon {
+  font-size: 1.5rem;
+}
+
+.app-shell__bottom-label {
+  font-size: var(--md-sys-typescale-label-medium-size);
+  line-height: var(--md-sys-typescale-label-medium-line-height);
+  font-weight: var(--md-sys-typescale-label-medium-weight);
+}

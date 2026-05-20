@@ -12,6 +12,7 @@
  *   - 匹配 Fluent 焦点环风格。
  */
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 import FIcon from './FIcon.vue';
 import type { FComboboxOption } from './types';
@@ -33,7 +34,7 @@ interface FComboboxProps {
 }
 
 const props = withDefaults(defineProps<FComboboxProps>(), {
-  placeholder: '请选择',
+  placeholder: undefined,
   disabled: false,
   searchable: false,
   id: undefined,
@@ -45,6 +46,9 @@ const props = withDefaults(defineProps<FComboboxProps>(), {
 const emit = defineEmits<{
   (event: 'update:modelValue', value: string | number | null): void;
 }>();
+
+const { t } = useI18n();
+const displayPlaceholder = computed(() => props.placeholder ?? t('ds.selectPlaceholder'));
 
 const open = ref(false);
 const triggerEl = ref<HTMLButtonElement | null>(null);
@@ -132,12 +136,12 @@ onBeforeUnmount(() => {
         <slot v-if="$slots.value && modelValue !== null" name="value" :label="selectedLabel" />
         <template v-else-if="selectedLabel">{{ selectedLabel }}</template>
         <template v-else>
-          <span class="f-combobox__placeholder">{{ placeholder }}</span>
+          <span class="f-combobox__placeholder">{{ displayPlaceholder }}</span>
         </template>
       </span>
       <span class="f-combobox__chevrons">
         <button v-if="clearable && modelValue !== null && modelValue !== undefined" type="button"
-          class="f-combobox__clear" aria-label="清除选择" @click="clear">
+          class="f-combobox__clear" :aria-label="t('ds.clearSelection')" @click="clear">
           <FIcon name="dismiss_16_regular" />
         </button>
         <FIcon class="f-combobox__chevron" :name="open ? 'chevron_up_20_regular' : 'chevron_down_20_regular'" />
@@ -148,8 +152,8 @@ onBeforeUnmount(() => {
       <div v-if="open" ref="listRef" class="f-combobox__list" role="listbox">
         <div v-if="searchable" class="f-combobox__search">
           <FIcon name="search_20_regular" />
-          <input v-model="searchText" type="search" class="f-combobox__search-input" placeholder="搜索…" aria-label="搜索选项"
-            autocomplete="off" />
+          <input v-model="searchText" type="search" class="f-combobox__search-input" :placeholder="t('ds.searchPlaceholder')"
+            :aria-label="t('ds.searchOptionsAria')" autocomplete="off" />
         </div>
         <div class="f-combobox__items">
           <template v-for="(option, index) in groupedOptions" :key="String(option.value) + '-' + index">
@@ -163,7 +167,7 @@ onBeforeUnmount(() => {
               <FIcon v-if="option.value === modelValue" class="f-combobox__option-check" name="checkmark_20_regular" />
             </button>
           </template>
-          <p v-if="groupedOptions.length === 0" class="f-combobox__empty">无匹配项</p>
+          <p v-if="groupedOptions.length === 0" class="f-combobox__empty">{{ t('ds.noMatch') }}</p>
         </div>
         <slot name="footer" />
       </div>

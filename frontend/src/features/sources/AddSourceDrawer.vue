@@ -4,6 +4,7 @@
  * 设计稿 §4.4：两颗按钮分别表达「上传但不保存」与「上传并保存」。
  */
 import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 import {
   FButton,
@@ -26,16 +27,17 @@ const emit = defineEmits<{
   (event: 'added'): void;
 }>();
 
+const { t } = useI18n();
 const sourceStore = useSourceStore();
 const toast = useToast();
 
 type TabId = 'file' | 'web';
 
 const activeTab = ref<TabId>('file');
-const tabs: FTabsItem<TabId>[] = [
-  { label: '上传文件', value: 'file', icon: 'arrow_upload_24_regular' },
-  { label: '网页', value: 'web', icon: 'link_24_regular' },
-];
+const tabs = computed<FTabsItem<TabId>[]>(() => [
+  { label: t('sources.add.tabFile'), value: 'file', icon: 'arrow_upload_24_regular' },
+  { label: t('sources.add.tabWeb'), value: 'web', icon: 'link_24_regular' },
+]);
 
 const fileToUpload = ref<File | null>(null);
 const fileDisplayName = ref('');
@@ -48,7 +50,7 @@ const uploadProgress = ref(0);
 const uploading = ref(false);
 const errorMessage = ref('');
 
-const fileLabel = computed(() => fileToUpload.value?.name ?? '尚未选择文件');
+const fileLabel = computed(() => fileToUpload.value?.name ?? t('sources.add.noFile'));
 const fileSize = computed(() => {
   if (!fileToUpload.value) return '';
   const bytes = fileToUpload.value.size;
@@ -91,7 +93,7 @@ function triggerFilePicker(): void {
 
 async function uploadFile(persist: boolean): Promise<void> {
   if (!fileToUpload.value) {
-    errorMessage.value = '请先选择要上传的文件';
+    errorMessage.value = t('sources.add.pickFileFirst');
     return;
   }
   uploading.value = true;
@@ -105,12 +107,12 @@ async function uploadFile(persist: boolean): Promise<void> {
         uploadProgress.value = percent;
       },
     });
-    toast.success(persist ? '已上传并保存' : '已上传，但不会写入媒体库', `源名称：${result.name}`);
+    toast.success(persist ? t('sources.add.uploadedSaved') : t('sources.add.uploadedNoSave'), t('sources.add.sourceNameDetail', { name: result.name }));
     emit('added');
     reset();
     close();
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : '上传失败，请稍后重试';
+    errorMessage.value = error instanceof Error ? error.message : t('sources.add.uploadFail');
   } finally {
     uploading.value = false;
   }
@@ -119,19 +121,19 @@ async function uploadFile(persist: boolean): Promise<void> {
 async function addWebSource(): Promise<void> {
   const url = webUrl.value.trim();
   if (!url) {
-    errorMessage.value = '请输入 URL 或 ip:port';
+    errorMessage.value = t('sources.add.urlRequired');
     return;
   }
   uploading.value = true;
   errorMessage.value = '';
   try {
     await sourceStore.addWebSource(url, webName.value.trim() || undefined, webPreheatEnabled.value);
-    toast.success('已添加网页源');
+    toast.success(t('sources.add.webAddedOk'));
     emit('added');
     reset();
     close();
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : '注册网页源失败';
+    errorMessage.value = error instanceof Error ? error.message : t('sources.add.webAddFail');
   } finally {
     uploading.value = false;
   }
@@ -139,12 +141,12 @@ async function addWebSource(): Promise<void> {
 </script>
 
 <template>
-  <FDrawer :open="open" title="添加媒体源" description="仅支持上传文件或注册网页 URL；直播源由推流端自动注入。" :primary-label="'添加'"
+  <FDrawer :open="open" :title="t('sources.add.title')" :description="t('sources.add.desc')" :primary-label="t('common.add')"
     :hide-default-actions="true" :width="480" @update:open="(value) => emit('update:open', value)">
-    <FTabs v-model="activeTab" :items="tabs" appearance="line" aria-label="添加源类型" />
+    <FTabs v-model="activeTab" :items="tabs" appearance="line" :aria-label="t('sources.add.typeAria')" />
 
     <template v-if="activeTab === 'file'">
-      <FField label="文件" required hint="支持 PPT / 视频 / 图片；单文件 ≤ 2 GB">
+      <FField :label="t('sources.add.file')" required :hint="t('sources.add.fileHint')">
         <label class="add-source__file">
           <input ref="fileInputEl" type="file" class="visually-hidden" :disabled="uploading" @change="onFileSelect" />
           <span class="add-source__file-info">
@@ -153,47 +155,47 @@ async function addWebSource(): Promise<void> {
             <span v-if="fileSize" class="add-source__file-size">{{ fileSize }}</span>
           </span>
           <FButton appearance="secondary" type="button" @click="triggerFilePicker">
-            选择文件
+            {{ t('sources.add.chooseFile') }}
           </FButton>
         </label>
       </FField>
-      <FField label="显示名称" hint="可选；不填则使用文件名作为名称">
-        <FInput v-model="fileDisplayName" placeholder="例如：早会 PPT" />
+      <FField :label="t('sources.add.displayName')" :hint="t('sources.add.displayNameHint')">
+        <FInput v-model="fileDisplayName" :placeholder="t('sources.add.displayNamePlaceholder')" />
       </FField>
 
       <FProgress v-if="uploading" :value="uploadProgress" show-label />
     </template>
 
     <template v-if="activeTab === 'web'">
-      <FField label="URL 或 ip:port" required hint="例如 https://example.com、192.168.1.10:8080">
-        <FInput v-model="webUrl" placeholder="https://" type="url" />
+      <FField :label="t('sources.add.url')" required :hint="t('sources.add.urlHint')">
+        <FInput v-model="webUrl" placeholder="https://" type="url" :aria-label="t('sources.add.url')" />
       </FField>
-      <FField label="显示名称" hint="可选；不填将使用 URL 作为名称">
-        <FInput v-model="webName" placeholder="例如：直播首页" />
+      <FField :label="t('sources.add.webName')" :hint="t('sources.add.webNameHint')">
+        <FInput v-model="webName" :placeholder="t('sources.add.webNamePlaceholder')" />
       </FField>
-      <FField label="预热" hint="开启后播放器启动时提前加载该网页，切换到此源时可直接复用已加载视图。">
-        <FSwitch v-model="webPreheatEnabled" label="启动时预热该网页" />
+      <FField :label="t('sources.add.preheat')" :hint="t('sources.add.preheatHint')">
+        <FSwitch v-model="webPreheatEnabled" :label="t('sources.add.preheatSwitch')" />
       </FField>
     </template>
 
-    <FMessageBar v-if="errorMessage" tone="error" title="无法完成">
+    <FMessageBar v-if="errorMessage" tone="error" :title="t('sources.add.cantComplete')">
       {{ errorMessage }}
     </FMessageBar>
 
     <template #actions="{ cancel }">
-      <FButton appearance="secondary" :disabled="uploading" @click="cancel">取消</FButton>
+      <FButton appearance="secondary" :disabled="uploading" @click="cancel">{{ t('common.cancel') }}</FButton>
       <template v-if="activeTab === 'file'">
         <FButton appearance="secondary" :disabled="uploading || !fileToUpload"
           :loading="uploading && uploadProgress < 100" @click="() => uploadFile(false)">
-          上传但不保存
+          {{ t('sources.add.uploadNoSave') }}
         </FButton>
         <FButton appearance="primary" :disabled="uploading || !fileToUpload" :loading="uploading"
           @click="() => uploadFile(true)">
-          上传并保存
+          {{ t('sources.add.uploadSave') }}
         </FButton>
       </template>
       <FButton v-else appearance="primary" :disabled="uploading" :loading="uploading" @click="addWebSource">
-        添加网页
+        {{ t('sources.add.addWeb') }}
       </FButton>
     </template>
   </FDrawer>

@@ -7,6 +7,7 @@
 import { defineStore } from 'pinia';
 
 import { api, type RuntimeSnapshot, type SessionSnapshot, buildBackendUrl } from '@/services/api';
+import { t } from '@/locales';
 import { useSessionStore } from './sessions';
 
 interface SystemVolumeState {
@@ -50,7 +51,7 @@ export const useRuntimeStore = defineStore('runtime', {
     /** 当前是否处于双屏模式；仪表盘、Nav、预案预览均会用到。 */
     isDoubleScreen: (state): boolean => state.runtime?.big_screen_mode === 'double',
     /** 大屏模式中文标签。 */
-    bigScreenLabel: (state): string => (state.runtime?.big_screen_mode === 'double' ? '双屏' : '单屏'),
+    bigScreenLabel: (state): string => (state.runtime?.big_screen_mode === 'double' ? t('screen.double') : t('screen.single')),
   },
   actions: {
     /** 拉取最新 runtime 快照。 */

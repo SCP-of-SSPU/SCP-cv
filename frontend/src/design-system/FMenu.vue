@@ -8,6 +8,7 @@
  *   - 键盘：方向键导航、Enter 触发、Esc 关闭。
  */
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 import FButton from './FButton.vue';
 import FIcon from './FIcon.vue';
@@ -35,10 +36,13 @@ const props = withDefaults(defineProps<FMenuProps>(), {
   triggerLabel: undefined,
   triggerAppearance: 'transparent',
   triggerSize: 'medium',
-  ariaLabel: '更多操作',
+  ariaLabel: undefined,
   disabled: false,
   placement: 'right',
 });
+
+const { t } = useI18n();
+const triggerAriaLabel = computed(() => props.ariaLabel ?? t('ds.menuMore'));
 
 const open = ref(false);
 const root = ref<HTMLElement | null>(null);
@@ -117,7 +121,7 @@ void flatItems; // 显式标记，避免 lint 抱怨
 <template>
   <div ref="root" class="f-menu">
     <FButton v-if="!$slots.trigger" :appearance="triggerAppearance" :size="triggerSize" :icon-only="!triggerLabel"
-      :icon-start="triggerIcon" :aria-label="ariaLabel" :disabled="disabled" @click="toggle">
+      :icon-start="triggerIcon" :aria-label="triggerAriaLabel" :disabled="disabled" @click="toggle">
       {{ triggerLabel }}
     </FButton>
     <span v-else class="f-menu__custom-trigger" @click="toggle">

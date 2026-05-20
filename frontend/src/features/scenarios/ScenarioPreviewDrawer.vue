@@ -4,6 +4,7 @@
  * 桌面 480 px 右侧 Drawer，移动端自动改全屏 Sheet。
  */
 import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 import {
   FButton,
@@ -33,6 +34,7 @@ const emit = defineEmits<{
   (event: 'after-delete'): void;
 }>();
 
+const { t } = useI18n();
 const scenarioStore = useScenarioStore();
 const sourceStore = useSourceStore();
 const runtime = useRuntimeStore();
@@ -44,9 +46,9 @@ const isPinning = ref(false);
 const meta = computed(() => {
   if (!props.scenario) return '';
   const segments: string[] = [];
-  segments.push(props.scenario.big_screen_mode_state === 'unset' ? '保持大屏模式' : props.scenario.big_screen_mode_label || '大屏');
-  segments.push(props.scenario.volume_state === 'unset' ? '保持系统音量' : `系统音量 ${props.scenario.volume_level}`);
-  segments.push(`更新于 ${formatRelativeTime(props.scenario.updated_at)}`);
+  segments.push(props.scenario.big_screen_mode_state === 'unset' ? t('scenarios.preview.keepScreen') : props.scenario.big_screen_mode_label || t('scenarios.preview.bigScreen'));
+  segments.push(props.scenario.volume_state === 'unset' ? t('scenarios.preview.keepVolume') : t('scenarios.preview.systemVolume', { n: props.scenario.volume_level }));
+  segments.push(t('scenarios.preview.updatedAt', { time: formatRelativeTime(props.scenario.updated_at) }));
   return segments.join(' · ');
 });
 
@@ -70,18 +72,18 @@ const orderedTargets = computed<ScenarioTargetItem[]>(() => {
 });
 
 function windowLabel(windowId: number, isSingle: boolean): string {
-  if (isSingle && windowId === 1) return '大屏';
+  if (isSingle && windowId === 1) return t('scenarios.preview.winBig');
   switch (windowId) {
     case 1:
-      return '大屏左';
+      return t('scenarios.preview.winBigLeft');
     case 2:
-      return '大屏右';
+      return t('scenarios.preview.winBigRight');
     case 3:
-      return 'TV 左';
+      return t('scenarios.preview.winTvLeft');
     case 4:
-      return 'TV 右';
+      return t('scenarios.preview.winTvRight');
     default:
-      return `窗口 ${windowId}`;
+      return t('scenarios.preview.winFallback', { id: windowId });
   }
 }
 
@@ -92,9 +94,9 @@ function targetTone(target: ScenarioTargetItem): TagTone {
 }
 
 function targetLabel(target: ScenarioTargetItem): string {
-  if (target.source_state === 'unset') return '保持当前';
-  if (target.source_state === 'empty') return '黑屏';
-  return target.source_name || '已设置';
+  if (target.source_state === 'unset') return t('scenarios.preview.keepCurrent');
+  if (target.source_state === 'empty') return t('scenarios.preview.blackout');
+  return target.source_name || t('scenarios.preview.set');
 }
 
 function targetIcon(target: ScenarioTargetItem): string {
@@ -125,9 +127,9 @@ async function activate(): Promise<void> {
   isActivating.value = true;
   try {
     await scenarioStore.activate(props.scenario.id);
-    toast.success('预案已调用', `已应用「${props.scenario.name}」到所有窗口`);
+    toast.success(t('scenarios.activatedOk'), t('scenarios.activatedDetail', { name: props.scenario.name }));
   } catch (error) {
-    toast.error('调用预案失败', error instanceof Error ? error.message : '请稍后重试');
+    toast.error(t('scenarios.activateFail'), error instanceof Error ? error.message : t('common.retry'));
   } finally {
     isActivating.value = false;
   }
@@ -139,9 +141,9 @@ async function pinToggle(): Promise<void> {
   isPinning.value = true;
   try {
     const next = await scenarioStore.pin(props.scenario.id);
-    toast.success(next.sort_order > 0 ? '预案已置顶' : '预案已取消置顶');
+    toast.success(next.sort_order > 0 ? t('scenarios.pinnedOk') : t('scenarios.unpinnedOk'));
   } catch (error) {
-    toast.error(wasPinned ? '取消置顶失败' : '置顶失败', error instanceof Error ? error.message : '请稍后重试');
+    toast.error(wasPinned ? t('scenarios.unpinFail') : t('scenarios.pinFail'), error instanceof Error ? error.message : t('common.retry'));
   } finally {
     isPinning.value = false;
   }
@@ -150,18 +152,18 @@ async function pinToggle(): Promise<void> {
 async function remove(): Promise<void> {
   if (!props.scenario) return;
   const confirmed = await dialog.danger({
-    title: `删除预案「${props.scenario.name}」？`,
-    description: '此操作不可恢复，预案中四窗口配置会被一并移除。',
-    confirmLabel: '删除预案',
+    title: t('scenarios.preview.deleteTitle', { name: props.scenario.name }),
+    description: t('scenarios.preview.deleteDesc'),
+    confirmLabel: t('scenarios.preview.deleteConfirm'),
   });
   if (!confirmed) return;
   try {
     await scenarioStore.remove(props.scenario.id);
-    toast.success('预案已删除');
+    toast.success(t('scenarios.preview.deletedOk'));
     emit('after-delete');
     emit('update:open', false);
   } catch (error) {
-    toast.error('删除失败', error instanceof Error ? error.message : '请稍后重试');
+    toast.error(t('scenarios.preview.deleteFail'), error instanceof Error ? error.message : t('common.retry'));
   }
 }
 
@@ -179,8 +181,8 @@ void currentBigScreenSnapshotMode; // 保留以备未来在预览中显示模式
 </script>
 
 <template>
-  <FDrawer :open="open" :title="scenario?.name ?? '预案预览'" :description="meta" :primary-label="'激活'"
-    :secondary-label="'关闭'" :width="520" :hide-default-actions="true"
+  <FDrawer :open="open" :title="scenario?.name ?? t('scenarios.preview.title')" :description="meta" :primary-label="t('scenarios.preview.activate')"
+    :secondary-label="t('common.close')" :width="520" :hide-default-actions="true"
     @update:open="(value) => emit('update:open', value)">
     <div class="scenario-preview__matrix" :class="{ 'scenario-preview__matrix--single': isSingleScreenMode }">
       <FCard v-for="target in orderedTargets" :key="target.window_id" padding="compact">
@@ -194,31 +196,31 @@ void currentBigScreenSnapshotMode; // 保留以备未来在预览中显示模式
           {{ target.source_name }}
         </p>
         <p v-else-if="target.source_state === 'empty'" class="scenario-preview__hint">
-          切换到本预案时，该窗口黑屏。
+          {{ t('scenarios.preview.blackoutHint') }}
         </p>
         <p v-else class="scenario-preview__hint">
-          切换到本预案时，该窗口保留当前内容。
+          {{ t('scenarios.preview.keepHint') }}
         </p>
         <p v-if="target.source_state === 'set'" class="scenario-preview__settings">
-          自动播放 {{ target.autoplay ? '开' : '关' }} · 续播 {{ target.resume ? '是' : '否' }}
+          {{ t('scenarios.preview.sourceLine', { autoplay: target.autoplay ? t('scenarios.preview.on') : t('scenarios.preview.off'), resume: target.resume ? t('scenarios.preview.yes') : t('scenarios.preview.no') }) }}
         </p>
       </FCard>
     </div>
 
     <template #actions="{ cancel }">
-      <FButton appearance="secondary" @click="cancel">关闭</FButton>
+      <FButton appearance="secondary" @click="cancel">{{ t('common.close') }}</FButton>
       <FButton appearance="subtle" :icon-start="isPinned ? 'pin_off_24_regular' : 'pin_24_regular'" :loading="isPinning"
         @click="pinToggle">
-        {{ isPinned ? '取消置顶' : '置顶' }}
+        {{ isPinned ? t('scenarios.preview.unpin') : t('scenarios.preview.pin') }}
       </FButton>
       <FButton appearance="danger" icon-start="delete_24_regular" @click="remove">
-        删除
+        {{ t('common.delete') }}
       </FButton>
       <FButton appearance="secondary" icon-start="edit_24_regular" @click="edit">
-        编辑
+        {{ t('common.edit') }}
       </FButton>
       <FButton appearance="primary" icon-start="play_24_regular" :loading="isActivating" @click="activate">
-        激活
+        {{ t('scenarios.preview.activate') }}
       </FButton>
     </template>
   </FDrawer>

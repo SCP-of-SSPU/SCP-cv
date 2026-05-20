@@ -7,6 +7,7 @@
  * 通过 provide/inject 给子组件注入 id / aria-describedby 关联。
  */
 import { computed, provide, useSlots } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 import { useLocalId } from './utils';
 
@@ -30,6 +31,7 @@ const props = withDefaults(defineProps<FFieldProps>(), {
   visuallyHiddenLabel: false,
 });
 
+const { t } = useI18n();
 const slots = useSlots();
 const fieldId = useLocalId('f-field');
 const hintId = useLocalId('f-hint');
@@ -61,7 +63,7 @@ void slots; // 显式标记 slots 已使用（仅占位，模板中用 $slots）
       :class="{ 'visually-hidden': visuallyHiddenLabel }"
     >
       <span>{{ label }}</span>
-      <span v-if="required" class="f-field__required" aria-hidden="true">（必填）</span>
+      <span v-if="required" class="f-field__required" aria-hidden="true">{{ t('ds.fieldRequired') }}</span>
     </label>
 
     <div class="f-field__control">

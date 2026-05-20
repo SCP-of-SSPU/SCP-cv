@@ -1,3 +1,5 @@
+import { t } from '@/locales';
+
 export interface MediaFolderItem {
   id: number;
   name: string;
@@ -191,8 +193,8 @@ export function buildBackendUrl(path: string): string {
 
 function buildNonJsonError(statusCode: number, responseText: string): Error {
   const normalizedText = responseText.trim().replace(/\s+/g, ' ');
-  const previewText = normalizedText.slice(0, 120) || '空响应';
-  return new Error(`服务返回非 JSON 响应（HTTP ${statusCode}）：${previewText}`);
+  const previewText = normalizedText.slice(0, 120) || t('api.emptyResponse');
+  return new Error(t('api.nonJson', { code: statusCode, preview: previewText }));
 }
 
 function parseJsonText<T>(responseText: string, statusCode: number, contentType = ''): T & ApiDetailPayload {
@@ -231,7 +233,7 @@ async function requestJson<T>(url: string, init: RequestInit = {}): Promise<T> {
   const responseText = await response.text();
   const payload = parseJsonText<T>(responseText, response.status, response.headers.get('Content-Type') || '');
   if (!response.ok) {
-    throw new Error(payload.detail || `请求失败：${response.status}`);
+    throw new Error(payload.detail || t('api.requestFail', { status: response.status }));
   }
   return payload;
 }
@@ -249,18 +251,18 @@ function uploadFormData<T>(url: string, formData: FormData, options: UploadOptio
       try {
         payload = parseJsonText<T>(request.responseText, request.status, request.getResponseHeader('Content-Type') || '');
       } catch (error) {
-        reject(error instanceof Error ? error : new Error('响应解析失败'));
+        reject(error instanceof Error ? error : new Error(t('api.parseFail')));
         return;
       }
       if (request.status < 200 || request.status >= 300) {
-        reject(new Error(payload.detail || `请求失败：${request.status}`));
+        reject(new Error(payload.detail || t('api.requestFail', { status: request.status })));
         return;
       }
       options.onProgress?.(100);
       resolve(payload);
     };
-    request.onerror = () => reject(new Error('上传失败：网络连接异常'));
-    request.onabort = () => reject(new Error('上传已取消'));
+    request.onerror = () => reject(new Error(t('api.uploadNetFail')));
+    request.onabort = () => reject(new Error(t('api.uploadAborted')));
     request.send(formData);
   });
 }

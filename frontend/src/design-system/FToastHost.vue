@@ -4,6 +4,7 @@
  * 移动端 sm/xs 自动改顶部居中（避开底部 TabBar），并使用 safe-area-inset-top 兜底。
  */
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 import FButton from './FButton.vue';
 import FIcon from './FIcon.vue';
@@ -12,6 +13,7 @@ import { useToastStore } from '@/composables/useToast';
 import type { ToastLevel } from '@/composables/useToast';
 import type { FluentIconName } from './icons';
 
+const { t } = useI18n();
 const toastStore = useToastStore();
 const { isMobile } = useBreakpoint();
 
@@ -57,7 +59,7 @@ async function triggerAction(id: number, action?: { onTrigger: () => void | Prom
               {{ item.action.label }}
             </FButton>
             <FButton appearance="transparent" size="compact" icon-only :icon-start="'dismiss_20_regular'"
-              aria-label="关闭通知" @click="toastStore.dismiss(item.id)" />
+              :aria-label="t('ds.toastClose')" @click="toastStore.dismiss(item.id)" />
           </div>
         </article>
       </TransitionGroup>

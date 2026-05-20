@@ -10,6 +10,7 @@
  *   - 不在 Drawer 内打开复杂二级 Drawer。
  */
 import { computed, ref, toRef, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 import FButton from './FButton.vue';
 import FIcon from './FIcon.vue';
@@ -46,11 +47,15 @@ const props = withDefaults(defineProps<FDrawerProps>(), {
   mobileHeight: 'full',
   cancellable: true,
   hideDefaultActions: false,
-  primaryLabel: '保存',
-  secondaryLabel: '取消',
+  primaryLabel: undefined,
+  secondaryLabel: undefined,
   loading: false,
   primaryVariant: 'primary',
 });
+
+const { t } = useI18n();
+const primaryText = computed(() => props.primaryLabel ?? t('ds.drawerSave'));
+const secondaryText = computed(() => props.secondaryLabel ?? t('ds.drawerCancel'));
 
 const emit = defineEmits<{
   (event: 'update:open', value: boolean): void;
@@ -124,7 +129,7 @@ function onOverlayClick(event: MouseEvent): void {
               <h2 :id="$.uid + '-title'" class="f-drawer__title">{{ title }}</h2>
               <p v-if="description" class="f-drawer__description">{{ description }}</p>
             </div>
-            <button v-if="cancellable" type="button" class="f-drawer__close" aria-label="关闭" @click="onCancel">
+            <button v-if="cancellable" type="button" class="f-drawer__close" :aria-label="t('ds.drawerClose')" @click="onCancel">
               <FIcon name="dismiss_24_regular" />
             </button>
           </header>
@@ -135,10 +140,10 @@ function onOverlayClick(event: MouseEvent): void {
             <slot name="actions" :confirm="onConfirm" :cancel="onCancel">
               <template v-if="!hideDefaultActions">
                 <FButton appearance="secondary" :full-width="isMobile" @click="onCancel">
-                  {{ secondaryLabel }}
+                  {{ secondaryText }}
                 </FButton>
                 <FButton :appearance="primaryVariant" :loading="loading" :full-width="isMobile" @click="onConfirm">
-                  {{ primaryLabel }}
+                  {{ primaryText }}
                 </FButton>
               </template>
             </slot>

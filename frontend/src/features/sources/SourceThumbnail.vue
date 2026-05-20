@@ -90,8 +90,7 @@ function markFailed(): void {
 }
 
 .source-thumbnail__icon {
-  width: 22px;
-  height: 22px;
+  font-size: 1.375rem;
   color: var(--color-text-secondary);
 }
 </style>

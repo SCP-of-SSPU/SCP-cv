@@ -10,6 +10,7 @@
  * 避免高频 PATCH 与 SSE 回写在拖动中竞态导致滑块回弹/卡顿。
  */
 import { computed, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { RouterLink } from 'vue-router';
 
 import {
@@ -33,6 +34,7 @@ import { usePlaybackErrorGate } from './usePlaybackErrorGate';
 
 const props = defineProps<{ session: SessionSnapshot }>();
 
+const { t } = useI18n();
 const toast = useToast();
 const sessionStore = useSessionStore();
 const sourceStore = useSourceStore();
@@ -72,42 +74,42 @@ async function call(action: () => Promise<void>, errorTitle: string): Promise<vo
   try {
     await action();
   } catch (error) {
-    toast.error(errorTitle, error instanceof Error ? error.message : '请稍后重试');
+    toast.error(errorTitle, error instanceof Error ? error.message : t('common.retry'));
   }
 }
 
 function onPlay(): void {
-  void call(() => sessionStore.control(props.session.window_id, 'play'), '播放失败');
+  void call(() => sessionStore.control(props.session.window_id, 'play'), t('playback.playFail'));
 }
 function onPause(): void {
-  void call(() => sessionStore.control(props.session.window_id, 'pause'), '暂停失败');
+  void call(() => sessionStore.control(props.session.window_id, 'pause'), t('playback.pauseFail'));
 }
 function onStop(): void {
-  void call(() => sessionStore.control(props.session.window_id, 'stop'), '停止失败');
+  void call(() => sessionStore.control(props.session.window_id, 'stop'), t('playback.stopFail'));
 }
 function onPrev(): void {
-  void call(() => sessionStore.navigate(props.session.window_id, 'prev'), '翻页失败');
+  void call(() => sessionStore.navigate(props.session.window_id, 'prev'), t('playback.navFail'));
 }
 function onNext(): void {
-  void call(() => sessionStore.navigate(props.session.window_id, 'next'), '翻页失败');
+  void call(() => sessionStore.navigate(props.session.window_id, 'next'), t('playback.navFail'));
 }
 function onJump(): void {
   const target = Number.parseInt(jumpInput.value, 10);
   if (!Number.isFinite(target) || target <= 0) {
-    toast.warning('页码无效', '请输入大于 0 的整数');
+    toast.warning(t('playback.pageInvalid'), t('playback.pageInvalidDetail'));
     return;
   }
   // 后端 PlaybackCommand 中跳页指令命名为 GOTO；早先误传 'jump' 会被
   // services.playback.navigate_content 校验为「无效的导航动作」，跳转无效。
-  void call(() => sessionStore.navigate(props.session.window_id, 'goto', target), '跳页失败');
+  void call(() => sessionStore.navigate(props.session.window_id, 'goto', target), t('playback.jumpFail'));
 }
 
 function onLoopToggle(value: boolean): void {
-  void call(() => sessionStore.setLoop(props.session.window_id, value), '循环切换失败');
+  void call(() => sessionStore.setLoop(props.session.window_id, value), t('playback.loopFail'));
 }
 
 function onMuteToggle(value: boolean): void {
-  void call(() => sessionStore.setWindowMute(props.session.window_id, value), '窗口静音失败');
+  void call(() => sessionStore.setWindowMute(props.session.window_id, value), t('playback.windowMuteFail'));
 }
 
 // 窗口音量节流：拖动每 ~120 ms 上报一次，抬手再 flush，
@@ -117,7 +119,7 @@ const windowVolume = useThrottledSlider(
   {
     commit: (value: number) => sessionStore.setWindowVolume(props.session.window_id, value),
     onError: (error) => {
-      toast.error('音量调整失败', error instanceof Error ? error.message : '请稍后重试');
+      toast.error(t('playback.volumeFail'), error instanceof Error ? error.message : t('common.retry'));
     },
   },
 );
@@ -125,12 +127,12 @@ const windowVolume = useThrottledSlider(
 function onSeek(positionMs: number): void {
   void call(
     () => sessionStore.navigate(props.session.window_id, 'seek', 0, positionMs),
-    'Seek 失败',
+    t('playback.seekFail'),
   );
 }
 
 function onClose(): void {
-  void call(() => sessionStore.closeSource(props.session.window_id), '关闭显示失败');
+  void call(() => sessionStore.closeSource(props.session.window_id), t('playback.closeFail'));
 }
 
 const pptResources = ref<PptResourceItem[]>([]);
@@ -146,7 +148,7 @@ async function loadPptResources(): Promise<void> {
     const payload = await api.listPptResources(props.session.source_id);
     pptResources.value = payload.resources;
   } catch (error) {
-    pptError.value = error instanceof Error ? error.message : '加载失败';
+    pptError.value = error instanceof Error ? error.message : t('playback.loadFailGeneric');
   }
 }
 
@@ -166,7 +168,7 @@ async function pptMediaAction(mediaId: string, mediaIndex: number, action: strin
   try {
     await sessionStore.controlPptMedia(props.session.window_id, action, mediaId, mediaIndex);
   } catch (error) {
-    toast.error('PPT 媒体控制失败', error instanceof Error ? error.message : '请稍后重试');
+    toast.error(t('playback.pptMediaFail'), error instanceof Error ? error.message : t('common.retry'));
   }
 }
 
@@ -186,9 +188,9 @@ async function reopenCurrentSource(): Promise<void> {
   if (!props.session.source_id) return;
   try {
     await sessionStore.openSource(props.session.window_id, props.session.source_id, true);
-    toast.info('已重新打开当前源', '请等待播放器握手完成');
+    toast.info(t('playback.reopenOk'), t('playback.reopenOkDetail'));
   } catch (error) {
-    toast.error('重新打开源失败', error instanceof Error ? error.message : '请稍后重试');
+    toast.error(t('playback.reopenFail'), error instanceof Error ? error.message : t('common.retry'));
   }
 }
 
@@ -199,15 +201,15 @@ const { showErrorBar, dismissErrorBar } = usePlaybackErrorGate({
 
 const adapterErrorMessage = computed(() => (props.session.error_message || '').trim());
 const errorBarTitle = computed(() => {
-  if (!adapterErrorMessage.value && category.value === 'stream') return '直播流尚未就绪';
-  return category.value === 'stream' ? '直播播放异常' : '播放器异常';
+  if (!adapterErrorMessage.value && category.value === 'stream') return t('playback.streamNotReady');
+  return category.value === 'stream' ? t('playback.streamError') : t('playback.playerError');
 });
 const errorBarDescription = computed(() => {
   if (adapterErrorMessage.value) return adapterErrorMessage.value;
   if (category.value === 'stream') {
-    return '请确认推流端（OBS / 编码器）已经向 MediaMTX 推流；首帧握手 1–2 秒，期间状态可能短暂为「异常」。如持续 5 秒以上未恢复，可点击「再次打开源」或在「应急 → 重置全部窗口」恢复。';
+    return t('playback.streamErrorDesc');
   }
-  return '请检查源是否可用或重新打开源；如反复失败，可在「应急 → 重置全部窗口」恢复。';
+  return t('playback.genericErrorDesc');
 });
 </script>
 
@@ -219,17 +221,17 @@ const errorBarDescription = computed(() => {
           {{ session.playback_state_label || session.playback_state }}
         </FTag>
         <h3 class="playback-control__source-name">
-          {{ session.source_name || '未打开任何源' }}
+          {{ session.source_name || t('playback.notOpened') }}
         </h3>
         <p class="playback-control__caption">
-          {{ session.source_type_label || '空闲' }}
-          <template v-if="session.is_spliced">· {{ session.spliced_display_label || '拼接' }}</template>
+          {{ session.source_type_label || t('playback.idle') }}
+          <template v-if="session.is_spliced">· {{ session.spliced_display_label || t('playback.spliced') }}</template>
         </p>
       </div>
       <RouterLink v-if="category === 'ppt' && session.source_id" :to="`/ppt-focus/${session.window_id}`"
         class="playback-control__focus-link">
         <FIcon name="arrow_maximize_24_regular" />
-        <span>PPT 专注模式</span>
+        <span>{{ t('playback.focusLink') }}</span>
       </RouterLink>
     </header>
 
@@ -237,7 +239,7 @@ const errorBarDescription = computed(() => {
       {{ errorBarDescription }}
       <template #actions>
         <FButton appearance="secondary" size="compact" :disabled="!session.source_id" @click="reopenCurrentSource">
-          再次打开源
+          {{ t('playback.reopen') }}
         </FButton>
       </template>
     </FMessageBar>
@@ -245,11 +247,11 @@ const errorBarDescription = computed(() => {
     <!-- PPT 控制 -->
     <section v-if="category === 'ppt'" class="playback-control__section">
       <div class="playback-control__row playback-control__row--ppt">
-        <FButton appearance="secondary" icon-start="previous_24_regular" @click="onPrev">上一页</FButton>
-        <FButton appearance="primary" icon-start="next_24_regular" @click="onNext">下一页</FButton>
+        <FButton appearance="secondary" icon-start="previous_24_regular" @click="onPrev">{{ t('playback.prevPage') }}</FButton>
+        <FButton appearance="primary" icon-start="next_24_regular" @click="onNext">{{ t('playback.nextPage') }}</FButton>
         <div class="playback-control__jump">
-          <FInput v-model="jumpInput" type="number" placeholder="跳页" :max-length="4" />
-          <FButton appearance="secondary" @click="onJump">跳转</FButton>
+          <FInput v-model="jumpInput" type="number" :placeholder="t('playback.jumpPlaceholder')" :max-length="4" />
+          <FButton appearance="secondary" @click="onJump">{{ t('playback.jump') }}</FButton>
         </div>
       </div>
       <div v-if="session.total_slides > 0" class="playback-control__row playback-control__row--progress">
@@ -257,21 +259,21 @@ const errorBarDescription = computed(() => {
         <span class="playback-control__progress-label">{{ pptProgressLabel }}</span>
       </div>
 
-      <FMessageBar v-if="pptError" tone="error" title="加载 PPT 资源失败">
+      <FMessageBar v-if="pptError" tone="error" :title="t('playback.pptLoadFail')">
         {{ pptError }}
       </FMessageBar>
 
       <div v-if="currentResource && currentResource.media_items.length > 0" class="playback-control__media">
-        <h4 class="playback-control__media-title">当前页媒体</h4>
+        <h4 class="playback-control__media-title">{{ t('playback.currentMedia') }}</h4>
         <ul class="playback-control__media-list">
           <li v-for="media in currentResource.media_items" :key="media.id" class="playback-control__media-item">
             <span class="playback-control__media-name">{{ media.name }}</span>
             <span class="playback-control__media-actions">
-              <FButton size="compact" icon-only icon-start="play_24_regular" aria-label="播放媒体"
+              <FButton size="compact" icon-only icon-start="play_24_regular" :aria-label="t('playback.playMedia')"
                 @click="pptMediaAction(media.id, media.media_index, 'play')" />
-              <FButton size="compact" icon-only icon-start="pause_24_regular" aria-label="暂停媒体"
+              <FButton size="compact" icon-only icon-start="pause_24_regular" :aria-label="t('playback.pauseMedia')"
                 @click="pptMediaAction(media.id, media.media_index, 'pause')" />
-              <FButton size="compact" icon-only icon-start="stop_24_regular" aria-label="停止媒体" appearance="danger"
+              <FButton size="compact" icon-only icon-start="stop_24_regular" :aria-label="t('playback.stopMedia')" appearance="danger"
                 @click="pptMediaAction(media.id, media.media_index, 'stop')" />
             </span>
           </li>
@@ -283,16 +285,16 @@ const errorBarDescription = computed(() => {
     <section v-else-if="category === 'video'" class="playback-control__section">
       <div class="playback-control__row">
         <FButton v-if="!isPlaying" appearance="primary" icon-start="play_24_regular" @click="onPlay">
-          播放
+          {{ t('playback.play') }}
         </FButton>
         <FButton v-else appearance="primary" icon-start="pause_24_regular" @click="onPause">
-          暂停
+          {{ t('playback.pause') }}
         </FButton>
-        <FButton appearance="secondary" icon-start="stop_24_regular" @click="onStop">停止</FButton>
-        <FSwitch :model-value="session.loop_enabled" label="循环播放" @update:modelValue="onLoopToggle" />
+        <FButton appearance="secondary" icon-start="stop_24_regular" @click="onStop">{{ t('playback.stop') }}</FButton>
+        <FSwitch :model-value="session.loop_enabled" :label="t('playback.loop')" @update:modelValue="onLoopToggle" />
       </div>
       <div v-if="session.duration_ms > 0" class="playback-control__row playback-control__row--seek">
-        <FSlider :model-value="seekValue" :min="0" :max="session.duration_ms" :step="1000" aria-label="播放进度"
+        <FSlider :model-value="seekValue" :min="0" :max="session.duration_ms" :step="1000" :aria-label="t('playback.seekAria')"
           @update:modelValue="onSeek" />
         <span class="playback-control__progress-label">
           {{ formatDuration(session.position_ms) }} / {{ formatDuration(session.duration_ms) }}
@@ -303,34 +305,34 @@ const errorBarDescription = computed(() => {
     <!-- 图片 / 网页 -->
     <section v-else-if="category === 'image' || category === 'web'" class="playback-control__section">
       <p v-if="session.source_uri" class="playback-control__uri">{{ session.source_uri }}</p>
-      <p v-else class="playback-control__uri">资源未提供 URI</p>
+      <p v-else class="playback-control__uri">{{ t('playback.uriMissing') }}</p>
     </section>
 
     <!-- 直播 -->
     <section v-else-if="category === 'stream'" class="playback-control__section">
       <FTag :tone="session.source_uri ? 'warning' : 'subtle'" :dot="!!session.source_uri">
-        {{ session.source_uri ? '直播中' : '未推流' }}
+        {{ session.source_uri ? t('playback.live') : t('playback.notStreaming') }}
       </FTag>
       <p v-if="session.source_uri" class="playback-control__uri">{{ session.source_uri }}</p>
     </section>
 
     <section v-else class="playback-control__section">
-      <p class="playback-control__caption">该窗口当前没有源；请从左侧列表选择源打开。</p>
+      <p class="playback-control__caption">{{ t('playback.noSource') }}</p>
     </section>
 
     <!-- 通用：窗口音量、关闭显示 -->
     <section class="playback-control__section">
       <div class="playback-control__row">
-        <span class="playback-control__field-label">窗口音量</span>
-        <FSlider :model-value="windowVolume.value.value" :min="0" :max="100" aria-label="窗口音量" show-value
+        <span class="playback-control__field-label">{{ t('playback.windowVolume') }}</span>
+        <FSlider :model-value="windowVolume.value.value" :min="0" :max="100" :aria-label="t('playback.windowVolumeAria')" show-value
           :disabled="category === 'image' || category === 'web'" @update:modelValue="windowVolume.handleInput"
           @change="windowVolume.handleChange" />
       </div>
       <div class="playback-control__row">
-        <FSwitch :model-value="session.is_muted" label="窗口静音" :disabled="category === 'image' || category === 'web'"
+        <FSwitch :model-value="session.is_muted" :label="t('playback.windowMute')" :disabled="category === 'image' || category === 'web'"
           @update:modelValue="onMuteToggle" />
         <FButton appearance="danger" icon-start="dismiss_24_regular" :disabled="!session.source_id" @click="onClose">
-          关闭显示
+          {{ t('playback.closeDisplay') }}
         </FButton>
       </div>
     </section>

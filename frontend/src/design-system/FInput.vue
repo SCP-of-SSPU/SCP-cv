@@ -6,6 +6,7 @@
  *   - 自动从 FField 注入 id / aria-describedby / aria-invalid。
  */
 import { computed, inject, ref, watch, type Ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 import FIcon from './FIcon.vue';
 
@@ -48,6 +49,8 @@ const props = withDefaults(defineProps<FInputProps>(), {
   autofocus: false,
   clearable: false,
 });
+
+const { t } = useI18n();
 
 const emit = defineEmits<{
   (event: 'update:modelValue', value: string): void;
@@ -117,7 +120,7 @@ defineExpose({
       :aria-label="ariaLabel" :aria-describedby="describedBy" :aria-invalid="isInvalid || undefined"
       :aria-required="field?.required.value || undefined" @input="onInput" @keydown="onKeyDown" />
     <button v-if="clearable && modelValue && !disabled && !readonly" type="button" class="f-input__clear"
-      aria-label="清除输入" @click="clearValue">
+      :aria-label="t('ds.clearInput')" @click="clearValue">
       <FIcon name="dismiss_16_regular" />
     </button>
     <span v-if="$slots.suffix" class="f-input__suffix">

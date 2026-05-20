@@ -4,6 +4,7 @@
  * 路由参数 :target 决定当前窗口；移动端额外使用 SegmentedControl 替代左侧 Nav。
  */
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
 import {
@@ -20,6 +21,7 @@ import { useBreakpoint } from '@/composables/useBreakpoint';
 import { useRuntimeStore } from '@/stores/runtime';
 import { useSessionStore } from '@/stores/sessions';
 
+const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const runtime = useRuntimeStore();
@@ -55,10 +57,10 @@ const activeTab = computed({
   set: () => undefined,
 });
 
-const tabItems: FTabsItem<TabId>[] = [
-  { label: '切换源', value: 'source' },
-  { label: '播放控制', value: 'control' },
-];
+const tabItems = computed<FTabsItem<TabId>[]>(() => [
+  { label: t('display.tabSource'), value: 'source' },
+  { label: t('display.tabControl'), value: 'control' },
+]);
 
 const mobileActiveTab = computed({
   get: () => (activeTab.value as TabId),
@@ -90,33 +92,33 @@ void tabItems;
 
 <template>
   <div class="display-view">
-    <FSegmented v-if="isMobile" :model-value="targetParam" :options="segmentOptions" full-width aria-label="窗口选择"
+    <FSegmented v-if="isMobile" :model-value="targetParam" :options="segmentOptions" full-width :aria-label="t('display.windowSelectAria')"
       @update:modelValue="(value) => changeTarget(value as string)" />
 
     <header class="display-view__hero">
-      <p class="display-view__eyebrow">Window {{ targetMeta?.windowId ?? '?' }}</p>
-      <h2 class="display-view__title">{{ targetMeta?.title ?? '未知窗口' }}显示控制</h2>
+      <p class="display-view__eyebrow">{{ t('display.windowEyebrow', { id: targetMeta?.windowId ?? '?' }) }}</p>
+      <h2 class="display-view__title">{{ targetMeta?.title ?? t('display.windowUnknown') }}{{ t('display.titleSuffix') }}</h2>
       <p class="display-view__caption">
-        {{ targetMeta?.subtitle || (currentSession ? `当前：${currentSession.source_name || '空闲'}` : '正在加载会话…') }}
+        {{ targetMeta?.subtitle || (currentSession ? t('display.currentSource', { name: currentSession.source_name || t('display.idle') }) : t('display.loadingSession')) }}
       </p>
     </header>
 
     <FCard v-if="blocksForSingleMode" padding="cozy">
-      <FEmpty title="单屏模式下「大屏右」不可控" description="当前运行态为单屏；窗口 2 由系统自动静音。如需独立控制，请切换到双屏模式。" icon="tv_24_regular">
+      <FEmpty :title="t('display.blockedTitle')" :description="t('display.blockedDesc')" icon="tv_24_regular">
         <template #actions>
-          <button class="display-view__cta" @click="switchToDouble">切换到双屏</button>
+          <button class="display-view__cta" @click="switchToDouble">{{ t('display.switchToDouble') }}</button>
         </template>
       </FEmpty>
     </FCard>
 
     <template v-else-if="!currentSession">
       <FCard padding="cozy">
-        <FEmpty title="正在加载会话状态" description="若长时间无响应，请检查后端服务或在「应急 → 重置全部窗口」恢复。" icon="info_24_regular" />
+        <FEmpty :title="t('display.loadingTitle')" :description="t('display.loadingDesc')" icon="info_24_regular" />
       </FCard>
     </template>
 
     <template v-else-if="isMobile">
-      <FTabs v-model="mobileTab" :items="tabItems" appearance="line" full-width aria-label="显示控制视图切换" />
+      <FTabs v-model="mobileTab" :items="tabItems" appearance="line" full-width :aria-label="t('display.viewSwitchAria')" />
       <SourcePicker v-if="mobileTab === 'source'" :window-id="currentSession.window_id" />
       <PlaybackControl v-else :session="currentSession" />
     </template>

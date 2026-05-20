@@ -9,6 +9,7 @@
  *   - 行末菜单只保留：打开到窗口 1/2/3/4、下载（仅文件型）、删除。
  */
 import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 import {
   FButton,
@@ -35,6 +36,7 @@ import { useSourceStore, type SourceCategory } from '@/stores/sources';
 import { api, type MediaSourceItem } from '@/services/api';
 import { formatBytes, formatRelativeTime } from '@/design-system/utils';
 
+const { t } = useI18n();
 const sourceStore = useSourceStore();
 const sessionStore = useSessionStore();
 const dialog = useDialog();
@@ -58,17 +60,17 @@ interface CategoryDef {
   emptyHint: string;
 }
 
-const CATEGORY_DEFS: CategoryDef[] = [
-  { value: 'all', label: '全部源', emptyTitle: '暂无媒体源', emptyHint: '上传文件或注册网页源后，可在这里浏览、打开到窗口或加入预案。' },
-  { value: 'ppt', label: 'PPT 源', emptyTitle: '暂无 PPT 源', emptyHint: '上传 PPT 后，可在这里浏览、打开到窗口或加入预案。' },
-  { value: 'video', label: '视频源', emptyTitle: '暂无视频源', emptyHint: '上传视频后，可在这里浏览、打开到窗口或加入预案。' },
-  { value: 'image', label: '图片源', emptyTitle: '暂无图片源', emptyHint: '上传图片后，可在这里浏览、打开到窗口或加入预案。' },
-  { value: 'web', label: '网页源', emptyTitle: '暂无网页源', emptyHint: '注册 URL 或 ip:port 网页后，可在这里浏览、打开到窗口或加入预案。' },
-  { value: 'stream', label: '直播源', emptyTitle: '暂无直播源', emptyHint: '直播源由后端推流注入，离线超过 1 小时会自动清理。' },
-];
+const CATEGORY_DEFS = computed<CategoryDef[]>(() => [
+  { value: 'all', label: t('sources.cat.allLabel'), emptyTitle: t('sources.cat.allEmptyTitle'), emptyHint: t('sources.cat.allEmptyHint') },
+  { value: 'ppt', label: t('sources.cat.pptLabel'), emptyTitle: t('sources.cat.pptEmptyTitle'), emptyHint: t('sources.cat.pptEmptyHint') },
+  { value: 'video', label: t('sources.cat.videoLabel'), emptyTitle: t('sources.cat.videoEmptyTitle'), emptyHint: t('sources.cat.videoEmptyHint') },
+  { value: 'image', label: t('sources.cat.imageLabel'), emptyTitle: t('sources.cat.imageEmptyTitle'), emptyHint: t('sources.cat.imageEmptyHint') },
+  { value: 'web', label: t('sources.cat.webLabel'), emptyTitle: t('sources.cat.webEmptyTitle'), emptyHint: t('sources.cat.webEmptyHint') },
+  { value: 'stream', label: t('sources.cat.streamLabel'), emptyTitle: t('sources.cat.streamEmptyTitle'), emptyHint: t('sources.cat.streamEmptyHint') },
+]);
 
 const navItems = computed<FTabsItem[]>(() =>
-  CATEGORY_DEFS.map((def) => ({
+  CATEGORY_DEFS.value.map((def) => ({
     label: def.label,
     value: def.value,
     badge: sourceStore.countByCategory[def.value],
@@ -76,7 +78,7 @@ const navItems = computed<FTabsItem[]>(() =>
 );
 
 const activeCategoryDef = computed(
-  () => CATEGORY_DEFS.find((def) => def.value === sourceStore.category) ?? CATEGORY_DEFS[0],
+  () => CATEGORY_DEFS.value.find((def) => def.value === sourceStore.category) ?? CATEGORY_DEFS.value[0],
 );
 
 async function refresh(): Promise<void> {
@@ -84,7 +86,7 @@ async function refresh(): Promise<void> {
   try {
     await sourceStore.refresh();
   } catch (error) {
-    toast.error('媒体源列表加载失败', error instanceof Error ? error.message : '请稍后重试');
+    toast.error(t('sources.loadFail'), error instanceof Error ? error.message : t('common.retry'));
   } finally {
     isLoading.value = false;
   }
@@ -93,9 +95,9 @@ async function refresh(): Promise<void> {
 async function openToWindow(source: MediaSourceItem, windowId: number): Promise<void> {
   try {
     await sessionStore.openSource(windowId, source.id, true);
-    toast.success(`已在窗口 ${windowId} 打开 ${source.name}`);
+    toast.success(t('sources.openedOk', { id: windowId, name: source.name }));
   } catch (error) {
-    toast.error('打开到窗口失败', error instanceof Error ? error.message : '请稍后重试');
+    toast.error(t('sources.openFail'), error instanceof Error ? error.message : t('common.retry'));
   }
 }
 
@@ -107,16 +109,16 @@ function downloadSource(source: MediaSourceItem): void {
 
 async function deleteSource(source: MediaSourceItem): Promise<void> {
   const confirmed = await dialog.danger({
-    title: `删除 ${source.name}？`,
-    description: '该源会被永久移除；正在使用此源的窗口将停止播放。此操作不可恢复。',
-    confirmLabel: '删除源',
+    title: t('sources.deleteTitle', { name: source.name }),
+    description: t('sources.deleteDesc'),
+    confirmLabel: t('sources.deleteSource'),
   });
   if (!confirmed) return;
   try {
     await sourceStore.deleteSource(source.id);
-    toast.success('源已删除');
+    toast.success(t('sources.deletedOk'));
   } catch (error) {
-    toast.error('删除失败', error instanceof Error ? error.message : '请稍后重试');
+    toast.error(t('sources.deleteFail'), error instanceof Error ? error.message : t('common.retry'));
   }
 }
 
@@ -124,9 +126,9 @@ function buildRowMenu(source: MediaSourceItem): FMenuGroup[] {
   const isFileBased = !!source.file_size && source.file_size > 0;
   return [
     {
-      label: '打开到窗口',
+      label: t('sources.openToWindow'),
       items: [1, 2, 3, 4].map((windowId) => ({
-        label: `窗口 ${windowId}`,
+        label: t('sources.window', { id: windowId }),
         icon: 'open_24_regular',
         onTrigger: () => openToWindow(source, windowId),
       })),
@@ -134,19 +136,19 @@ function buildRowMenu(source: MediaSourceItem): FMenuGroup[] {
     {
       items: [
         {
-          label: '编辑',
+          label: t('common.edit'),
           icon: 'edit_24_regular',
           onTrigger: () => startEdit(source),
         },
         {
-          label: '下载',
+          label: t('sources.download'),
           icon: 'arrow_download_24_regular',
           disabled: !isFileBased,
-          hint: isFileBased ? undefined : '该源为非文件源，无法下载',
+          hint: isFileBased ? undefined : t('sources.downloadDisabledHint'),
           onTrigger: () => downloadSource(source),
         },
         {
-          label: '删除源',
+          label: t('sources.deleteSource'),
           icon: 'delete_24_regular',
           danger: true,
           onTrigger: () => deleteSource(source),
@@ -163,8 +165,8 @@ function setCategory(value: SourceCategory): void {
 const totalCaption = computed(() => {
   const count = sourceStore.filtered.length;
   const totalBytes = sourceStore.filtered.reduce((acc, item) => acc + (item.file_size || 0), 0);
-  if (totalBytes <= 0) return `共 ${count} 项`;
-  return `共 ${count} 项 · 占用 ${formatBytes(totalBytes)}`;
+  if (totalBytes <= 0) return t('sources.countOnly', { n: count });
+  return t('sources.countWithSize', { n: count, size: formatBytes(totalBytes) });
 });
 </script>
 
@@ -172,31 +174,31 @@ const totalCaption = computed(() => {
   <div class="sources-view">
     <header class="sources-view__toolbar">
       <div class="sources-view__heading">
-        <h2 class="sources-view__title">媒体源</h2>
+        <h2 class="sources-view__title">{{ t('sources.title') }}</h2>
         <p class="sources-view__caption">{{ totalCaption }}</p>
       </div>
       <div class="sources-view__actions">
-        <FInput :model-value="sourceStore.searchKeyword" placeholder="搜索源名称或 URL" aria-label="搜索源名称或 URL"
+        <FInput :model-value="sourceStore.searchKeyword" :placeholder="t('sources.searchPlaceholder')" :aria-label="t('sources.searchPlaceholder')"
           clearable @update:modelValue="sourceStore.setSearchKeyword">
           <template #prefix>
             <FIcon name="search_20_regular" />
           </template>
         </FInput>
-        <FButton appearance="secondary" icon-start="arrow_clockwise_20_regular" icon-only aria-label="刷新源列表"
+        <FButton appearance="secondary" icon-start="arrow_clockwise_20_regular" icon-only :aria-label="t('sources.refreshAria')"
           :loading="isLoading" @click="refresh" />
         <FButton appearance="primary" icon-start="add_24_regular" @click="drawerOpen = true">
-          添加源
+          {{ t('sources.addSource') }}
         </FButton>
       </div>
     </header>
 
     <div v-if="isMobile" class="sources-view__mobile-pills">
-      <FTabs :model-value="sourceStore.category" :items="navItems" appearance="pill" full-width aria-label="源类型"
+      <FTabs :model-value="sourceStore.category" :items="navItems" appearance="pill" full-width :aria-label="t('sources.sourceTypeAria')"
         @update:modelValue="(value) => setCategory(value as SourceCategory)" />
     </div>
 
     <div class="sources-view__layout" :class="{ 'sources-view__layout--mobile': isMobile }">
-      <aside v-if="!isMobile" class="sources-view__nav" aria-label="源类型筛选">
+      <aside v-if="!isMobile" class="sources-view__nav" :aria-label="t('sources.sourceFilterAria')">
         <button v-for="def in CATEGORY_DEFS" :key="def.value" type="button" class="sources-view__nav-item"
           :class="{ 'sources-view__nav-item--active': sourceStore.category === def.value }"
           @click="setCategory(def.value)">
@@ -223,7 +225,7 @@ const totalCaption = computed(() => {
               icon="library_24_regular">
               <template #actions>
                 <FButton appearance="primary" icon-start="add_24_regular" @click="drawerOpen = true">
-                  添加源
+                  {{ t('sources.addSource') }}
                 </FButton>
               </template>
             </FEmpty>
@@ -233,11 +235,11 @@ const totalCaption = computed(() => {
             <table class="sources-view__table">
               <thead>
                 <tr>
-                  <th scope="col">名称</th>
-                  <th scope="col">类型</th>
-                  <th scope="col" class="sources-view__col--num">大小</th>
-                  <th scope="col">更新时间</th>
-                  <th scope="col" class="sources-view__col--actions">操作</th>
+                  <th scope="col">{{ t('sources.colName') }}</th>
+                  <th scope="col">{{ t('sources.colType') }}</th>
+                  <th scope="col" class="sources-view__col--num">{{ t('sources.colSize') }}</th>
+                  <th scope="col">{{ t('sources.colUpdated') }}</th>
+                  <th scope="col" class="sources-view__col--actions">{{ t('sources.colActions') }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -254,10 +256,10 @@ const totalCaption = computed(() => {
                   <td>
                     <FTag :tone="sourceCategoryTone(source)">{{ sourceCategoryLabel(source) }}</FTag>
                     <FTag v-if="!source.is_available" tone="error" class="sources-view__chip">
-                      离线
+                      {{ t('sources.offline') }}
                     </FTag>
                   </td>
-                  <td class="sources-view__col--num">{{ source.file_size ? formatBytes(source.file_size) : '—' }}</td>
+                  <td class="sources-view__col--num">{{ source.file_size ? formatBytes(source.file_size) : t('common.none') }}</td>
                   <td>{{ formatRelativeTime(source.created_at) }}</td>
                   <td class="sources-view__col--actions">
                     <FMenu :groups="buildRowMenu(source)" trigger-icon="more_horizontal_20_regular" />
@@ -285,7 +287,7 @@ const totalCaption = computed(() => {
                   <span>{{ formatRelativeTime(source.created_at) }}</span>
                 </div>
                 <FMessageBar v-if="!source.is_available" tone="error" :dismissible="false">
-                  当前不可用，请检查源文件或推流状态。
+                  {{ t('sources.unavailableCard') }}
                 </FMessageBar>
               </FCard>
             </div>

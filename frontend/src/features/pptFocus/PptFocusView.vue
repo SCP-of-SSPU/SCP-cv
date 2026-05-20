@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
 import {
@@ -26,6 +27,7 @@ interface PptSlideRailItem {
   hasMedia: boolean;
 }
 
+const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const { isLandscape } = useBreakpoint();
@@ -38,6 +40,8 @@ const resources = ref<PptResourceItem[]>([]);
 const loadError = ref('');
 const isLoading = ref(false);
 const selectedMediaKey = ref<string | null>(null);
+let previousRootTheme: string | null = null;
+let rootThemeApplied = false;
 
 const windowId = computed(() => Number.parseInt(String(route.params.windowId ?? '0'), 10));
 const session = computed(() => sessionStore.byWindowId(windowId.value));
@@ -83,8 +87,8 @@ const currentMediaItems = computed(() => currentResource.value?.media_items ?? [
 const currentMediaOptions = computed(() =>
   currentMediaItems.value.map((media) => ({
     value: mediaSelectionValue(media),
-    label: media.name || `媒体 ${media.media_index}`,
-    hint: media.media_type === 'audio' ? '音频' : media.media_type === 'video' ? '视频' : media.media_type,
+    label: media.name || t('pptFocus.mediaFallback', { n: media.media_index }),
+    hint: media.media_type === 'audio' ? t('pptFocus.audio') : media.media_type === 'video' ? t('pptFocus.video') : media.media_type,
   })),
 );
 
@@ -95,8 +99,8 @@ const selectedMedia = computed(() =>
 const canControlSelectedMedia = computed(() => !!session.value && !!selectedMedia.value);
 const isMediaPickerDisabled = computed(() => currentMediaOptions.value.length === 0);
 const mediaSelectPlaceholder = computed(() => {
-  if (!currentMediaOptions.value.length) return '当前页无媒体';
-  return currentMediaOptions.value.length === 1 ? '自动选择媒体' : '选择媒体';
+  if (!currentMediaOptions.value.length) return t('pptFocus.noMedia');
+  return currentMediaOptions.value.length === 1 ? t('pptFocus.autoSelectMedia') : t('pptFocus.selectMedia');
 });
 
 const teleprompterText = computed(() => sanitizeSpeakerNotes(
@@ -108,15 +112,15 @@ const teleprompterText = computed(() => sanitizeSpeakerNotes(
 const windowLabel = computed(() => {
   switch (windowId.value) {
     case 1:
-      return runtimeStore.runtime?.big_screen_mode === 'double' ? '大屏左' : '大屏';
+      return runtimeStore.runtime?.big_screen_mode === 'double' ? t('pptFocus.winBigLeft') : t('pptFocus.winBig');
     case 2:
-      return '大屏右';
+      return t('pptFocus.winBigRight');
     case 3:
-      return 'TV左';
+      return t('pptFocus.winTvLeft');
     case 4:
-      return 'TV右';
+      return t('pptFocus.winTvRight');
     default:
-      return `窗口 ${windowId.value}`;
+      return t('pptFocus.winFallback', { id: windowId.value });
   }
 });
 
@@ -136,11 +140,34 @@ watch(currentMediaItems, (items) => {
 
 watch(pptSourceId, loadResources, { immediate: true });
 
+function applyFocusTheme(): void {
+  const root = document.documentElement;
+  previousRootTheme = root.getAttribute('data-theme');
+  root.setAttribute('data-theme', 'dark');
+  rootThemeApplied = true;
+}
+
+function restoreFocusTheme(): void {
+  if (!rootThemeApplied) return;
+  const root = document.documentElement;
+  if (previousRootTheme) {
+    root.setAttribute('data-theme', previousRootTheme);
+  } else {
+    root.removeAttribute('data-theme');
+  }
+  rootThemeApplied = false;
+}
+
 onMounted(() => {
+  applyFocusTheme();
   void sessionStore.refresh();
   if (!runtimeStore.runtime) {
     void runtimeStore.refresh().catch(() => undefined);
   }
+});
+
+onBeforeUnmount(() => {
+  restoreFocusTheme();
 });
 
 function mediaSelectionValue(media: PptMediaItem): string {
@@ -184,7 +211,7 @@ async function loadResources(sourceId: number | null): Promise<void> {
     }
   } catch (error) {
     if (pptSourceId.value === sourceId) {
-      loadError.value = error instanceof Error ? error.message : '加载 PPT 资源失败';
+      loadError.value = error instanceof Error ? error.message : t('pptFocus.loadFailTitle');
     }
   } finally {
     if (pptSourceId.value === sourceId) {
@@ -198,7 +225,7 @@ async function nav(action: 'prev' | 'next'): Promise<void> {
   try {
     await sessionStore.navigate(session.value.window_id, action);
   } catch (error) {
-    toast.error('翻页失败', error instanceof Error ? error.message : '请稍后重试');
+    toast.error(t('pptFocus.navFail'), error instanceof Error ? error.message : t('common.retry'));
   }
 }
 
@@ -207,14 +234,14 @@ async function jumpToSlide(pageIndex: number): Promise<void> {
   try {
     await sessionStore.navigate(session.value.window_id, 'goto', pageIndex);
   } catch (error) {
-    toast.error('跳页失败', error instanceof Error ? error.message : '请稍后重试');
+    toast.error(t('pptFocus.jumpFail'), error instanceof Error ? error.message : t('common.retry'));
   }
 }
 
 async function controlSelectedMedia(action: 'play' | 'pause'): Promise<void> {
   if (!session.value || !selectedMedia.value) {
     if (currentMediaItems.value.length > 1) {
-      toast.info('请先选择要控制的媒体');
+      toast.info(t('pptFocus.pickMediaFirst'));
     }
     return;
   }
@@ -226,7 +253,7 @@ async function controlSelectedMedia(action: 'play' | 'pause'): Promise<void> {
       selectedMedia.value.media_index,
     );
   } catch (error) {
-    toast.error('PPT 媒体控制失败', error instanceof Error ? error.message : '请稍后重试');
+    toast.error(t('pptFocus.mediaFail'), error instanceof Error ? error.message : t('common.retry'));
   }
 }
 
@@ -266,13 +293,13 @@ const windowMappingForExit = computed(() => {
   <div class="ppt-focus" data-theme="dark">
     <header class="ppt-focus__topbar">
       <FButton appearance="subtle" icon-start="arrow_left_24_regular" @click="exitFocus">
-        返回屏幕控制
+        {{ t('pptFocus.back') }}
       </FButton>
       <div class="ppt-focus__topbar-center">
         <FTag tone="info">{{ windowLabel }}</FTag>
-        <span class="ppt-focus__topbar-title">{{ session?.source_name || '未选择 PPT 源' }}</span>
+        <span class="ppt-focus__topbar-title">{{ session?.source_name || t('pptFocus.noSourceSelected') }}</span>
         <FTag :tone="session?.playback_state === 'playing' ? 'success' : 'subtle'">
-          {{ session?.playback_state_label || session?.playback_state || '未知' }}
+          {{ session?.playback_state_label || session?.playback_state || t('pptFocus.unknown') }}
         </FTag>
         <span v-if="slidesProgress.total > 0" class="ppt-focus__topbar-progress">
           {{ slidesProgress.current }} / {{ slidesProgress.total }}
@@ -283,24 +310,24 @@ const windowMappingForExit = computed(() => {
         :icon-start="isFullscreen ? 'full_screen_minimize_24_regular' : 'full_screen_maximize_24_regular'"
         @click="toggleFullscreen"
       >
-        {{ isFullscreen ? '退出全屏' : '全屏' }}
+        {{ isFullscreen ? t('pptFocus.exitFullscreen') : t('pptFocus.fullscreen') }}
       </FButton>
     </header>
 
     <main class="ppt-focus__stage" :data-orientation="orientationKey">
-      <FMessageBar v-if="loadError" tone="error" title="无法加载 PPT 资源">
+      <FMessageBar v-if="loadError" tone="error" :title="t('pptFocus.loadFailTitle')">
         {{ loadError }}
       </FMessageBar>
 
       <div v-if="isLoading" class="ppt-focus__loading">
         <FSpinner :size="32" />
-        <span>正在加载 PPT 页面…</span>
+        <span>{{ t('pptFocus.loadingPages') }}</span>
       </div>
 
       <template v-else-if="!session?.source_id">
-        <FEmpty title="该窗口当前没有打开 PPT" description="请先在显示控制页打开 PPT 源后再进入专注模式。" icon="document_24_regular">
+        <FEmpty :title="t('pptFocus.noPptTitle')" :description="t('pptFocus.noPptDesc')" icon="document_24_regular">
           <template #actions>
-            <FButton appearance="primary" @click="exitFocus">返回屏幕控制</FButton>
+            <FButton appearance="primary" @click="exitFocus">{{ t('pptFocus.back') }}</FButton>
           </template>
         </FEmpty>
       </template>
@@ -316,40 +343,40 @@ const windowMappingForExit = computed(() => {
           />
 
           <figure class="ppt-focus__current">
-            <img v-if="slideImage" :src="slideImage" :alt="`Page ${slidesProgress.current}`" />
+            <img v-if="slideImage" :src="slideImage" :alt="t('pptFocus.pageAlt', { n: slidesProgress.current })" />
             <div v-else class="ppt-focus__current-fallback">
               <FIcon name="document_24_regular" />
-              <span>Page {{ slidesProgress.current }}</span>
+              <span>{{ t('pptFocus.pageAlt', { n: slidesProgress.current }) }}</span>
             </div>
           </figure>
 
           <aside class="ppt-focus__side">
             <div class="ppt-focus__next">
-              <p class="ppt-focus__side-eyebrow">下一页</p>
-              <img v-if="nextSlideImage" :src="nextSlideImage" alt="下一页预览" />
+              <p class="ppt-focus__side-eyebrow">{{ t('pptFocus.nextEyebrow') }}</p>
+              <img v-if="nextSlideImage" :src="nextSlideImage" :alt="t('pptFocus.nextAlt')" />
               <div v-else class="ppt-focus__next-fallback">{{ nextSlideNumber ?? '—' }}</div>
             </div>
 
             <div class="ppt-focus__progress">
-              <p class="ppt-focus__side-eyebrow">进度</p>
+              <p class="ppt-focus__side-eyebrow">{{ t('pptFocus.progressEyebrow') }}</p>
               <FProgress :value="slidesProgress.current" :max="slidesProgress.total || 1" show-label />
-              <p class="ppt-focus__progress-page">Page {{ slidesProgress.current }}/{{ slidesProgress.total }}</p>
+              <p class="ppt-focus__progress-page">{{ t('pptFocus.progressPage', { current: slidesProgress.current, total: slidesProgress.total }) }}</p>
             </div>
 
             <section class="ppt-focus__teleprompter">
               <header class="ppt-focus__teleprompter-head">
-                <p class="ppt-focus__side-eyebrow">提词器</p>
-                <span class="ppt-focus__teleprompter-page">第 {{ slidesProgress.current }} 页</span>
+                <p class="ppt-focus__side-eyebrow">{{ t('pptFocus.prompterEyebrow') }}</p>
+                <span class="ppt-focus__teleprompter-page">{{ t('pptFocus.prompterPage', { n: slidesProgress.current }) }}</span>
               </header>
               <div class="ppt-focus__teleprompter-body">
                 <p v-if="teleprompterText" class="ppt-focus__teleprompter-text">{{ teleprompterText }}</p>
-                <p v-else class="ppt-focus__teleprompter-empty">该页暂无提词器内容。</p>
+                <p v-else class="ppt-focus__teleprompter-empty">{{ t('pptFocus.prompterEmpty') }}</p>
               </div>
             </section>
           </aside>
         </div>
 
-        <div class="ppt-focus__controls" aria-label="PPT 专注控制条">
+        <div class="ppt-focus__controls" :aria-label="t('pptFocus.controlsAria')">
           <div class="ppt-focus__media-picker">
             <FCombobox
               v-model="selectedMediaKey"
@@ -357,21 +384,21 @@ const windowMappingForExit = computed(() => {
               :placeholder="mediaSelectPlaceholder"
               :disabled="isMediaPickerDisabled"
               :searchable="currentMediaOptions.length >= 10"
-              aria-label="选择当前页媒体"
+              :aria-label="t('pptFocus.mediaAria')"
               size="large"
             />
           </div>
           <FButton appearance="secondary" icon-start="previous_24_regular" @click="nav('prev')">
-            上一页
+            {{ t('pptFocus.prevPage') }}
           </FButton>
           <FButton appearance="secondary" icon-start="pause_24_regular" :disabled="!canControlSelectedMedia" @click="controlSelectedMedia('pause')">
-            暂停媒体
+            {{ t('pptFocus.pauseMedia') }}
           </FButton>
           <FButton appearance="primary" icon-start="play_24_regular" :disabled="!canControlSelectedMedia" @click="controlSelectedMedia('play')">
-            播放媒体
+            {{ t('pptFocus.playMedia') }}
           </FButton>
           <FButton appearance="secondary" icon-start="next_24_regular" @click="nav('next')">
-            下一页
+            {{ t('pptFocus.nextPage') }}
           </FButton>
         </div>
       </template>

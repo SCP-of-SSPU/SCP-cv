@@ -5,6 +5,7 @@
 import { defineStore } from 'pinia';
 
 import { api, type DeviceItem } from '@/services/api';
+import { t } from '@/locales';
 
 interface DeviceState {
   devices: DeviceItem[];
@@ -40,10 +41,10 @@ export const useDeviceStore = defineStore('devices', {
       try {
         await api.powerDevice(deviceType, action);
         this.lastActionResult[deviceType] = 'success';
-        this.lastActionDetail[deviceType] = action === 'on' ? '开机指令已发送' : '关机指令已发送';
+        this.lastActionDetail[deviceType] = action === 'on' ? t('settings.powerOnSent') : t('settings.powerOffSent');
       } catch (error) {
         this.lastActionResult[deviceType] = 'error';
-        this.lastActionDetail[deviceType] = error instanceof Error ? error.message : '设备指令失败';
+        this.lastActionDetail[deviceType] = error instanceof Error ? error.message : t('settings.deviceCmdFail');
         throw error;
       } finally {
         this.lastActionAt[deviceType] = Date.now();
@@ -54,10 +55,10 @@ export const useDeviceStore = defineStore('devices', {
       try {
         await api.toggleDevice(deviceType);
         this.lastActionResult[deviceType] = 'success';
-        this.lastActionDetail[deviceType] = '切换指令已发送';
+        this.lastActionDetail[deviceType] = t('settings.cmdSent');
       } catch (error) {
         this.lastActionResult[deviceType] = 'error';
-        this.lastActionDetail[deviceType] = error instanceof Error ? error.message : '设备切换失败';
+        this.lastActionDetail[deviceType] = error instanceof Error ? error.message : t('settings.deviceToggleFail');
         throw error;
       } finally {
         this.lastActionAt[deviceType] = Date.now();

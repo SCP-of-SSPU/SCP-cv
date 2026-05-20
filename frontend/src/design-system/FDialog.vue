@@ -8,7 +8,8 @@
  *
  * 外部使用时建议绑定 v-model:open 和 events，亦可结合 useDialog() 全局 confirm 流。
  */
-import { ref, toRef, watch } from 'vue';
+import { computed, ref, toRef, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 import FButton from './FButton.vue';
 import FIcon from './FIcon.vue';
@@ -35,8 +36,8 @@ interface FDialogProps {
 
 const props = withDefaults(defineProps<FDialogProps>(), {
   description: undefined,
-  confirmLabel: '确定',
-  cancelLabel: '取消',
+  confirmLabel: undefined,
+  cancelLabel: undefined,
   variant: 'default',
   cancellable: true,
   loading: false,
@@ -47,6 +48,10 @@ const emit = defineEmits<{
   (event: 'confirm'): void;
   (event: 'cancel'): void;
 }>();
+
+const { t } = useI18n();
+const confirmText = computed(() => props.confirmLabel ?? t('ds.dialogConfirm'));
+const cancelText = computed(() => props.cancelLabel ?? t('ds.dialogCancel'));
 
 const dialogRef = ref<HTMLElement | null>(null);
 const isOpen = toRef(props, 'open');
@@ -104,7 +109,7 @@ function onOverlayClick(event: MouseEvent): void {
           :aria-describedby="description ? $.uid + '-desc' : undefined">
           <header class="f-dialog__header">
             <h2 :id="$.uid + '-title'" class="f-dialog__title">{{ title }}</h2>
-            <button v-if="cancellable" type="button" class="f-dialog__close" aria-label="关闭对话框" @click="onCancel">
+            <button v-if="cancellable" type="button" class="f-dialog__close" :aria-label="t('ds.dialogClose')" @click="onCancel">
               <FIcon name="dismiss_24_regular" />
             </button>
           </header>
@@ -114,9 +119,9 @@ function onOverlayClick(event: MouseEvent): void {
           </div>
           <footer class="f-dialog__footer">
             <slot name="actions" :confirm="onConfirm" :cancel="onCancel">
-              <FButton appearance="secondary" @click="onCancel">{{ cancelLabel }}</FButton>
+              <FButton appearance="secondary" @click="onCancel">{{ cancelText }}</FButton>
               <FButton :appearance="variant === 'danger' ? 'danger' : 'primary'" :loading="loading" @click="onConfirm">
-                {{ confirmLabel }}
+                {{ confirmText }}
               </FButton>
             </slot>
           </footer>

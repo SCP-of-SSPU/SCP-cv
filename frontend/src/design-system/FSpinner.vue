@@ -4,6 +4,7 @@
  * 仅在 300 ms – 1 s 区间使用；> 1 s 改用 Skeleton。
  */
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 interface FSpinnerProps {
   size?: number | string;
@@ -12,17 +13,19 @@ interface FSpinnerProps {
 
 const props = withDefaults(defineProps<FSpinnerProps>(), {
   size: 20,
-  ariaLabel: '加载中',
+  ariaLabel: undefined,
 });
 
+const { t } = useI18n();
 const inlineSize = computed(() => (typeof props.size === 'number' ? `${props.size}px` : props.size));
+const label = computed(() => props.ariaLabel ?? t('ds.spinnerLoading'));
 </script>
 
 <template>
   <span
     class="f-spinner"
     role="status"
-    :aria-label="ariaLabel"
+    :aria-label="label"
     :style="{ width: inlineSize, height: inlineSize, fontSize: inlineSize }"
   />
 </template>
