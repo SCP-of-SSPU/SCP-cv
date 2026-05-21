@@ -68,9 +68,9 @@ function pick(option: FSegmentedOption<string | number>): void {
   align-items: center;
   gap: 2px;
   padding: 2px;
-  border-radius: var(--radius-medium);
-  background: var(--color-background-subtle);
-  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--borderRadiusMedium);
+  background: var(--colorNeutralBackground2);
+  border: 1px solid var(--colorNeutralStroke2);
   box-shadow: var(--shadow-control);
 }
 
@@ -93,11 +93,11 @@ function pick(option: FSegmentedOption<string | number>): void {
   height: 28px;
   padding: 0 var(--spacing-m);
   border: none;
-  border-radius: calc(var(--radius-medium) - 2px);
+  border-radius: calc(var(--borderRadiusMedium) - 2px);
   background: transparent;
-  color: var(--color-text-secondary);
+  color: var(--colorNeutralForeground2);
   font-family: inherit;
-  font-size: var(--type-body1-size);
+  font-size: var(--fontSizeBase300);
   font-weight: 500;
   cursor: pointer;
   /*
@@ -113,27 +113,27 @@ function pick(option: FSegmentedOption<string | number>): void {
 .f-segmented--compact .f-segmented__item {
   height: 24px;
   padding: 0 var(--spacing-s);
-  font-size: var(--type-caption1-size);
+  font-size: var(--fontSizeBase200);
 }
 
 .f-segmented--large .f-segmented__item {
   height: 36px;
   padding: 0 var(--spacing-l);
-  font-size: var(--type-body1-size);
+  font-size: var(--fontSizeBase300);
 }
 
 .f-segmented__item:hover:not(:disabled):not(.f-segmented__item--selected) {
   background: var(--color-background-card);
-  color: var(--color-text-primary);
+  color: var(--colorNeutralForeground1);
   transform: translateY(-1px);
 }
 
 .f-segmented__item--selected {
   background: var(--color-background-card);
-  color: var(--color-text-primary);
+  color: var(--colorNeutralForeground1);
   font-weight: 600;
   /* 浮起感：边框 1 px + 微阴影；不再用强品牌底色，避免与 NavList Active 混淆。 */
-  box-shadow: 0 0 0 1px var(--color-border-default), var(--shadow-2);
+  box-shadow: 0 0 0 1px var(--colorNeutralStroke1), var(--shadow-2);
 }
 
 .f-segmented__item--icon-only {
@@ -143,7 +143,7 @@ function pick(option: FSegmentedOption<string | number>): void {
 
 .f-segmented__item:disabled {
   cursor: not-allowed;
-  color: var(--color-text-disabled);
+  color: var(--colorNeutralForegroundDisabled);
 }
 
 .f-segmented__icon {

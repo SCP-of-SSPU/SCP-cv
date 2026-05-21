@@ -8,14 +8,17 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit -p tsconfig.json && vite build",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
-    "preview": "vite preview --host 0.0.0.0 --port 4173"
+    "preview": "vite preview --host 0.0.0.0 --port 4173",
+    "gen:fluent-tokens": "node scripts/generate-fluent-tokens.mjs"
   },
   "dependencies": {
-    "@fluentui/svg-icons": "^1.1.325",
+    "@fluentui/tokens": "^1.0.0-alpha.23",
     "@vitejs/plugin-vue": "latest",
+    "material-symbols": "^0.44.8",
     "pinia": "latest",
     "vite": "latest",
     "vue": "latest",
+    "vue-i18n": "^11.4.2",
     "vue-router": "latest"
   },
   "devDependencies": {

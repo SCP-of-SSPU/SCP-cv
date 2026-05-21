@@ -3,6 +3,7 @@
  * 同时提供 bootstrap() 一键拉取所有初始数据并建立 SSE 连接。
  */
 import { useToastStore } from '@/composables/useToast';
+import { t } from '@/locales';
 
 import { useDeviceStore } from './devices';
 import { useDisplayStore } from './displays';
@@ -51,8 +52,8 @@ export async function bootstrapStores(): Promise<void> {
   const failed = tasks.find((task) => task.status === 'rejected');
   if (failed && failed.status === 'rejected') {
     toast.warning(
-      '部分状态加载失败',
-      failed.reason instanceof Error ? failed.reason.message : '请稍后重试或检查后端服务',
+      t('bootstrap.partialFail'),
+      failed.reason instanceof Error ? failed.reason.message : t('bootstrap.partialFailDetail'),
     );
   }
 

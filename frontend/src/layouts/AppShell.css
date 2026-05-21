@@ -1,0 +1,302 @@
+/*
+ * M3 自适应 AppShell 样式。
+ * 顶栏、rail/drawer、compact bottom navigation 由子组件共享这些类名，故使用普通 CSS。
+ */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-block-size: var(--app-height, 100dvh);
+  background: var(--colorNeutralBackground1);
+}
+
+/* ── 顶部 App bar：Level 0 → Level 2（E3） ─────────────────── */
+.app-shell__bar {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacingHorizontalL);
+  min-block-size: 3.5rem;
+  padding-inline: var(--spacingHorizontalL);
+  padding-block: var(--spacingHorizontalS);
+  background: var(--colorNeutralBackground1);
+  color: var(--colorNeutralForeground1);
+  transition:
+    background var(--durationFast) var(--curveEasyEase),
+    box-shadow var(--durationFast) var(--curveEasyEase);
+}
+
+.app-shell__bar--scrolled {
+  background: var(--colorNeutralBackground3);
+  box-shadow: var(--shadow4);
+}
+
+.app-shell__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacingHorizontalS);
+  min-inline-size: 0;
+}
+
+.app-shell__brand-mark {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  border-radius: var(--borderRadiusMedium);
+  background: var(--colorBrandBackground);
+  color: var(--colorNeutralForegroundOnBrand);
+  font-weight: var(--fontWeightSemibold);
+}
+
+.app-shell__brand-meta {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+  min-inline-size: 0;
+}
+
+.app-shell__brand-eyebrow {
+  margin: 0;
+  font-size: var(--fontSizeBase100);
+  line-height: var(--lineHeightBase100);
+  letter-spacing: 0.08em;
+  color: var(--colorNeutralForeground2);
+  text-transform: uppercase;
+}
+
+.app-shell__brand-title {
+  margin: 0;
+  font-size: var(--fontSizeBase400);
+  line-height: var(--lineHeightBase400);
+  font-weight: var(--fontWeightSemibold);
+  color: var(--colorNeutralForeground1);
+}
+
+.app-shell__bar-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacingHorizontalS);
+}
+
+.app-shell__mute {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--spacingHorizontalS);
+  border-radius: var(--borderRadiusCircular);
+  background: var(--colorStatusWarningBackground1);
+  color: var(--colorStatusWarningForeground1);
+  font-size: var(--fontSizeBase200);
+  line-height: var(--lineHeightBase200);
+  font-weight: var(--fontWeightSemibold);
+}
+
+.app-shell__body {
+  display: flex;
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+
+/* ── 导航：rail / drawer 共用骨架 ─────────────────────────── */
+.app-shell__nav {
+  position: sticky;
+  inset-block-start: 3.5rem;
+  align-self: flex-start;
+  block-size: calc(var(--app-height, 100dvh) - 3.5rem);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacingHorizontalL);
+  padding-block: var(--spacingHorizontalL);
+  padding-inline: var(--spacingHorizontalS);
+  overflow-y: auto;
+  background: var(--colorNeutralBackground1);
+}
+
+.app-shell__nav[data-variant='drawer'] {
+  inline-size: 15rem;
+  padding-inline: var(--spacingHorizontalL);
+  background: var(--colorNeutralBackground2);
+}
+
+.app-shell__nav[data-variant='rail'] {
+  inline-size: 5.5rem;
+  align-items: center;
+}
+
+.app-shell__nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacingHorizontalXS);
+  inline-size: 100%;
+}
+
+.app-shell__nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacingHorizontalL);
+  padding-block: var(--spacingHorizontalS);
+  padding-inline: var(--spacingHorizontalL);
+  border-radius: var(--borderRadiusMedium);
+  color: var(--colorNeutralForeground2);
+  text-decoration: none;
+  font-size: var(--fontSizeBase300);
+  line-height: var(--lineHeightBase300);
+  font-weight: var(--fontWeightSemibold);
+  min-block-size: 3rem;
+  transition: background var(--durationFast)
+    var(--curveEasyEase);
+}
+
+/* Rail：图标在上、短标签在下，垂直堆叠（M3 navigation rail）。 */
+.app-shell__nav[data-variant='rail'] .app-shell__nav-item {
+  flex-direction: column;
+  gap: var(--spacingHorizontalXS);
+  inline-size: 100%;
+  padding-inline: var(--spacingHorizontalXS);
+  border-radius: var(--borderRadiusLarge);
+  text-align: center;
+}
+
+.app-shell__nav-item:hover {
+  background: color-mix(in srgb, var(--colorNeutralForeground1) 8%, transparent);
+  color: var(--colorNeutralForeground1);
+}
+
+.app-shell__nav-item:focus-visible {
+  outline: 2px solid var(--colorBrandBackground);
+  outline-offset: 2px;
+}
+
+/* 活动指示器：M3 用 secondary-container 药丸承托图标。 */
+.app-shell__nav-indicator {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.app-shell__nav[data-variant='rail'] .app-shell__nav-indicator {
+  inline-size: 3.5rem;
+  block-size: 2rem;
+  border-radius: var(--borderRadiusMedium);
+  transition: background var(--durationFast)
+    var(--curveEasyEase);
+}
+
+.app-shell__nav-item--active {
+  color: var(--colorNeutralForeground1);
+  font-weight: 700;
+}
+
+.app-shell__nav[data-variant='drawer'] .app-shell__nav-item--active {
+  background: var(--colorNeutralBackground3);
+}
+
+.app-shell__nav[data-variant='rail'] .app-shell__nav-item--active .app-shell__nav-indicator {
+  background: var(--colorNeutralBackground3);
+}
+
+.app-shell__nav-icon {
+  font-size: 1.5rem;
+}
+
+.app-shell__nav-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-shell__nav[data-variant='rail'] .app-shell__nav-label {
+  font-size: var(--fontSizeBase200);
+  line-height: var(--lineHeightBase200);
+  max-inline-size: 100%;
+}
+
+.app-shell__content {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-inline: var(--spacingHorizontalL);
+  padding-block: var(--spacingHorizontalXXL) var(--f-spacing-xxxxl);
+  scroll-behavior: smooth;
+}
+
+.app-shell[data-nav='rail'] .app-shell__content,
+.app-shell[data-nav='drawer'] .app-shell__content {
+  padding-inline: var(--spacingHorizontalXXL);
+}
+
+.app-shell[data-size='extraLarge'] .app-shell__content > * {
+  margin-inline: auto;
+}
+
+.app-shell__content:focus-visible {
+  outline: none;
+}
+
+/* ── Compact：底部导航栏 ─────────────────────────────────── */
+.app-shell__bottom {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: var(--z-sticky);
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--spacingHorizontalXS);
+  padding-block: var(--spacingHorizontalS);
+  padding-inline: var(--spacingHorizontalXS);
+  padding-block-end: calc(var(--spacingHorizontalS) + env(safe-area-inset-bottom, 0px));
+  background: var(--colorNeutralBackground3);
+  box-shadow: var(--shadow4);
+}
+
+.app-shell__bottom-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-block-size: 3.25rem;
+  padding-block: var(--spacingHorizontalXS);
+  text-decoration: none;
+  color: var(--colorNeutralForeground2);
+}
+
+.app-shell__bottom-indicator {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 4rem;
+  block-size: 2rem;
+  border-radius: var(--borderRadiusMedium);
+  transition: background var(--durationFast)
+    var(--curveEasyEase);
+}
+
+.app-shell__bottom-item--active {
+  color: var(--colorNeutralForeground1);
+}
+
+.app-shell__bottom-item--active .app-shell__bottom-indicator {
+  background: var(--colorNeutralBackground3);
+}
+
+.app-shell__bottom-item:focus-visible {
+  outline: 2px solid var(--colorBrandBackground);
+  outline-offset: 2px;
+  border-radius: var(--borderRadiusXLarge);
+}
+
+.app-shell__bottom-icon {
+  font-size: 1.5rem;
+}
+
+.app-shell__bottom-label {
+  font-size: var(--fontSizeBase200);
+  line-height: var(--lineHeightBase200);
+  font-weight: var(--fontWeightSemibold);
+}

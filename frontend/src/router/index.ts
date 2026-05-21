@@ -8,6 +8,8 @@
  */
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 
+import { t } from '@/locales';
+
 import DashboardView from '@/features/dashboard/DashboardView.vue';
 import DisplayControlView from '@/features/display/DisplayControlView.vue';
 import PptFocusView from '@/features/pptFocus/PptFocusView.vue';
@@ -17,20 +19,20 @@ import SourcesView from '@/features/sources/SourcesView.vue';
 
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/dashboard' },
-  { path: '/dashboard', component: DashboardView, meta: { title: '仪表盘' } },
+  { path: '/dashboard', component: DashboardView, meta: { titleKey: 'nav.dashboard' } },
   {
     path: '/display/:target',
     component: DisplayControlView,
-    meta: { title: '显示控制' },
+    meta: { titleKey: 'display.routeTitle' },
   },
   {
     path: '/ppt-focus/:windowId',
     component: PptFocusView,
-    meta: { focus: true, title: 'PPT 专注模式' },
+    meta: { focus: true, titleKey: 'pptFocus.routeTitle' },
   },
-  { path: '/sources', component: SourcesView, meta: { title: '媒体源' } },
-  { path: '/scenarios', component: ScenariosView, meta: { title: '预案' } },
-  { path: '/settings', component: SettingsView, meta: { title: '设置' } },
+  { path: '/sources', component: SourcesView, meta: { titleKey: 'nav.sources' } },
+  { path: '/scenarios', component: ScenariosView, meta: { titleKey: 'nav.scenarios' } },
+  { path: '/settings', component: SettingsView, meta: { titleKey: 'nav.settings' } },
   // 兼容旧链接：原 about 内容已并入 settings。
   { path: '/about', redirect: '/settings' },
   // 兜底：未知路径回首页。
@@ -47,9 +49,11 @@ const router = createRouter({
 
 router.afterEach((to) => {
   if (typeof document !== 'undefined') {
-    const baseTitle = 'SCP-cv 播放控制台';
-    const pageTitle = to.meta?.title ? `${to.meta.title} · ${baseTitle}` : baseTitle;
-    document.title = pageTitle;
+    const baseTitle = t('app.baseTitle');
+    const titleKey = to.meta?.titleKey as string | undefined;
+    document.title = titleKey
+      ? t('app.titleWithPage', { page: t(titleKey), base: baseTitle })
+      : baseTitle;
   }
 });
 

@@ -88,222 +88,209 @@ defineEmits<(event: 'click', payload: MouseEvent) => void>();
 </template>
 
 <style scoped>
+/*
+ * Fluent 2 按钮（DESIGN.md §6.1）。
+ *   形状  borderRadiusMedium = 4px（替代 M3 的药丸）
+ *   尺寸  small 24 / medium 32 / large 40
+ *   外观  primary / secondary / outline / subtle / transparent + 项目扩展 danger / ghost / compact
+ *   交互  使用 *Hover / *Pressed 令牌，禁用走 *Disabled；过渡 --durationFaster
+ *   焦点  outline = --strokeWidthThick + --colorBrandStroke1 + 1 px offset
+ */
 .f-button {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--spacing-s);
-  height: 32px;
-  padding: 0 var(--spacing-l);
-  border-radius: var(--radius-medium);
-  border: 1px solid transparent;
-  font-family: inherit;
-  font-size: var(--type-body1-size);
-  line-height: 1;
-  font-weight: 600;
-  color: var(--color-text-primary);
+  gap: var(--spacingHorizontalXS);
+  block-size: 32px;
+  padding-inline: var(--spacingHorizontalM);
+  border: var(--strokeWidthThin) solid transparent;
+  border-radius: var(--borderRadiusMedium);
+  font-family: var(--fontFamilyBase);
+  font-size: var(--fontSizeBase300);
+  line-height: var(--lineHeightBase300);
+  font-weight: var(--fontWeightSemibold);
+  color: var(--colorNeutralForeground1);
   background: transparent;
   cursor: pointer;
   user-select: none;
-  box-shadow: var(--shadow-control);
-  /*
-   * 过渡时间统一到 medium(160ms)：比原 fast(100ms) 略柔，
-   * 避免 hover 闪现过于"机械"；同时把 transform 加入过渡目标，
-   * 配合 :active 轻按压反馈生效。
-   */
   transition:
-    background-color var(--motion-duration-medium) var(--motion-curve-ease),
-    color var(--motion-duration-medium) var(--motion-curve-ease),
-    border-color var(--motion-duration-medium) var(--motion-curve-ease),
-    box-shadow var(--motion-duration-medium) var(--motion-curve-ease),
-    transform var(--motion-duration-fast) var(--motion-curve-ease);
+    background-color var(--durationFaster) var(--curveEasyEase),
+    color var(--durationFaster) var(--curveEasyEase),
+    border-color var(--durationFaster) var(--curveEasyEase),
+    box-shadow var(--durationFaster) var(--curveEasyEase);
 }
 
-/* 按下瞬间下沉 + 微缩，增强点击手感。 */
-.f-button:active:not(:disabled):not(.f-button--loading) {
-  transform: translateY(var(--motion-press-translate)) scale(var(--motion-press-scale));
-  transition-duration: var(--motion-duration-ultra-fast);
-}
-
-/*
- * 键盘聚焦时：保留可见 outline，并叠加品牌色软光晕，
- * 替代之前裸 outline 的硬边观感，避免与 box-shadow 形成"双框"。
- */
 .f-button:focus-visible {
-  outline: 2px solid var(--color-border-focus);
-  outline-offset: 2px;
-  box-shadow: var(--shadow-focus), var(--shadow-control);
+  outline: var(--strokeWidthThick) solid var(--colorBrandStroke1);
+  outline-offset: 1px;
 }
 
 .f-button:disabled {
   cursor: not-allowed;
-  opacity: 0.55;
+  color: var(--colorNeutralForegroundDisabled);
+  background: var(--colorNeutralBackgroundDisabled);
+  border-color: var(--colorNeutralStrokeDisabled);
   box-shadow: none;
-  transform: none;
 }
 
-/* 尺寸：small 24 / compact 28 / medium 32（默认） / large 40 / 移动端 100% 宽 */
+.f-button--subtle:disabled,
+.f-button--transparent:disabled,
+.f-button--ghost:disabled {
+  background: transparent;
+  border-color: transparent;
+}
+
+/* —— 尺寸 —— */
 .f-button--small {
-  height: 24px;
-  padding: 0 var(--spacing-snudge);
-  font-size: var(--type-caption1-size);
-  gap: var(--spacing-xs);
+  block-size: 24px;
+  padding-inline: var(--spacingHorizontalS);
+  font-size: var(--fontSizeBase200);
+  line-height: var(--lineHeightBase200);
 }
 
 .f-button--compact {
-  height: 28px;
-  padding: 0 var(--spacing-m);
+  block-size: 28px;
+  padding-inline: var(--spacingHorizontalSNudge);
 }
 
 .f-button--large {
-  height: 40px;
-  padding: 0 var(--spacing-xl);
+  block-size: 40px;
+  padding-inline: var(--spacingHorizontalL);
+  font-size: var(--fontSizeBase400);
+  line-height: var(--lineHeightBase400);
 }
 
 .f-button--full {
-  width: 100%;
-  min-height: var(--touch-target-pref);
-  padding: 0 var(--spacing-l);
+  inline-size: 100%;
 }
 
 .f-button--icon-only {
-  width: 32px;
+  inline-size: 32px;
   padding: 0;
-  font-size: 0;
 }
 
 .f-button--icon-only.f-button--small {
-  width: 24px;
+  inline-size: 24px;
 }
 
 .f-button--icon-only.f-button--compact {
-  width: 28px;
+  inline-size: 28px;
 }
 
 .f-button--icon-only.f-button--large {
-  width: 40px;
+  inline-size: 40px;
 }
 
-/* Primary：品牌实心，主操作；hover 时叠加 brand 软光晕。 */
+/* —— Primary（主操作，一屏至多一个） —— */
 .f-button--primary {
-  background: var(--color-background-brand);
-  color: var(--color-text-inverse);
-  border-color: var(--color-background-brand);
-  box-shadow: var(--shadow-brand);
+  background: var(--colorBrandBackground);
+  color: var(--colorNeutralForegroundOnBrand);
+  border-color: transparent;
 }
 
 .f-button--primary:hover:not(:disabled) {
-  background: var(--color-background-brand-hover);
-  border-color: var(--color-background-brand-hover);
-  box-shadow: var(--shadow-brand-hover), var(--halo-brand);
-  transform: translateY(-1px);
+  background: var(--colorBrandBackgroundHover);
 }
 
 .f-button--primary:active:not(:disabled) {
-  background: var(--color-background-brand-pressed);
-  border-color: var(--color-background-brand-pressed);
-  box-shadow: var(--shadow-brand);
+  background: var(--colorBrandBackgroundPressed);
 }
 
-.f-button--primary:focus-visible {
-  box-shadow: var(--shadow-brand), var(--shadow-focus);
-}
-
-/* Secondary：透明底 + 边框 */
+/* —— Secondary（默认） —— */
 .f-button--secondary {
-  background: var(--color-background-card);
-  color: var(--color-text-primary);
-  border-color: var(--color-border-default);
+  background: var(--colorNeutralBackground1);
+  color: var(--colorNeutralForeground1);
+  border-color: var(--colorNeutralStroke1);
 }
 
 .f-button--secondary:hover:not(:disabled) {
-  background: var(--color-background-subtle);
-  border-color: var(--color-border-strong);
-  box-shadow: var(--shadow-4);
-  transform: translateY(-1px);
+  background: var(--colorNeutralBackground1Hover);
+  border-color: var(--colorNeutralStroke1Hover);
 }
 
 .f-button--secondary:active:not(:disabled) {
-  background: var(--color-background-disabled);
+  background: var(--colorNeutralBackground1Pressed);
+  border-color: var(--colorNeutralStroke1Pressed);
 }
 
-/* Subtle：透明底 + 品牌文字，工具栏低强调 */
-.f-button--subtle {
+/* —— Outline（次要操作） —— */
+.f-button--outline {
   background: transparent;
-  color: var(--color-text-brand);
+  color: var(--colorNeutralForeground1);
+  border-color: var(--colorNeutralStroke1);
+}
+
+.f-button--outline:hover:not(:disabled) {
+  background: var(--colorSubtleBackgroundHover);
+  border-color: var(--colorNeutralStroke1Hover);
+}
+
+.f-button--outline:active:not(:disabled) {
+  background: var(--colorSubtleBackgroundPressed);
+}
+
+/* —— Subtle / Ghost：低强调 —— */
+.f-button--subtle,
+.f-button--ghost {
+  background: transparent;
+  color: var(--colorNeutralForeground2);
   border-color: transparent;
-  box-shadow: none;
 }
 
-.f-button--subtle:hover:not(:disabled) {
-  background: var(--color-background-brand-selected);
+.f-button--subtle:hover:not(:disabled),
+.f-button--ghost:hover:not(:disabled) {
+  background: var(--colorSubtleBackgroundHover);
+  color: var(--colorNeutralForeground2Hover);
 }
 
-/* Transparent：极低强调，仅作 icon-only 工具按钮 */
+.f-button--subtle:active:not(:disabled),
+.f-button--ghost:active:not(:disabled) {
+  background: var(--colorSubtleBackgroundPressed);
+  color: var(--colorNeutralForeground2Pressed);
+}
+
+/* —— Transparent：类链接操作 —— */
 .f-button--transparent {
   background: transparent;
-  color: var(--color-text-secondary);
+  color: var(--colorBrandForeground1);
   border-color: transparent;
-  box-shadow: none;
 }
 
 .f-button--transparent:hover:not(:disabled) {
-  background: var(--color-background-subtle);
-  color: var(--color-text-primary);
+  background: var(--colorSubtleBackgroundHover);
+  color: var(--colorBrandForeground2Hover);
 }
 
-/* Ghost：与 transparent 类似，但 hover 用品牌选中底色 */
-.f-button--ghost {
-  background: transparent;
-  color: var(--color-text-primary);
-  border-color: transparent;
-  box-shadow: none;
+.f-button--transparent:active:not(:disabled) {
+  background: var(--colorSubtleBackgroundPressed);
+  color: var(--colorBrandForeground2Pressed);
 }
 
-.f-button--ghost:hover:not(:disabled) {
-  background: var(--color-background-brand-selected);
-  color: var(--color-text-brand);
-}
-
-/* Danger：红色轮廓 + 红字，仅用于不可逆/危险操作 */
+/* —— Danger：危险/不可逆操作（项目扩展） —— */
 .f-button--danger {
-  background: transparent;
-  color: var(--color-status-error-foreground);
-  border-color: var(--color-status-error-foreground);
-  box-shadow: none;
+  background: var(--colorStatusDangerBackground3);
+  color: var(--colorNeutralForegroundOnBrand);
+  border-color: transparent;
 }
 
 .f-button--danger:hover:not(:disabled) {
-  background: var(--color-status-error-background);
-  box-shadow: var(--shadow-4), var(--halo-error);
-  transform: translateY(-1px);
+  background: var(--colorStatusDangerBackground3Hover);
 }
 
 .f-button--danger:active:not(:disabled) {
-  background: var(--color-status-error-background);
-  border-color: var(--color-status-error-foreground);
+  background: var(--colorStatusDangerBackground3Pressed);
 }
 
-/* Loading：保留宽度，spinner 旋转 */
+/* —— Loading：保留宽度，spinner 旋转 —— */
 .f-button--loading {
   cursor: progress;
-  transform: none;
-}
-
-@media (hover: none) {
-
-  .f-button--primary:hover:not(:disabled),
-  .f-button--secondary:hover:not(:disabled),
-  .f-button--danger:hover:not(:disabled) {
-    transform: none;
-  }
 }
 
 .f-button__spinner {
   display: inline-flex;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   animation: f-button-spin 600ms linear infinite;
 }
 
@@ -314,9 +301,12 @@ defineEmits<(event: 'click', payload: MouseEvent) => void>();
 }
 
 .f-button__icon {
-  width: 18px;
-  height: 18px;
+  font-size: 16px;
   flex-shrink: 0;
+}
+
+.f-button--large .f-button__icon {
+  font-size: 20px;
 }
 
 .f-button__label {

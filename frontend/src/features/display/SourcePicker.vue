@@ -6,6 +6,7 @@
  *   - 折叠的「上传并打开」区域：上传但不保存 / 上传并保存。
  */
 import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 import {
   FButton,
@@ -28,6 +29,7 @@ import { sourceCategoryLabel } from '../sources/sourcePresentation';
 
 const props = defineProps<{ windowId: number }>();
 
+const { t } = useI18n();
 const sourceStore = useSourceStore();
 const sessionStore = useSessionStore();
 const toast = useToast();
@@ -42,14 +44,14 @@ const uploading = ref(false);
 const uploadError = ref('');
 const fileInputRef = ref<HTMLInputElement | null>(null);
 
-const filterTabs: FTabsItem<SourceCategory>[] = [
-  { label: '全部', value: 'all' },
-  { label: 'PPT', value: 'ppt' },
-  { label: '视频', value: 'video' },
-  { label: '图片', value: 'image' },
-  { label: '网页', value: 'web' },
-  { label: '直播', value: 'stream' },
-];
+const filterTabs = computed<FTabsItem<SourceCategory>[]>(() => [
+  { label: t('sourcePicker.filter.all'), value: 'all' },
+  { label: t('sourcePicker.filter.ppt'), value: 'ppt' },
+  { label: t('sourcePicker.filter.video'), value: 'video' },
+  { label: t('sourcePicker.filter.image'), value: 'image' },
+  { label: t('sourcePicker.filter.web'), value: 'web' },
+  { label: t('sourcePicker.filter.stream'), value: 'stream' },
+]);
 
 const filteredSources = computed<MediaSourceItem[]>(() => {
   const keyword = searchKeyword.value.trim().toLowerCase();
@@ -66,9 +68,9 @@ const filteredSources = computed<MediaSourceItem[]>(() => {
 async function selectSource(source: MediaSourceItem): Promise<void> {
   try {
     await sessionStore.openSource(props.windowId, source.id, true);
-    toast.success(`已打开 ${source.name}`);
+    toast.success(t('sourcePicker.openedOk', { name: source.name }));
   } catch (error) {
-    toast.error('打开源失败', error instanceof Error ? error.message : '请稍后重试');
+    toast.error(t('sourcePicker.openFail'), error instanceof Error ? error.message : t('common.retry'));
   }
 }
 
@@ -79,7 +81,7 @@ function onFileSelect(event: Event): void {
 
 async function uploadAndOpen(persist: boolean): Promise<void> {
   if (!fileToUpload.value) {
-    uploadError.value = '请先选择要上传的文件';
+    uploadError.value = t('sourcePicker.pickFileFirst');
     return;
   }
   uploading.value = true;
@@ -94,41 +96,41 @@ async function uploadAndOpen(persist: boolean): Promise<void> {
       },
     });
     await sessionStore.openSource(props.windowId, result.id, true);
-    toast.success(persist ? '已上传并打开' : '已上传（未保存）并打开', `源名称：${result.name}`);
+    toast.success(persist ? t('sourcePicker.uploadedOpenedSave') : t('sourcePicker.uploadedOpenedNoSave'), t('sourcePicker.sourceNameDetail', { name: result.name }));
     fileToUpload.value = null;
     fileDisplayName.value = '';
     if (fileInputRef.value) fileInputRef.value.value = '';
   } catch (error) {
-    uploadError.value = error instanceof Error ? error.message : '上传失败，请稍后重试';
+    uploadError.value = error instanceof Error ? error.message : t('sourcePicker.uploadFail');
   } finally {
     uploading.value = false;
     uploadProgress.value = 0;
   }
 }
 
-const totalLabel = computed(() => `共 ${filteredSources.value.length} 项`);
+const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.value.length }));
 </script>
 
 <template>
   <FCard padding="compact" class="source-picker">
     <template #title>
-      <span>切换源</span>
+      <span>{{ t('sourcePicker.title') }}</span>
     </template>
     <template #actions>
       <span class="source-picker__count">{{ totalLabel }}</span>
     </template>
 
-    <FInput v-model="searchKeyword" placeholder="搜索源名称或 URL" aria-label="搜索源" clearable>
+    <FInput v-model="searchKeyword" :placeholder="t('sourcePicker.searchPlaceholder')" :aria-label="t('sourcePicker.searchAria')" clearable>
       <template #prefix>
         <FIcon name="search_20_regular" />
       </template>
     </FInput>
 
-    <FTabs v-model="filterValue" :items="filterTabs" appearance="pill" full-width aria-label="源类型筛选" />
+    <FTabs v-model="filterValue" :items="filterTabs" appearance="pill" full-width :aria-label="t('sourcePicker.filterAria')" />
 
     <ul class="source-picker__list">
       <li v-if="filteredSources.length === 0" class="source-picker__empty">
-        没有符合条件的源；请调整筛选或上传新源。
+        {{ t('sourcePicker.empty') }}
       </li>
       <li v-for="source in filteredSources" :key="source.id" class="source-picker__item"
         :class="{ 'source-picker__item--unavailable': !source.is_available }" @click="selectSource(source)">
@@ -137,7 +139,7 @@ const totalLabel = computed(() => `共 ${filteredSources.value.length} 项`);
           <p class="source-picker__name">{{ source.name }}</p>
           <p class="source-picker__sub">
             <FTag :tone="source.is_available ? 'subtle' : 'error'">
-              {{ source.is_available ? sourceCategoryLabel(source) : '离线' }}
+              {{ source.is_available ? sourceCategoryLabel(source) : t('sourcePicker.offline') }}
             </FTag>
           </p>
         </div>
@@ -148,21 +150,21 @@ const totalLabel = computed(() => `共 ${filteredSources.value.length} 项`);
       @toggle="expanded = ($event.target as HTMLDetailsElement).open">
       <summary class="source-picker__upload-summary">
         <FIcon name="arrow_upload_24_regular" />
-        <span>上传并打开</span>
+        <span>{{ t('sourcePicker.uploadAndOpen') }}</span>
       </summary>
       <div class="source-picker__upload-body">
-        <FField label="文件" required hint="支持 PPT / 视频 / 图片">
+        <FField :label="t('sourcePicker.file')" required :hint="t('sourcePicker.fileHint')">
           <label class="source-picker__file">
             <input ref="fileInputRef" type="file" class="visually-hidden" :disabled="uploading"
               @change="onFileSelect" />
-            <span>{{ fileToUpload ? fileToUpload.name : '尚未选择文件' }}</span>
+            <span>{{ fileToUpload ? fileToUpload.name : t('sourcePicker.noFile') }}</span>
             <FButton appearance="secondary" type="button" @click="() => fileInputRef?.click()">
-              选择
+              {{ t('sourcePicker.chooseFile') }}
             </FButton>
           </label>
         </FField>
-        <FField label="显示名称" hint="可选；不填则使用文件名">
-          <FInput v-model="fileDisplayName" placeholder="例如：早会 PPT" />
+        <FField :label="t('sourcePicker.displayName')" :hint="t('sourcePicker.displayNameHint')">
+          <FInput v-model="fileDisplayName" :placeholder="t('sourcePicker.displayNamePlaceholder')" />
         </FField>
         <p v-if="uploadError" class="source-picker__upload-error">{{ uploadError }}</p>
         <FProgress v-if="uploading" :value="uploadProgress" show-label />
@@ -170,18 +172,18 @@ const totalLabel = computed(() => `共 ${filteredSources.value.length} 项`);
         <div class="source-picker__upload-actions">
           <FButton appearance="secondary" full-width :disabled="uploading || !fileToUpload"
             :loading="uploading && uploadProgress < 100" @click="() => uploadAndOpen(false)">
-            上传但不保存
+            {{ t('sourcePicker.uploadNoSave') }}
           </FButton>
           <FButton appearance="primary" full-width :disabled="uploading || !fileToUpload" :loading="uploading"
             @click="() => uploadAndOpen(true)">
-            上传并保存
+            {{ t('sourcePicker.uploadSave') }}
           </FButton>
         </div>
       </div>
     </details>
 
     <p v-if="uploading && !expanded" class="source-picker__upload-state">
-      <FSpinner :size="16" /> 正在上传…
+      <FSpinner :size="16" /> {{ t('sourcePicker.uploading') }}
     </p>
   </FCard>
 </template>
@@ -192,8 +194,8 @@ const totalLabel = computed(() => `共 ${filteredSources.value.length} 项`);
 }
 
 .source-picker__count {
-  font-size: var(--type-caption1-size);
-  color: var(--color-text-tertiary);
+  font-size: var(--fontSizeBase200);
+  color: var(--colorNeutralForeground3);
 }
 
 .source-picker__list {
@@ -210,8 +212,8 @@ const totalLabel = computed(() => `共 ${filteredSources.value.length} 项`);
 .source-picker__empty {
   padding: var(--spacing-l);
   text-align: center;
-  color: var(--color-text-tertiary);
-  font-size: var(--type-caption1-size);
+  color: var(--colorNeutralForeground3);
+  font-size: var(--fontSizeBase200);
 }
 
 .source-picker__item {
@@ -219,8 +221,8 @@ const totalLabel = computed(() => `共 ${filteredSources.value.length} 项`);
   align-items: center;
   gap: var(--spacing-s);
   padding: var(--spacing-s) var(--spacing-m);
-  border-radius: var(--radius-medium);
-  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--borderRadiusMedium);
+  border: 1px solid var(--colorNeutralStroke2);
   background: var(--color-background-card);
   cursor: pointer;
   box-shadow: var(--shadow-control);
@@ -232,15 +234,15 @@ const totalLabel = computed(() => `共 ${filteredSources.value.length} 项`);
 }
 
 .source-picker__item:hover {
-  background: var(--color-background-brand-selected);
-  border-color: var(--color-background-brand);
+  background: var(--colorBrandBackgroundSelected);
+  border-color: var(--colorBrandBackground);
   box-shadow: var(--shadow-4), var(--halo-brand);
   transform: translateY(var(--motion-hover-lift));
 }
 
 .source-picker__item:focus-visible {
   outline: none;
-  border-color: var(--color-background-brand);
+  border-color: var(--colorBrandBackground);
   box-shadow: var(--shadow-focus);
 }
 
@@ -260,7 +262,7 @@ const totalLabel = computed(() => `共 ${filteredSources.value.length} 项`);
   transform: none;
   box-shadow: none;
   background: var(--color-background-disabled);
-  border-color: var(--color-border-subtle);
+  border-color: var(--colorNeutralStroke2);
 }
 
 .source-picker__meta {
@@ -282,12 +284,12 @@ const totalLabel = computed(() => `共 ${filteredSources.value.length} 项`);
   align-items: center;
   gap: var(--spacing-s);
   flex-wrap: wrap;
-  color: var(--color-text-secondary);
-  font-size: var(--type-caption1-size);
+  color: var(--colorNeutralForeground2);
+  font-size: var(--fontSizeBase200);
 }
 
 .source-picker__upload {
-  border-top: 1px solid var(--color-border-subtle);
+  border-top: 1px solid var(--colorNeutralStroke2);
   padding-top: var(--spacing-s);
 }
 
@@ -297,7 +299,7 @@ const totalLabel = computed(() => `共 ${filteredSources.value.length} 项`);
   gap: var(--spacing-s);
   cursor: pointer;
   font-weight: 600;
-  color: var(--color-text-secondary);
+  color: var(--colorNeutralForeground2);
 }
 
 .source-picker__upload-body {
@@ -312,23 +314,23 @@ const totalLabel = computed(() => `共 ${filteredSources.value.length} 项`);
   align-items: center;
   gap: var(--spacing-s);
   padding: var(--spacing-s) var(--spacing-m);
-  border: 1px dashed var(--color-border-default);
-  border-radius: var(--radius-medium);
-  background: var(--color-background-subtle);
+  border: 1px dashed var(--colorNeutralStroke1);
+  border-radius: var(--borderRadiusMedium);
+  background: var(--colorNeutralBackground2);
   transition:
     border-color var(--motion-duration-medium) var(--motion-curve-ease),
     background var(--motion-duration-medium) var(--motion-curve-ease);
 }
 
 .source-picker__file:hover {
-  border-color: var(--color-border-focus);
+  border-color: var(--colorBrandStroke1);
   background: var(--color-background-card);
 }
 
 .source-picker__file>span {
   flex: 1 1 auto;
-  color: var(--color-text-secondary);
-  font-size: var(--type-caption1-size);
+  color: var(--colorNeutralForeground2);
+  font-size: var(--fontSizeBase200);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -342,7 +344,7 @@ const totalLabel = computed(() => `共 ${filteredSources.value.length} 项`);
 .source-picker__upload-error {
   margin: 0;
   color: var(--color-text-error);
-  font-size: var(--type-caption1-size);
+  font-size: var(--fontSizeBase200);
 }
 
 .source-picker__upload-state {
@@ -350,7 +352,7 @@ const totalLabel = computed(() => `共 ${filteredSources.value.length} 项`);
   align-items: center;
   gap: var(--spacing-s);
   margin: 0;
-  font-size: var(--type-caption1-size);
-  color: var(--color-text-secondary);
+  font-size: var(--fontSizeBase200);
+  color: var(--colorNeutralForeground2);
 }
 </style>

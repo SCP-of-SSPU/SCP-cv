@@ -7,6 +7,7 @@
  * 通过 provide/inject 给子组件注入 id / aria-describedby 关联。
  */
 import { computed, provide, useSlots } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 import { useLocalId } from './utils';
 
@@ -30,6 +31,7 @@ const props = withDefaults(defineProps<FFieldProps>(), {
   visuallyHiddenLabel: false,
 });
 
+const { t } = useI18n();
 const slots = useSlots();
 const fieldId = useLocalId('f-field');
 const hintId = useLocalId('f-hint');
@@ -61,7 +63,7 @@ void slots; // 显式标记 slots 已使用（仅占位，模板中用 $slots）
       :class="{ 'visually-hidden': visuallyHiddenLabel }"
     >
       <span>{{ label }}</span>
-      <span v-if="required" class="f-field__required" aria-hidden="true">（必填）</span>
+      <span v-if="required" class="f-field__required" aria-hidden="true">{{ t('ds.fieldRequired') }}</span>
     </label>
 
     <div class="f-field__control">
@@ -85,15 +87,15 @@ void slots; // 显式标记 slots 已使用（仅占位，模板中用 $slots）
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-xs);
-  font-size: var(--type-caption1-size);
-  line-height: var(--type-caption1-line);
+  font-size: var(--fontSizeBase200);
+  line-height: var(--lineHeightBase200);
   font-weight: 600;
-  color: var(--color-text-secondary);
+  color: var(--colorNeutralForeground2);
 }
 
 .f-field__required {
   font-weight: 400;
-  color: var(--color-text-tertiary);
+  color: var(--colorNeutralForeground3);
 }
 
 .f-field__control {
@@ -104,9 +106,9 @@ void slots; // 显式标记 slots 已使用（仅占位，模板中用 $slots）
 
 .f-field__hint {
   margin: 0;
-  font-size: var(--type-caption1-size);
-  line-height: var(--type-caption1-line);
-  color: var(--color-text-tertiary);
+  font-size: var(--fontSizeBase200);
+  line-height: var(--lineHeightBase200);
+  color: var(--colorNeutralForeground3);
 }
 
 .f-field__error {
@@ -114,8 +116,8 @@ void slots; // 显式标记 slots 已使用（仅占位，模板中用 $slots）
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-xs);
-  font-size: var(--type-caption1-size);
-  line-height: var(--type-caption1-line);
+  font-size: var(--fontSizeBase200);
+  line-height: var(--lineHeightBase200);
   color: var(--color-text-error);
 }
 </style>

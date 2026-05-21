@@ -8,6 +8,7 @@
  *   - 键盘：方向键导航、Enter 触发、Esc 关闭。
  */
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 import FButton from './FButton.vue';
 import FIcon from './FIcon.vue';
@@ -35,10 +36,13 @@ const props = withDefaults(defineProps<FMenuProps>(), {
   triggerLabel: undefined,
   triggerAppearance: 'transparent',
   triggerSize: 'medium',
-  ariaLabel: '更多操作',
+  ariaLabel: undefined,
   disabled: false,
   placement: 'right',
 });
+
+const { t } = useI18n();
+const triggerAriaLabel = computed(() => props.ariaLabel ?? t('ds.menuMore'));
 
 const open = ref(false);
 const root = ref<HTMLElement | null>(null);
@@ -117,7 +121,7 @@ void flatItems; // 显式标记，避免 lint 抱怨
 <template>
   <div ref="root" class="f-menu">
     <FButton v-if="!$slots.trigger" :appearance="triggerAppearance" :size="triggerSize" :icon-only="!triggerLabel"
-      :icon-start="triggerIcon" :aria-label="ariaLabel" :disabled="disabled" @click="toggle">
+      :icon-start="triggerIcon" :aria-label="triggerAriaLabel" :disabled="disabled" @click="toggle">
       {{ triggerLabel }}
     </FButton>
     <span v-else class="f-menu__custom-trigger" @click="toggle">
@@ -163,8 +167,8 @@ void flatItems; // 显式标记，避免 lint 抱怨
   max-width: 320px;
   /* Acrylic flyout：半透明 + 高强度模糊，与 Fluent 2 Reveal flyout 一致。 */
   background: var(--color-background-glass-strong);
-  border: 1px solid color-mix(in srgb, var(--color-border-subtle) 70%, transparent);
-  border-radius: var(--radius-large);
+  border: 1px solid color-mix(in srgb, var(--colorNeutralStroke2) 70%, transparent);
+  border-radius: var(--borderRadiusLarge);
   box-shadow: var(--shadow-flyout);
   padding: var(--spacing-xs);
   display: flex;
@@ -184,9 +188,9 @@ void flatItems; // 显式标记，避免 lint 抱怨
 
 .f-menu__group {
   margin: var(--spacing-xs) var(--spacing-s) var(--spacing-xxs);
-  font-size: var(--type-caption1-size);
+  font-size: var(--fontSizeBase200);
   font-weight: 600;
-  color: var(--color-text-tertiary);
+  color: var(--colorNeutralForeground3);
 }
 
 .f-menu__item {
@@ -197,10 +201,10 @@ void flatItems; // 显式标记，避免 lint 抱怨
   padding: var(--spacing-s) var(--spacing-m);
   border: none;
   background: transparent;
-  color: var(--color-text-primary);
+  color: var(--colorNeutralForeground1);
   font: inherit;
   cursor: pointer;
-  border-radius: var(--radius-medium);
+  border-radius: var(--borderRadiusMedium);
   text-align: left;
   /* hover 时背景过渡走 medium(160ms)，比原来的瞬切更自然。 */
   transition: background var(--motion-duration-medium) var(--motion-curve-ease),
@@ -209,7 +213,7 @@ void flatItems; // 显式标记，避免 lint 抱怨
 }
 
 .f-menu__item:hover:not(:disabled) {
-  background: var(--color-background-subtle);
+  background: var(--colorNeutralBackground2);
   transform: translateX(2px);
 }
 
@@ -223,7 +227,7 @@ void flatItems; // 显式标记，避免 lint 抱怨
 
 .f-menu__item--disabled {
   cursor: not-allowed;
-  color: var(--color-text-disabled);
+  color: var(--colorNeutralForegroundDisabled);
 }
 
 .f-menu__icon {
@@ -241,13 +245,13 @@ void flatItems; // 显式标记，避免 lint 抱怨
 
 .f-menu__hint {
   flex-shrink: 0;
-  color: var(--color-text-tertiary);
-  font-size: var(--type-caption1-size);
+  color: var(--colorNeutralForeground3);
+  font-size: var(--fontSizeBase200);
 }
 
 .f-menu__divider {
   border: none;
-  border-top: 1px solid var(--color-border-subtle);
+  border-top: 1px solid var(--colorNeutralStroke2);
   margin: var(--spacing-xs) 0;
 }
 

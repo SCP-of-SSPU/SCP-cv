@@ -128,13 +128,13 @@ function onKey(event: KeyboardEvent, index: number): void {
   padding: 0 var(--spacing-m);
   border: none;
   background: transparent;
-  color: var(--color-text-secondary);
+  color: var(--colorNeutralForeground2);
   font-family: inherit;
-  font-size: var(--type-body1-size);
+  font-size: var(--fontSizeBase300);
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
-  border-radius: var(--radius-medium);
+  border-radius: var(--borderRadiusMedium);
   /* 颜色与底色一并 medium(160ms) 过渡；下划线本体过渡见 ::after 段。 */
   transition: color var(--motion-duration-medium) var(--motion-curve-ease),
     background var(--motion-duration-medium) var(--motion-curve-ease),
@@ -148,14 +148,14 @@ function onKey(event: KeyboardEvent, index: number): void {
 }
 
 .f-tabs__item:hover:not(:disabled):not(.f-tabs__item--selected) {
-  color: var(--color-text-primary);
-  background: var(--color-background-subtle);
+  color: var(--colorNeutralForeground1);
+  background: var(--colorNeutralBackground2);
   transform: translateY(-1px);
 }
 
 .f-tabs__item:disabled {
   cursor: not-allowed;
-  color: var(--color-text-disabled);
+  color: var(--colorNeutralForegroundDisabled);
 }
 
 .f-tabs__icon {
@@ -170,20 +170,20 @@ function onKey(event: KeyboardEvent, index: number): void {
   min-width: 20px;
   height: 18px;
   padding: 0 var(--spacing-xs);
-  border-radius: var(--radius-small);
-  background: var(--color-background-subtle);
-  color: var(--color-text-tertiary);
-  font-size: var(--type-caption2-size);
+  border-radius: var(--borderRadiusSmall);
+  background: var(--colorNeutralBackground2);
+  color: var(--colorNeutralForeground3);
+  font-size: var(--fontSizeBase100);
   font-weight: 600;
 }
 
 /* Line（下划线） */
 .f-tabs--line {
-  border-bottom: 1px solid var(--color-border-subtle);
+  border-bottom: 1px solid var(--colorNeutralStroke2);
 }
 
 .f-tabs--line .f-tabs__item--selected {
-  color: var(--color-text-brand);
+  color: var(--colorBrandForeground1);
   background: transparent;
 }
 
@@ -194,8 +194,8 @@ function onKey(event: KeyboardEvent, index: number): void {
   right: var(--spacing-m);
   bottom: -1px;
   height: 2px;
-  background: var(--color-background-brand);
-  border-radius: var(--radius-circular);
+  background: var(--colorBrandBackground);
+  border-radius: var(--borderRadiusCircular);
   /* underline 在切换时左右伸缩，配合颜色过渡形成「下划线流动」效果。 */
   animation: f-rise var(--motion-duration-entrance) var(--motion-curve-emphasized) both;
 }
@@ -212,14 +212,14 @@ function onKey(event: KeyboardEvent, index: number): void {
  *   - 不放在容器底部，因此不需要 border-bottom。
  */
 .f-tabs--subtle .f-tabs__item--selected {
-  color: var(--color-text-brand);
-  background: var(--color-background-brand-selected);
-  font-weight: var(--font-weight-semibold);
+  color: var(--colorBrandForeground1);
+  background: var(--colorBrandBackgroundSelected);
+  font-weight: var(--fontWeightSemibold);
 }
 
 .f-tabs--subtle .f-tabs__item--selected .f-tabs__badge {
-  background: color-mix(in srgb, var(--color-background-brand) 22%, transparent);
-  color: var(--color-text-brand);
+  background: color-mix(in srgb, var(--colorBrandBackground) 22%, transparent);
+  color: var(--colorBrandForeground1);
 }
 
 /* Pill（横滑 Pill） */
@@ -228,13 +228,13 @@ function onKey(event: KeyboardEvent, index: number): void {
 }
 
 .f-tabs--pill .f-tabs__item {
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-circular);
+  border: 1px solid var(--colorNeutralStroke1);
+  border-radius: var(--borderRadiusCircular);
 }
 
 .f-tabs--pill .f-tabs__item--selected {
-  background: var(--color-background-brand);
-  border-color: var(--color-background-brand);
+  background: var(--colorBrandBackground);
+  border-color: var(--colorBrandBackground);
   color: var(--color-text-inverse);
   box-shadow: var(--shadow-brand);
   /* selected pill 微微浮起，与 hover 的位移区分，避免选中态视觉"贴底"。 */

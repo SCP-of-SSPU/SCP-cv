@@ -6,6 +6,7 @@
  *   - 自动从 FField 注入 id / aria-describedby / aria-invalid。
  */
 import { computed, inject, ref, watch, type Ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 import FIcon from './FIcon.vue';
 
@@ -48,6 +49,8 @@ const props = withDefaults(defineProps<FInputProps>(), {
   autofocus: false,
   clearable: false,
 });
+
+const { t } = useI18n();
 
 const emit = defineEmits<{
   (event: 'update:modelValue', value: string): void;
@@ -117,7 +120,7 @@ defineExpose({
       :aria-label="ariaLabel" :aria-describedby="describedBy" :aria-invalid="isInvalid || undefined"
       :aria-required="field?.required.value || undefined" @input="onInput" @keydown="onKeyDown" />
     <button v-if="clearable && modelValue && !disabled && !readonly" type="button" class="f-input__clear"
-      aria-label="清除输入" @click="clearValue">
+      :aria-label="t('ds.clearInput')" @click="clearValue">
       <FIcon name="dismiss_16_regular" />
     </button>
     <span v-if="$slots.suffix" class="f-input__suffix">
@@ -134,10 +137,10 @@ defineExpose({
   width: 100%;
   min-height: 32px;
   padding: 0 var(--spacing-m);
-  border-radius: var(--radius-medium);
-  border: 1px solid var(--color-border-default);
+  border-radius: var(--borderRadiusMedium);
+  border: 1px solid var(--colorNeutralStroke1);
   background: var(--color-background-card);
-  color: var(--color-text-primary);
+  color: var(--colorNeutralForeground1);
   box-shadow: var(--shadow-control);
   /* 过渡用 medium(160ms) 让 hover/focus 切换更柔，配合 box-shadow 双层光晕。 */
   transition:
@@ -147,7 +150,7 @@ defineExpose({
 }
 
 .f-input--filled {
-  background: var(--color-background-subtle);
+  background: var(--colorNeutralBackground2);
   border-color: transparent;
 }
 
@@ -160,12 +163,12 @@ defineExpose({
 }
 
 .f-input:hover:not(.f-input--disabled) {
-  border-color: var(--color-border-strong);
+  border-color: var(--colorNeutralStroke1Hover);
   box-shadow: var(--shadow-2);
 }
 
 .f-input:focus-within {
-  border-color: var(--color-border-focus);
+  border-color: var(--colorBrandStroke1);
   /* 2 px 光晕比 1 px 更柔和，避免硬边导致的"实色描边"观感。 */
   box-shadow: var(--shadow-focus), var(--shadow-2);
 }
@@ -181,7 +184,7 @@ defineExpose({
 
 .f-input--disabled {
   background: var(--color-background-disabled);
-  color: var(--color-text-disabled);
+  color: var(--colorNeutralForegroundDisabled);
   border-color: var(--color-border-disabled);
   cursor: not-allowed;
   box-shadow: none;
@@ -191,8 +194,8 @@ defineExpose({
 .f-input__suffix {
   display: inline-flex;
   align-items: center;
-  color: var(--color-text-tertiary);
-  font-size: var(--type-body1-size);
+  color: var(--colorNeutralForeground3);
+  font-size: var(--fontSizeBase300);
 }
 
 .f-input__inner {
@@ -208,7 +211,7 @@ defineExpose({
 }
 
 .f-input__inner::placeholder {
-  color: var(--color-text-tertiary);
+  color: var(--colorNeutralForeground3);
 }
 
 .f-input__inner:disabled {
@@ -228,8 +231,8 @@ defineExpose({
   height: 20px;
   border: none;
   background: transparent;
-  border-radius: var(--radius-circular);
-  color: var(--color-text-tertiary);
+  border-radius: var(--borderRadiusCircular);
+  color: var(--colorNeutralForeground3);
   cursor: pointer;
   transition: background var(--motion-duration-fast) var(--motion-curve-ease),
     color var(--motion-duration-fast) var(--motion-curve-ease);
@@ -237,8 +240,8 @@ defineExpose({
 }
 
 .f-input__clear:hover {
-  background: var(--color-background-subtle);
-  color: var(--color-text-primary);
+  background: var(--colorNeutralBackground2);
+  color: var(--colorNeutralForeground1);
 }
 
 .f-input__clear:focus-visible {
@@ -262,8 +265,8 @@ defineExpose({
   padding: 0 var(--spacing-xxs);
   border: none;
   background: transparent;
-  border-radius: var(--radius-small);
-  color: var(--color-text-tertiary);
+  border-radius: var(--borderRadiusSmall);
+  color: var(--colorNeutralForeground3);
   cursor: pointer;
   transition: background var(--motion-duration-fast) var(--motion-curve-ease),
     color var(--motion-duration-fast) var(--motion-curve-ease);
@@ -273,8 +276,8 @@ defineExpose({
 .f-input__suffix :deep(button:hover),
 .f-input__prefix :deep([role='button']:hover),
 .f-input__suffix :deep([role='button']:hover) {
-  background: var(--color-background-subtle);
-  color: var(--color-text-primary);
+  background: var(--colorNeutralBackground2);
+  color: var(--colorNeutralForeground1);
 }
 
 @media (max-width: 767px) {

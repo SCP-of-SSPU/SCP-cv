@@ -70,13 +70,13 @@ function onChange(): void {
   gap: var(--spacing-s);
   cursor: pointer;
   user-select: none;
-  font-size: var(--type-body1-size);
-  color: var(--color-text-primary);
+  font-size: var(--fontSizeBase300);
+  color: var(--colorNeutralForeground1);
 }
 
 .f-radio--disabled {
   cursor: not-allowed;
-  color: var(--color-text-disabled);
+  color: var(--colorNeutralForegroundDisabled);
 }
 
 .f-radio__circle {
@@ -87,8 +87,8 @@ function onChange(): void {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
-  border-radius: var(--radius-circular);
-  border: var(--stroke-width-thin) solid var(--color-border-strong);
+  border-radius: var(--borderRadiusCircular);
+  border: var(--stroke-width-thin) solid var(--colorNeutralStroke1Hover);
   background: var(--color-background-card);
   transition: border-color var(--motion-duration-medium) var(--motion-curve-ease),
     box-shadow var(--motion-duration-medium) var(--motion-curve-ease),
@@ -98,15 +98,15 @@ function onChange(): void {
 .f-radio__dot {
   width: 8px;
   height: 8px;
-  border-radius: var(--radius-circular);
-  background: var(--color-background-brand);
+  border-radius: var(--borderRadiusCircular);
+  background: var(--colorBrandBackground);
   transform: scale(0);
   /* 选中时圆点 spring 弹出，未选时缩回。 */
   transition: transform var(--motion-duration-medium) var(--motion-curve-spring);
 }
 
 .f-radio--checked .f-radio__circle {
-  border-color: var(--color-background-brand);
+  border-color: var(--colorBrandBackground);
 }
 
 .f-radio--checked .f-radio__dot {
@@ -114,7 +114,7 @@ function onChange(): void {
 }
 
 .f-radio:hover:not(.f-radio--disabled) .f-radio__circle {
-  border-color: var(--color-background-brand);
+  border-color: var(--colorBrandBackground);
   box-shadow: var(--shadow-2);
 }
 
@@ -133,7 +133,7 @@ function onChange(): void {
 }
 
 .f-radio--disabled .f-radio__dot {
-  background: var(--color-text-disabled);
+  background: var(--colorNeutralForegroundDisabled);
 }
 
 .f-radio__label {

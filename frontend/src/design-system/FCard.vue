@@ -79,67 +79,49 @@ const rootClass = computed(() =>
 </template>
 
 <style scoped>
+/*
+ * Fluent 2 卡片（DESIGN.md §6.3）。
+ *   表面    --colorNeutralBackground1
+ *   圆角    --borderRadiusLarge（6 px）
+ *   内边距  --spacingHorizontalL（16 px）
+ *   阴影    默认 --shadow4，hover 升至 --shadow8
+ *   过渡    --durationFast + --curveEasyEase
+ */
 .f-card {
   position: relative;
   display: flex;
   flex-direction: column;
-  background: var(--color-background-card);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-large);
-  color: var(--color-text-primary);
-  box-shadow: var(--shadow-card);
+  background: var(--colorNeutralBackground1);
+  border: var(--strokeWidthThin) solid var(--colorNeutralStroke2);
+  border-radius: var(--borderRadiusLarge);
+  color: var(--colorNeutralForeground1);
+  box-shadow: var(--shadow4);
   overflow: clip;
-  transform: translateY(0);
-  animation: f-rise var(--motion-duration-entrance) var(--motion-curve-emphasized) both;
-  /*
-   * 卡片承载信息密度高，默认只调整阴影；interactive 变体再增加位移，
-   * 避免普通表单卡在鼠标经过时产生过强的可点击暗示。
-   * transition 中加入「after pseudo opacity」用于 Reveal 高光（::after）平滑显隐。
-   */
+  animation: f-rise var(--durationFast) var(--curveDecelerateMid) both;
   transition:
-    border-color var(--motion-duration-medium) var(--motion-curve-ease),
-    background-color var(--motion-duration-medium) var(--motion-curve-ease),
-    box-shadow var(--motion-duration-entrance) var(--motion-curve-ease),
-    transform var(--motion-duration-entrance) var(--motion-curve-emphasized);
-}
-
-/*
- * Reveal 风格内描边高光：模拟 Fluent 2「light from above」，
- * 用于提升卡片质感而不占用 box-shadow 通道。
- */
-.f-card::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  box-shadow: var(--ring-accent);
-  opacity: 0.55;
-  transition: opacity var(--motion-duration-medium) var(--motion-curve-ease);
+    border-color var(--durationFaster) var(--curveEasyEase),
+    background-color var(--durationFaster) var(--curveEasyEase),
+    box-shadow var(--durationFast) var(--curveEasyEase),
+    transform var(--durationFast) var(--curveEasyEase);
 }
 
 .f-card:hover,
 .f-card:focus-within {
-  border-color: var(--color-border-default);
-  box-shadow: var(--shadow-card-hover);
-}
-
-.f-card:hover::after,
-.f-card:focus-within::after {
-  opacity: 1;
+  border-color: var(--colorNeutralStroke1);
+  box-shadow: var(--shadow8);
 }
 
 .f-card--subtle {
-  background: var(--color-background-subtle);
-  box-shadow: var(--shadow-control);
+  background: var(--colorNeutralBackground2);
+  box-shadow: var(--shadow2);
 }
 
 .f-card--glass {
-  background: var(--color-background-glass);
+  background: var(--colorNeutralBackgroundAlpha);
   -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
-  border-color: color-mix(in srgb, var(--color-border-subtle) 60%, transparent);
-  box-shadow: var(--shadow-card);
+  border-color: var(--colorNeutralStrokeSubtle);
+  box-shadow: var(--shadow4);
 }
 
 .f-card--pad-none {
@@ -147,18 +129,18 @@ const rootClass = computed(() =>
 }
 
 .f-card--pad-compact {
-  padding: var(--spacing-m);
-  gap: var(--spacing-m);
+  padding: var(--spacingHorizontalM);
+  gap: var(--spacingHorizontalM);
 }
 
 .f-card--pad-normal {
-  padding: var(--spacing-l);
-  gap: var(--spacing-m);
+  padding: var(--spacingHorizontalL);
+  gap: var(--spacingHorizontalM);
 }
 
 .f-card--pad-cozy {
-  padding: var(--spacing-2xl);
-  gap: var(--spacing-l);
+  padding: var(--spacingHorizontalXXL);
+  gap: var(--spacingHorizontalL);
 }
 
 .f-card--interactive {
@@ -166,117 +148,104 @@ const rootClass = computed(() =>
 }
 
 .f-card--interactive:hover {
-  transform: translateY(var(--motion-hover-lift-strong));
-  box-shadow: var(--shadow-card-hover), var(--halo-soft);
+  box-shadow: var(--shadow8);
 }
 
 .f-card--interactive:active {
-  box-shadow: var(--shadow-card);
-  transform: translateY(0) scale(var(--motion-press-scale));
-  transition-duration: var(--motion-duration-fast);
+  box-shadow: var(--shadow2);
+  transition-duration: var(--durationUltraFast);
 }
 
 .f-card--interactive:focus-visible {
-  outline: none;
-  border-color: var(--color-border-focus);
-  box-shadow: var(--shadow-card-hover), var(--shadow-focus);
+  outline: var(--strokeWidthThick) solid var(--colorBrandStroke1);
+  outline-offset: 1px;
+  border-color: var(--colorBrandStroke1);
 }
 
 @media (hover: none) {
   .f-card:hover {
-    border-color: var(--color-border-subtle);
-    box-shadow: var(--shadow-card);
-  }
-
-  .f-card--interactive:hover {
-    transform: none;
-    box-shadow: var(--shadow-card);
+    border-color: var(--colorNeutralStroke2);
+    box-shadow: var(--shadow4);
   }
 }
 
 .f-card--selected {
-  border-color: var(--color-background-brand);
+  border-color: var(--colorBrandStroke1);
   box-shadow:
-    var(--shadow-card),
-    0 0 0 1px var(--color-background-brand),
-    0 0 0 4px color-mix(in srgb, var(--color-background-brand) 14%, transparent);
+    var(--shadow4),
+    0 0 0 var(--strokeWidthThin) var(--colorBrandStroke1);
 }
 
-.f-card--selected::after {
-  opacity: 1;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-background-brand) 28%, transparent);
-}
-
-/* 左侧 accent 指示条：4 px 圆头条，按语义着色。 */
+/* 左侧 accent 指示条：3 px 圆头条，按语义着色。 */
 .f-card[class*='f-card--accent-']::before {
   content: '';
   position: absolute;
-  inset: var(--spacing-m) auto var(--spacing-m) 0;
+  inset: var(--spacingVerticalM) auto var(--spacingVerticalM) 0;
   width: 3px;
-  border-radius: var(--radius-circular);
+  border-radius: var(--borderRadiusCircular);
   background: currentColor;
   opacity: 0.9;
 }
 
 .f-card--accent-brand::before {
-  background: var(--color-background-brand);
+  background: var(--colorBrandBackground);
 }
 
 .f-card--accent-success::before {
-  background: var(--color-status-success-accent);
+  background: var(--colorStatusSuccessBorder1);
 }
 
 .f-card--accent-warning::before {
-  background: var(--color-status-warning-accent);
+  background: var(--colorStatusWarningBorder1);
 }
 
 .f-card--accent-danger::before {
-  background: var(--color-status-error-accent);
+  background: var(--colorStatusDangerBorder1);
 }
 
 .f-card__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: var(--spacing-m);
+  gap: var(--spacingHorizontalM);
 }
 
 .f-card__heading {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xs);
+  gap: var(--spacingVerticalXS);
   min-width: 0;
 }
 
 .f-card__eyebrow {
   margin: 0;
-  font-size: var(--type-caption1-size);
-  line-height: var(--type-caption1-line);
-  font-weight: 600;
+  font-size: var(--fontSizeBase200);
+  line-height: var(--lineHeightBase200);
+  font-weight: var(--fontWeightSemibold);
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--color-text-secondary);
+  color: var(--colorNeutralForeground2);
 }
 
 .f-card__title {
   margin: 0;
-  font-size: var(--type-title3-size);
-  line-height: var(--type-title3-line);
-  font-weight: 600;
-  color: var(--color-text-primary);
+  font-size: var(--fontSizeBase400);
+  line-height: var(--lineHeightBase400);
+  font-weight: var(--fontWeightSemibold);
+  color: var(--colorNeutralForeground1);
 }
 
 .f-card__actions {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-s);
+  gap: var(--spacingHorizontalS);
   flex-shrink: 0;
 }
 
 .f-card__body {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-m);
+  gap: var(--spacingVerticalM);
   min-width: 0;
 }
 
@@ -284,9 +253,9 @@ const rootClass = computed(() =>
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: var(--spacing-s);
-  margin-top: var(--spacing-s);
-  padding-top: var(--spacing-m);
-  border-top: 1px solid var(--color-border-subtle);
+  gap: var(--spacingHorizontalS);
+  margin-top: var(--spacingVerticalS);
+  padding-top: var(--spacingVerticalM);
+  border-top: var(--strokeWidthThin) solid var(--colorNeutralStroke2);
 }
 </style>

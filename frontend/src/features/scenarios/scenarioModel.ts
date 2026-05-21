@@ -3,6 +3,7 @@
  *   - 列表 / 预览 / 编辑覆盖大卡片共享同一组数据结构；
  *   - 三态 source_state（unset 保持 / empty 黑屏 / set 切换）严格对应后端字段。
  */
+import { t } from '@/locales';
 import type { ScenarioItem, ScenarioPayload } from '@/services/api';
 
 export type ScenarioWindowMode = 'unset' | 'empty' | 'set';
@@ -117,7 +118,7 @@ export function toScenarioPayload(draft: ScenarioDraft): ScenarioPayload {
  */
 export function validateName(name: string): string {
   const trimmed = name.trim();
-  if (!trimmed) return '预案名称不能为空，请输入 1–32 个字符。';
-  if (trimmed.length > 32) return '预案名称过长（≤ 32 字符）。';
+  if (!trimmed) return t('scenarios.model.nameEmpty');
+  if (trimmed.length > 32) return t('scenarios.model.nameTooLong');
   return '';
 }

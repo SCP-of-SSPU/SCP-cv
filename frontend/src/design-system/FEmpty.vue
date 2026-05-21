@@ -41,35 +41,35 @@ withDefaults(defineProps<FEmptyProps>(), {
   text-align: center;
   gap: var(--spacing-m);
   padding: var(--spacing-3xl) var(--spacing-2xl);
-  color: var(--color-text-primary);
+  color: var(--colorNeutralForeground1);
   animation: f-rise var(--motion-duration-entrance) var(--motion-curve-emphasized) both;
 }
 
 .f-empty__icon {
   width: 48px;
   height: 48px;
-  color: var(--color-text-tertiary);
-  background: var(--color-background-subtle);
-  border-radius: var(--radius-circular);
+  color: var(--colorNeutralForeground3);
+  background: var(--colorNeutralBackground2);
+  border-radius: var(--borderRadiusCircular);
   padding: var(--spacing-m);
   box-sizing: content-box;
   /* 图标外加一圈极浅光晕，避免与白卡背景"贴皮"。 */
   box-shadow:
-    inset 0 0 0 1px var(--color-border-subtle),
-    0 4px 12px color-mix(in srgb, var(--color-text-primary) 6%, transparent);
+    inset 0 0 0 1px var(--colorNeutralStroke2),
+    0 4px 12px color-mix(in srgb, var(--colorNeutralForeground1) 6%, transparent);
 }
 
 .f-empty__title {
   margin: 0;
-  font-size: var(--type-title3-size);
-  line-height: var(--type-title3-line);
+  font-size: var(--fontSizeBase600);
+  line-height: var(--lineHeightBase600);
   font-weight: 600;
 }
 
 .f-empty__description {
   margin: 0;
   max-width: 360px;
-  color: var(--color-text-secondary);
+  color: var(--colorNeutralForeground2);
 }
 
 .f-empty__actions {

@@ -7,6 +7,7 @@
  *   - 用于 SSE 断开（顶部）、上传失败（卡片底部）、设备 TCP 失败（电源卡底部）。
  */
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 import FButton from './FButton.vue';
 import FIcon from './FIcon.vue';
@@ -32,6 +33,8 @@ const props = withDefaults(defineProps<FMessageBarProps>(), {
 const emit = defineEmits<{
   (event: 'dismiss'): void;
 }>();
+
+const { t } = useI18n();
 
 const toneIcon = computed<FluentIconName | string>(() => {
   if (props.icon) return props.icon;
@@ -60,7 +63,7 @@ const toneIcon = computed<FluentIconName | string>(() => {
     </div>
     <div v-if="$slots.actions || dismissible" class="f-message-bar__actions">
       <slot name="actions" />
-      <FButton v-if="dismissible" appearance="transparent" size="compact" icon-only aria-label="关闭提示"
+      <FButton v-if="dismissible" appearance="transparent" size="compact" icon-only :aria-label="t('ds.messageClose')"
         :icon-start="'dismiss_20_regular'" @click="emit('dismiss')" />
     </div>
   </div>
@@ -82,10 +85,10 @@ const toneIcon = computed<FluentIconName | string>(() => {
   gap: var(--spacing-m);
   padding: var(--spacing-m) var(--spacing-l);
   padding-left: calc(var(--spacing-l) + 4px);
-  border-radius: var(--radius-medium);
+  border-radius: var(--borderRadiusMedium);
   border: 1px solid transparent;
-  font-size: var(--type-body1-size);
-  line-height: var(--type-body1-line);
+  font-size: var(--fontSizeBase300);
+  line-height: var(--lineHeightBase300);
   box-shadow: var(--shadow-control);
   overflow: hidden;
   animation: f-rise var(--motion-duration-entrance) var(--motion-curve-emphasized) both;
@@ -96,7 +99,7 @@ const toneIcon = computed<FluentIconName | string>(() => {
   position: absolute;
   inset: var(--spacing-s) auto var(--spacing-s) var(--spacing-xs);
   width: 3px;
-  border-radius: var(--radius-circular);
+  border-radius: var(--borderRadiusCircular);
   background: currentColor;
   opacity: 0.85;
 }

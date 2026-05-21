@@ -51,16 +51,16 @@ const percent = computed(() => {
   position: relative;
   width: 100%;
   height: 4px;
-  background: var(--color-border-subtle);
-  border-radius: var(--radius-circular);
+  background: var(--colorNeutralStroke2);
+  border-radius: var(--borderRadiusCircular);
   overflow: hidden;
 }
 
 .f-progress__bar {
   height: 100%;
   /* 进度填充用渐变在视觉上更"有方向感"，从浅蓝过渡到品牌蓝。 */
-  background: linear-gradient(90deg, var(--color-background-brand-hover), var(--color-background-brand));
-  border-radius: var(--radius-circular);
+  background: linear-gradient(90deg, var(--colorBrandBackgroundHover), var(--colorBrandBackground));
+  border-radius: var(--borderRadiusCircular);
   /* 宽度过渡用 decelerate，跳值时减速到位；duration 提到 normal 保留可见动画。 */
   transition: width var(--motion-duration-normal) var(--motion-curve-decelerate);
 }
@@ -85,8 +85,8 @@ const percent = computed(() => {
 }
 
 .f-progress__label {
-  font-size: var(--type-caption1-size);
-  color: var(--color-text-secondary);
+  font-size: var(--fontSizeBase200);
+  color: var(--colorNeutralForeground2);
   font-variant-numeric: tabular-nums;
 }
 </style>

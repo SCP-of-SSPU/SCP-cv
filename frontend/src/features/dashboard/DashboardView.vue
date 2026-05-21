@@ -6,6 +6,7 @@
  *  - 关机统一走 useDialog 二次确认。
  */
 import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 import {
   FCard,
@@ -22,6 +23,7 @@ import { useToast } from '@/composables/useToast';
 import { useRuntimeStore } from '@/stores/runtime';
 import { useDeviceStore } from '@/stores/devices';
 
+const { t } = useI18n();
 const runtime = useRuntimeStore();
 const device = useDeviceStore();
 const toast = useToast();
@@ -53,16 +55,16 @@ async function switchScreenMode(mode: 'single' | 'double'): Promise<void> {
     await runtime.setBigScreenMode(mode);
     toast.push({
       level: 'success',
-      message: mode === 'double' ? '已切换为双屏' : '已切换为单屏',
+      message: mode === 'double' ? t('dashboard.switchedDouble') : t('dashboard.switchedSingle'),
       action: {
-        label: '撤销',
+        label: t('dashboard.undo'),
         onTrigger: async () => {
           await runtime.setBigScreenMode(mode === 'double' ? 'single' : 'double');
         },
       },
     });
   } catch (error) {
-    toast.error('大屏模式切换失败', error instanceof Error ? error.message : '请稍后重试');
+    toast.error(t('dashboard.switchFail'), error instanceof Error ? error.message : t('common.retry'));
   } finally {
     pendingMode.value = null;
   }
@@ -75,7 +77,7 @@ const volume = useThrottledSlider(
   {
     commit: (level: number) => runtime.setSystemVolume(level, runtime.systemVolume.muted),
     onError: (error) => {
-      toast.error('系统音量设置失败', error instanceof Error ? error.message : '请稍后重试');
+      toast.error(t('dashboard.volumeFail'), error instanceof Error ? error.message : t('common.retry'));
     },
   },
 );
@@ -87,45 +89,44 @@ const muteToggle = computed({
       // 静音切换沿用滑块当前显示值，避免回写到节流前的旧值。
       await runtime.setSystemVolume(volume.value.value, next);
     } catch (error) {
-      toast.error('系统静音切换失败', error instanceof Error ? error.message : '请稍后重试');
+      toast.error(t('dashboard.muteFail'), error instanceof Error ? error.message : t('common.retry'));
     }
   },
 });
 
 const heroSubtitle = computed(() => {
   const sse = runtime.sseStatus === 'connected'
-    ? '实时已连接'
+    ? t('app.sse.connected')
     : runtime.sseStatus === 'reconnecting'
-      ? '正在自动重连'
+      ? t('app.sse.reconnectingLong')
       : runtime.sseStatus === 'connecting'
-        ? '建立连接中'
-        : '连接已关闭';
+        ? t('app.sse.connectingLong')
+        : t('app.sse.closed');
   return `${runtime.bigScreenLabel} · ${sse}`;
 });
 
 async function powerOnSplice(): Promise<void> {
   try {
     await device.power('splice_screen', 'on');
-    toast.success('拼接屏开机指令已发送');
+    toast.success(t('dashboard.spliceOnOk'));
   } catch (error) {
-    toast.error('拼接屏开机失败', error instanceof Error ? error.message : '请稍后重试');
+    toast.error(t('dashboard.spliceOnFail'), error instanceof Error ? error.message : t('common.retry'));
   }
 }
 
 async function powerOffSplice(): Promise<void> {
   const confirmed = await dialog.danger({
-    title: '拼接屏关机？',
-    description:
-      '将向 192.168.5.10:8889 发送关机 TCP 指令，5 秒后再发送第二帧；此过程不可中断。请确认现场无正在进行的演讲。',
-    confirmLabel: '确认关机',
-    cancelLabel: '取消',
+    title: t('dashboard.spliceOffTitle'),
+    description: t('dashboard.spliceOffDesc'),
+    confirmLabel: t('dashboard.spliceOffConfirm'),
+    cancelLabel: t('common.cancel'),
   });
   if (!confirmed) return;
   try {
     await device.power('splice_screen', 'off');
-    toast.warning('拼接屏关机指令已发送', '约 5 秒后第二帧 TCP 指令会自动跟进');
+    toast.warning(t('dashboard.spliceOffOk'), t('dashboard.spliceOffOkDetail'));
   } catch (error) {
-    toast.error('拼接屏关机失败', error instanceof Error ? error.message : '请检查 TCP 连接');
+    toast.error(t('dashboard.spliceOffFail'), error instanceof Error ? error.message : t('dashboard.spliceOffFailDetail'));
   }
 }
 
@@ -133,9 +134,9 @@ async function toggleTv(deviceType: 'tv_left' | 'tv_right', label: string): Prom
   try {
     await device.toggle(deviceType);
     // 设备无回读，按钮按"切换电源 toggle"语义命名；此处也保持「开/关机状态」用语统一。
-    toast.success(`${label} 已发送切换开/关机状态指令`, '该指令仅发送切换，不读取真实开关状态');
+    toast.success(t('dashboard.tvToggleOk', { label }), t('dashboard.tvToggleOkDetail'));
   } catch (error) {
-    toast.error(`${label} 切换失败`, error instanceof Error ? error.message : '请稍后重试');
+    toast.error(t('dashboard.tvToggleFail', { label }), error instanceof Error ? error.message : t('common.retry'));
   }
 }
 
@@ -146,64 +147,64 @@ const hasDeviceError = computed(() =>
 
 <template>
   <div class="dashboard">
-    <section class="dashboard__hero" aria-label="运行态概览">
-      <p class="dashboard__hero-eyebrow">COMMAND CENTER</p>
+    <section class="dashboard__hero" :aria-label="t('dashboard.overview')">
+      <p class="dashboard__hero-eyebrow">{{ t('dashboard.heroEyebrow') }}</p>
       <h2 class="dashboard__hero-title">{{ heroSubtitle }}</h2>
       <p class="dashboard__hero-caption">
-        仪表盘只承载全局运行态与顶层指令；媒体源、预案、显示控制请在左侧导航中打开。
+        {{ t('dashboard.heroCaption') }}
       </p>
     </section>
 
-    <FMessageBar v-if="hasDeviceError" tone="error" title="部分设备指令失败">
-      请到「设置 → 设备电源」查看 TCP 目标与最近一次失败原因，必要时重试。
+    <FMessageBar v-if="hasDeviceError" tone="error" :title="t('dashboard.deviceErrorTitle')">
+      {{ t('dashboard.deviceErrorBody') }}
     </FMessageBar>
 
-    <section class="dashboard__grid" aria-label="顶层指令">
+    <section class="dashboard__grid" :aria-label="t('dashboard.topCommands')">
       <FCard class="dashboard__card">
-        <template #eyebrow>BIG SCREEN</template>
-        <template #title>大屏模式</template>
+        <template #eyebrow>{{ t('dashboard.bigScreenEyebrow') }}</template>
+        <template #title>{{ t('dashboard.bigScreenTitle') }}</template>
         <FSegmented v-model="screenMode" :options="[
-          { label: '单屏', value: 'single' },
-          { label: '双屏', value: 'double' },
-        ]" :disabled="isModeSwitching" full-width aria-label="大屏模式选择" />
+          { label: t('screen.single'), value: 'single' },
+          { label: t('screen.double'), value: 'double' },
+        ]" :disabled="isModeSwitching" full-width :aria-label="t('dashboard.screenSelectAria')" />
         <p class="dashboard__hint dashboard__hint--switching" v-if="isModeSwitching">
-          <FSpinner :size="14" /> 正在切换大屏模式，请稍候…
+          <FSpinner :size="14" /> {{ t('dashboard.switching') }}
         </p>
         <p class="dashboard__hint" v-else>
-          单屏模式下窗口 2 自动静音；双屏模式下「大屏左 / 大屏右」窗口独立可控。
+          {{ t('dashboard.bigScreenHint') }}
         </p>
       </FCard>
 
       <FCard class="dashboard__card">
-        <template #eyebrow>SYSTEM VOLUME</template>
-        <template #title>系统音量</template>
-        <FSlider :model-value="volume.value.value" :min="0" :max="100" aria-label="系统音量" show-value
+        <template #eyebrow>{{ t('dashboard.volumeEyebrow') }}</template>
+        <template #title>{{ t('dashboard.volumeTitle') }}</template>
+        <FSlider :model-value="volume.value.value" :min="0" :max="100" :aria-label="t('dashboard.volumeAria')" show-value
           @update:modelValue="volume.handleInput" @change="volume.handleChange" />
-        <FSwitch v-model="muteToggle" label="启用系统静音" />
+        <FSwitch v-model="muteToggle" :label="t('dashboard.enableSystemMute')" />
       </FCard>
 
       <FCard class="dashboard__card">
-        <template #eyebrow>POWER</template>
-        <template #title>电源指令</template>
+        <template #eyebrow>{{ t('dashboard.powerEyebrow') }}</template>
+        <template #title>{{ t('dashboard.powerTitle') }}</template>
         <div class="dashboard__power-row">
-          <span class="dashboard__power-label">拼接屏</span>
+          <span class="dashboard__power-label">{{ t('dashboard.splice') }}</span>
           <FButton appearance="primary" icon-start="power_24_regular" @click="powerOnSplice">
-            开机
+            {{ t('dashboard.powerOn') }}
           </FButton>
           <FButton appearance="danger" icon-start="plug_disconnected_24_regular" @click="powerOffSplice">
-            关机
+            {{ t('dashboard.powerOff') }}
           </FButton>
         </div>
         <div class="dashboard__power-row">
-          <span class="dashboard__power-label">电视左</span>
-          <FButton appearance="secondary" icon-start="arrow_swap_24_regular" @click="toggleTv('tv_left', '电视左')">
-            切换开/关机状态
+          <span class="dashboard__power-label">{{ t('dashboard.tvLeft') }}</span>
+          <FButton appearance="secondary" icon-start="arrow_swap_24_regular" @click="toggleTv('tv_left', t('dashboard.tvLeft'))">
+            {{ t('dashboard.toggleState') }}
           </FButton>
         </div>
         <div class="dashboard__power-row">
-          <span class="dashboard__power-label">电视右</span>
-          <FButton appearance="secondary" icon-start="arrow_swap_24_regular" @click="toggleTv('tv_right', '电视右')">
-            切换开/关机状态
+          <span class="dashboard__power-label">{{ t('dashboard.tvRight') }}</span>
+          <FButton appearance="secondary" icon-start="arrow_swap_24_regular" @click="toggleTv('tv_right', t('dashboard.tvRight'))">
+            {{ t('dashboard.toggleState') }}
           </FButton>
         </div>
       </FCard>
@@ -228,7 +229,7 @@ const hasDeviceError = computed(() =>
   /* Hero 用 xxlarge 大圆角与渐变背景配合，是仪表盘视觉重心。渐变来自 token，便于深色模式复用。 */
   border-radius: var(--radius-xxlarge);
   background: var(--gradient-hero);
-  border: 1px solid color-mix(in srgb, var(--color-border-subtle) 60%, transparent);
+  border: 1px solid color-mix(in srgb, var(--colorNeutralStroke2) 60%, transparent);
   box-shadow: var(--shadow-card), var(--ring-accent);
   overflow: hidden;
   animation: f-rise var(--motion-duration-entrance) var(--motion-curve-emphasized) both;
@@ -242,9 +243,9 @@ const hasDeviceError = computed(() =>
   bottom: -120px;
   width: 320px;
   height: 320px;
-  border-radius: var(--radius-circular);
+  border-radius: var(--borderRadiusCircular);
   background: radial-gradient(circle at center,
-      color-mix(in srgb, var(--color-background-brand) 24%, transparent) 0%,
+      color-mix(in srgb, var(--colorBrandBackground) 24%, transparent) 0%,
       transparent 70%);
   pointer-events: none;
 }
@@ -253,10 +254,10 @@ const hasDeviceError = computed(() =>
   position: relative;
   z-index: 1;
   margin: 0;
-  font-size: var(--type-caption1-size);
+  font-size: var(--fontSizeBase200);
   letter-spacing: 0.16em;
   font-weight: 700;
-  color: var(--color-text-brand);
+  color: var(--colorBrandForeground1);
   text-transform: uppercase;
 }
 
@@ -264,17 +265,17 @@ const hasDeviceError = computed(() =>
   position: relative;
   z-index: 1;
   margin: 0;
-  font-size: var(--type-title1-size);
-  line-height: var(--type-title1-line);
+  font-size: var(--fontSizeHero800);
+  line-height: var(--lineHeightHero800);
   font-weight: 600;
-  color: var(--color-text-primary);
+  color: var(--colorNeutralForeground1);
 }
 
 .dashboard__hero-caption {
   position: relative;
   z-index: 1;
   margin: 0;
-  color: var(--color-text-secondary);
+  color: var(--colorNeutralForeground2);
   max-width: 720px;
 }
 
@@ -308,15 +309,15 @@ const hasDeviceError = computed(() =>
 
 .dashboard__hint {
   margin: 0;
-  color: var(--color-text-tertiary);
-  font-size: var(--type-caption1-size);
+  color: var(--colorNeutralForeground3);
+  font-size: var(--fontSizeBase200);
 }
 
 .dashboard__hint--switching {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-xs);
-  color: var(--color-text-brand);
+  color: var(--colorBrandForeground1);
   font-weight: 600;
 }
 
@@ -338,8 +339,8 @@ const hasDeviceError = computed(() =>
   }
 
   .dashboard__hero-title {
-    font-size: var(--type-title2-size);
-    line-height: var(--type-title2-line);
+    font-size: var(--fontSizeHero700);
+    line-height: var(--lineHeightHero700);
   }
 
   .dashboard__grid {

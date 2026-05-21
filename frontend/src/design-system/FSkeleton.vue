@@ -41,34 +41,34 @@ const style = computed(() => ({
 
 <style scoped>
 /*
- * 骨架基色用 `--color-background-subtle`，pulse 模式下叠加从左到右的高光带 shimmer 效果。
+ * 骨架基色用 `--colorNeutralBackground2`，pulse 模式下叠加从左到右的高光带 shimmer 效果。
  * 高光带颜色经 `--gradient-skeleton` 统一管理，深色 / 浅色主题下都能自然适配。
  */
 .f-skeleton {
   display: inline-block;
   position: relative;
   overflow: hidden;
-  background: var(--color-background-subtle);
-  border-radius: var(--radius-medium);
+  background: var(--colorNeutralBackground2);
+  border-radius: var(--borderRadiusMedium);
   /* 默认 0.85 透明度模拟"半透明态"，避免与正式内容混淆。 */
   opacity: 0.92;
 }
 
 .f-skeleton--text {
   width: 100%;
-  height: var(--type-body1-line);
+  height: var(--lineHeightBase300);
 }
 
 .f-skeleton--box {
   width: 100%;
   height: 80px;
-  border-radius: var(--radius-large);
+  border-radius: var(--borderRadiusLarge);
 }
 
 .f-skeleton--circle {
   width: 32px;
   height: 32px;
-  border-radius: var(--radius-circular);
+  border-radius: var(--borderRadiusCircular);
 }
 
 .f-skeleton--pulse::after {

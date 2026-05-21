@@ -8,6 +8,7 @@
  * 视觉上等价于设计稿要求的「编辑覆盖大卡片」。
  */
 import { computed, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 import {
   FButton,
@@ -53,6 +54,7 @@ const emit = defineEmits<{
   (event: 'saved', scenario: ScenarioItem): void;
 }>();
 
+const { t } = useI18n();
 const sourceStore = useSourceStore();
 const scenarioStore = useScenarioStore();
 const toast = useToast();
@@ -80,11 +82,11 @@ const sourceOptionsByCategory = computed<FComboboxOption<number>[]>(() => {
   const groups = new Map<string, MediaSourceItem[]>();
   for (const source of sourceStore.sources) {
     const cat = sourceStore.resolveCategory(source.source_type);
-    const groupLabel = cat === 'ppt' ? 'PPT'
-      : cat === 'video' ? '视频'
-        : cat === 'image' ? '图片'
-          : cat === 'web' ? '网页'
-            : cat === 'stream' ? '直播' : '其它';
+    const groupLabel = cat === 'ppt' ? t('sources.typeLabel.ppt')
+      : cat === 'video' ? t('sources.typeLabel.video')
+        : cat === 'image' ? t('sources.typeLabel.image')
+          : cat === 'web' ? t('sources.typeLabel.web')
+            : cat === 'stream' ? t('sources.typeLabel.stream') : t('sources.typeLabel.other');
     if (!groups.has(groupLabel)) groups.set(groupLabel, []);
     groups.get(groupLabel)!.push(source);
   }
@@ -95,31 +97,31 @@ const sourceOptionsByCategory = computed<FComboboxOption<number>[]>(() => {
     options.push({ label: groupLabel, value: -1, group: groupLabel, disabled: true });
     for (const item of list) {
       options.push({
-        label: item.name || item.original_filename || item.uri || `源 ${item.id}`,
+        label: item.name || item.original_filename || item.uri || t('scenarios.edit.sourceFallback', { id: item.id }),
         value: item.id,
-        hint: item.is_available ? undefined : '当前不可用',
+        hint: item.is_available ? undefined : t('scenarios.edit.unavailable'),
       });
     }
   }
   return options;
 });
 
-const screenSegmentOptions: FSegmentedOption<ScenarioWindowMode>[] = [
-  { label: '保持', value: 'unset' },
-  { label: '单屏', value: 'empty' as ScenarioWindowMode },
-  { label: '双屏', value: 'set' as ScenarioWindowMode },
-];
+const screenSegmentOptions = computed<FSegmentedOption<ScenarioWindowMode>[]>(() => [
+  { label: t('scenarios.edit.keep'), value: 'unset' },
+  { label: t('scenarios.edit.single'), value: 'empty' as ScenarioWindowMode },
+  { label: t('scenarios.edit.double'), value: 'set' as ScenarioWindowMode },
+]);
 
-const volumeSegmentOptions: FSegmentedOption<ScenarioWindowMode>[] = [
-  { label: '保持', value: 'unset' },
-  { label: '设置', value: 'set' },
-];
+const volumeSegmentOptions = computed<FSegmentedOption<ScenarioWindowMode>[]>(() => [
+  { label: t('scenarios.edit.keep'), value: 'unset' },
+  { label: t('scenarios.edit.set'), value: 'set' },
+]);
 
-const sourceSegmentOptions: FSegmentedOption<ScenarioWindowMode>[] = [
-  { label: '保持', value: 'unset' },
-  { label: '黑屏', value: 'empty' },
-  { label: '切换', value: 'set' },
-];
+const sourceSegmentOptions = computed<FSegmentedOption<ScenarioWindowMode>[]>(() => [
+  { label: t('scenarios.edit.keep'), value: 'unset' },
+  { label: t('scenarios.edit.blackout'), value: 'empty' },
+  { label: t('scenarios.edit.switch'), value: 'set' },
+]);
 
 const visibleWindows = computed<ScenarioWindowDraft[]>(() => {
   // 顶部「大屏模式：单屏」时合并 W1/W2 为「大屏」，但实际仍写 W1。
@@ -131,19 +133,19 @@ const visibleWindows = computed<ScenarioWindowDraft[]>(() => {
 
 function windowLabel(windowId: number): string {
   if (draft.value.bigScreenModeState !== 'unset' && draft.value.bigScreenMode === 'single' && windowId === 1) {
-    return '大屏';
+    return t('scenarios.edit.winBig');
   }
   switch (windowId) {
     case 1:
-      return '大屏左';
+      return t('scenarios.edit.winBigLeft');
     case 2:
-      return '大屏右';
+      return t('scenarios.edit.winBigRight');
     case 3:
-      return 'TV 左';
+      return t('scenarios.edit.winTvLeft');
     case 4:
-      return 'TV 右';
+      return t('scenarios.edit.winTvRight');
     default:
-      return `窗口 ${windowId}`;
+      return t('scenarios.edit.winFallback', { id: windowId });
   }
 }
 
@@ -195,7 +197,7 @@ async function save(): Promise<void> {
     // 旧实现仅用 `!window.sourceId` 判定，会放过 -1 这种 group 占位值，
     // 导致后端 _resolve_source(-1) 抛错让用户感觉「无法保存」。
     if (window.sourceState === 'set' && (window.sourceId === null || window.sourceId === undefined || window.sourceId < 1)) {
-      errorMessage.value = `${windowLabel(window.windowId)}：请选择「切换」时的源`;
+      errorMessage.value = t('scenarios.edit.requireSource', { label: windowLabel(window.windowId) });
       return;
     }
   }
@@ -206,11 +208,11 @@ async function save(): Promise<void> {
     const saved = draft.value.id
       ? await scenarioStore.update(draft.value.id, payload)
       : await scenarioStore.create(payload);
-    toast.success(draft.value.id ? '预案已更新' : '预案已创建');
+    toast.success(draft.value.id ? t('scenarios.edit.updated') : t('scenarios.edit.created'));
     emit('saved', saved);
     emit('update:open', false);
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : '保存预案失败';
+    errorMessage.value = error instanceof Error ? error.message : t('scenarios.edit.saveFail');
   } finally {
     saving.value = false;
   }
@@ -222,60 +224,60 @@ function close(): void {
 </script>
 
 <template>
-  <FDrawer :open="open" :title="scenario ? '编辑预案' : '新建预案'" description="名称必填；任意窗口选择「切换」时必须指定源。" :primary-label="'保存预案'"
+  <FDrawer :open="open" :title="scenario ? t('scenarios.edit.titleEdit') : t('scenarios.edit.titleCreate')" :description="t('scenarios.edit.desc')" :primary-label="t('scenarios.edit.save')"
     :hide-default-actions="true" :width="520" @update:open="(value) => emit('update:open', value)">
     <FCard padding="compact">
-      <template #title>基础信息</template>
-      <FField label="预案名称" required>
-        <FInput v-model="draft.name" placeholder="例如：早会方案" />
+      <template #title>{{ t('scenarios.edit.basic') }}</template>
+      <FField :label="t('scenarios.edit.name')" required>
+        <FInput v-model="draft.name" :placeholder="t('scenarios.edit.namePlaceholder')" />
       </FField>
-      <FField label="备注" hint="可选；写明预案适用的场景或时间">
-        <FTextarea v-model="draft.description" :rows="2" placeholder="例如：用于晨会现场，使用单屏 + 主屏 PPT" />
+      <FField :label="t('scenarios.edit.remark')" :hint="t('scenarios.edit.remarkHint')">
+        <FTextarea v-model="draft.description" :rows="2" :placeholder="t('scenarios.edit.remarkPlaceholder')" />
       </FField>
-      <FField label="大屏模式" hint="保持表示不修改运行态；选择后将切换到对应模式">
+      <FField :label="t('scenarios.edit.bigScreenMode')" :hint="t('scenarios.edit.bigScreenHint')">
         <FSegmented v-model="bigScreenSegmentValue" :options="screenSegmentOptions" full-width />
       </FField>
-      <FField label="系统音量" hint="保持表示不修改系统音量；切换后按右侧值设定">
+      <FField :label="t('scenarios.edit.systemVolume')" :hint="t('scenarios.edit.systemVolumeHint')">
         <FSegmented v-model="draft.volumeState" :options="volumeSegmentOptions" full-width />
         <FSlider v-if="draft.volumeState === 'set'" v-model="draft.volumeLevel" :min="0" :max="100" show-value
-          aria-label="系统音量值" />
+          :aria-label="t('scenarios.edit.systemVolumeAria')" />
       </FField>
     </FCard>
 
     <FCard padding="compact">
-      <template #title>窗口配置</template>
+      <template #title>{{ t('scenarios.edit.windowsConfig') }}</template>
       <div class="scenario-edit__windows">
         <FCard v-for="window in visibleWindows" :key="window.windowId" padding="compact" variant="subtle">
           <template #eyebrow>{{ windowLabel(window.windowId) }}</template>
-          <template #title>窗口 {{ window.windowId }}</template>
+          <template #title>{{ t('scenarios.edit.window', { id: window.windowId }) }}</template>
           <FSegmented v-model="window.sourceState" :options="sourceSegmentOptions" full-width />
           <p v-if="window.sourceState === 'unset'" class="scenario-edit__hint">
-            切换到本预案时，该窗口保留当前内容。
+            {{ t('scenarios.edit.keepHint') }}
           </p>
           <p v-else-if="window.sourceState === 'empty'" class="scenario-edit__hint">
-            切换到本预案时，该窗口黑屏。
+            {{ t('scenarios.edit.blackoutHint') }}
           </p>
           <template v-else>
-            <FField label="源选择" required>
-              <FCombobox v-model="window.sourceId" :options="sourceOptionsByCategory" placeholder="选择源" searchable />
+            <FField :label="t('scenarios.edit.sourceSelect')" required>
+              <FCombobox v-model="window.sourceId" :options="sourceOptionsByCategory" :placeholder="t('scenarios.edit.sourcePlaceholder')" searchable />
             </FField>
-            <FSwitch v-model="window.autoplay" label="切换后自动播放" size="compact" />
-            <FSwitch v-if="showLoopToggle(window)" v-model="window.resume" label="保留上次进度" size="compact" />
+            <FSwitch v-model="window.autoplay" :label="t('scenarios.edit.autoplay')" size="compact" />
+            <FSwitch v-if="showLoopToggle(window)" v-model="window.resume" :label="t('scenarios.edit.resume')" size="compact" />
             <p v-if="window.sourceState === 'set' && !isVolumeEditable(window)" class="scenario-edit__hint">
-              该源不支持音量控制（图片或网页源）。
+              {{ t('scenarios.edit.noVolumeHint') }}
             </p>
           </template>
         </FCard>
       </div>
     </FCard>
 
-    <FMessageBar v-if="errorMessage" tone="error" title="无法保存">
+    <FMessageBar v-if="errorMessage" tone="error" :title="t('scenarios.edit.cantSave')">
       {{ errorMessage }}
     </FMessageBar>
 
     <template #actions>
-      <FButton appearance="secondary" :disabled="saving" @click="close">取消</FButton>
-      <FButton appearance="primary" :loading="saving" @click="save">保存预案</FButton>
+      <FButton appearance="secondary" :disabled="saving" @click="close">{{ t('common.cancel') }}</FButton>
+      <FButton appearance="primary" :loading="saving" @click="save">{{ t('scenarios.edit.save') }}</FButton>
     </template>
   </FDrawer>
 </template>
@@ -289,8 +291,8 @@ function close(): void {
 
 .scenario-edit__hint {
   margin: 0;
-  color: var(--color-text-tertiary);
-  font-size: var(--type-caption1-size);
+  color: var(--colorNeutralForeground3);
+  font-size: var(--fontSizeBase200);
 }
 
 @media (min-width: 768px) {

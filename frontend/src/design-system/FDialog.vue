@@ -8,7 +8,8 @@
  *
  * 外部使用时建议绑定 v-model:open 和 events，亦可结合 useDialog() 全局 confirm 流。
  */
-import { ref, toRef, watch } from 'vue';
+import { computed, ref, toRef, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 import FButton from './FButton.vue';
 import FIcon from './FIcon.vue';
@@ -35,8 +36,8 @@ interface FDialogProps {
 
 const props = withDefaults(defineProps<FDialogProps>(), {
   description: undefined,
-  confirmLabel: '确定',
-  cancelLabel: '取消',
+  confirmLabel: undefined,
+  cancelLabel: undefined,
   variant: 'default',
   cancellable: true,
   loading: false,
@@ -47,6 +48,10 @@ const emit = defineEmits<{
   (event: 'confirm'): void;
   (event: 'cancel'): void;
 }>();
+
+const { t } = useI18n();
+const confirmText = computed(() => props.confirmLabel ?? t('ds.dialogConfirm'));
+const cancelText = computed(() => props.cancelLabel ?? t('ds.dialogCancel'));
 
 const dialogRef = ref<HTMLElement | null>(null);
 const isOpen = toRef(props, 'open');
@@ -104,7 +109,7 @@ function onOverlayClick(event: MouseEvent): void {
           :aria-describedby="description ? $.uid + '-desc' : undefined">
           <header class="f-dialog__header">
             <h2 :id="$.uid + '-title'" class="f-dialog__title">{{ title }}</h2>
-            <button v-if="cancellable" type="button" class="f-dialog__close" aria-label="关闭对话框" @click="onCancel">
+            <button v-if="cancellable" type="button" class="f-dialog__close" :aria-label="t('ds.dialogClose')" @click="onCancel">
               <FIcon name="dismiss_24_regular" />
             </button>
           </header>
@@ -114,9 +119,9 @@ function onOverlayClick(event: MouseEvent): void {
           </div>
           <footer class="f-dialog__footer">
             <slot name="actions" :confirm="onConfirm" :cancel="onCancel">
-              <FButton appearance="secondary" @click="onCancel">{{ cancelLabel }}</FButton>
+              <FButton appearance="secondary" @click="onCancel">{{ cancelText }}</FButton>
               <FButton :appearance="variant === 'danger' ? 'danger' : 'primary'" :loading="loading" @click="onConfirm">
-                {{ confirmLabel }}
+                {{ confirmText }}
               </FButton>
             </slot>
           </footer>
@@ -130,8 +135,8 @@ function onOverlayClick(event: MouseEvent): void {
 .f-dialog__overlay {
   position: fixed;
   inset: 0;
-  background: var(--color-background-overlay);
-  z-index: var(--z-dialog);
+  background: var(--colorBackgroundOverlay);
+  z-index: var(--f-z-dialog);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -149,14 +154,14 @@ function onOverlayClick(event: MouseEvent): void {
   width: min(480px, 100%);
   max-height: calc(100% - var(--spacing-4xl));
   background: var(--color-background-card);
-  color: var(--color-text-primary);
-  border-radius: var(--radius-large);
+  color: var(--colorNeutralForeground1);
+  border-radius: var(--borderRadiusXLarge);
   box-shadow: var(--shadow-modal);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   /* 顶部 1 px 高光，模拟 Fluent 2「Reveal」上沿光感。 */
-  border: 1px solid color-mix(in srgb, var(--color-border-subtle) 60%, transparent);
+  border: 1px solid color-mix(in srgb, var(--colorNeutralStroke2) 60%, transparent);
 }
 
 .f-dialog__header {
@@ -169,8 +174,8 @@ function onOverlayClick(event: MouseEvent): void {
 
 .f-dialog__title {
   margin: 0;
-  font-size: var(--type-title3-size);
-  line-height: var(--type-title3-line);
+  font-size: var(--fontSizeBase600);
+  line-height: var(--lineHeightBase600);
   font-weight: 600;
 }
 
@@ -178,9 +183,9 @@ function onOverlayClick(event: MouseEvent): void {
   border: none;
   background: transparent;
   cursor: pointer;
-  color: var(--color-text-secondary);
+  color: var(--colorNeutralForeground2);
   padding: var(--spacing-xs);
-  border-radius: var(--radius-medium);
+  border-radius: var(--borderRadiusMedium);
   transition:
     background var(--motion-duration-medium) var(--motion-curve-ease),
     color var(--motion-duration-medium) var(--motion-curve-ease),
@@ -188,14 +193,14 @@ function onOverlayClick(event: MouseEvent): void {
 }
 
 .f-dialog__close:hover {
-  background: var(--color-background-subtle);
-  color: var(--color-text-primary);
+  background: var(--colorNeutralBackground2);
+  color: var(--colorNeutralForeground1);
 }
 
 .f-dialog__close:focus-visible {
   outline: none;
   box-shadow: var(--shadow-focus);
-  color: var(--color-text-primary);
+  color: var(--colorNeutralForeground1);
 }
 
 .f-dialog__body {
@@ -205,9 +210,9 @@ function onOverlayClick(event: MouseEvent): void {
 
 .f-dialog__description {
   margin: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--type-body1-size);
-  line-height: var(--type-body1-line);
+  color: var(--colorNeutralForeground2);
+  font-size: var(--fontSizeBase300);
+  line-height: var(--lineHeightBase300);
 }
 
 .f-dialog__footer {
@@ -215,8 +220,8 @@ function onOverlayClick(event: MouseEvent): void {
   justify-content: flex-end;
   gap: var(--spacing-s);
   padding: var(--spacing-l) var(--spacing-2xl) var(--spacing-2xl);
-  border-top: 1px solid var(--color-border-subtle);
-  background: color-mix(in srgb, var(--color-background-subtle) 86%, var(--color-background-card));
+  border-top: 1px solid var(--colorNeutralStroke2);
+  background: color-mix(in srgb, var(--colorNeutralBackground2) 86%, var(--color-background-card));
 }
 
 /*
@@ -257,7 +262,7 @@ function onOverlayClick(event: MouseEvent): void {
   .f-dialog {
     width: 100%;
     max-width: 100%;
-    border-radius: var(--radius-large) var(--radius-large) 0 0;
+    border-radius: var(--borderRadiusXLarge) var(--borderRadiusXLarge) 0 0;
     max-height: 88vh;
   }
 

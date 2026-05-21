@@ -4,6 +4,7 @@
  * 路由参数 :target 决定当前窗口；移动端额外使用 SegmentedControl 替代左侧 Nav。
  */
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 
 import {
@@ -20,6 +21,7 @@ import { useBreakpoint } from '@/composables/useBreakpoint';
 import { useRuntimeStore } from '@/stores/runtime';
 import { useSessionStore } from '@/stores/sessions';
 
+const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const runtime = useRuntimeStore();
@@ -55,10 +57,10 @@ const activeTab = computed({
   set: () => undefined,
 });
 
-const tabItems: FTabsItem<TabId>[] = [
-  { label: '切换源', value: 'source' },
-  { label: '播放控制', value: 'control' },
-];
+const tabItems = computed<FTabsItem<TabId>[]>(() => [
+  { label: t('display.tabSource'), value: 'source' },
+  { label: t('display.tabControl'), value: 'control' },
+]);
 
 const mobileActiveTab = computed({
   get: () => (activeTab.value as TabId),
@@ -90,33 +92,33 @@ void tabItems;
 
 <template>
   <div class="display-view">
-    <FSegmented v-if="isMobile" :model-value="targetParam" :options="segmentOptions" full-width aria-label="窗口选择"
+    <FSegmented v-if="isMobile" :model-value="targetParam" :options="segmentOptions" full-width :aria-label="t('display.windowSelectAria')"
       @update:modelValue="(value) => changeTarget(value as string)" />
 
     <header class="display-view__hero">
-      <p class="display-view__eyebrow">Window {{ targetMeta?.windowId ?? '?' }}</p>
-      <h2 class="display-view__title">{{ targetMeta?.title ?? '未知窗口' }}显示控制</h2>
+      <p class="display-view__eyebrow">{{ t('display.windowEyebrow', { id: targetMeta?.windowId ?? '?' }) }}</p>
+      <h2 class="display-view__title">{{ targetMeta?.title ?? t('display.windowUnknown') }}{{ t('display.titleSuffix') }}</h2>
       <p class="display-view__caption">
-        {{ targetMeta?.subtitle || (currentSession ? `当前：${currentSession.source_name || '空闲'}` : '正在加载会话…') }}
+        {{ targetMeta?.subtitle || (currentSession ? t('display.currentSource', { name: currentSession.source_name || t('display.idle') }) : t('display.loadingSession')) }}
       </p>
     </header>
 
     <FCard v-if="blocksForSingleMode" padding="cozy">
-      <FEmpty title="单屏模式下「大屏右」不可控" description="当前运行态为单屏；窗口 2 由系统自动静音。如需独立控制，请切换到双屏模式。" icon="tv_24_regular">
+      <FEmpty :title="t('display.blockedTitle')" :description="t('display.blockedDesc')" icon="tv_24_regular">
         <template #actions>
-          <button class="display-view__cta" @click="switchToDouble">切换到双屏</button>
+          <button class="display-view__cta" @click="switchToDouble">{{ t('display.switchToDouble') }}</button>
         </template>
       </FEmpty>
     </FCard>
 
     <template v-else-if="!currentSession">
       <FCard padding="cozy">
-        <FEmpty title="正在加载会话状态" description="若长时间无响应，请检查后端服务或在「应急 → 重置全部窗口」恢复。" icon="info_24_regular" />
+        <FEmpty :title="t('display.loadingTitle')" :description="t('display.loadingDesc')" icon="info_24_regular" />
       </FCard>
     </template>
 
     <template v-else-if="isMobile">
-      <FTabs v-model="mobileTab" :items="tabItems" appearance="line" full-width aria-label="显示控制视图切换" />
+      <FTabs v-model="mobileTab" :items="tabItems" appearance="line" full-width :aria-label="t('display.viewSwitchAria')" />
       <SourcePicker v-if="mobileTab === 'source'" :window-id="currentSession.window_id" />
       <PlaybackControl v-else :session="currentSession" />
     </template>
@@ -144,8 +146,8 @@ void tabItems;
   position: relative;
   padding: var(--spacing-2xl) var(--spacing-3xl);
   background: var(--gradient-hero-cool);
-  border-radius: var(--radius-xlarge);
-  border: 1px solid color-mix(in srgb, var(--color-border-subtle) 70%, transparent);
+  border-radius: var(--borderRadiusXLarge);
+  border: 1px solid color-mix(in srgb, var(--colorNeutralStroke2) 70%, transparent);
   box-shadow: var(--shadow-card), var(--ring-accent);
   overflow: hidden;
   animation: f-rise var(--motion-duration-entrance) var(--motion-curve-emphasized) both;
@@ -158,9 +160,9 @@ void tabItems;
   top: -80px;
   width: 220px;
   height: 220px;
-  border-radius: var(--radius-circular);
+  border-radius: var(--borderRadiusCircular);
   background: radial-gradient(circle at center,
-      color-mix(in srgb, var(--color-background-brand) 22%, transparent),
+      color-mix(in srgb, var(--colorBrandBackground) 22%, transparent),
       transparent 70%);
   pointer-events: none;
 }
@@ -172,23 +174,23 @@ void tabItems;
 
 .display-view__eyebrow {
   margin: 0;
-  font-size: var(--type-caption1-size);
+  font-size: var(--fontSizeBase200);
   font-weight: 600;
-  color: var(--color-text-brand);
+  color: var(--colorBrandForeground1);
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
 .display-view__title {
   margin: var(--spacing-xs) 0;
-  font-size: var(--type-title2-size);
-  line-height: var(--type-title2-line);
+  font-size: var(--fontSizeHero700);
+  line-height: var(--lineHeightHero700);
   font-weight: 600;
 }
 
 .display-view__caption {
   margin: 0;
-  color: var(--color-text-secondary);
+  color: var(--colorNeutralForeground2);
 }
 
 .display-view__columns {
@@ -209,8 +211,8 @@ void tabItems;
   padding: 0 var(--spacing-l);
   height: 40px;
   border: none;
-  border-radius: var(--radius-medium);
-  background: var(--color-background-brand);
+  border-radius: var(--borderRadiusMedium);
+  background: var(--colorBrandBackground);
   color: var(--color-text-inverse);
   font-weight: 600;
   cursor: pointer;
@@ -222,7 +224,7 @@ void tabItems;
 }
 
 .display-view__cta:hover {
-  background: var(--color-background-brand-hover);
+  background: var(--colorBrandBackgroundHover);
   box-shadow: var(--shadow-brand-hover);
   transform: translateY(-1px);
 }
@@ -239,8 +241,8 @@ void tabItems;
   }
 
   .display-view__title {
-    font-size: var(--type-title3-size);
-    line-height: var(--type-title3-line);
+    font-size: var(--fontSizeBase600);
+    line-height: var(--lineHeightBase600);
   }
 }
 </style>

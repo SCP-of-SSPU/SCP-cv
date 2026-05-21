@@ -12,6 +12,7 @@
  *   - 匹配 Fluent 焦点环风格。
  */
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 import FIcon from './FIcon.vue';
 import type { FComboboxOption } from './types';
@@ -33,7 +34,7 @@ interface FComboboxProps {
 }
 
 const props = withDefaults(defineProps<FComboboxProps>(), {
-  placeholder: '请选择',
+  placeholder: undefined,
   disabled: false,
   searchable: false,
   id: undefined,
@@ -45,6 +46,9 @@ const props = withDefaults(defineProps<FComboboxProps>(), {
 const emit = defineEmits<{
   (event: 'update:modelValue', value: string | number | null): void;
 }>();
+
+const { t } = useI18n();
+const displayPlaceholder = computed(() => props.placeholder ?? t('ds.selectPlaceholder'));
 
 const open = ref(false);
 const triggerEl = ref<HTMLButtonElement | null>(null);
@@ -132,12 +136,12 @@ onBeforeUnmount(() => {
         <slot v-if="$slots.value && modelValue !== null" name="value" :label="selectedLabel" />
         <template v-else-if="selectedLabel">{{ selectedLabel }}</template>
         <template v-else>
-          <span class="f-combobox__placeholder">{{ placeholder }}</span>
+          <span class="f-combobox__placeholder">{{ displayPlaceholder }}</span>
         </template>
       </span>
       <span class="f-combobox__chevrons">
         <button v-if="clearable && modelValue !== null && modelValue !== undefined" type="button"
-          class="f-combobox__clear" aria-label="清除选择" @click="clear">
+          class="f-combobox__clear" :aria-label="t('ds.clearSelection')" @click="clear">
           <FIcon name="dismiss_16_regular" />
         </button>
         <FIcon class="f-combobox__chevron" :name="open ? 'chevron_up_20_regular' : 'chevron_down_20_regular'" />
@@ -148,8 +152,8 @@ onBeforeUnmount(() => {
       <div v-if="open" ref="listRef" class="f-combobox__list" role="listbox">
         <div v-if="searchable" class="f-combobox__search">
           <FIcon name="search_20_regular" />
-          <input v-model="searchText" type="search" class="f-combobox__search-input" placeholder="搜索…" aria-label="搜索选项"
-            autocomplete="off" />
+          <input v-model="searchText" type="search" class="f-combobox__search-input" :placeholder="t('ds.searchPlaceholder')"
+            :aria-label="t('ds.searchOptionsAria')" autocomplete="off" />
         </div>
         <div class="f-combobox__items">
           <template v-for="(option, index) in groupedOptions" :key="String(option.value) + '-' + index">
@@ -163,7 +167,7 @@ onBeforeUnmount(() => {
               <FIcon v-if="option.value === modelValue" class="f-combobox__option-check" name="checkmark_20_regular" />
             </button>
           </template>
-          <p v-if="groupedOptions.length === 0" class="f-combobox__empty">无匹配项</p>
+          <p v-if="groupedOptions.length === 0" class="f-combobox__empty">{{ t('ds.noMatch') }}</p>
         </div>
         <slot name="footer" />
       </div>
@@ -191,12 +195,12 @@ onBeforeUnmount(() => {
   width: 100%;
   min-height: 32px;
   padding: 0 var(--spacing-m);
-  border-radius: var(--radius-medium);
-  border: 1px solid var(--color-border-default);
+  border-radius: var(--borderRadiusMedium);
+  border: 1px solid var(--colorNeutralStroke1);
   background: var(--color-background-card);
-  color: var(--color-text-primary);
+  color: var(--colorNeutralForeground1);
   font-family: inherit;
-  font-size: var(--type-body1-size);
+  font-size: var(--fontSizeBase300);
   cursor: pointer;
   box-shadow: var(--shadow-control);
   transition:
@@ -214,13 +218,13 @@ onBeforeUnmount(() => {
 }
 
 .f-combobox__trigger:hover:not(:disabled) {
-  border-color: var(--color-border-strong);
+  border-color: var(--colorNeutralStroke1Hover);
   box-shadow: var(--shadow-2);
 }
 
 .f-combobox__trigger--open,
 .f-combobox__trigger:focus-visible {
-  border-color: var(--color-border-focus);
+  border-color: var(--colorBrandStroke1);
   box-shadow: var(--shadow-focus), var(--shadow-2);
   outline: none;
 }
@@ -234,14 +238,14 @@ onBeforeUnmount(() => {
 }
 
 .f-combobox__placeholder {
-  color: var(--color-text-tertiary);
+  color: var(--colorNeutralForeground3);
 }
 
 .f-combobox__chevrons {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-xs);
-  color: var(--color-text-secondary);
+  color: var(--colorNeutralForeground2);
   flex-shrink: 0;
 }
 
@@ -253,14 +257,14 @@ onBeforeUnmount(() => {
   height: 20px;
   border: none;
   background: transparent;
-  color: var(--color-text-tertiary);
+  color: var(--colorNeutralForeground3);
   cursor: pointer;
-  border-radius: var(--radius-circular);
+  border-radius: var(--borderRadiusCircular);
 }
 
 .f-combobox__clear:hover {
-  background: var(--color-background-subtle);
-  color: var(--color-text-primary);
+  background: var(--colorNeutralBackground2);
+  color: var(--colorNeutralForeground1);
 }
 
 .f-combobox__chevron {
@@ -280,8 +284,8 @@ onBeforeUnmount(() => {
    * @supports not (backdrop-filter) 回退到原 raised 实色，老浏览器仍可用。
    */
   background: var(--color-background-glass-strong);
-  border-radius: var(--radius-large);
-  border: var(--stroke-width-thin) solid color-mix(in srgb, var(--color-border-subtle) 70%, transparent);
+  border-radius: var(--borderRadiusLarge);
+  border: var(--stroke-width-thin) solid color-mix(in srgb, var(--colorNeutralStroke2) 70%, transparent);
   box-shadow: var(--shadow-flyout);
   overflow: hidden;
   display: flex;
@@ -301,8 +305,8 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: var(--spacing-s);
   padding: var(--spacing-s) var(--spacing-m);
-  border-bottom: 1px solid var(--color-border-subtle);
-  color: var(--color-text-tertiary);
+  border-bottom: 1px solid var(--colorNeutralStroke2);
+  color: var(--colorNeutralForeground3);
 }
 
 .f-combobox__search-input {
@@ -310,7 +314,7 @@ onBeforeUnmount(() => {
   border: none;
   outline: none;
   background: transparent;
-  color: var(--color-text-primary);
+  color: var(--colorNeutralForeground1);
   font: inherit;
 }
 
@@ -322,9 +326,9 @@ onBeforeUnmount(() => {
 
 .f-combobox__group {
   margin: var(--spacing-s) var(--spacing-s) var(--spacing-xs);
-  font-size: var(--type-caption1-size);
+  font-size: var(--fontSizeBase200);
   font-weight: 600;
-  color: var(--color-text-tertiary);
+  color: var(--colorNeutralForeground3);
 }
 
 .f-combobox__option {
@@ -335,12 +339,12 @@ onBeforeUnmount(() => {
   padding: var(--spacing-s) var(--spacing-m);
   border: none;
   background: transparent;
-  color: var(--color-text-primary);
+  color: var(--colorNeutralForeground1);
   text-align: left;
-  border-radius: var(--radius-medium);
+  border-radius: var(--borderRadiusMedium);
   cursor: pointer;
   font-family: inherit;
-  font-size: var(--type-body1-size);
+  font-size: var(--fontSizeBase300);
   transition:
     background-color var(--motion-duration-medium) var(--motion-curve-ease),
     color var(--motion-duration-medium) var(--motion-curve-ease),
@@ -348,19 +352,19 @@ onBeforeUnmount(() => {
 }
 
 .f-combobox__option:hover:not(:disabled) {
-  background: var(--color-background-subtle);
+  background: var(--colorNeutralBackground2);
   transform: translateX(2px);
 }
 
 .f-combobox__option--selected {
-  background: var(--color-background-brand-selected);
-  color: var(--color-text-brand);
+  background: var(--colorBrandBackgroundSelected);
+  color: var(--colorBrandForeground1);
   font-weight: 600;
 }
 
 .f-combobox__option--disabled {
   cursor: not-allowed;
-  color: var(--color-text-disabled);
+  color: var(--colorNeutralForegroundDisabled);
 }
 
 .f-combobox__option-label {
@@ -372,8 +376,8 @@ onBeforeUnmount(() => {
 
 .f-combobox__option-hint {
   flex-shrink: 0;
-  color: var(--color-text-tertiary);
-  font-size: var(--type-caption1-size);
+  color: var(--colorNeutralForeground3);
+  font-size: var(--fontSizeBase200);
 }
 
 .f-combobox__option-check {
@@ -386,8 +390,8 @@ onBeforeUnmount(() => {
   margin: 0;
   padding: var(--spacing-l);
   text-align: center;
-  color: var(--color-text-tertiary);
-  font-size: var(--type-caption1-size);
+  color: var(--colorNeutralForeground3);
+  font-size: var(--fontSizeBase200);
 }
 
 .f-combobox-list-enter-active,

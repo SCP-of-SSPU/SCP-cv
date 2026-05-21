@@ -10,16 +10,18 @@
  *   - 所有色值经 token 派生，便于全局深色模式上线后统一切换。
  */
 .ppt-focus {
-  /* 面板：玻璃质感容器；用 background-card 加少量透明度，保留 acrylic 效果。 */
+  /* 面板（acrylic 风格容器）：保留少量透明度让背景渐变透过，但阴影一律走 Fluent 令牌。 */
   --ppt-focus-panel-bg: color-mix(in srgb, var(--color-background-card) 88%, transparent);
   --ppt-focus-panel-bg-strong: color-mix(in srgb, var(--color-background-card) 94%, transparent);
-  --ppt-focus-panel-border: color-mix(in srgb, var(--color-border-default) 40%, transparent);
-  --ppt-focus-panel-shadow: 0 18px 44px rgb(0 0 0 / 0.32), 0 2px 10px rgb(0 0 0 / 0.20);
-  --ppt-focus-panel-shadow-strong: 0 24px 58px rgb(0 0 0 / 0.40), 0 8px 22px rgb(0 0 0 / 0.26);
+  --ppt-focus-panel-border: color-mix(in srgb, var(--colorNeutralStroke1) 40%, transparent);
+  --ppt-focus-panel-shadow: var(--shadow16);
+  --ppt-focus-panel-shadow-strong: var(--shadow28);
 
-  /* 提词专属：品牌色提升 24% 的内描边。 */
-  --ppt-focus-prompter-ring: 0 0 0 1px color-mix(in srgb, var(--color-background-brand) 22%, transparent);
-  --ppt-focus-prompter-ring-strong: 0 0 0 1px color-mix(in srgb, var(--color-background-brand) 32%, transparent);
+  /* 提词专属环：仅描品牌色 ring，避免与基础阴影叠加产生重影。 */
+  --ppt-focus-prompter-ring: 0 0 0 var(--strokeWidthThin)
+    color-mix(in srgb, var(--colorBrandStroke1) 60%, transparent);
+  --ppt-focus-prompter-ring-strong: 0 0 0 var(--strokeWidthThick)
+    color-mix(in srgb, var(--colorBrandStroke1) 70%, transparent);
 
   min-height: var(--app-height, 100vh);
   display: flex;
@@ -31,21 +33,22 @@
   background:
     linear-gradient(180deg,
       color-mix(in srgb, var(--color-background-raised) 92%, transparent),
-      var(--color-background-canvas)),
-    var(--color-background-canvas);
-  color: var(--color-text-primary);
+      var(--colorNeutralBackgroundCanvas)),
+    var(--colorNeutralBackgroundCanvas);
+  color: var(--colorNeutralForeground1);
   position: relative;
 }
 
 .ppt-focus::after {
+  /* 左上角舞台灯氛围光晕；使用 50% 圆角更清晰表达"圆形"语义。 */
   content: '';
   position: fixed;
   inset: -10% auto auto -10%;
   width: 60vw;
   height: 60vw;
-  border-radius: var(--radius-circular);
+  border-radius: 50%;
   background: radial-gradient(circle at center,
-      color-mix(in srgb, var(--color-background-brand) 18%, transparent),
+      color-mix(in srgb, var(--colorBrandBackground) 18%, transparent),
       transparent 70%);
   pointer-events: none;
   z-index: 0;
@@ -61,9 +64,13 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-l);
-  padding: var(--spacing-m) var(--spacing-2xl);
+  /* safe-area：刘海屏 / 横屏全面屏的顶部 + 两侧空白由 env() 接管。 */
+  padding-block-start: max(var(--spacingVerticalM), env(safe-area-inset-top, 0px));
+  padding-block-end: var(--spacingVerticalM);
+  padding-inline-start: max(var(--spacingHorizontalXXL), env(safe-area-inset-left, 0px));
+  padding-inline-end: max(var(--spacingHorizontalXXL), env(safe-area-inset-right, 0px));
   background: color-mix(in srgb, var(--color-background-card) 24%, transparent);
-  border-bottom: 1px solid var(--ppt-focus-panel-border);
+  border-bottom: var(--strokeWidthThin) solid var(--ppt-focus-panel-border);
   -webkit-backdrop-filter: blur(18px) saturate(1.1);
   backdrop-filter: blur(18px) saturate(1.1);
 }
@@ -77,7 +84,7 @@
   align-items: center;
   gap: var(--spacing-s);
   min-width: 0;
-  color: var(--color-text-primary);
+  color: var(--colorNeutralForeground1);
 }
 
 .ppt-focus__topbar-title {
@@ -89,7 +96,7 @@
 }
 
 .ppt-focus__topbar-progress {
-  color: var(--color-text-secondary);
+  color: var(--colorNeutralForeground2);
   font-variant-numeric: tabular-nums;
 }
 
@@ -129,7 +136,7 @@
 .ppt-focus__teleprompter {
   background: var(--ppt-focus-panel-bg);
   border: 1px solid var(--ppt-focus-panel-border);
-  border-radius: var(--radius-large);
+  border-radius: var(--borderRadiusLarge);
   box-shadow: var(--ppt-focus-panel-shadow);
   animation: f-rise var(--motion-duration-entrance) var(--motion-curve-emphasized) both;
   transition:
@@ -162,8 +169,8 @@
   align-items: center;
   justify-content: center;
   gap: var(--spacing-s);
-  color: var(--color-text-tertiary);
-  font-size: var(--type-title2-size);
+  color: var(--colorNeutralForeground3);
+  font-size: var(--fontSizeHero700);
 }
 
 .ppt-focus__side {
@@ -188,10 +195,10 @@
 .ppt-focus__next img {
   width: 100%;
   aspect-ratio: 16 / 9;
-  border-radius: var(--radius-medium);
+  border-radius: var(--borderRadiusMedium);
   object-fit: cover;
-  background: color-mix(in srgb, var(--color-background-subtle) 88%, transparent);
-  box-shadow: inset 0 0 0 1px var(--color-border-subtle);
+  background: color-mix(in srgb, var(--colorNeutralBackground2) 88%, transparent);
+  box-shadow: inset 0 0 0 1px var(--colorNeutralStroke2);
 }
 
 .ppt-focus__next-fallback {
@@ -200,12 +207,12 @@
   justify-content: center;
   width: 100%;
   aspect-ratio: 16 / 9;
-  border-radius: var(--radius-medium);
+  border-radius: var(--borderRadiusMedium);
   background: linear-gradient(135deg,
-      color-mix(in srgb, var(--color-background-brand) 24%, transparent),
+      color-mix(in srgb, var(--colorBrandBackground) 24%, transparent),
       color-mix(in srgb, var(--color-status-success-foreground) 14%, transparent));
-  color: var(--color-text-secondary);
-  font-size: var(--type-title3-size);
+  color: var(--colorNeutralForeground2);
+  font-size: var(--fontSizeBase600);
 }
 
 .ppt-focus__progress {
@@ -217,15 +224,15 @@
 .ppt-focus__progress-page,
 .ppt-focus__teleprompter-page {
   margin: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--type-caption1-size);
+  color: var(--colorNeutralForeground2);
+  font-size: var(--fontSizeBase200);
   font-variant-numeric: tabular-nums;
 }
 
 .ppt-focus__side-eyebrow {
   margin: 0;
-  color: var(--color-text-tertiary);
-  font-size: var(--type-caption1-size);
+  color: var(--colorNeutralForeground3);
+  font-size: var(--fontSizeBase200);
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -236,7 +243,7 @@
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-  border-color: color-mix(in srgb, var(--color-background-brand) 32%, transparent);
+  border-color: color-mix(in srgb, var(--colorBrandBackground) 32%, transparent);
   box-shadow:
     var(--ppt-focus-panel-shadow),
     var(--ppt-focus-prompter-ring);
@@ -250,7 +257,7 @@
 }
 
 .ppt-focus__teleprompter:hover {
-  border-color: color-mix(in srgb, var(--color-background-brand) 42%, transparent);
+  border-color: color-mix(in srgb, var(--colorBrandBackground) 42%, transparent);
   box-shadow:
     var(--ppt-focus-panel-shadow-strong),
     var(--ppt-focus-prompter-ring-strong);
@@ -275,7 +282,7 @@
 
 .ppt-focus__teleprompter-text {
   margin: 0;
-  color: var(--color-text-primary);
+  color: var(--colorNeutralForeground1);
   font-size: 22px;
   line-height: 1.6;
   white-space: pre-wrap;
@@ -283,7 +290,7 @@
 
 .ppt-focus__teleprompter-empty {
   margin: 0;
-  color: var(--color-text-tertiary);
+  color: var(--colorNeutralForeground3);
 }
 
 /*
@@ -299,9 +306,12 @@
   width: fit-content;
   max-width: 100%;
   margin: 0 auto;
-  padding: var(--spacing-s);
-  border: 1px solid var(--ppt-focus-panel-border);
-  border-radius: var(--radius-large);
+  /* safe-area：底部 home indicator 与横屏左右黑边给 env() 让位。 */
+  padding-block-start: var(--spacingVerticalS);
+  padding-block-end: max(var(--spacingVerticalS), env(safe-area-inset-bottom, 0px));
+  padding-inline: max(var(--spacingHorizontalS), env(safe-area-inset-left, 0px));
+  border: var(--strokeWidthThin) solid var(--ppt-focus-panel-border);
+  border-radius: var(--borderRadiusLarge);
   background: var(--ppt-focus-panel-bg-strong);
   box-shadow: var(--ppt-focus-panel-shadow-strong);
   -webkit-backdrop-filter: blur(20px) saturate(1.1);
@@ -318,14 +328,14 @@
 }
 
 .ppt-focus__controls :deep(.f-combobox__trigger) {
-  background: color-mix(in srgb, var(--color-text-primary) 6%, transparent);
+  background: color-mix(in srgb, var(--colorNeutralForeground1) 6%, transparent);
   border-color: var(--ppt-focus-panel-border);
-  color: var(--color-text-primary);
+  color: var(--colorNeutralForeground1);
 }
 
 .ppt-focus__controls :deep(.f-combobox__placeholder),
 .ppt-focus__controls :deep(.f-combobox__chevrons) {
-  color: var(--color-text-secondary);
+  color: var(--colorNeutralForeground2);
 }
 
 .ppt-focus__loading {
@@ -334,7 +344,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--spacing-s);
-  color: var(--color-text-secondary);
+  color: var(--colorNeutralForeground2);
 }
 
 @media (hover: none) {
@@ -353,6 +363,12 @@
   }
 }
 
+/*
+ * 断点对齐 Fluent / WindowSizeClass（DESIGN.md §2 Scale）：
+ *   1199px：large 以下（< 1200）—— 缩窄缩略图与控制条；
+ *    839px：expanded 以下（< 840）—— 切到单列布局；
+ *    599px：compact（< 600）—— 控件全宽、字号略减。
+ */
 @media (max-width: 1199px) {
   .ppt-focus__layout {
     grid-template-columns: minmax(128px, 148px) minmax(0, 1fr) minmax(280px, 320px);
@@ -363,7 +379,7 @@
   }
 }
 
-@media (max-width: 1023px) {
+@media (max-width: 839px) {
   .ppt-focus__layout {
     grid-template-columns: 1fr;
   }
@@ -395,11 +411,14 @@
   }
 }
 
-@media (max-width: 767px) {
+@media (max-width: 599px) {
   .ppt-focus__topbar {
     flex-wrap: wrap;
     align-items: flex-start;
-    padding: var(--spacing-s) var(--spacing-l);
+    padding-block-start: max(var(--spacingVerticalS), env(safe-area-inset-top, 0px));
+    padding-block-end: var(--spacingVerticalS);
+    padding-inline-start: max(var(--spacingHorizontalL), env(safe-area-inset-left, 0px));
+    padding-inline-end: max(var(--spacingHorizontalL), env(safe-area-inset-right, 0px));
   }
 
   .ppt-focus__topbar-center {
@@ -423,7 +442,7 @@
   }
 
   .ppt-focus__teleprompter-text {
-    font-size: 18px;
+    font-size: var(--fontSizeBase400);
     line-height: 1.7;
   }
 

@@ -57,34 +57,34 @@ const rootClass = computed(() => [
 .f-divider--horizontal {
   width: 100%;
   height: var(--stroke-width-thin);
-  background: var(--color-border-subtle);
+  background: var(--colorNeutralStroke2);
   margin: var(--spacing-s) 0;
   border: none;
 }
 
 .f-divider--horizontal.f-divider--strong {
-  background: var(--color-border-default);
+  background: var(--colorNeutralStroke1);
 }
 
 .f-divider--horizontal.f-divider--subtle {
   height: var(--stroke-width-thin);
-  background: color-mix(in srgb, var(--color-border-subtle) 60%, transparent);
+  background: color-mix(in srgb, var(--colorNeutralStroke2) 60%, transparent);
 }
 
 .f-divider--vertical {
   width: var(--stroke-width-thin);
   align-self: stretch;
   min-height: 1em;
-  background: var(--color-border-subtle);
+  background: var(--colorNeutralStroke2);
   margin: 0 var(--spacing-s);
 }
 
 .f-divider--vertical.f-divider--strong {
-  background: var(--color-border-default);
+  background: var(--colorNeutralStroke1);
 }
 
 .f-divider--vertical.f-divider--subtle {
-  background: color-mix(in srgb, var(--color-border-subtle) 60%, transparent);
+  background: color-mix(in srgb, var(--colorNeutralStroke2) 60%, transparent);
 }
 
 /*
@@ -117,19 +117,19 @@ const rootClass = computed(() => [
 .f-divider--with-label::after {
   content: '';
   height: var(--stroke-width-thin);
-  background: var(--color-border-subtle);
+  background: var(--colorNeutralStroke2);
 }
 
 .f-divider--with-label.f-divider--strong::before,
 .f-divider--with-label.f-divider--strong::after {
-  background: var(--color-border-default);
+  background: var(--colorNeutralStroke1);
 }
 
 .f-divider__label {
-  font-size: var(--type-caption1-size);
-  line-height: var(--type-caption1-line);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-tertiary);
+  font-size: var(--fontSizeBase200);
+  line-height: var(--lineHeightBase200);
+  font-weight: var(--fontWeightSemibold);
+  color: var(--colorNeutralForeground3);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   white-space: nowrap;

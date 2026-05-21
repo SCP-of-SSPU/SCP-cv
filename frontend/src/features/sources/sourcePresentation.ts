@@ -1,4 +1,5 @@
 import type { TagTone } from '@/design-system';
+import { t } from '@/locales';
 import type { MediaSourceItem } from '@/services/api';
 import { SOURCE_TYPE_TO_CATEGORY, type SourceCategory } from '@/stores/sources';
 
@@ -11,17 +12,17 @@ export function resolveSourceCategory(source: MediaSourceItem): SourceCategory {
 export function sourceCategoryLabel(source: MediaSourceItem): string {
   switch (resolveSourceCategory(source)) {
     case 'ppt':
-      return 'PPT';
+      return t('sources.typeLabel.ppt');
     case 'video':
-      return '视频';
+      return t('sources.typeLabel.video');
     case 'image':
-      return '图片';
+      return t('sources.typeLabel.image');
     case 'web':
-      return '网页';
+      return t('sources.typeLabel.web');
     case 'stream':
-      return '直播';
+      return t('sources.typeLabel.stream');
     default:
-      return '其它';
+      return t('sources.typeLabel.other');
   }
 }
 

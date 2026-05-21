@@ -1,3 +1,5 @@
+import { t } from '@/locales';
+
 /*
  * 设计系统通用辅助函数。
  * 仅放纯逻辑工具（class 拼接、id 生成、防抖）；任何视觉值必须来自 token，不在此处硬编码。
@@ -121,10 +123,10 @@ export function formatRelativeTime(isoText: string): string {
   const targetMs = Date.parse(isoText);
   if (Number.isNaN(targetMs)) return isoText;
   const diffSec = (Date.now() - targetMs) / 1000;
-  if (diffSec < 30) return '刚刚';
-  if (diffSec < 60 * 60) return `${Math.floor(diffSec / 60)} 分钟前`;
-  if (diffSec < 60 * 60 * 24) return `${Math.floor(diffSec / 3600)} 小时前`;
-  if (diffSec < 60 * 60 * 24 * 7) return `${Math.floor(diffSec / 86400)} 天前`;
+  if (diffSec < 30) return t('time.justNow');
+  if (diffSec < 60 * 60) return t('time.minutesAgo', { n: Math.floor(diffSec / 60) });
+  if (diffSec < 60 * 60 * 24) return t('time.hoursAgo', { n: Math.floor(diffSec / 3600) });
+  if (diffSec < 60 * 60 * 24 * 7) return t('time.daysAgo', { n: Math.floor(diffSec / 86400) });
   const date = new Date(targetMs);
   const pad = (n: number): string => String(n).padStart(2, '0');
   return (
