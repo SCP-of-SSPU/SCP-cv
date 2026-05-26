@@ -23,10 +23,14 @@ export default defineConfig(({ mode }) => {
   const frontendPort = Number.isFinite(parsedPort) && parsedPort > 0 ? parsedPort : fallbackPort;
   const backendTarget = (env.VITE_BACKEND_TARGET || 'http://127.0.0.1:8000').replace(/\/+$/, '');
 
-  // 共用代理规则；events 走 SSE 需要 ws=false + 透传响应体，rewrite 保持原路径。
+  // 共用代理规则。
+  //   - changeOrigin=false：保留浏览器原始 Host 头，让 Django 的 CSRF Origin 校验
+  //     拿到与 Origin 头一致的 host（同 origin 验证天然通过），否则 Host 被改为
+  //     backend host 后 Django 计算的 good_origin 与浏览器 Origin 不匹配 → 403。
+  //   - secure=false：本地 dev 后端通常用 http；忽略证书校验。
   const proxyRule = {
     target: backendTarget,
-    changeOrigin: true,
+    changeOrigin: false,
     secure: false,
   } as const;
 

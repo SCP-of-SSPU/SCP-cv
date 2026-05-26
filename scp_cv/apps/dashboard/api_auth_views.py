@@ -17,7 +17,7 @@ from typing import Any
 from django.contrib.auth import authenticate, login, logout
 from django.http import HttpRequest, JsonResponse
 from django.middleware.csrf import get_token
-from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST
 
 
@@ -75,10 +75,16 @@ def csrf_token_api(request: HttpRequest) -> JsonResponse:
     return _json({"csrfToken": get_token(request)})
 
 
+@csrf_exempt
 @require_POST
+@ensure_csrf_cookie
 def login_api(request: HttpRequest) -> JsonResponse:
     """
     使用 username / password 建立 Django session。
+
+    端点本身豁免 CSRF 校验（用户尚未登录，无可被 CSRF 滥用的会话状态，且跨
+    端口/反向代理场景下浏览器可能尚未持有 csrftoken cookie）。登录成功后通过
+    @ensure_csrf_cookie 强制下发新的 csrftoken，后续业务接口仍受 CSRF 保护。
     :param request: HTTP 请求（JSON body：{"username": "...", "password": "..."}）
     :return: 成功返回当前用户信息；失败返回 400/401 错误码
     """
@@ -94,6 +100,7 @@ def login_api(request: HttpRequest) -> JsonResponse:
     return _json({"user": _user_payload(user)})
 
 
+@csrf_exempt
 @require_POST
 def logout_api(request: HttpRequest) -> JsonResponse:
     """
