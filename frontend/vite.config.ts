@@ -11,6 +11,9 @@ import { defineConfig, loadEnv } from 'vite';
  * 2. dev 端口仍可通过 `VITE_FRONTEND_PORT` 显式覆盖，便于多实例并行。
  * 3. 别名 `@` 指向 `src`，与 tsconfig.json 的 paths 一致，让组件库与业务模块
  *    使用相同的导入语法。
+ * 4. dev server 把 `/api`、`/events`、`/media`、`/static`、`/admin` 反向代理到
+ *    Django：让前端与后端共享同一个 origin（http://<host>:5173），从根本上
+ *    避免跨 origin + SameSite cookie 导致 csrftoken 不随登录请求发送的问题。
  */
 export default defineConfig(({ mode }) => {
   const envDir = fileURLToPath(new URL('.', import.meta.url));
@@ -18,6 +21,14 @@ export default defineConfig(({ mode }) => {
   const fallbackPort = 5173;
   const parsedPort = Number.parseInt(env.VITE_FRONTEND_PORT || '', 10);
   const frontendPort = Number.isFinite(parsedPort) && parsedPort > 0 ? parsedPort : fallbackPort;
+  const backendTarget = (env.VITE_BACKEND_TARGET || 'http://127.0.0.1:8000').replace(/\/+$/, '');
+
+  // 共用代理规则；events 走 SSE 需要 ws=false + 透传响应体，rewrite 保持原路径。
+  const proxyRule = {
+    target: backendTarget,
+    changeOrigin: true,
+    secure: false,
+  } as const;
 
   return {
     envDir,
@@ -30,10 +41,25 @@ export default defineConfig(({ mode }) => {
     server: {
       host: '0.0.0.0',
       port: frontendPort,
+      proxy: {
+        '/api': proxyRule,
+        // events 是历史 dashboard SSE 路径，与 /api/events/ 共存；统一代理。
+        '/events': proxyRule,
+        '/media': proxyRule,
+        '/static': proxyRule,
+        '/admin': proxyRule,
+      },
     },
     preview: {
       host: '0.0.0.0',
       port: frontendPort,
+      proxy: {
+        '/api': proxyRule,
+        '/events': proxyRule,
+        '/media': proxyRule,
+        '/static': proxyRule,
+        '/admin': proxyRule,
+      },
     },
   };
 });

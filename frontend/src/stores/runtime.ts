@@ -90,8 +90,9 @@ export const useRuntimeStore = defineStore('runtime', {
     connectEvents(): void {
       this.disconnectEvents();
       this.sseStatus = 'connecting';
-      // withCredentials 让 EventSource 跨端口请求时携带 Django session cookie，
-      // 否则 ApiAuthMiddleware 直接 401 关闭流。
+      // dev 下经 Vite proxy 到 Django，prod 下直连 VITE_BACKEND_TARGET；
+      // 后者属于跨 origin，必须 withCredentials 才能带 Django session cookie，
+      // 否则被 ApiAuthMiddleware 直接 401 关闭流。
       const source = new EventSource(buildBackendUrl('/api/events/'), {
         withCredentials: true,
       });

@@ -174,6 +174,11 @@ const REQUEST_TIMEOUT_MS = 10000;
 const DEFAULT_BACKEND_PORT = '8000';
 
 function resolveBackendBase(): string {
+  // dev 模式下统一走 Vite 反向代理：相对路径 → 前端 origin → vite proxy → Django。
+  // 这样请求与页面同 origin，浏览器不再发起跨 origin 预检，SameSite=Lax 的
+  // csrftoken cookie 也能正常携带，避免登录失败。
+  if (import.meta.env.DEV) return '';
+
   const configuredTarget = String(import.meta.env.VITE_BACKEND_TARGET || '').trim();
   if (configuredTarget) {
     // 显式配置优先，避免运行时偷偷改写导致 .env 中的地址失效。
