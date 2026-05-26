@@ -10,11 +10,15 @@
 '''
 from django.urls import path
 
-from . import api_playback_views, api_scenario_views, api_views
+from . import api_auth_views, api_playback_views, api_scenario_views, api_views
 
 app_name = "dashboard_api"
 
 urlpatterns = [
+    path("auth/csrf/", api_auth_views.csrf_token_api, name="auth_csrf"),
+    path("auth/login/", api_auth_views.login_api, name="auth_login"),
+    path("auth/logout/", api_auth_views.logout_api, name="auth_logout"),
+    path("auth/me/", api_auth_views.me_api, name="auth_me"),
     path("folders/", api_views.folders_api, name="folders"),
     path("folders/<int:folder_id>/", api_views.folder_detail_api, name="folder_detail"),
     path("sources/", api_views.list_sources_api, name="list_sources"),

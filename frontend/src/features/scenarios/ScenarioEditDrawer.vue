@@ -2,28 +2,27 @@
 /**
  * 预案编辑覆盖大卡片：新建 / 编辑 / 从当前状态生成 三种入口共用。
  *  - 桌面：480 px 右侧 Drawer（移动端自动 → 全屏 Sheet）；
- *  - 移动端可视为单页可滚动表单（设计稿 §4.5.4 中 md 断点形态）。
- *
- * 这里不使用「真覆盖式中卡」实现（与现有 Drawer 组件复用，便于响应式），
- * 视觉上等价于设计稿要求的「编辑覆盖大卡片」。
+ *  - 移动端可视为单页可滚动表单。
  */
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-
 import {
-  FButton,
-  FCard,
-  FCombobox,
-  FDrawer,
-  FField,
-  FInput,
-  FMessageBar,
-  FSegmented,
-  FSlider,
-  FSwitch,
-  FTextarea,
-} from '@/design-system';
-import type { FComboboxOption, FSegmentedOption } from '@/design-system';
+  NAlert,
+  NButton,
+  NCard,
+  NDrawer,
+  NDrawerContent,
+  NFormItem,
+  NInput,
+  NRadio,
+  NRadioGroup,
+  NSelect,
+  NSlider,
+  NSwitch,
+  type SelectGroupOption,
+  type SelectOption,
+} from 'naive-ui';
+
 import { useToast } from '@/composables/useToast';
 import { useScenarioStore } from '@/stores/scenarios';
 import { useSourceStore } from '@/stores/sources';
@@ -40,9 +39,7 @@ import type { MediaSourceItem, ScenarioItem } from '@/services/api';
 
 interface ScenarioEditDrawerProps {
   open: boolean;
-  /** 入口数据来源：null（新建）、ScenarioItem（编辑）。 */
   scenario: ScenarioItem | null;
-  /** 是否预填当前播放状态（「从当前状态生成」入口）。 */
   prefillFromState?: ScenarioDraft;
 }
 
@@ -63,10 +60,15 @@ const draft = ref<ScenarioDraft>(createEmptyDraft());
 const errorMessage = ref('');
 const saving = ref(false);
 
+const isOpen = computed({
+  get: () => props.open,
+  set: (value: boolean) => emit('update:open', value),
+});
+
 watch(
   () => [props.open, props.scenario, props.prefillFromState] as const,
-  ([isOpen, scenario, prefill]) => {
-    if (!isOpen) return;
+  ([isOpenVal, scenario, prefill]) => {
+    if (!isOpenVal) return;
     if (scenario) {
       draft.value = fromScenarioItem(scenario);
     } else if (prefill) {
@@ -78,7 +80,7 @@ watch(
   },
 );
 
-const sourceOptionsByCategory = computed<FComboboxOption<number>[]>(() => {
+const sourceOptionsByCategory = computed<(SelectOption | SelectGroupOption)[]>(() => {
   const groups = new Map<string, MediaSourceItem[]>();
   for (const source of sourceStore.sources) {
     const cat = sourceStore.resolveCategory(source.source_type);
@@ -90,41 +92,23 @@ const sourceOptionsByCategory = computed<FComboboxOption<number>[]>(() => {
     if (!groups.has(groupLabel)) groups.set(groupLabel, []);
     groups.get(groupLabel)!.push(source);
   }
-  const options: FComboboxOption<number>[] = [];
+  const options: (SelectOption | SelectGroupOption)[] = [];
   for (const [groupLabel, list] of groups.entries()) {
-    // group 头是分类标题、不是真实源；标记 disabled 防止用户点中后把 source_id 设成 -1，
-    // 旧实现会让前端校验通过却被后端 _resolve_source(-1) 拒绝，最终表现为「无法保存预案」。
-    options.push({ label: groupLabel, value: -1, group: groupLabel, disabled: true });
-    for (const item of list) {
-      options.push({
+    options.push({
+      type: 'group',
+      label: groupLabel,
+      key: groupLabel,
+      children: list.map((item) => ({
         label: item.name || item.original_filename || item.uri || t('scenarios.edit.sourceFallback', { id: item.id }),
         value: item.id,
-        hint: item.is_available ? undefined : t('scenarios.edit.unavailable'),
-      });
-    }
+        disabled: !item.is_available,
+      })),
+    });
   }
   return options;
 });
 
-const screenSegmentOptions = computed<FSegmentedOption<ScenarioWindowMode>[]>(() => [
-  { label: t('scenarios.edit.keep'), value: 'unset' },
-  { label: t('scenarios.edit.single'), value: 'empty' as ScenarioWindowMode },
-  { label: t('scenarios.edit.double'), value: 'set' as ScenarioWindowMode },
-]);
-
-const volumeSegmentOptions = computed<FSegmentedOption<ScenarioWindowMode>[]>(() => [
-  { label: t('scenarios.edit.keep'), value: 'unset' },
-  { label: t('scenarios.edit.set'), value: 'set' },
-]);
-
-const sourceSegmentOptions = computed<FSegmentedOption<ScenarioWindowMode>[]>(() => [
-  { label: t('scenarios.edit.keep'), value: 'unset' },
-  { label: t('scenarios.edit.blackout'), value: 'empty' },
-  { label: t('scenarios.edit.switch'), value: 'set' },
-]);
-
 const visibleWindows = computed<ScenarioWindowDraft[]>(() => {
-  // 顶部「大屏模式：单屏」时合并 W1/W2 为「大屏」，但实际仍写 W1。
   if (draft.value.bigScreenModeState !== 'unset' && draft.value.bigScreenMode === 'single') {
     return draft.value.windows.filter((win) => win.windowId !== 2);
   }
@@ -162,7 +146,6 @@ function showLoopToggle(window: ScenarioWindowDraft): boolean {
   const source = sourceStore.sources.find((item) => item.id === window.sourceId);
   if (!source) return false;
   const cat = sourceStore.resolveCategory(source.source_type);
-  // 旧 audio 源被映射为 video 分支，因此只判断 video 即可覆盖音/视频两种情况。
   return cat === 'video';
 }
 
@@ -173,7 +156,6 @@ function setBigScreenMode(value: ScenarioWindowMode): void {
   }
   draft.value.bigScreenModeState = 'set';
   draft.value.bigScreenMode = value === 'empty' ? 'single' : 'double';
-  // 单屏切回时 W2 自动重置为「保持」，避免下次切到双屏带遗留配置。
   if (draft.value.bigScreenMode === 'single') {
     const winTwo = draft.value.windows.find((win) => win.windowId === 2);
     if (winTwo) winTwo.sourceState = 'unset';
@@ -193,9 +175,6 @@ async function save(): Promise<void> {
   if (errorMessage.value) return;
 
   for (const window of draft.value.windows) {
-    // 「切换」窗口必须绑定真实存在的源（id ≥ 1）；
-    // 旧实现仅用 `!window.sourceId` 判定，会放过 -1 这种 group 占位值，
-    // 导致后端 _resolve_source(-1) 抛错让用户感觉「无法保存」。
     if (window.sourceState === 'set' && (window.sourceId === null || window.sourceId === undefined || window.sourceId < 1)) {
       errorMessage.value = t('scenarios.edit.requireSource', { label: windowLabel(window.windowId) });
       return;
@@ -224,75 +203,157 @@ function close(): void {
 </script>
 
 <template>
-  <FDrawer :open="open" :title="scenario ? t('scenarios.edit.titleEdit') : t('scenarios.edit.titleCreate')" :description="t('scenarios.edit.desc')" :primary-label="t('scenarios.edit.save')"
-    :hide-default-actions="true" :width="520" @update:open="(value) => emit('update:open', value)">
-    <FCard padding="compact">
-      <template #title>{{ t('scenarios.edit.basic') }}</template>
-      <FField :label="t('scenarios.edit.name')" required>
-        <FInput v-model="draft.name" :placeholder="t('scenarios.edit.namePlaceholder')" />
-      </FField>
-      <FField :label="t('scenarios.edit.remark')" :hint="t('scenarios.edit.remarkHint')">
-        <FTextarea v-model="draft.description" :rows="2" :placeholder="t('scenarios.edit.remarkPlaceholder')" />
-      </FField>
-      <FField :label="t('scenarios.edit.bigScreenMode')" :hint="t('scenarios.edit.bigScreenHint')">
-        <FSegmented v-model="bigScreenSegmentValue" :options="screenSegmentOptions" full-width />
-      </FField>
-      <FField :label="t('scenarios.edit.systemVolume')" :hint="t('scenarios.edit.systemVolumeHint')">
-        <FSegmented v-model="draft.volumeState" :options="volumeSegmentOptions" full-width />
-        <FSlider v-if="draft.volumeState === 'set'" v-model="draft.volumeLevel" :min="0" :max="100" show-value
-          :aria-label="t('scenarios.edit.systemVolumeAria')" />
-      </FField>
-    </FCard>
+  <n-drawer v-model:show="isOpen" :width="520" placement="right">
+    <n-drawer-content :title="scenario ? t('scenarios.edit.titleEdit') : t('scenarios.edit.titleCreate')" closable>
+      <p class="scenario-edit__desc">{{ t('scenarios.edit.desc') }}</p>
 
-    <FCard padding="compact">
-      <template #title>{{ t('scenarios.edit.windowsConfig') }}</template>
-      <div class="scenario-edit__windows">
-        <FCard v-for="window in visibleWindows" :key="window.windowId" padding="compact" variant="subtle">
-          <template #eyebrow>{{ windowLabel(window.windowId) }}</template>
-          <template #title>{{ t('scenarios.edit.window', { id: window.windowId }) }}</template>
-          <FSegmented v-model="window.sourceState" :options="sourceSegmentOptions" full-width />
-          <p v-if="window.sourceState === 'unset'" class="scenario-edit__hint">
-            {{ t('scenarios.edit.keepHint') }}
-          </p>
-          <p v-else-if="window.sourceState === 'empty'" class="scenario-edit__hint">
-            {{ t('scenarios.edit.blackoutHint') }}
-          </p>
-          <template v-else>
-            <FField :label="t('scenarios.edit.sourceSelect')" required>
-              <FCombobox v-model="window.sourceId" :options="sourceOptionsByCategory" :placeholder="t('scenarios.edit.sourcePlaceholder')" searchable />
-            </FField>
-            <FSwitch v-model="window.autoplay" :label="t('scenarios.edit.autoplay')" size="compact" />
-            <FSwitch v-if="showLoopToggle(window)" v-model="window.resume" :label="t('scenarios.edit.resume')" size="compact" />
-            <p v-if="window.sourceState === 'set' && !isVolumeEditable(window)" class="scenario-edit__hint">
-              {{ t('scenarios.edit.noVolumeHint') }}
+      <n-card size="small" :title="t('scenarios.edit.basic')" class="scenario-edit__card">
+        <n-form-item :label="t('scenarios.edit.name')" required>
+          <n-input v-model:value="draft.name" :placeholder="t('scenarios.edit.namePlaceholder')" />
+        </n-form-item>
+        <n-form-item :label="t('scenarios.edit.remark')" :feedback="t('scenarios.edit.remarkHint')">
+          <n-input v-model:value="draft.description" type="textarea" :rows="2" :placeholder="t('scenarios.edit.remarkPlaceholder')" />
+        </n-form-item>
+        <n-form-item :label="t('scenarios.edit.bigScreenMode')" :feedback="t('scenarios.edit.bigScreenHint')">
+          <n-radio-group v-model:value="bigScreenSegmentValue">
+            <n-radio value="unset">{{ t('scenarios.edit.keep') }}</n-radio>
+            <n-radio value="empty">{{ t('scenarios.edit.single') }}</n-radio>
+            <n-radio value="set">{{ t('scenarios.edit.double') }}</n-radio>
+          </n-radio-group>
+        </n-form-item>
+        <n-form-item :label="t('scenarios.edit.systemVolume')" :feedback="t('scenarios.edit.systemVolumeHint')">
+          <div class="scenario-edit__field-stack">
+            <n-radio-group v-model:value="draft.volumeState">
+              <n-radio value="unset">{{ t('scenarios.edit.keep') }}</n-radio>
+              <n-radio value="set">{{ t('scenarios.edit.set') }}</n-radio>
+            </n-radio-group>
+            <n-slider v-if="draft.volumeState === 'set'" v-model:value="draft.volumeLevel" :min="0" :max="100"
+              :aria-label="t('scenarios.edit.systemVolumeAria')" />
+          </div>
+        </n-form-item>
+      </n-card>
+
+      <n-card size="small" :title="t('scenarios.edit.windowsConfig')" class="scenario-edit__card">
+        <div class="scenario-edit__windows">
+          <n-card v-for="window in visibleWindows" :key="window.windowId" size="small" embedded>
+            <template #header>
+              <div>
+                <span class="scenario-edit__eyebrow">{{ windowLabel(window.windowId) }}</span>
+                <h4 class="scenario-edit__window-title">{{ t('scenarios.edit.window', { id: window.windowId }) }}</h4>
+              </div>
+            </template>
+            <n-radio-group v-model:value="window.sourceState">
+              <n-radio value="unset">{{ t('scenarios.edit.keep') }}</n-radio>
+              <n-radio value="empty">{{ t('scenarios.edit.blackout') }}</n-radio>
+              <n-radio value="set">{{ t('scenarios.edit.switch') }}</n-radio>
+            </n-radio-group>
+            <p v-if="window.sourceState === 'unset'" class="scenario-edit__hint">
+              {{ t('scenarios.edit.keepHint') }}
             </p>
-          </template>
-        </FCard>
-      </div>
-    </FCard>
+            <p v-else-if="window.sourceState === 'empty'" class="scenario-edit__hint">
+              {{ t('scenarios.edit.blackoutHint') }}
+            </p>
+            <template v-else>
+              <n-form-item :label="t('scenarios.edit.sourceSelect')" required>
+                <n-select
+                  v-model:value="window.sourceId"
+                  :options="sourceOptionsByCategory"
+                  :placeholder="t('scenarios.edit.sourcePlaceholder')"
+                  filterable
+                />
+              </n-form-item>
+              <div class="scenario-edit__switches">
+                <div class="scenario-edit__switch">
+                  <span>{{ t('scenarios.edit.autoplay') }}</span>
+                  <n-switch v-model:value="window.autoplay" size="small" />
+                </div>
+                <div v-if="showLoopToggle(window)" class="scenario-edit__switch">
+                  <span>{{ t('scenarios.edit.resume') }}</span>
+                  <n-switch v-model:value="window.resume" size="small" />
+                </div>
+              </div>
+              <p v-if="window.sourceState === 'set' && !isVolumeEditable(window)" class="scenario-edit__hint">
+                {{ t('scenarios.edit.noVolumeHint') }}
+              </p>
+            </template>
+          </n-card>
+        </div>
+      </n-card>
 
-    <FMessageBar v-if="errorMessage" tone="error" :title="t('scenarios.edit.cantSave')">
-      {{ errorMessage }}
-    </FMessageBar>
+      <n-alert v-if="errorMessage" type="error" :title="t('scenarios.edit.cantSave')">
+        {{ errorMessage }}
+      </n-alert>
 
-    <template #actions>
-      <FButton appearance="secondary" :disabled="saving" @click="close">{{ t('common.cancel') }}</FButton>
-      <FButton appearance="primary" :loading="saving" @click="save">{{ t('scenarios.edit.save') }}</FButton>
-    </template>
-  </FDrawer>
+      <template #footer>
+        <div class="scenario-edit__actions">
+          <n-button :disabled="saving" @click="close">{{ t('common.cancel') }}</n-button>
+          <n-button type="primary" :loading="saving" @click="save">{{ t('scenarios.edit.save') }}</n-button>
+        </div>
+      </template>
+    </n-drawer-content>
+  </n-drawer>
 </template>
 
 <style scoped>
+.scenario-edit__desc {
+  margin: 0 0 var(--spacingVerticalM);
+  color: var(--colorNeutralForeground2);
+  font-size: var(--fontSizeBase200);
+}
+
+.scenario-edit__card {
+  margin-bottom: var(--spacingVerticalM);
+}
+
+.scenario-edit__field-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacingVerticalS);
+  width: 100%;
+}
+
 .scenario-edit__windows {
   display: grid;
   grid-template-columns: 1fr;
-  gap: var(--spacing-m);
+  gap: var(--spacingVerticalM);
+}
+
+.scenario-edit__eyebrow {
+  font-size: var(--fontSizeBase200);
+  color: var(--colorNeutralForeground3);
+}
+
+.scenario-edit__window-title {
+  margin: 0;
+  font-size: var(--fontSizeBase300);
+  font-weight: 600;
+}
+
+.scenario-edit__switches {
+  display: flex;
+  gap: var(--spacingHorizontalM);
+  flex-wrap: wrap;
+  margin-top: var(--spacingVerticalS);
+}
+
+.scenario-edit__switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacingHorizontalS);
 }
 
 .scenario-edit__hint {
-  margin: 0;
+  margin: var(--spacingVerticalXS) 0 0;
   color: var(--colorNeutralForeground3);
   font-size: var(--fontSizeBase200);
+}
+
+.scenario-edit__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacingHorizontalS);
+  justify-content: flex-end;
+  width: 100%;
 }
 
 @media (min-width: 768px) {

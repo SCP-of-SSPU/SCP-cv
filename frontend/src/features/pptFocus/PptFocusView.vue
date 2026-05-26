@@ -2,17 +2,17 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
-
 import {
-  FButton,
-  FCombobox,
-  FEmpty,
-  FIcon,
-  FMessageBar,
-  FProgress,
-  FSpinner,
-  FTag,
-} from '@/design-system';
+  NAlert,
+  NButton,
+  NEmpty,
+  NProgress,
+  NSelect,
+  NSpin,
+  NTag,
+} from 'naive-ui';
+
+import FIcon from '@/design-system/FIcon.vue';
 import { useBreakpoint } from '@/composables/useBreakpoint';
 import { useTheme, type ThemeMode } from '@/composables/useTheme';
 import { useToast } from '@/composables/useToast';
@@ -47,7 +47,6 @@ const resources = ref<PptResourceItem[]>([]);
 const loadError = ref('');
 const isLoading = ref(false);
 const selectedMediaKey = ref<string | null>(null);
-// 进入 focus 前的主题，仅用于诊断；真正恢复由 popOverride 完成。
 const _restoreTheme = ref<ThemeMode | null>(null);
 
 const windowId = computed(() => Number.parseInt(String(route.params.windowId ?? '0'), 10));
@@ -95,7 +94,6 @@ const currentMediaOptions = computed(() =>
   currentMediaItems.value.map((media) => ({
     value: mediaSelectionValue(media),
     label: media.name || t('pptFocus.mediaFallback', { n: media.media_index }),
-    hint: mediaTypeHint(media.media_type),
   })),
 );
 
@@ -104,6 +102,7 @@ function mediaTypeHint(rawType: string): string {
   if (KNOWN_MEDIA_TYPES.has(key)) return t(`pptFocus.mediaType.${key}`);
   return t('pptFocus.mediaType.other');
 }
+void mediaTypeHint;
 
 const selectedMedia = computed(() =>
   currentMediaItems.value.find((media) => mediaSelectionValue(media) === selectedMediaKey.value) ?? null,
@@ -137,6 +136,11 @@ const windowLabel = computed(() => {
   }
 });
 
+const slidesProgressPercentage = computed(() => {
+  if (slidesProgress.value.total <= 0) return 0;
+  return Math.round((slidesProgress.value.current / slidesProgress.value.total) * 100);
+});
+
 watch(currentMediaItems, (items) => {
   if (!items.length) {
     selectedMediaKey.value = null;
@@ -158,8 +162,6 @@ function syncFullscreen(): void {
 }
 
 onMounted(() => {
-  // 进入专注页：用 useTheme 的 override 通道临时锁定 dark，
-  // 不污染 localStorage；退出时 popOverride 立即回到用户偏好。
   pushOverride('dark');
   document.addEventListener('fullscreenchange', syncFullscreen);
   void sessionStore.refresh();
@@ -240,7 +242,6 @@ async function controlSelectedMedia(action: 'play' | 'pause'): Promise<void> {
 }
 
 async function toggleFullscreen(): Promise<void> {
-  // 实际状态由 fullscreenchange 监听器同步，这里只发起请求。
   try {
     if (document.fullscreenElement) {
       await document.exitFullscreen();
@@ -248,7 +249,6 @@ async function toggleFullscreen(): Promise<void> {
       await document.documentElement.requestFullscreen();
     }
   } catch {
-    // Safari 在某些容器上会拒绝退出全屏；忽略错误，依赖事件回填状态。
     syncFullscreen();
   }
 }
@@ -259,59 +259,53 @@ function exitFocus(): void {
 </script>
 
 <template>
-  <!--
-    根容器不再写 data-theme="dark"：tokens.css 的 dark 块绑在 :root[data-theme='dark']，
-    放在子节点上对 CSS 变量无作用；真实主题切换由 useTheme().pushOverride('dark')
-    在 onMounted 中完成，退出时自动恢复。
-  -->
   <div class="ppt-focus">
     <header class="ppt-focus__topbar">
-      <FButton appearance="subtle" icon-start="arrow_left_24_regular" @click="exitFocus">
+      <n-button tertiary @click="exitFocus">
+        <template #icon><FIcon name="arrow_left_24_regular" /></template>
         {{ t('pptFocus.back') }}
-      </FButton>
+      </n-button>
       <div class="ppt-focus__topbar-center">
-        <FTag tone="info">{{ windowLabel }}</FTag>
+        <n-tag type="info" size="small" round>{{ windowLabel }}</n-tag>
         <span class="ppt-focus__topbar-title">{{ session?.source_name || t('pptFocus.noSourceSelected') }}</span>
-        <FTag :tone="session?.playback_state === 'playing' ? 'success' : 'subtle'">
+        <n-tag :type="session?.playback_state === 'playing' ? 'success' : 'default'" size="small" round>
           {{ session?.playback_state_label || session?.playback_state || t('pptFocus.unknown') }}
-        </FTag>
+        </n-tag>
         <span v-if="slidesProgress.total > 0" class="ppt-focus__topbar-progress">
           {{ slidesProgress.current }} / {{ slidesProgress.total }}
         </span>
       </div>
-      <FButton
-        appearance="subtle"
-        :icon-start="isFullscreen ? 'full_screen_minimize_24_regular' : 'full_screen_maximize_24_regular'"
-        @click="toggleFullscreen"
-      >
+      <n-button tertiary @click="toggleFullscreen">
+        <template #icon>
+          <FIcon :name="isFullscreen ? 'full_screen_minimize_24_regular' : 'full_screen_maximize_24_regular'" />
+        </template>
         {{ isFullscreen ? t('pptFocus.exitFullscreen') : t('pptFocus.fullscreen') }}
-      </FButton>
+      </n-button>
     </header>
 
     <main class="ppt-focus__stage" :data-orientation="orientationKey">
-      <FMessageBar v-if="loadError" tone="error" :title="t('pptFocus.loadFailTitle')">
+      <n-alert v-if="loadError" type="error" :title="t('pptFocus.loadFailTitle')">
         {{ loadError }}
-      </FMessageBar>
+      </n-alert>
 
       <div v-if="isLoading" class="ppt-focus__loading">
-        <FSpinner :size="32" />
+        <n-spin :size="32" />
         <span>{{ t('pptFocus.loadingPages') }}</span>
       </div>
 
       <template v-else-if="!session?.source_id">
-        <FEmpty :title="t('pptFocus.noPptTitle')" :description="t('pptFocus.noPptDesc')" icon="document_24_regular">
-          <template #actions>
-            <FButton appearance="primary" @click="exitFocus">{{ t('pptFocus.back') }}</FButton>
+        <n-empty :description="t('pptFocus.noPptDesc')">
+          <template #icon>
+            <FIcon name="document_24_regular" />
           </template>
-        </FEmpty>
+          <template #extra>
+            <n-button type="primary" @click="exitFocus">{{ t('pptFocus.back') }}</n-button>
+          </template>
+        </n-empty>
       </template>
 
       <template v-else>
         <div class="ppt-focus__layout">
-          <!--
-            竖屏 (portrait) 时缩略图栏在视觉上隐藏，组件也不挂载，
-            避免后台仍然发起几十/上百张缩略图请求并占用 DOM。
-          -->
           <PptSlideRail
             v-if="isLandscape"
             class="ppt-focus__slide-rail"
@@ -339,7 +333,7 @@ function exitFocus(): void {
             <div class="ppt-focus__progress">
               <p class="ppt-focus__side-eyebrow">{{ t('pptFocus.progressEyebrow') }}</p>
               <template v-if="slidesProgress.total > 0">
-                <FProgress :value="slidesProgress.current" :max="slidesProgress.total" show-label />
+                <n-progress type="line" :percentage="slidesProgressPercentage" />
                 <p class="ppt-focus__progress-page">{{ t('pptFocus.progressPage', { current: slidesProgress.current, total: slidesProgress.total }) }}</p>
               </template>
               <p v-else class="ppt-focus__progress-page">{{ t('pptFocus.progressUnknown') }}</p>
@@ -360,28 +354,32 @@ function exitFocus(): void {
 
         <div class="ppt-focus__controls" :aria-label="t('pptFocus.controlsAria')">
           <div class="ppt-focus__media-picker">
-            <FCombobox
-              v-model="selectedMediaKey"
+            <n-select
+              v-model:value="selectedMediaKey"
               :options="currentMediaOptions"
               :placeholder="mediaSelectPlaceholder"
               :disabled="isMediaPickerDisabled"
-              :searchable="currentMediaOptions.length >= 10"
+              :filterable="currentMediaOptions.length >= 10"
               :aria-label="t('pptFocus.mediaAria')"
               size="large"
             />
           </div>
-          <FButton appearance="secondary" icon-start="previous_24_regular" @click="nav('prev')">
+          <n-button @click="nav('prev')">
+            <template #icon><FIcon name="previous_24_regular" /></template>
             {{ t('pptFocus.prevPage') }}
-          </FButton>
-          <FButton appearance="secondary" icon-start="pause_24_regular" :disabled="!canControlSelectedMedia" @click="controlSelectedMedia('pause')">
+          </n-button>
+          <n-button :disabled="!canControlSelectedMedia" @click="controlSelectedMedia('pause')">
+            <template #icon><FIcon name="pause_24_regular" /></template>
             {{ t('pptFocus.pauseMedia') }}
-          </FButton>
-          <FButton appearance="primary" icon-start="play_24_regular" :disabled="!canControlSelectedMedia" @click="controlSelectedMedia('play')">
+          </n-button>
+          <n-button type="primary" :disabled="!canControlSelectedMedia" @click="controlSelectedMedia('play')">
+            <template #icon><FIcon name="play_24_regular" /></template>
             {{ t('pptFocus.playMedia') }}
-          </FButton>
-          <FButton appearance="secondary" icon-start="next_24_regular" @click="nav('next')">
+          </n-button>
+          <n-button @click="nav('next')">
+            <template #icon><FIcon name="next_24_regular" /></template>
             {{ t('pptFocus.nextPage') }}
-          </FButton>
+          </n-button>
         </div>
       </template>
     </main>

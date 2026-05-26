@@ -10,15 +10,16 @@
  */
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-
 import {
-  FButton,
-  FDrawer,
-  FField,
-  FInput,
-  FMessageBar,
-  FSwitch,
-} from '@/design-system';
+  NAlert,
+  NButton,
+  NDrawer,
+  NDrawerContent,
+  NFormItem,
+  NInput,
+  NSwitch,
+} from 'naive-ui';
+
 import { useToast } from '@/composables/useToast';
 import { useSourceStore } from '@/stores/sources';
 import type { MediaSourceItem, MediaSourceUpdate } from '@/services/api';
@@ -45,10 +46,15 @@ const errorMessage = ref('');
 
 const isWebSource = computed(() => props.source?.source_type === 'web');
 
+const isOpen = computed({
+  get: () => props.open,
+  set: (value: boolean) => emit('update:open', value),
+});
+
 watch(
   () => [props.open, props.source?.id] as const,
-  ([isOpen, sourceId]) => {
-    if (!isOpen || sourceId === undefined) return;
+  ([isOpenVal, sourceId]) => {
+    if (!isOpenVal || sourceId === undefined) return;
     const source = props.source!;
     draftName.value = source.name ?? '';
     draftUri.value = source.uri ?? '';
@@ -103,48 +109,67 @@ async function save(): Promise<void> {
     saving.value = false;
   }
 }
+
+function close(): void {
+  emit('update:open', false);
+}
 </script>
 
 <template>
-  <FDrawer
-    :open="open"
-    :title="t('sources.editDrawer.title')"
-    :description="source ? t('sources.editDrawer.desc', { name: source.name }) : ''"
-    :width="480"
-    hide-default-actions
-    @update:open="(value) => emit('update:open', value)"
-  >
-    <template v-if="source">
-      <FField :label="t('sources.editDrawer.displayName')" required :hint="t('sources.editDrawer.displayNameHint')">
-        <FInput v-model="draftName" :placeholder="t('sources.editDrawer.displayNamePlaceholder')" :disabled="saving" />
-      </FField>
+  <n-drawer v-model:show="isOpen" :width="480" placement="right">
+    <n-drawer-content :title="t('sources.editDrawer.title')" closable>
+      <p v-if="source" class="edit-source__desc">{{ t('sources.editDrawer.desc', { name: source.name }) }}</p>
 
-      <template v-if="isWebSource">
-        <FField :label="t('sources.editDrawer.url')" required :hint="t('sources.editDrawer.urlHint')">
-          <FInput v-model="draftUri" placeholder="https://" :disabled="saving" :aria-label="t('sources.editDrawer.url')" />
-        </FField>
-        <FField
-          :label="t('sources.editDrawer.preheat')"
-          :hint="t('sources.editDrawer.preheatHint')"
-        >
-          <FSwitch v-model="draftPreheatEnabled" :label="t('sources.editDrawer.preheatSwitch')" :disabled="saving" />
-        </FField>
+      <template v-if="source">
+        <n-form-item :label="t('sources.editDrawer.displayName')" required :feedback="t('sources.editDrawer.displayNameHint')">
+          <n-input v-model:value="draftName" :placeholder="t('sources.editDrawer.displayNamePlaceholder')" :disabled="saving" />
+        </n-form-item>
+
+        <template v-if="isWebSource">
+          <n-form-item :label="t('sources.editDrawer.url')" required :feedback="t('sources.editDrawer.urlHint')">
+            <n-input v-model:value="draftUri" placeholder="https://" :disabled="saving" :aria-label="t('sources.editDrawer.url')" />
+          </n-form-item>
+          <n-form-item :label="t('sources.editDrawer.preheat')" :feedback="t('sources.editDrawer.preheatHint')">
+            <n-switch v-model:value="draftPreheatEnabled" :disabled="saving">
+              <template #checked>{{ t('sources.editDrawer.preheatSwitch') }}</template>
+              <template #unchecked>{{ t('sources.editDrawer.preheatSwitch') }}</template>
+            </n-switch>
+          </n-form-item>
+        </template>
+
+        <n-alert v-if="!isWebSource" type="info" :closable="false">
+          {{ t('sources.editDrawer.nonWebInfo') }}
+        </n-alert>
       </template>
 
-      <FMessageBar v-if="!isWebSource" tone="info" :dismissible="false">
-        {{ t('sources.editDrawer.nonWebInfo') }}
-      </FMessageBar>
-    </template>
+      <n-alert v-if="errorMessage" type="error" :title="t('sources.editDrawer.cantSave')">
+        {{ errorMessage }}
+      </n-alert>
 
-    <FMessageBar v-if="errorMessage" tone="error" :title="t('sources.editDrawer.cantSave')">
-      {{ errorMessage }}
-    </FMessageBar>
-
-    <template #actions="{ cancel }">
-      <FButton appearance="secondary" :disabled="saving" @click="cancel">{{ t('common.cancel') }}</FButton>
-      <FButton appearance="primary" :loading="saving" :disabled="!source || saving" @click="save">
-        {{ t('sources.editDrawer.saveChanges') }}
-      </FButton>
-    </template>
-  </FDrawer>
+      <template #footer>
+        <div class="edit-source__actions">
+          <n-button :disabled="saving" @click="close">{{ t('common.cancel') }}</n-button>
+          <n-button type="primary" :loading="saving" :disabled="!source || saving" @click="save">
+            {{ t('sources.editDrawer.saveChanges') }}
+          </n-button>
+        </div>
+      </template>
+    </n-drawer-content>
+  </n-drawer>
 </template>
+
+<style scoped>
+.edit-source__desc {
+  margin: 0 0 var(--spacingVerticalM);
+  color: var(--colorNeutralForeground2);
+  font-size: var(--fontSizeBase200);
+}
+
+.edit-source__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacingHorizontalS);
+  justify-content: flex-end;
+  width: 100%;
+}
+</style>

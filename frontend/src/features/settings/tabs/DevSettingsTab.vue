@@ -5,8 +5,7 @@
  */
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-
-import { FCard } from '@/design-system';
+import { NCard } from 'naive-ui';
 
 const { t } = useI18n();
 
@@ -18,8 +17,7 @@ const portsCaption = computed(() =>
 
 <template>
   <section class="settings-view__grid">
-    <FCard padding="cozy">
-      <template #title>{{ t('settings.apiEndpoints') }}</template>
+    <n-card :title="t('settings.apiEndpoints')">
       <ul class="settings-view__api-list">
         <li><code>{{ backendTarget }}/api/sources/</code></li>
         <li><code>{{ backendTarget }}/api/scenarios/</code></li>
@@ -27,25 +25,18 @@ const portsCaption = computed(() =>
         <li><code>{{ backendTarget }}/api/runtime/</code></li>
         <li><code>{{ backendTarget }}/api/events/</code></li>
       </ul>
-    </FCard>
+    </n-card>
 
-    <FCard padding="cozy">
-      <template #title>{{ t('settings.portsSummary') }}</template>
+    <n-card :title="t('settings.portsSummary')">
       <p class="settings-view__hint">{{ portsCaption }}</p>
-    </FCard>
+    </n-card>
 
-    <FCard padding="cozy">
-      <template #title>{{ t('settings.logPath') }}</template>
-      <p class="settings-view__hint">
-        {{ t('settings.logPathHint') }}
-      </p>
-    </FCard>
+    <n-card :title="t('settings.logPath')">
+      <p class="settings-view__hint">{{ t('settings.logPathHint') }}</p>
+    </n-card>
 
-    <FCard padding="cozy">
-      <template #title>{{ t('settings.envVars') }}</template>
-      <p class="settings-view__hint">
-        {{ t('settings.envVarsHint') }}
-      </p>
-    </FCard>
+    <n-card :title="t('settings.envVars')">
+      <p class="settings-view__hint">{{ t('settings.envVarsHint') }}</p>
+    </n-card>
   </section>
 </template>

@@ -5,15 +5,15 @@
  */
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-
 import {
-  FButton,
-  FCard,
-  FDrawer,
-  FIcon,
-  FTag,
-} from '@/design-system';
-import type { TagTone } from '@/design-system';
+  NButton,
+  NCard,
+  NDrawer,
+  NDrawerContent,
+  NTag,
+} from 'naive-ui';
+
+import FIcon from '@/design-system/FIcon.vue';
 import { useDialog } from '@/composables/useDialog';
 import { useToast } from '@/composables/useToast';
 import { useRuntimeStore } from '@/stores/runtime';
@@ -43,6 +43,13 @@ const toast = useToast();
 const isActivating = ref(false);
 const isPinning = ref(false);
 
+type NTagType = 'default' | 'primary' | 'info' | 'success' | 'warning' | 'error';
+
+const isOpen = computed({
+  get: () => props.open,
+  set: (value: boolean) => emit('update:open', value),
+});
+
 const meta = computed(() => {
   if (!props.scenario) return '';
   const segments: string[] = [];
@@ -54,7 +61,6 @@ const meta = computed(() => {
 
 const orderedTargets = computed<ScenarioTargetItem[]>(() => {
   if (!props.scenario) return [];
-  // 双屏：W1 W2 W3 W4；单屏（big-right 隐藏）：W1 W3 W4
   const relevantWindowIds =
     props.scenario.big_screen_mode === 'single' && props.scenario.big_screen_mode_state !== 'unset'
       ? [1, 3, 4]
@@ -87,9 +93,9 @@ function windowLabel(windowId: number, isSingle: boolean): string {
   }
 }
 
-function targetTone(target: ScenarioTargetItem): TagTone {
-  if (target.source_state === 'unset') return 'subtle';
-  if (target.source_state === 'empty') return 'neutral';
+function targetTone(target: ScenarioTargetItem): NTagType {
+  if (target.source_state === 'unset') return 'default';
+  if (target.source_state === 'empty') return 'default';
   return 'success';
 }
 
@@ -172,73 +178,102 @@ function edit(): void {
   emit('edit', props.scenario);
 }
 
-const isPinned = computed(() => Boolean(props.scenario && props.scenario.sort_order > 0));
+function close(): void {
+  emit('update:open', false);
+}
 
+const isPinned = computed(() => Boolean(props.scenario && props.scenario.sort_order > 0));
 const isSingleScreenMode = computed(() => props.scenario?.big_screen_mode === 'single');
 
-const currentBigScreenSnapshotMode = computed(() => runtime.runtime?.big_screen_mode ?? 'single');
-void currentBigScreenSnapshotMode; // 保留以备未来在预览中显示模式差异提示
+void runtime;
 </script>
 
 <template>
-  <FDrawer :open="open" :title="scenario?.name ?? t('scenarios.preview.title')" :description="meta" :primary-label="t('scenarios.preview.activate')"
-    :secondary-label="t('common.close')" :width="520" :hide-default-actions="true"
-    @update:open="(value) => emit('update:open', value)">
-    <div class="scenario-preview__matrix" :class="{ 'scenario-preview__matrix--single': isSingleScreenMode }">
-      <FCard v-for="target in orderedTargets" :key="target.window_id" padding="compact">
-        <template #eyebrow>{{ windowLabel(target.window_id, isSingleScreenMode) }}</template>
-        <template #title>
-          <FTag :tone="targetTone(target)" :icon="targetIcon(target)">
-            {{ targetLabel(target) }}
-          </FTag>
-        </template>
-        <p v-if="target.source_state === 'set' && target.source_name" class="scenario-preview__source">
-          {{ target.source_name }}
-        </p>
-        <p v-else-if="target.source_state === 'empty'" class="scenario-preview__hint">
-          {{ t('scenarios.preview.blackoutHint') }}
-        </p>
-        <p v-else class="scenario-preview__hint">
-          {{ t('scenarios.preview.keepHint') }}
-        </p>
-        <p v-if="target.source_state === 'set'" class="scenario-preview__settings">
-          {{ t('scenarios.preview.sourceLine', { autoplay: target.autoplay ? t('scenarios.preview.on') : t('scenarios.preview.off'), resume: target.resume ? t('scenarios.preview.yes') : t('scenarios.preview.no') }) }}
-        </p>
-      </FCard>
-    </div>
+  <n-drawer v-model:show="isOpen" :width="520" placement="right">
+    <n-drawer-content :title="scenario?.name ?? t('scenarios.preview.title')" closable>
+      <p class="scenario-preview__meta">{{ meta }}</p>
 
-    <template #actions="{ cancel }">
-      <FButton appearance="secondary" @click="cancel">{{ t('common.close') }}</FButton>
-      <FButton appearance="subtle" :icon-start="isPinned ? 'pin_off_24_regular' : 'pin_24_regular'" :loading="isPinning"
-        @click="pinToggle">
-        {{ isPinned ? t('scenarios.preview.unpin') : t('scenarios.preview.pin') }}
-      </FButton>
-      <FButton appearance="danger" icon-start="delete_24_regular" @click="remove">
-        {{ t('common.delete') }}
-      </FButton>
-      <FButton appearance="secondary" icon-start="edit_24_regular" @click="edit">
-        {{ t('common.edit') }}
-      </FButton>
-      <FButton appearance="primary" icon-start="play_24_regular" :loading="isActivating" @click="activate">
-        {{ t('scenarios.preview.activate') }}
-      </FButton>
-    </template>
-  </FDrawer>
+      <div class="scenario-preview__matrix" :class="{ 'scenario-preview__matrix--single': isSingleScreenMode }">
+        <n-card v-for="target in orderedTargets" :key="target.window_id" size="small">
+          <template #header>
+            <div>
+              <span class="scenario-preview__eyebrow">{{ windowLabel(target.window_id, isSingleScreenMode) }}</span>
+              <div class="scenario-preview__target-tag">
+                <n-tag :type="targetTone(target)" size="small" round>
+                  <template #icon>
+                    <FIcon :name="targetIcon(target)" />
+                  </template>
+                  {{ targetLabel(target) }}
+                </n-tag>
+              </div>
+            </div>
+          </template>
+          <p v-if="target.source_state === 'set' && target.source_name" class="scenario-preview__source">
+            {{ target.source_name }}
+          </p>
+          <p v-else-if="target.source_state === 'empty'" class="scenario-preview__hint">
+            {{ t('scenarios.preview.blackoutHint') }}
+          </p>
+          <p v-else class="scenario-preview__hint">
+            {{ t('scenarios.preview.keepHint') }}
+          </p>
+          <p v-if="target.source_state === 'set'" class="scenario-preview__settings">
+            {{ t('scenarios.preview.sourceLine', { autoplay: target.autoplay ? t('scenarios.preview.on') : t('scenarios.preview.off'), resume: target.resume ? t('scenarios.preview.yes') : t('scenarios.preview.no') }) }}
+          </p>
+        </n-card>
+      </div>
+
+      <template #footer>
+        <div class="scenario-preview__actions">
+          <n-button @click="close">{{ t('common.close') }}</n-button>
+          <n-button tertiary :loading="isPinning" @click="pinToggle">
+            <template #icon>
+              <FIcon :name="isPinned ? 'pin_off_24_regular' : 'pin_24_regular'" />
+            </template>
+            {{ isPinned ? t('scenarios.preview.unpin') : t('scenarios.preview.pin') }}
+          </n-button>
+          <n-button type="error" @click="remove">
+            <template #icon><FIcon name="delete_24_regular" /></template>
+            {{ t('common.delete') }}
+          </n-button>
+          <n-button @click="edit">
+            <template #icon><FIcon name="edit_24_regular" /></template>
+            {{ t('common.edit') }}
+          </n-button>
+          <n-button type="primary" :loading="isActivating" @click="activate">
+            <template #icon><FIcon name="play_24_regular" /></template>
+            {{ t('scenarios.preview.activate') }}
+          </n-button>
+        </div>
+      </template>
+    </n-drawer-content>
+  </n-drawer>
 </template>
 
 <style scoped>
+.scenario-preview__meta {
+  margin: 0 0 var(--spacingVerticalM);
+  color: var(--colorNeutralForeground2);
+  font-size: var(--fontSizeBase200);
+}
+
 .scenario-preview__matrix {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--spacing-m);
+  gap: var(--spacingHorizontalM);
 }
 
 .scenario-preview__matrix--single {
   grid-template-columns: 1fr;
 }
 
-.scenario-preview__matrix--single :deep(.f-card):first-child {
-  grid-column: span 1;
+.scenario-preview__eyebrow {
+  font-size: var(--fontSizeBase200);
+  color: var(--colorNeutralForeground3);
+}
+
+.scenario-preview__target-tag {
+  margin-top: var(--spacingVerticalXS);
 }
 
 .scenario-preview__source {
@@ -253,9 +288,18 @@ void currentBigScreenSnapshotMode; // 保留以备未来在预览中显示模式
 }
 
 .scenario-preview__settings {
-  margin: 0;
+  margin: var(--spacingVerticalXS) 0 0;
   color: var(--colorNeutralForeground2);
   font-size: var(--fontSizeBase200);
+}
+
+.scenario-preview__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacingHorizontalS);
+  justify-content: flex-end;
+  width: 100%;
+  flex-wrap: wrap;
 }
 
 @media (max-width: 767px) {

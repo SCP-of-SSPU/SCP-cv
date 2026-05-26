@@ -90,7 +90,11 @@ export const useRuntimeStore = defineStore('runtime', {
     connectEvents(): void {
       this.disconnectEvents();
       this.sseStatus = 'connecting';
-      const source = new EventSource(buildBackendUrl('/api/events/'));
+      // withCredentials 让 EventSource 跨端口请求时携带 Django session cookie，
+      // 否则 ApiAuthMiddleware 直接 401 关闭流。
+      const source = new EventSource(buildBackendUrl('/api/events/'), {
+        withCredentials: true,
+      });
       this._eventSource = source;
 
       source.onopen = (): void => {

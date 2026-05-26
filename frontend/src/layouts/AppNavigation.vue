@@ -5,11 +5,12 @@
  */
 import { useI18n } from 'vue-i18n';
 import { RouterLink } from 'vue-router';
+import { NDivider } from 'naive-ui';
 
 import MoreSheet from './MoreSheet.vue';
 import { DESKTOP_SECONDARY_NAV, MOBILE_TAB_BAR } from './navItems';
 import type { NavItemDef } from './types';
-import { FDivider, FIcon } from '@/design-system';
+import FIcon from '@/design-system/FIcon.vue';
 
 interface AppNavigationProps {
   compact: boolean;
@@ -55,7 +56,7 @@ const { t } = useI18n();
       </li>
     </ul>
 
-    <FDivider />
+    <n-divider />
 
     <ul class="app-shell__nav-list">
       <li v-for="item in DESKTOP_SECONDARY_NAV" :key="item.path">

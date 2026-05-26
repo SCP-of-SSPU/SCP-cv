@@ -1,5 +1,5 @@
 /*
- * 窗口尺寸类 composable（DESIGN.md §12.1）。
+ * 窗口尺寸类 composable（DESIGN.md §2 设计原则: Scale 适配）。
  * 按视口宽度分类（非设备嗅探，RR1）：
  *   compact 0–599 / medium 600–839 / expanded 840–1199 /
  *   large 1200–1599 / extraLarge ≥ 1600。
@@ -48,7 +48,7 @@ interface WindowSizeClassApi {
 }
 
 /**
- * 监听视口宽度，输出 M3 窗口尺寸类与常用布尔派生量。
+ * 监听视口宽度，输出 Fluent 2 自适应窗口尺寸类与常用布尔派生量。
  * 浏览器环境下在 mount 时建立 resize 监听，卸载时清理。
  * @return WindowSizeClassApi
  */

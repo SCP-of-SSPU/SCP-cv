@@ -140,6 +140,7 @@ def test_shutdown_system_api_requests_close_and_marks_signal(media_source_ppt: M
     assert signal_path.read_text(encoding="utf-8").strip() == "shutdown"
 
 
+@pytest.mark.django_db
 def test_displays_api_uses_display_service() -> None:
     """GET /api/displays/ 应序列化显示器信息。"""
     client = Client()
@@ -248,6 +249,7 @@ def test_ppt_media_control_api_sets_command(media_source_ppt: MediaSource) -> No
     assert session.command_args["media_id"] == "m1"
 
 
+@pytest.mark.django_db
 def test_device_power_api_uses_tcp_service() -> None:
     """电源 API 应调用 TCP 电源服务且不返回状态字段。"""
     client = Client()

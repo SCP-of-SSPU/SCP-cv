@@ -1,6 +1,6 @@
 /*
  * Toast 全局通知 composable + Pinia store。
- * 设计稿 §5.11 / DESIGN.md §12.13：
+ * DESIGN.md §6 组件规范 / §7 无障碍：
  *  - 成功 Toast 自动消失（默认 3.2 s）；
  *  - 错误 Toast 不自动消失，必须可手动关闭并提供「重试」入口（可选）；
  *  - 同时最多展示 3 条；超出按 FIFO 替换最早一条；

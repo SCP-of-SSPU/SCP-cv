@@ -5,10 +5,10 @@
  */
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { NTag } from 'naive-ui';
 
 import EmergencyMenu from './EmergencyMenu.vue';
 import ThemeToggle from './ThemeToggle.vue';
-import { FTag } from '@/design-system';
 import { useRuntimeStore } from '@/stores/runtime';
 
 interface AppTopBarProps {
@@ -20,7 +20,9 @@ defineProps<AppTopBarProps>();
 const { t } = useI18n();
 const runtime = useRuntimeStore();
 
-const sseTone = computed<'success' | 'warning' | 'subtle' | 'error'>(() => {
+type NTagType = 'default' | 'primary' | 'info' | 'success' | 'warning' | 'error';
+
+const sseType = computed<NTagType>(() => {
   switch (runtime.sseStatus) {
     case 'connected':
       return 'success';
@@ -29,7 +31,7 @@ const sseTone = computed<'success' | 'warning' | 'subtle' | 'error'>(() => {
     case 'closed':
       return 'error';
     default:
-      return 'subtle';
+      return 'default';
   }
 });
 
@@ -58,12 +60,12 @@ const sseLabel = computed(() => {
     </div>
 
     <div class="app-shell__bar-meta">
-      <FTag :tone="runtime.isDoubleScreen ? 'info' : 'subtle'">
+      <n-tag :type="runtime.isDoubleScreen ? 'info' : 'default'" round size="small">
         {{ runtime.bigScreenLabel }}
-      </FTag>
-      <FTag :tone="sseTone" :dot="runtime.sseStatus === 'reconnecting'">
+      </n-tag>
+      <n-tag :type="sseType" round size="small">
         {{ sseLabel }}
-      </FTag>
+      </n-tag>
       <span v-if="runtime.systemVolume.muted" class="app-shell__mute">{{ t('app.systemMuted') }}</span>
       <ThemeToggle />
       <EmergencyMenu />

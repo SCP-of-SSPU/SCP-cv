@@ -1,199 +1,121 @@
 <script setup lang="ts">
 /**
- * 全局 Toast 宿主：在 layout 顶层挂一次即可。
- * 移动端 sm/xs 自动改顶部居中（避开底部 TabBar），并使用 safe-area-inset-top 兜底。
+ * 全局 Toast 宿主：把 useToastStore 的 items 桥接到 Naive UI 的 useNotification。
+ * 业务侧 useToast().success/error/... API 保持不变；本组件负责把 store 数据流
+ * 渲染为 NUI 通知（title + content + action 三段，与原数据结构一一对应）。
+ *
+ * 错误通知不自动消失（duration=0），与 DESIGN.md §7 / 设计稿 §5.11 一致。
  */
-import { computed } from 'vue';
-import { useI18n } from 'vue-i18n';
+import { watch } from 'vue';
+import { useNotification, type NotificationType } from 'naive-ui';
 
-import FButton from './FButton.vue';
-import FIcon from './FIcon.vue';
-import { useBreakpoint } from '@/composables/useBreakpoint';
-import { useToastStore } from '@/composables/useToast';
-import type { ToastLevel } from '@/composables/useToast';
-import type { FluentIconName } from './icons';
+import { useToastStore, type ToastItem, type ToastLevel } from '@/composables/useToast';
 
-const { t } = useI18n();
-const toastStore = useToastStore();
-const { isMobile } = useBreakpoint();
+const store = useToastStore();
+const notification = useNotification();
 
-const items = computed(() => toastStore.items);
+const activeHandles = new Map<number, ReturnType<typeof notification.create>>();
 
-const placementClass = computed(() => (isMobile.value ? 'f-toast-host--top' : 'f-toast-host--bottom-right'));
-
-function levelIcon(level: ToastLevel): FluentIconName {
+function mapLevel(level: ToastLevel): NotificationType {
   switch (level) {
     case 'success':
-      return 'checkmark_circle_24_filled';
+      return 'success';
     case 'warning':
-      return 'warning_24_filled';
+      return 'warning';
     case 'error':
-      return 'error_circle_24_filled';
+      return 'error';
     default:
-      return 'info_24_regular';
+      return 'info';
   }
 }
 
-async function triggerAction(id: number, action?: { onTrigger: () => void | Promise<void> }): Promise<void> {
-  if (!action) return;
-  try {
-    await action.onTrigger();
-  } finally {
-    toastStore.dismiss(id);
+function open(item: ToastItem): void {
+  if (activeHandles.has(item.id)) return;
+  const handle = notification.create({
+    type: mapLevel(item.level),
+    title: item.message,
+    content: item.description,
+    duration: item.duration > 0 ? item.duration : undefined,
+    closable: true,
+    meta: item.action?.label,
+    onAfterLeave: () => {
+      activeHandles.delete(item.id);
+      store.dismiss(item.id);
+    },
+    action: item.action
+      ? () => {
+          const label = item.action!.label;
+          const handler = item.action!.onTrigger;
+          return h('button', {
+            class: 'f-toast-host__action',
+            type: 'button',
+            onClick: async () => {
+              try {
+                await handler();
+              } finally {
+                handle.destroy();
+              }
+            },
+          }, label);
+        }
+      : undefined,
+  });
+  activeHandles.set(item.id, handle);
+}
+
+function close(id: number): void {
+  const handle = activeHandles.get(id);
+  if (handle) {
+    handle.destroy();
+    activeHandles.delete(id);
   }
 }
+
+// 跟随 store.items 增量同步：新增项目→打开；删除项目→关闭。
+watch(
+  () => store.items.map((item) => item.id),
+  (currentIds, previousIds) => {
+    const prev = new Set(previousIds ?? []);
+    const next = new Set(currentIds);
+    for (const id of currentIds) {
+      if (!prev.has(id)) {
+        const item = store.items.find((i) => i.id === id);
+        if (item) open(item);
+      }
+    }
+    for (const id of prev) {
+      if (!next.has(id)) close(id);
+    }
+  },
+  { immediate: true },
+);
+</script>
+
+<script lang="ts">
+import { h } from 'vue';
 </script>
 
 <template>
-  <Teleport to="body">
-    <div :class="['f-toast-host', placementClass]" aria-live="polite" aria-atomic="true">
-      <TransitionGroup name="f-toast" tag="div" class="f-toast-host__list">
-        <article v-for="item in items" :key="item.id" class="f-toast" :class="`f-toast--${item.level}`" role="status">
-          <FIcon class="f-toast__icon" :name="levelIcon(item.level)" />
-          <div class="f-toast__body">
-            <p class="f-toast__message">{{ item.message }}</p>
-            <p v-if="item.description" class="f-toast__description">{{ item.description }}</p>
-          </div>
-          <div class="f-toast__actions">
-            <FButton v-if="item.action" appearance="subtle" size="compact" @click="triggerAction(item.id, item.action)">
-              {{ item.action.label }}
-            </FButton>
-            <FButton appearance="transparent" size="compact" icon-only :icon-start="'dismiss_20_regular'"
-              :aria-label="t('ds.toastClose')" @click="toastStore.dismiss(item.id)" />
-          </div>
-        </article>
-      </TransitionGroup>
-    </div>
-  </Teleport>
+  <span aria-hidden="true" style="display: none" />
 </template>
 
-<style scoped>
-.f-toast-host {
-  position: fixed;
-  z-index: var(--f-z-toast);
-  pointer-events: none;
-  display: flex;
-  flex-direction: column;
+<style>
+.f-toast-host__action {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--colorBrandForeground1);
+  font: inherit;
+  font-weight: var(--fontWeightSemibold);
+  cursor: pointer;
+  padding: var(--spacingVerticalXS) var(--spacingHorizontalS);
+  border-radius: var(--borderRadiusMedium);
 }
-
-.f-toast-host--bottom-right {
-  right: var(--spacing-2xl);
-  bottom: var(--spacing-2xl);
-  align-items: flex-end;
+.f-toast-host__action:hover {
+  background: var(--colorSubtleBackgroundHover);
 }
-
-.f-toast-host--top {
-  top: calc(env(safe-area-inset-top, 0px) + var(--spacing-s));
-  left: var(--spacing-l);
-  right: var(--spacing-l);
-  align-items: stretch;
-}
-
-.f-toast-host__list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-s);
-}
-
-.f-toast {
-  pointer-events: auto;
-  display: flex;
-  align-items: flex-start;
-  gap: var(--spacing-m);
-  width: min(360px, 100%);
-  padding: var(--spacing-m) var(--spacing-l);
-  background: var(--color-background-card);
-  color: var(--colorNeutralForeground1);
-  border-radius: var(--borderRadiusLarge);
-  border: 1px solid var(--colorNeutralStroke2);
-  box-shadow: var(--shadow-flyout);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-}
-
-.f-toast-host--top .f-toast {
-  width: 100%;
-}
-
-.f-toast__icon {
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.f-toast--success .f-toast__icon {
-  color: var(--color-status-success-foreground);
-}
-
-.f-toast--warning .f-toast__icon {
-  color: var(--color-status-warning-foreground);
-}
-
-.f-toast--error .f-toast__icon {
-  color: var(--color-status-error-foreground);
-}
-
-.f-toast--info .f-toast__icon {
-  color: var(--color-status-info-foreground);
-}
-
-.f-toast__body {
-  flex: 1 1 auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xxs);
-  min-width: 0;
-}
-
-.f-toast__message {
-  margin: 0;
-  font-weight: 600;
-}
-
-.f-toast__description {
-  margin: 0;
-  font-size: var(--fontSizeBase200);
-  line-height: var(--lineHeightBase200);
-  color: var(--colorNeutralForeground2);
-}
-
-.f-toast__actions {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-xs);
-  flex-shrink: 0;
-}
-
-/*
- * Toast 进入用 spring 曲线（≤5% 过冲），让通知"轻轻弹"；离场用 accelerate 淡出，
- * 避免长时间停留遮挡操作。位移幅度也加大到 12 px 让"出现感"更明确。
- */
-.f-toast-enter-active {
-  transition: opacity var(--motion-duration-normal) var(--motion-curve-ease),
-    transform var(--motion-duration-normal) var(--motion-curve-spring);
-}
-
-.f-toast-leave-active {
-  transition: opacity var(--motion-duration-fast) var(--motion-curve-ease),
-    transform var(--motion-duration-fast) var(--motion-curve-accelerate);
-}
-
-.f-toast-enter-from {
-  opacity: 0;
-  transform: translateY(12px);
-}
-
-.f-toast-leave-to {
-  opacity: 0;
-  transform: translateY(-6px);
-}
-
-.f-toast-host--top .f-toast-enter-from {
-  transform: translateY(-8px);
-}
-
-.f-toast-host--top .f-toast-leave-to {
-  transform: translateY(-12px);
+.f-toast-host__action:focus-visible {
+  outline: var(--strokeWidthThick) solid var(--colorBrandStroke1);
+  outline-offset: 1px;
 }
 </style>

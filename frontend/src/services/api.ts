@@ -210,6 +210,39 @@ function parseJsonText<T>(responseText: string, statusCode: number, contentType 
   }
 }
 
+/**
+ * 401 专用错误：路由守卫 / Pinia store 据此触发清状态 + 跳登录。
+ */
+export class UnauthorizedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UnauthorizedError';
+  }
+}
+
+let unauthorizedHandler: (() => void) | null = null;
+
+/**
+ * 注册全局 401 回调（通常在 main.ts 启动时挂上）。
+ * @param handler 401 触发时调用
+ */
+export function registerUnauthorizedHandler(handler: (() => void) | null): void {
+  unauthorizedHandler = handler;
+}
+
+/**
+ * 从 document.cookie 中读取指定名称的值。
+ * @param name cookie 名
+ * @return 解码后的值；不存在返回空字符串
+ */
+function readCookie(name: string): string {
+  if (typeof document === 'undefined') return '';
+  const match = document.cookie.split('; ').find((row) => row.startsWith(`${name}=`));
+  return match ? decodeURIComponent(match.split('=').slice(1).join('=')) : '';
+}
+
+const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
 async function fetchWithTimeout(url: string, init: RequestInit = {}): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -222,16 +255,29 @@ async function fetchWithTimeout(url: string, init: RequestInit = {}): Promise<Re
 
 async function requestJson<T>(url: string, init: RequestInit = {}): Promise<T> {
   const absoluteUrl = buildBackendUrl(url);
+  const method = (init.method || 'GET').toUpperCase();
+  const csrfHeader: Record<string, string> = {};
+  if (UNSAFE_METHODS.has(method)) {
+    const token = readCookie('csrftoken');
+    if (token) csrfHeader['X-CSRFToken'] = token;
+  }
   const response = await fetchWithTimeout(absoluteUrl, {
     ...init,
+    // Django session cookie 必须跟车，否则跨端口请求被识别为匿名用户。
+    credentials: 'include',
     headers: {
       Accept: 'application/json',
       ...(init.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+      ...csrfHeader,
       ...(init.headers || {}),
     },
   });
   const responseText = await response.text();
   const payload = parseJsonText<T>(responseText, response.status, response.headers.get('Content-Type') || '');
+  if (response.status === 401) {
+    unauthorizedHandler?.();
+    throw new UnauthorizedError(payload.detail || t('api.requestFail', { status: 401 }));
+  }
   if (!response.ok) {
     throw new Error(payload.detail || t('api.requestFail', { status: response.status }));
   }
@@ -242,6 +288,10 @@ function uploadFormData<T>(url: string, formData: FormData, options: UploadOptio
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest();
     request.open('POST', buildBackendUrl(url));
+    // 文件上传走 multipart：必须同样携带 session cookie + CSRF token，否则被拦截。
+    request.withCredentials = true;
+    const csrfToken = readCookie('csrftoken');
+    if (csrfToken) request.setRequestHeader('X-CSRFToken', csrfToken);
     request.upload.onprogress = (event: ProgressEvent) => {
       if (!event.lengthComputable) return;
       options.onProgress?.(Math.min(99, Math.round((event.loaded / event.total) * 100)));
@@ -252,6 +302,11 @@ function uploadFormData<T>(url: string, formData: FormData, options: UploadOptio
         payload = parseJsonText<T>(request.responseText, request.status, request.getResponseHeader('Content-Type') || '');
       } catch (error) {
         reject(error instanceof Error ? error : new Error(t('api.parseFail')));
+        return;
+      }
+      if (request.status === 401) {
+        unauthorizedHandler?.();
+        reject(new UnauthorizedError(payload.detail || t('api.requestFail', { status: 401 })));
         return;
       }
       if (request.status < 200 || request.status >= 300) {
@@ -275,7 +330,20 @@ function sourceQuery(sourceType = '', folderId: number | null = null): string {
   return query ? `?${query}` : '';
 }
 
+export interface AuthUser {
+  id: number;
+  username: string;
+  is_staff: boolean;
+  is_superuser: boolean;
+}
+
 export const api = {
+  // 鉴权：首次进入应用先触发 csrf cookie 下发；后续 login/logout/me 走同一会话。
+  fetchCsrfToken: () => requestJson<{ csrfToken: string }>('/api/auth/csrf/'),
+  login: (payload: { username: string; password: string }) =>
+    requestJson<{ user: AuthUser }>('/api/auth/login/', { method: 'POST', body: JSON.stringify(payload) }),
+  logout: () => requestJson<{ detail: string }>('/api/auth/logout/', { method: 'POST' }),
+  fetchMe: () => requestJson<{ user: AuthUser }>('/api/auth/me/'),
   listFolders: () => requestJson<{ success: boolean; folders: MediaFolderItem[] }>('/api/folders/'),
   createFolder: (payload: { name: string; parent_id?: number | null }) => requestJson<{ success: boolean; folder: MediaFolderItem }>('/api/folders/', { method: 'POST', body: JSON.stringify(payload) }),
   updateFolder: (folderId: number, payload: { name?: string; parent_id?: number | null }) => requestJson<{ success: boolean; folder: MediaFolderItem }>(`/api/folders/${folderId}/`, { method: 'PATCH', body: JSON.stringify(payload) }),

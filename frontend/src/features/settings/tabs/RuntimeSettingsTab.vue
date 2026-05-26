@@ -5,15 +5,17 @@
  */
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-
 import {
-  FButton,
-  FCard,
-  FSegmented,
-  FSlider,
-  FSwitch,
-  FTag,
-} from '@/design-system';
+  NButton,
+  NCard,
+  NRadio,
+  NRadioGroup,
+  NSlider,
+  NSwitch,
+  NTag,
+} from 'naive-ui';
+
+import FIcon from '@/design-system/FIcon.vue';
 import { useThrottledSlider } from '@/composables/useThrottledSlider';
 import { useToast } from '@/composables/useToast';
 import { useRuntimeStore } from '@/stores/runtime';
@@ -26,9 +28,9 @@ const toast = useToast();
 
 const screenMode = computed({
   get: () => runtime.runtime?.big_screen_mode ?? 'single',
-  set: async (mode: 'single' | 'double') => {
+  set: async (mode: string) => {
     try {
-      await runtime.setBigScreenMode(mode);
+      await runtime.setBigScreenMode(mode as 'single' | 'double');
       toast.success(mode === 'double' ? t('more.switchedDouble') : t('more.switchedSingle'));
     } catch (error) {
       toast.error(t('more.switchFail'), error instanceof Error ? error.message : t('common.retry'));
@@ -50,7 +52,6 @@ const muteToggle = computed({
   get: () => runtime.systemVolume.muted,
   set: async (next: boolean) => {
     try {
-      // 静音切换沿用滑块当前显示值，避免回写到节流前的旧值。
       await runtime.setSystemVolume(volume.value.value, next);
     } catch (error) {
       toast.error(t('dashboard.muteFail'), error instanceof Error ? error.message : t('common.retry'));
@@ -96,49 +97,51 @@ async function resetAll(): Promise<void> {
 
 <template>
   <section class="settings-view__grid">
-    <FCard padding="cozy">
-      <template #title>{{ t('settings.bigScreenMode') }}</template>
-      <FSegmented v-model="screenMode" :options="[
-        { label: t('screen.single'), value: 'single' },
-        { label: t('screen.double'), value: 'double' },
-      ]" full-width />
-      <p class="settings-view__hint">
-        {{ t('settings.bigScreenHint') }}
-      </p>
-    </FCard>
+    <n-card :title="t('settings.bigScreenMode')">
+      <n-radio-group v-model:value="screenMode">
+        <n-radio value="single">{{ t('screen.single') }}</n-radio>
+        <n-radio value="double">{{ t('screen.double') }}</n-radio>
+      </n-radio-group>
+      <p class="settings-view__hint">{{ t('settings.bigScreenHint') }}</p>
+    </n-card>
 
-    <FCard padding="cozy">
-      <template #title>{{ t('settings.systemVolume') }}</template>
-      <FSlider :model-value="volume.value.value" :min="0" :max="100" show-value :aria-label="t('settings.systemVolumeAria')"
-        @update:modelValue="volume.handleInput" @change="volume.handleChange" />
-      <FSwitch v-model="muteToggle" :label="t('settings.enableSystemMute')" />
-      <FTag :tone="runtime.systemVolume.backend === 'windows_core_audio' ? 'subtle' : 'warning'">
+    <n-card :title="t('settings.systemVolume')">
+      <n-slider
+        :value="volume.value.value"
+        :min="0"
+        :max="100"
+        :aria-label="t('settings.systemVolumeAria')"
+        @update:value="volume.handleInput"
+        @dragend="volume.handleChange(volume.value.value)"
+      />
+      <div class="settings-view__row">
+        <span>{{ t('settings.enableSystemMute') }}</span>
+        <n-switch v-model:value="muteToggle" />
+      </div>
+      <n-tag :type="runtime.systemVolume.backend === 'windows_core_audio' ? 'default' : 'warning'" size="small" round>
         {{ t('settings.backendTag', { backend: runtime.systemVolume.backend }) }}
-      </FTag>
-    </FCard>
+      </n-tag>
+    </n-card>
 
-    <FCard padding="cozy">
-      <template #title>{{ t('settings.sseStatus') }}</template>
+    <n-card :title="t('settings.sseStatus')">
       <p class="settings-view__row">
-        <FTag :tone="runtime.sseStatus === 'connected' ? 'success' : 'warning'"
-          :dot="runtime.sseStatus === 'reconnecting'">
+        <n-tag :type="runtime.sseStatus === 'connected' ? 'success' : 'warning'" size="small" round>
           {{ sseLabel }}
-        </FTag>
+        </n-tag>
         <span>{{ sseLastUpdateLabel }}</span>
       </p>
-      <FButton appearance="secondary" icon-start="arrow_clockwise_24_regular" @click="refreshSse">
+      <n-button @click="refreshSse">
+        <template #icon><FIcon name="arrow_clockwise_24_regular" /></template>
         {{ t('settings.reconnect') }}
-      </FButton>
-    </FCard>
+      </n-button>
+    </n-card>
 
-    <FCard padding="cozy">
-      <template #title>{{ t('settings.emergencyTools') }}</template>
-      <FButton appearance="danger" icon-start="arrow_reset_24_regular" @click="resetAll">
+    <n-card :title="t('settings.emergencyTools')">
+      <n-button type="error" @click="resetAll">
+        <template #icon><FIcon name="arrow_reset_24_regular" /></template>
         {{ t('settings.resetAll') }}
-      </FButton>
-      <p class="settings-view__hint">
-        {{ t('settings.resetAllHint') }}
-      </p>
-    </FCard>
+      </n-button>
+      <p class="settings-view__hint">{{ t('settings.resetAllHint') }}</p>
+    </n-card>
   </section>
 </template>

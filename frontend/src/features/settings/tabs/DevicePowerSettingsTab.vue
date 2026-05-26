@@ -4,12 +4,9 @@
  * 复用设备 store 发送拼接屏开关机与电视切换 TCP 指令。
  */
 import { useI18n } from 'vue-i18n';
+import { NAlert, NButton, NCard } from 'naive-ui';
 
-import {
-  FButton,
-  FCard,
-  FMessageBar,
-} from '@/design-system';
+import FIcon from '@/design-system/FIcon.vue';
 import { useDialog } from '@/composables/useDialog';
 import { useToast } from '@/composables/useToast';
 import { useDeviceStore } from '@/stores/devices';
@@ -63,40 +60,40 @@ function lastActionLabel(deviceType: string): string {
 
 <template>
   <section class="settings-view__grid">
-    <FCard padding="cozy">
-      <template #title>{{ t('settings.splice') }}</template>
-      <p class="settings-view__hint">
-        {{ t('settings.spliceHint') }}
-      </p>
+    <n-card :title="t('settings.splice')">
+      <p class="settings-view__hint">{{ t('settings.spliceHint') }}</p>
       <div class="settings-view__row">
-        <FButton appearance="primary" icon-start="power_24_regular" @click="powerOnSplice">{{ t('settings.powerOn') }}</FButton>
-        <FButton appearance="danger" icon-start="plug_disconnected_24_regular" @click="powerOffSplice">
+        <n-button type="primary" @click="powerOnSplice">
+          <template #icon><FIcon name="power_24_regular" /></template>
+          {{ t('settings.powerOn') }}
+        </n-button>
+        <n-button type="error" @click="powerOffSplice">
+          <template #icon><FIcon name="plug_disconnected_24_regular" /></template>
           {{ t('settings.powerOff') }}
-        </FButton>
+        </n-button>
       </div>
-      <p class="settings-view__hint">
-        {{ t('settings.lastAction', { detail: lastActionLabel('splice_screen') }) }}
-      </p>
-      <FMessageBar v-if="device.lastActionResult.splice_screen === 'error'" tone="error" :title="t('settings.spliceTcpFail')">
+      <p class="settings-view__hint">{{ t('settings.lastAction', { detail: lastActionLabel('splice_screen') }) }}</p>
+      <n-alert v-if="device.lastActionResult.splice_screen === 'error'" type="error" :title="t('settings.spliceTcpFail')">
         {{ device.lastActionDetail.splice_screen }}
-      </FMessageBar>
-    </FCard>
+      </n-alert>
+    </n-card>
 
-    <FCard padding="cozy">
-      <template #title>{{ t('settings.tv') }}</template>
+    <n-card :title="t('settings.tv')">
       <p class="settings-view__hint">{{ t('settings.tvHint') }}</p>
       <div class="settings-view__row">
-        <FButton appearance="secondary" icon-start="arrow_swap_24_regular" @click="toggleTv('tv_left', t('settings.devLeft'))">
+        <n-button @click="toggleTv('tv_left', t('settings.devLeft'))">
+          <template #icon><FIcon name="arrow_swap_24_regular" /></template>
           {{ t('settings.tvLeftToggle') }}
-        </FButton>
-        <FButton appearance="secondary" icon-start="arrow_swap_24_regular" @click="toggleTv('tv_right', t('settings.devRight'))">
+        </n-button>
+        <n-button @click="toggleTv('tv_right', t('settings.devRight'))">
+          <template #icon><FIcon name="arrow_swap_24_regular" /></template>
           {{ t('settings.tvRightToggle') }}
-        </FButton>
+        </n-button>
       </div>
       <p class="settings-view__hint">
         {{ t('settings.tvLeftLast', { detail: lastActionLabel('tv_left') }) }}<br />
         {{ t('settings.tvRightLast', { detail: lastActionLabel('tv_right') }) }}
       </p>
-    </FCard>
+    </n-card>
   </section>
 </template>

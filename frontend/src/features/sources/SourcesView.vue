@@ -4,26 +4,25 @@
  *   - 桌面：左侧类型 NavList + 右侧 DetailList；
  *   - 移动：顶部类型 Pills（横滑） + 卡片列表 + 右下 FAB（添加源 Sheet）。
  *
- * 设计稿 §4.4：
- *   - 不再展示「文件夹」与「临时源」UI；
- *   - 行末菜单只保留：打开到窗口 1/2/3/4、下载（仅文件型）、删除。
+ * 行末菜单只保留：打开到窗口 1/2/3/4、编辑、下载（仅文件型）、删除。
  */
-import { computed, ref } from 'vue';
+import { computed, h, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-
 import {
-  FButton,
-  FCard,
-  FEmpty,
-  FIcon,
-  FInput,
-  FMenu,
-  FMessageBar,
-  FSkeleton,
-  FTabs,
-  FTag,
-} from '@/design-system';
-import type { FTabsItem, FMenuGroup } from '@/design-system';
+  NAlert,
+  NButton,
+  NCard,
+  NDropdown,
+  NEmpty,
+  NInput,
+  NSkeleton,
+  NTabs,
+  NTabPane,
+  NTag,
+  type DropdownOption,
+} from 'naive-ui';
+
+import FIcon from '@/design-system/FIcon.vue';
 import AddSourceDrawer from './AddSourceDrawer.vue';
 import EditSourceDrawer from './EditSourceDrawer.vue';
 import SourceThumbnail from './SourceThumbnail.vue';
@@ -69,14 +68,6 @@ const CATEGORY_DEFS = computed<CategoryDef[]>(() => [
   { value: 'stream', label: t('sources.cat.streamLabel'), emptyTitle: t('sources.cat.streamEmptyTitle'), emptyHint: t('sources.cat.streamEmptyHint') },
 ]);
 
-const navItems = computed<FTabsItem[]>(() =>
-  CATEGORY_DEFS.value.map((def) => ({
-    label: def.label,
-    value: def.value,
-    badge: sourceStore.countByCategory[def.value],
-  })),
-);
-
 const activeCategoryDef = computed(
   () => CATEGORY_DEFS.value.find((def) => def.value === sourceStore.category) ?? CATEGORY_DEFS.value[0],
 );
@@ -102,7 +93,6 @@ async function openToWindow(source: MediaSourceItem, windowId: number): Promise<
 }
 
 function downloadSource(source: MediaSourceItem): void {
-  // 文件型源走后端 download 接口；非文件源（web、stream）跳过菜单已禁用
   const url = api.downloadSourceUrl(source.id);
   window.open(url, '_blank');
 }
@@ -122,38 +112,46 @@ async function deleteSource(source: MediaSourceItem): Promise<void> {
   }
 }
 
-function buildRowMenu(source: MediaSourceItem): FMenuGroup[] {
+function renderIcon(name: string) {
+  return () => h(FIcon, { name, size: 18 });
+}
+
+function buildRowMenu(source: MediaSourceItem): DropdownOption[] {
   const isFileBased = !!source.file_size && source.file_size > 0;
   return [
     {
+      type: 'group',
       label: t('sources.openToWindow'),
-      items: [1, 2, 3, 4].map((windowId) => ({
+      key: 'open-group',
+      children: [1, 2, 3, 4].map((windowId) => ({
         label: t('sources.window', { id: windowId }),
-        icon: 'open_24_regular',
-        onTrigger: () => openToWindow(source, windowId),
+        key: `open-${windowId}`,
+        icon: renderIcon('open_24_regular'),
+        props: { onClick: () => openToWindow(source, windowId) },
       })),
     },
+    { type: 'divider', key: 'divider-1' },
     {
-      items: [
-        {
-          label: t('common.edit'),
-          icon: 'edit_24_regular',
-          onTrigger: () => startEdit(source),
-        },
-        {
-          label: t('sources.download'),
-          icon: 'arrow_download_24_regular',
-          disabled: !isFileBased,
-          hint: isFileBased ? undefined : t('sources.downloadDisabledHint'),
-          onTrigger: () => downloadSource(source),
-        },
-        {
-          label: t('sources.deleteSource'),
-          icon: 'delete_24_regular',
-          danger: true,
-          onTrigger: () => deleteSource(source),
-        },
-      ],
+      label: t('common.edit'),
+      key: 'edit',
+      icon: renderIcon('edit_24_regular'),
+      props: { onClick: () => startEdit(source) },
+    },
+    {
+      label: t('sources.download'),
+      key: 'download',
+      icon: renderIcon('arrow_download_24_regular'),
+      disabled: !isFileBased,
+      props: { onClick: () => isFileBased && downloadSource(source) },
+    },
+    {
+      label: t('sources.deleteSource'),
+      key: 'delete',
+      icon: renderIcon('delete_24_regular'),
+      props: {
+        onClick: () => deleteSource(source),
+        style: 'color: var(--colorStatusDangerForeground1);',
+      },
     },
   ];
 }
@@ -162,11 +160,26 @@ function setCategory(value: SourceCategory): void {
   sourceStore.setCategory(value);
 }
 
+function handleMenuSelect(_key: string, option: DropdownOption): void {
+  const handler = (option.props as { onClick?: () => void } | undefined)?.onClick;
+  handler?.();
+}
+
 const totalCaption = computed(() => {
   const count = sourceStore.filtered.length;
   const totalBytes = sourceStore.filtered.reduce((acc, item) => acc + (item.file_size || 0), 0);
   if (totalBytes <= 0) return t('sources.countOnly', { n: count });
   return t('sources.countWithSize', { n: count, size: formatBytes(totalBytes) });
+});
+
+const searchModel = computed({
+  get: () => sourceStore.searchKeyword,
+  set: (value: string) => sourceStore.setSearchKeyword(value),
+});
+
+const categoryModel = computed({
+  get: () => sourceStore.category,
+  set: (value: string) => setCategory(value as SourceCategory),
 });
 </script>
 
@@ -178,23 +191,30 @@ const totalCaption = computed(() => {
         <p class="sources-view__caption">{{ totalCaption }}</p>
       </div>
       <div class="sources-view__actions">
-        <FInput :model-value="sourceStore.searchKeyword" :placeholder="t('sources.searchPlaceholder')" :aria-label="t('sources.searchPlaceholder')"
-          clearable @update:modelValue="sourceStore.setSearchKeyword">
+        <n-input
+          v-model:value="searchModel"
+          :placeholder="t('sources.searchPlaceholder')"
+          :aria-label="t('sources.searchPlaceholder')"
+          clearable
+        >
           <template #prefix>
             <FIcon name="search_20_regular" />
           </template>
-        </FInput>
-        <FButton appearance="secondary" icon-start="arrow_clockwise_20_regular" icon-only :aria-label="t('sources.refreshAria')"
-          :loading="isLoading" @click="refresh" />
-        <FButton appearance="primary" icon-start="add_24_regular" @click="drawerOpen = true">
+        </n-input>
+        <n-button :loading="isLoading" :aria-label="t('sources.refreshAria')" @click="refresh">
+          <template #icon><FIcon name="arrow_clockwise_20_regular" /></template>
+        </n-button>
+        <n-button type="primary" @click="drawerOpen = true">
+          <template #icon><FIcon name="add_24_regular" /></template>
           {{ t('sources.addSource') }}
-        </FButton>
+        </n-button>
       </div>
     </header>
 
     <div v-if="isMobile" class="sources-view__mobile-pills">
-      <FTabs :model-value="sourceStore.category" :items="navItems" appearance="pill" full-width :aria-label="t('sources.sourceTypeAria')"
-        @update:modelValue="(value) => setCategory(value as SourceCategory)" />
+      <n-tabs v-model:value="categoryModel" type="segment" :aria-label="t('sources.sourceTypeAria')">
+        <n-tab-pane v-for="def in CATEGORY_DEFS" :key="def.value" :name="def.value" :tab="`${def.label} (${sourceStore.countByCategory[def.value]})`" />
+      </n-tabs>
     </div>
 
     <div class="sources-view__layout" :class="{ 'sources-view__layout--mobile': isMobile }">
@@ -208,27 +228,30 @@ const totalCaption = computed(() => {
       </aside>
 
       <section class="sources-view__main">
-        <FCard padding="none">
+        <n-card content-style="padding:0">
           <template v-if="isLoading && sourceStore.filtered.length === 0">
             <div class="sources-view__skeletons">
               <div v-for="line in 6" :key="line" class="sources-view__skeleton-row">
-                <FSkeleton shape="text" width="40%" />
-                <FSkeleton shape="text" width="20%" />
-                <FSkeleton shape="text" width="15%" />
-                <FSkeleton shape="text" width="15%" />
+                <n-skeleton text width="40%" />
+                <n-skeleton text width="20%" />
+                <n-skeleton text width="15%" />
+                <n-skeleton text width="15%" />
               </div>
             </div>
           </template>
 
           <template v-else-if="sourceStore.filtered.length === 0">
-            <FEmpty :title="activeCategoryDef.emptyTitle" :description="activeCategoryDef.emptyHint"
-              icon="library_24_regular">
-              <template #actions>
-                <FButton appearance="primary" icon-start="add_24_regular" @click="drawerOpen = true">
-                  {{ t('sources.addSource') }}
-                </FButton>
+            <n-empty :description="activeCategoryDef.emptyHint">
+              <template #icon>
+                <FIcon name="library_24_regular" />
               </template>
-            </FEmpty>
+              <template #extra>
+                <n-button type="primary" @click="drawerOpen = true">
+                  <template #icon><FIcon name="add_24_regular" /></template>
+                  {{ t('sources.addSource') }}
+                </n-button>
+              </template>
+            </n-empty>
           </template>
 
           <template v-else-if="!isMobile">
@@ -254,15 +277,24 @@ const totalCaption = computed(() => {
                     </div>
                   </td>
                   <td>
-                    <FTag :tone="sourceCategoryTone(source)">{{ sourceCategoryLabel(source) }}</FTag>
-                    <FTag v-if="!source.is_available" tone="error" class="sources-view__chip">
+                    <n-tag :type="sourceCategoryTone(source)" round size="small">{{ sourceCategoryLabel(source) }}</n-tag>
+                    <n-tag v-if="!source.is_available" type="error" round size="small" class="sources-view__chip">
                       {{ t('sources.offline') }}
-                    </FTag>
+                    </n-tag>
                   </td>
                   <td class="sources-view__col--num">{{ source.file_size ? formatBytes(source.file_size) : t('common.none') }}</td>
                   <td>{{ formatRelativeTime(source.created_at) }}</td>
                   <td class="sources-view__col--actions">
-                    <FMenu :groups="buildRowMenu(source)" trigger-icon="more_horizontal_20_regular" />
+                    <n-dropdown
+                      trigger="click"
+                      placement="bottom-end"
+                      :options="buildRowMenu(source)"
+                      @select="handleMenuSelect"
+                    >
+                      <n-button quaternary circle>
+                        <template #icon><FIcon name="more_horizontal_20_regular" /></template>
+                      </n-button>
+                    </n-dropdown>
                   </td>
                 </tr>
               </tbody>
@@ -271,28 +303,37 @@ const totalCaption = computed(() => {
 
           <template v-else>
             <div class="sources-view__cards">
-              <FCard v-for="source in sourceStore.filtered" :key="source.id" padding="compact">
-                <template #title>
+              <n-card v-for="source in sourceStore.filtered" :key="source.id" size="small">
+                <template #header>
                   <div class="sources-view__card-title">
                     <SourceThumbnail :source="source" />
                     <span>{{ source.name }}</span>
                   </div>
                 </template>
-                <template #actions>
-                  <FMenu :groups="buildRowMenu(source)" trigger-icon="more_horizontal_24_regular" />
+                <template #header-extra>
+                  <n-dropdown
+                    trigger="click"
+                    placement="bottom-end"
+                    :options="buildRowMenu(source)"
+                    @select="handleMenuSelect"
+                  >
+                    <n-button quaternary circle>
+                      <template #icon><FIcon name="more_horizontal_24_regular" /></template>
+                    </n-button>
+                  </n-dropdown>
                 </template>
                 <div class="sources-view__card-meta">
-                  <FTag :tone="sourceCategoryTone(source)">{{ sourceCategoryLabel(source) }}</FTag>
+                  <n-tag :type="sourceCategoryTone(source)" round size="small">{{ sourceCategoryLabel(source) }}</n-tag>
                   <span v-if="source.file_size">{{ formatBytes(source.file_size) }}</span>
                   <span>{{ formatRelativeTime(source.created_at) }}</span>
                 </div>
-                <FMessageBar v-if="!source.is_available" tone="error" :dismissible="false">
+                <n-alert v-if="!source.is_available" type="error" :closable="false">
                   {{ t('sources.unavailableCard') }}
-                </FMessageBar>
-              </FCard>
+                </n-alert>
+              </n-card>
             </div>
           </template>
-        </FCard>
+        </n-card>
       </section>
     </div>
 

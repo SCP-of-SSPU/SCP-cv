@@ -1,9 +1,9 @@
 /*
  * 全局确认对话框 composable + store。
- * DESIGN.md §13.6 与设计稿 §5.8 / §6.5：
+ * DESIGN.md §6 组件规范 / §7 无障碍：
  *  - 危险操作必须 Confirm（Dialog）+ Danger 主按钮 + 写明对象/范围/后果；
  *  - 可恢复操作优先用 Toast 撤销，不要滥用确认对话框；
- *  - 焦点：打开时移入 Dialog 内，关闭后回到触发元素，由 FDialog 组件实现。
+ *  - 焦点：打开时移入 Dialog 内，关闭后回到触发元素，由 FDialogHost + n-modal 实现。
  *
  * 这里只负责语义数据：组件层订阅 store 渲染。
  */
@@ -70,7 +70,7 @@ export const useDialogStore = defineStore('dialog', {
       const trigger = this.config?.triggerElement ?? null;
       this.config = null;
       resolver?.(true);
-      // 焦点返还触发元素，符合 DESIGN.md §16.4 焦点管理要求。
+      // 焦点返还触发元素，符合 DESIGN.md §7 无障碍焦点管理要求。
       trigger?.focus?.();
     },
     /** 用户点取消 / Esc / 遮罩点击。 */

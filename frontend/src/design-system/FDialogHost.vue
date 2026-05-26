@@ -1,40 +1,81 @@
 <script setup lang="ts">
 /**
- * 全局 Dialog 宿主：监听 useDialog/useDialogStore 的状态，渲染唯一一个 FDialog。
- * 在 layouts 顶层挂载一次即可，让任意业务通过 useDialog().confirm() 弹出确认。
+ * 全局 Dialog 宿主：监听 useDialogStore 的状态，用 Naive UI 的 NModal 渲染单实例
+ * 确认对话框。业务侧仍调用 useDialog().confirm(...) / danger(...)，保持原有 Promise
+ * API 不变；本组件是 Pinia store → NUI 之间的桥接层。
+ *
+ * 危险确认默认禁止 Esc / 遮罩点击关闭，迫使用户做明确选择（DESIGN.md §7 无障碍）。
  */
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { NButton, NModal } from 'naive-ui';
 
-import FDialog from './FDialog.vue';
 import { useDialogStore } from '@/composables/useDialog';
 
+const { t } = useI18n();
 const store = useDialogStore();
-const config = computed(() => store.config);
+
+const open = computed({
+  get: () => store.open,
+  set: (value: boolean) => {
+    if (!value && store.open) store.cancel();
+  },
+});
+
 const variant = computed(() => store.config?.variant ?? 'default');
-// 危险确认默认禁止 Esc / 遮罩点击关闭，迫使用户做明确选择。
 const cancellable = computed(() => variant.value !== 'danger');
-
-function onConfirm(): void {
-  store.accept();
-}
-
-function onCancel(): void {
-  store.cancel();
-}
+const confirmText = computed(() => store.config?.confirmLabel ?? t('ds.dialogConfirm'));
+const cancelText = computed(() => store.config?.cancelLabel ?? t('ds.dialogCancel'));
+const isDanger = computed(() => variant.value === 'danger');
 </script>
 
 <template>
-  <FDialog
-    :open="store.open"
-    :title="config?.title ?? ''"
-    :description="config?.description"
-    :confirm-label="config?.confirmLabel"
-    :cancel-label="config?.cancelLabel"
-    :variant="variant"
-    :cancellable="cancellable"
-    :loading="store.loading"
-    @update:open="(value) => !value && store.cancel()"
-    @confirm="onConfirm"
-    @cancel="onCancel"
-  />
+  <n-modal
+    v-model:show="open"
+    preset="card"
+    :title="store.config?.title ?? ''"
+    :mask-closable="cancellable"
+    :close-on-esc="cancellable"
+    :closable="cancellable"
+    :auto-focus="true"
+    :trap-focus="true"
+    :block-scroll="true"
+    style="max-width: 480px"
+    @close="store.cancel"
+  >
+    <p v-if="store.config?.description" class="f-dialog-host__body">
+      {{ store.config.description }}
+    </p>
+    <template #footer>
+      <div class="f-dialog-host__actions">
+        <n-button v-if="cancellable" :disabled="store.loading" @click="store.cancel">
+          {{ cancelText }}
+        </n-button>
+        <n-button
+          :type="isDanger ? 'error' : 'primary'"
+          :loading="store.loading"
+          @click="store.accept"
+        >
+          {{ confirmText }}
+        </n-button>
+      </div>
+    </template>
+  </n-modal>
 </template>
+
+<style scoped>
+.f-dialog-host__body {
+  margin: 0;
+  color: var(--colorNeutralForeground2);
+  font-size: var(--fontSizeBase300);
+  line-height: var(--lineHeightBase300);
+}
+
+.f-dialog-host__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacingHorizontalS);
+  justify-content: flex-end;
+  width: 100%;
+}
+</style>

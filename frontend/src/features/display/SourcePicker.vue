@@ -7,19 +7,19 @@
  */
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-
 import {
-  FButton,
-  FCard,
-  FField,
-  FIcon,
-  FInput,
-  FProgress,
-  FSpinner,
-  FTabs,
-  FTag,
-} from '@/design-system';
-import type { FTabsItem } from '@/design-system';
+  NButton,
+  NCard,
+  NFormItem,
+  NInput,
+  NProgress,
+  NSpin,
+  NTabs,
+  NTabPane,
+  NTag,
+} from 'naive-ui';
+
+import FIcon from '@/design-system/FIcon.vue';
 import { useToast } from '@/composables/useToast';
 import { useSessionStore } from '@/stores/sessions';
 import { useSourceStore, type SourceCategory } from '@/stores/sources';
@@ -43,15 +43,6 @@ const uploadProgress = ref(0);
 const uploading = ref(false);
 const uploadError = ref('');
 const fileInputRef = ref<HTMLInputElement | null>(null);
-
-const filterTabs = computed<FTabsItem<SourceCategory>[]>(() => [
-  { label: t('sourcePicker.filter.all'), value: 'all' },
-  { label: t('sourcePicker.filter.ppt'), value: 'ppt' },
-  { label: t('sourcePicker.filter.video'), value: 'video' },
-  { label: t('sourcePicker.filter.image'), value: 'image' },
-  { label: t('sourcePicker.filter.web'), value: 'web' },
-  { label: t('sourcePicker.filter.stream'), value: 'stream' },
-]);
 
 const filteredSources = computed<MediaSourceItem[]>(() => {
   const keyword = searchKeyword.value.trim().toLowerCase();
@@ -112,35 +103,49 @@ const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.v
 </script>
 
 <template>
-  <FCard padding="compact" class="source-picker">
-    <template #title>
-      <span>{{ t('sourcePicker.title') }}</span>
-    </template>
-    <template #actions>
+  <n-card class="source-picker" :title="t('sourcePicker.title')" size="small">
+    <template #header-extra>
       <span class="source-picker__count">{{ totalLabel }}</span>
     </template>
 
-    <FInput v-model="searchKeyword" :placeholder="t('sourcePicker.searchPlaceholder')" :aria-label="t('sourcePicker.searchAria')" clearable>
+    <n-input
+      v-model:value="searchKeyword"
+      :placeholder="t('sourcePicker.searchPlaceholder')"
+      :aria-label="t('sourcePicker.searchAria')"
+      clearable
+    >
       <template #prefix>
         <FIcon name="search_20_regular" />
       </template>
-    </FInput>
+    </n-input>
 
-    <FTabs v-model="filterValue" :items="filterTabs" appearance="pill" full-width :aria-label="t('sourcePicker.filterAria')" />
+    <n-tabs v-model:value="filterValue" type="segment" :aria-label="t('sourcePicker.filterAria')">
+      <n-tab-pane name="all" :tab="t('sourcePicker.filter.all')" />
+      <n-tab-pane name="ppt" :tab="t('sourcePicker.filter.ppt')" />
+      <n-tab-pane name="video" :tab="t('sourcePicker.filter.video')" />
+      <n-tab-pane name="image" :tab="t('sourcePicker.filter.image')" />
+      <n-tab-pane name="web" :tab="t('sourcePicker.filter.web')" />
+      <n-tab-pane name="stream" :tab="t('sourcePicker.filter.stream')" />
+    </n-tabs>
 
     <ul class="source-picker__list">
       <li v-if="filteredSources.length === 0" class="source-picker__empty">
         {{ t('sourcePicker.empty') }}
       </li>
-      <li v-for="source in filteredSources" :key="source.id" class="source-picker__item"
-        :class="{ 'source-picker__item--unavailable': !source.is_available }" @click="selectSource(source)">
+      <li
+        v-for="source in filteredSources"
+        :key="source.id"
+        class="source-picker__item"
+        :class="{ 'source-picker__item--unavailable': !source.is_available }"
+        @click="selectSource(source)"
+      >
         <SourceThumbnail :source="source" />
         <div class="source-picker__meta">
           <p class="source-picker__name">{{ source.name }}</p>
           <p class="source-picker__sub">
-            <FTag :tone="source.is_available ? 'subtle' : 'error'">
+            <n-tag :type="source.is_available ? 'default' : 'error'" size="small" round>
               {{ source.is_available ? sourceCategoryLabel(source) : t('sourcePicker.offline') }}
-            </FTag>
+            </n-tag>
           </p>
         </div>
       </li>
@@ -153,39 +158,39 @@ const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.v
         <span>{{ t('sourcePicker.uploadAndOpen') }}</span>
       </summary>
       <div class="source-picker__upload-body">
-        <FField :label="t('sourcePicker.file')" required :hint="t('sourcePicker.fileHint')">
+        <n-form-item :label="t('sourcePicker.file')" required :feedback="t('sourcePicker.fileHint')">
           <label class="source-picker__file">
             <input ref="fileInputRef" type="file" class="visually-hidden" :disabled="uploading"
               @change="onFileSelect" />
             <span>{{ fileToUpload ? fileToUpload.name : t('sourcePicker.noFile') }}</span>
-            <FButton appearance="secondary" type="button" @click="() => fileInputRef?.click()">
+            <n-button @click="() => fileInputRef?.click()">
               {{ t('sourcePicker.chooseFile') }}
-            </FButton>
+            </n-button>
           </label>
-        </FField>
-        <FField :label="t('sourcePicker.displayName')" :hint="t('sourcePicker.displayNameHint')">
-          <FInput v-model="fileDisplayName" :placeholder="t('sourcePicker.displayNamePlaceholder')" />
-        </FField>
+        </n-form-item>
+        <n-form-item :label="t('sourcePicker.displayName')" :feedback="t('sourcePicker.displayNameHint')">
+          <n-input v-model:value="fileDisplayName" :placeholder="t('sourcePicker.displayNamePlaceholder')" />
+        </n-form-item>
         <p v-if="uploadError" class="source-picker__upload-error">{{ uploadError }}</p>
-        <FProgress v-if="uploading" :value="uploadProgress" show-label />
+        <n-progress v-if="uploading" type="line" :percentage="uploadProgress" />
 
         <div class="source-picker__upload-actions">
-          <FButton appearance="secondary" full-width :disabled="uploading || !fileToUpload"
+          <n-button block :disabled="uploading || !fileToUpload"
             :loading="uploading && uploadProgress < 100" @click="() => uploadAndOpen(false)">
             {{ t('sourcePicker.uploadNoSave') }}
-          </FButton>
-          <FButton appearance="primary" full-width :disabled="uploading || !fileToUpload" :loading="uploading"
+          </n-button>
+          <n-button type="primary" block :disabled="uploading || !fileToUpload" :loading="uploading"
             @click="() => uploadAndOpen(true)">
             {{ t('sourcePicker.uploadSave') }}
-          </FButton>
+          </n-button>
         </div>
       </div>
     </details>
 
     <p v-if="uploading && !expanded" class="source-picker__upload-state">
-      <FSpinner :size="16" /> {{ t('sourcePicker.uploading') }}
+      <n-spin :size="16" /> {{ t('sourcePicker.uploading') }}
     </p>
-  </FCard>
+  </n-card>
 </template>
 
 <style scoped>
@@ -200,17 +205,17 @@ const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.v
 
 .source-picker__list {
   list-style: none;
-  margin: 0;
+  margin: var(--spacingVerticalM) 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xs);
+  gap: var(--spacingVerticalXS);
   max-height: 420px;
   overflow-y: auto;
 }
 
 .source-picker__empty {
-  padding: var(--spacing-l);
+  padding: var(--spacingVerticalL);
   text-align: center;
   color: var(--colorNeutralForeground3);
   font-size: var(--fontSizeBase200);
@@ -219,50 +224,28 @@ const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.v
 .source-picker__item {
   display: flex;
   align-items: center;
-  gap: var(--spacing-s);
-  padding: var(--spacing-s) var(--spacing-m);
+  gap: var(--spacingHorizontalS);
+  padding: var(--spacingVerticalS) var(--spacingHorizontalM);
   border-radius: var(--borderRadiusMedium);
   border: 1px solid var(--colorNeutralStroke2);
-  background: var(--color-background-card);
+  background: var(--colorNeutralBackground1);
   cursor: pointer;
-  box-shadow: var(--shadow-control);
-  transition:
-    background var(--motion-duration-medium) var(--motion-curve-ease),
-    border-color var(--motion-duration-medium) var(--motion-curve-ease),
-    box-shadow var(--motion-duration-medium) var(--motion-curve-ease),
-    transform var(--motion-duration-medium) var(--motion-curve-ease);
 }
 
 .source-picker__item:hover {
-  background: var(--colorBrandBackgroundSelected);
-  border-color: var(--colorBrandBackground);
-  box-shadow: var(--shadow-4), var(--halo-brand);
-  transform: translateY(var(--motion-hover-lift));
+  background: var(--colorBrandBackground2);
+  border-color: var(--colorBrandStroke1);
 }
 
 .source-picker__item:focus-visible {
   outline: none;
   border-color: var(--colorBrandBackground);
-  box-shadow: var(--shadow-focus);
-}
-
-.source-picker__item:active {
-  transform: translateY(0) scale(var(--motion-press-scale));
-  transition-duration: var(--motion-duration-fast);
 }
 
 .source-picker__item--unavailable {
-  background: var(--color-background-disabled);
+  background: var(--colorNeutralBackground3);
   cursor: not-allowed;
   opacity: 0.7;
-  box-shadow: none;
-}
-
-.source-picker__item--unavailable:hover {
-  transform: none;
-  box-shadow: none;
-  background: var(--color-background-disabled);
-  border-color: var(--colorNeutralStroke2);
 }
 
 .source-picker__meta {
@@ -282,7 +265,7 @@ const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.v
   margin: 2px 0 0;
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-s);
+  gap: var(--spacingHorizontalS);
   flex-wrap: wrap;
   color: var(--colorNeutralForeground2);
   font-size: var(--fontSizeBase200);
@@ -290,44 +273,42 @@ const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.v
 
 .source-picker__upload {
   border-top: 1px solid var(--colorNeutralStroke2);
-  padding-top: var(--spacing-s);
+  padding-top: var(--spacingVerticalS);
+  margin-top: var(--spacingVerticalM);
 }
 
 .source-picker__upload-summary {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-s);
+  gap: var(--spacingHorizontalS);
   cursor: pointer;
   font-weight: 600;
   color: var(--colorNeutralForeground2);
 }
 
 .source-picker__upload-body {
-  margin-top: var(--spacing-s);
+  margin-top: var(--spacingVerticalS);
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-s);
+  gap: var(--spacingVerticalS);
 }
 
 .source-picker__file {
   display: flex;
   align-items: center;
-  gap: var(--spacing-s);
-  padding: var(--spacing-s) var(--spacing-m);
+  gap: var(--spacingHorizontalS);
+  padding: var(--spacingVerticalS) var(--spacingHorizontalM);
   border: 1px dashed var(--colorNeutralStroke1);
   border-radius: var(--borderRadiusMedium);
   background: var(--colorNeutralBackground2);
-  transition:
-    border-color var(--motion-duration-medium) var(--motion-curve-ease),
-    background var(--motion-duration-medium) var(--motion-curve-ease);
 }
 
 .source-picker__file:hover {
   border-color: var(--colorBrandStroke1);
-  background: var(--color-background-card);
+  background: var(--colorNeutralBackground1);
 }
 
-.source-picker__file>span {
+.source-picker__file > span {
   flex: 1 1 auto;
   color: var(--colorNeutralForeground2);
   font-size: var(--fontSizeBase200);
@@ -338,21 +319,33 @@ const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.v
 
 .source-picker__upload-actions {
   display: flex;
-  gap: var(--spacing-s);
+  gap: var(--spacingHorizontalS);
 }
 
 .source-picker__upload-error {
   margin: 0;
-  color: var(--color-text-error);
+  color: var(--colorStatusDangerForeground1);
   font-size: var(--fontSizeBase200);
 }
 
 .source-picker__upload-state {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-s);
-  margin: 0;
+  gap: var(--spacingHorizontalS);
+  margin: var(--spacingVerticalS) 0 0;
   font-size: var(--fontSizeBase200);
   color: var(--colorNeutralForeground2);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 </style>

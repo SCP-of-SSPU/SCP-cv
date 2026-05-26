@@ -1,22 +1,21 @@
 <script setup lang="ts">
 /**
  * 预案管理：列表 + 预览 Drawer + 编辑 Drawer。
- * 设计稿 §4.5：
  *   - 默认形态仅 Sub-Toolbar + 列表；
  *   - 卡片整体可点开预览；
  *   - 新建 / 编辑 / 从当前状态生成 共用同一编辑表单。
  */
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-
 import {
-  FButton,
-  FCard,
-  FEmpty,
-  FIcon,
-  FSkeleton,
-  FTag,
-} from '@/design-system';
+  NButton,
+  NCard,
+  NEmpty,
+  NSkeleton,
+  NTag,
+} from 'naive-ui';
+
+import FIcon from '@/design-system/FIcon.vue';
 import ScenarioEditDrawer from './ScenarioEditDrawer.vue';
 import ScenarioPreviewDrawer from './ScenarioPreviewDrawer.vue';
 import { createEmptyDraft, type ScenarioDraft } from './scenarioModel';
@@ -79,7 +78,6 @@ function openEdit(scenario: ScenarioItem): void {
 }
 
 function captureFromCurrent(): void {
-  // 把当前 sessions / runtime 直接写到草稿，作为「从当前状态生成」入口。
   const draft: ScenarioDraft = createEmptyDraft();
   draft.name = '';
   draft.bigScreenModeState = 'set';
@@ -105,7 +103,6 @@ function captureFromCurrent(): void {
 }
 
 function onAfterDelete(): void {
-  // 删除后预览抽屉已自动关闭，这里再触发一次 refresh 防止漂移。
   previewScenarioId.value = null;
   void refresh();
 }
@@ -115,7 +112,6 @@ function onSaved(scenario: ScenarioItem): void {
   editingScenario.value = null;
   prefillDraft.value = undefined;
   editOpen.value = false;
-  // 立即把刚保存的预案打开预览，便于继续微调或激活。
   previewScenarioId.value = scenario.id;
   previewOpen.value = true;
 }
@@ -144,9 +140,6 @@ async function togglePin(scenario: ScenarioItem): Promise<void> {
     pendingPinId.value = null;
   }
 }
-
-const activeId = computed(() => sessionStore.sessions[0]?.session_id ?? null);
-void activeId; // 当前后端未提供「激活预案 id」字段；保留 hook
 </script>
 
 <template>
@@ -157,70 +150,101 @@ void activeId; // 当前后端未提供「激活预案 id」字段；保留 hook
         <p class="scenarios-view__caption">{{ t('scenarios.caption') }}</p>
       </div>
       <div class="scenarios-view__actions">
-        <FButton appearance="secondary" icon-start="arrow_clockwise_20_regular" icon-only :aria-label="t('scenarios.refreshAria')"
-          :loading="isLoading" @click="refresh" />
-        <FButton appearance="secondary" icon-start="document_24_regular" @click="captureFromCurrent">
+        <n-button :loading="isLoading" :aria-label="t('scenarios.refreshAria')" @click="refresh">
+          <template #icon><FIcon name="arrow_clockwise_20_regular" /></template>
+        </n-button>
+        <n-button @click="captureFromCurrent">
+          <template #icon><FIcon name="document_24_regular" /></template>
           {{ t('scenarios.captureFromState') }}
-        </FButton>
-        <FButton appearance="primary" icon-start="add_24_regular" @click="openCreate">
+        </n-button>
+        <n-button type="primary" @click="openCreate">
+          <template #icon><FIcon name="add_24_regular" /></template>
           {{ t('scenarios.create') }}
-        </FButton>
+        </n-button>
       </div>
     </header>
 
     <section class="scenarios-view__grid">
       <template v-if="isLoading && sortedScenarios.length === 0">
-        <FCard v-for="i in 4" :key="i" padding="compact">
-          <FSkeleton shape="text" width="50%" />
-          <FSkeleton shape="text" width="80%" />
-          <FSkeleton shape="text" width="35%" />
-        </FCard>
+        <n-card v-for="i in 4" :key="i" size="small">
+          <n-skeleton text width="50%" />
+          <n-skeleton text width="80%" />
+          <n-skeleton text width="35%" />
+        </n-card>
       </template>
 
       <template v-else-if="sortedScenarios.length === 0">
-        <FEmpty :title="t('scenarios.emptyTitle')" :description="t('scenarios.emptyDesc')" icon="layer_24_regular">
-          <template #actions>
-            <FButton appearance="primary" icon-start="add_24_regular" @click="openCreate">
-              {{ t('scenarios.create') }}
-            </FButton>
-            <FButton appearance="subtle" icon-start="document_24_regular" @click="captureFromCurrent">
-              {{ t('scenarios.captureFromState') }}
-            </FButton>
+        <n-empty :description="t('scenarios.emptyDesc')">
+          <template #icon>
+            <FIcon name="layer_24_regular" />
           </template>
-        </FEmpty>
+          <template #extra>
+            <n-button type="primary" @click="openCreate">
+              <template #icon><FIcon name="add_24_regular" /></template>
+              {{ t('scenarios.create') }}
+            </n-button>
+            <n-button tertiary @click="captureFromCurrent">
+              <template #icon><FIcon name="document_24_regular" /></template>
+              {{ t('scenarios.captureFromState') }}
+            </n-button>
+          </template>
+        </n-empty>
       </template>
 
       <template v-else>
-        <FCard v-for="scenario in sortedScenarios" :key="scenario.id" padding="compact" interactive
-          :class="{ 'scenarios-view__card--pinned': scenario.sort_order > 0 }" @click="openPreview(scenario)">
-          <template #eyebrow>
-            <span v-if="scenario.sort_order > 0" class="scenarios-view__pinned">
-              <FIcon name="pin_24_filled" /> {{ t('scenarios.pinned') }}
-            </span>
-            <span v-else>{{ t('scenarios.label') }}</span>
+        <n-card
+          v-for="scenario in sortedScenarios"
+          :key="scenario.id"
+          size="small"
+          hoverable
+          :class="{ 'scenarios-view__card--pinned': scenario.sort_order > 0 }"
+          @click="openPreview(scenario)"
+        >
+          <template #header>
+            <div class="scenarios-view__card-header">
+              <span v-if="scenario.sort_order > 0" class="scenarios-view__pinned">
+                <FIcon name="pin_24_filled" /> {{ t('scenarios.pinned') }}
+              </span>
+              <span v-else class="scenarios-view__eyebrow">{{ t('scenarios.label') }}</span>
+              <h3 class="scenarios-view__card-title">{{ scenario.name }}</h3>
+            </div>
           </template>
-          <template #actions>
-            <FButton appearance="transparent" size="compact" icon-only
-              :icon-start="scenario.sort_order > 0 ? 'pin_off_24_regular' : 'pin_24_regular'"
-              :aria-label="scenario.sort_order > 0 ? t('scenarios.unpinAria') : t('scenarios.pinAria')" :loading="pendingPinId === scenario.id"
-              @click.stop="togglePin(scenario)" />
-            <FButton appearance="primary" size="compact" icon-start="play_24_regular"
-              :loading="pendingActivateId === scenario.id" @click.stop="activateScenario(scenario)">
-              {{ t('scenarios.activate') }}
-            </FButton>
+          <template #header-extra>
+            <div class="scenarios-view__card-actions" @click.stop>
+              <n-button
+                quaternary
+                size="small"
+                :aria-label="scenario.sort_order > 0 ? t('scenarios.unpinAria') : t('scenarios.pinAria')"
+                :loading="pendingPinId === scenario.id"
+                @click="togglePin(scenario)"
+              >
+                <template #icon>
+                  <FIcon :name="scenario.sort_order > 0 ? 'pin_off_24_regular' : 'pin_24_regular'" />
+                </template>
+              </n-button>
+              <n-button
+                type="primary"
+                size="small"
+                :loading="pendingActivateId === scenario.id"
+                @click="activateScenario(scenario)"
+              >
+                <template #icon><FIcon name="play_24_regular" /></template>
+                {{ t('scenarios.activate') }}
+              </n-button>
+            </div>
           </template>
-          <template #title>{{ scenario.name }}</template>
+
           <p class="scenarios-view__meta">
-            <FTag :tone="scenario.big_screen_mode_state === 'unset' ? 'subtle' : 'info'">
+            <n-tag :type="scenario.big_screen_mode_state === 'unset' ? 'default' : 'info'" size="small" round>
               {{ scenario.big_screen_mode_state === 'unset' ? t('scenarios.keepScreenMode') : scenario.big_screen_mode_label }}
-            </FTag>
-            <FTag :tone="scenario.volume_state === 'unset' ? 'subtle' : 'info'">
+            </n-tag>
+            <n-tag :type="scenario.volume_state === 'unset' ? 'default' : 'info'" size="small" round>
               {{ scenario.volume_state === 'unset' ? t('scenarios.keepVolume') : t('scenarios.volumeValue', { n: scenario.volume_level }) }}
-            </FTag>
+            </n-tag>
           </p>
           <p v-if="scenario.description" class="scenarios-view__desc">{{ scenario.description }}</p>
           <p class="scenarios-view__updated">{{ t('scenarios.updatedAt', { time: formatRelativeTime(scenario.updated_at) }) }}</p>
-        </FCard>
+        </n-card>
       </template>
     </section>
 
@@ -235,38 +259,24 @@ void activeId; // 当前后端未提供「激活预案 id」字段；保留 hook
 .scenarios-view {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-l);
+  gap: var(--spacingVerticalL);
   max-width: 1280px;
 }
 
-/*
- * sticky toolbar 锚定到 .app-shell__content 滚动容器的 content-edge.top；
- * 历史值 56px 会让 toolbar 在自身原位之外再向下偏移 56 px，与下方第一行卡片
- * 产生视觉重叠。改成 0 让 sticky 起点与自然位置一致。
- */
 .scenarios-view__toolbar {
-  position: sticky;
-  top: 0;
-  z-index: var(--z-sticky);
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: var(--spacing-l);
-  padding: var(--spacing-m) 0;
-  margin: 0 calc(-1 * var(--spacing-2xl));
-  padding-left: var(--spacing-2xl);
-  padding-right: var(--spacing-2xl);
-  background: color-mix(in srgb, var(--colorNeutralBackgroundCanvas) 86%, transparent);
+  gap: var(--spacingHorizontalL);
+  padding: var(--spacingVerticalM) 0;
   flex-wrap: wrap;
-  border-bottom: 1px solid color-mix(in srgb, var(--colorNeutralStroke2) 60%, transparent);
-  -webkit-backdrop-filter: blur(14px) saturate(1.1);
-  backdrop-filter: blur(14px) saturate(1.1);
+  border-bottom: 1px solid var(--colorNeutralStrokeDivider);
 }
 
 .scenarios-view__heading {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xs);
+  gap: var(--spacingVerticalXS);
 }
 
 .scenarios-view__title {
@@ -285,74 +295,61 @@ void activeId; // 当前后端未提供「激活预案 id」字段；保留 hook
 .scenarios-view__actions {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-s);
+  gap: var(--spacingHorizontalS);
   flex-wrap: wrap;
 }
 
 .scenarios-view__grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: var(--spacing-l);
+  gap: var(--spacingHorizontalL);
 }
 
-/*
- * 网格首批卡片错峰入场：前 6 张每张延迟 30 ms。
- * 第 7 张以后立即入场，避免长列表"等太久"。reduce-motion 下 duration 被 token 收敛到 0，
- * delay 仍存在但视觉等价于一次性出现。
- */
-.scenarios-view__grid> :deep(.f-card:nth-child(1)) {
-  animation-delay: 0ms;
-}
-
-.scenarios-view__grid> :deep(.f-card:nth-child(2)) {
-  animation-delay: 30ms;
-}
-
-.scenarios-view__grid> :deep(.f-card:nth-child(3)) {
-  animation-delay: 60ms;
-}
-
-.scenarios-view__grid> :deep(.f-card:nth-child(4)) {
-  animation-delay: 90ms;
-}
-
-.scenarios-view__grid> :deep(.f-card:nth-child(5)) {
-  animation-delay: 120ms;
-}
-
-.scenarios-view__grid> :deep(.f-card:nth-child(6)) {
-  animation-delay: 150ms;
-}
-
-/*
- * 置顶预案卡：4 px 左侧 accent + 1 px brand 内描边 + 提升一档阴影，
- * 让"置顶"在网格中的视觉权重明显高于普通卡。
- */
 .scenarios-view__card--pinned {
   border-left: 4px solid var(--colorBrandBackground);
-  box-shadow:
-    var(--shadow-card-hover),
-    inset 0 0 0 1px color-mix(in srgb, var(--colorBrandBackground) 18%, transparent),
-    var(--halo-brand);
+}
+
+.scenarios-view__card-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacingVerticalXS);
+}
+
+.scenarios-view__card-title {
+  margin: 0;
+  font-size: var(--fontSizeBase400);
+  font-weight: 600;
+}
+
+.scenarios-view__eyebrow {
+  font-size: var(--fontSizeBase200);
+  color: var(--colorNeutralForeground3);
 }
 
 .scenarios-view__pinned {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-xs);
+  gap: var(--spacingHorizontalXS);
   color: var(--colorBrandForeground1);
+  font-size: var(--fontSizeBase200);
+}
+
+.scenarios-view__card-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacingHorizontalXS);
 }
 
 .scenarios-view__meta {
-  margin: 0;
+  margin: var(--spacingVerticalS) 0 0;
   display: inline-flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: var(--spacing-xs);
+  gap: var(--spacingHorizontalXS);
 }
 
 .scenarios-view__desc {
-  margin: 0;
+  margin: var(--spacingVerticalS) 0 0;
   color: var(--colorNeutralForeground2);
   font-size: var(--fontSizeBase200);
   line-height: var(--lineHeightBase300);
@@ -363,29 +360,15 @@ void activeId; // 当前后端未提供「激活预案 id」字段；保留 hook
 }
 
 .scenarios-view__updated {
-  margin: 0;
+  margin: var(--spacingVerticalS) 0 0;
   color: var(--colorNeutralForeground3);
   font-size: var(--fontSizeBase200);
 }
 
 @media (max-width: 767px) {
   .scenarios-view__toolbar {
-    top: 96px;
     flex-direction: column;
     align-items: stretch;
-  }
-
-  .scenarios-view__actions {
-    justify-content: space-between;
-  }
-
-  .scenarios-view :deep(.f-card__header) {
-    flex-direction: column;
-  }
-
-  .scenarios-view :deep(.f-card__actions) {
-    width: 100%;
-    justify-content: flex-end;
   }
 
   .scenarios-view__grid {

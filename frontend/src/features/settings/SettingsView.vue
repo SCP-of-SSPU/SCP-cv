@@ -5,12 +5,9 @@
  */
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { NButton, NTabPane, NTabs } from 'naive-ui';
 
-import {
-  FButton,
-  FTabs,
-} from '@/design-system';
-import type { FTabsItem } from '@/design-system';
+import FIcon from '@/design-system/FIcon.vue';
 import { useToast } from '@/composables/useToast';
 import RuntimeSettingsTab from './tabs/RuntimeSettingsTab.vue';
 import DisplaySettingsTab from './tabs/DisplaySettingsTab.vue';
@@ -21,13 +18,6 @@ type SettingsTab = 'runtime' | 'display' | 'devices' | 'dev';
 
 const { t } = useI18n();
 const toast = useToast();
-
-const tabs = computed<FTabsItem<SettingsTab>[]>(() => [
-  { label: t('settings.tabRuntime'), value: 'runtime' },
-  { label: t('settings.tabDisplay'), value: 'display' },
-  { label: t('settings.tabDevices'), value: 'devices' },
-  { label: t('settings.tabDev'), value: 'dev' },
-]);
 
 const activeTab = ref<SettingsTab>('runtime');
 const version = '1.0.0';
@@ -48,22 +38,32 @@ const portsCaption = computed(() =>
         </div>
       </div>
       <div class="settings-view__app-actions">
-        <FButton appearance="secondary" icon-start="open_24_regular" :disabled="true" :aria-label="t('settings.openLogsAria')">
+        <n-button disabled :aria-label="t('settings.openLogsAria')">
+          <template #icon><FIcon name="open_24_regular" /></template>
           {{ t('settings.openLogs') }}
-        </FButton>
-        <FButton appearance="subtle" icon-start="info_24_regular"
+        </n-button>
+        <n-button tertiary
           @click="() => toast.info(t('settings.reportToast'), t('settings.reportToastDetail'))">
+          <template #icon><FIcon name="info_24_regular" /></template>
           {{ t('settings.report') }}
-        </FButton>
+        </n-button>
       </div>
     </header>
 
-    <FTabs v-model="activeTab" :items="tabs" appearance="line" full-width :aria-label="t('settings.tabsAria')" />
-
-    <RuntimeSettingsTab v-if="activeTab === 'runtime'" />
-    <DisplaySettingsTab v-else-if="activeTab === 'display'" />
-    <DevicePowerSettingsTab v-else-if="activeTab === 'devices'" />
-    <DevSettingsTab v-else />
+    <n-tabs v-model:value="activeTab" type="line" :aria-label="t('settings.tabsAria')">
+      <n-tab-pane name="runtime" :tab="t('settings.tabRuntime')">
+        <RuntimeSettingsTab />
+      </n-tab-pane>
+      <n-tab-pane name="display" :tab="t('settings.tabDisplay')">
+        <DisplaySettingsTab />
+      </n-tab-pane>
+      <n-tab-pane name="devices" :tab="t('settings.tabDevices')">
+        <DevicePowerSettingsTab />
+      </n-tab-pane>
+      <n-tab-pane name="dev" :tab="t('settings.tabDev')">
+        <DevSettingsTab />
+      </n-tab-pane>
+    </n-tabs>
   </div>
 </template>
 

@@ -13,8 +13,9 @@
   },
   "dependencies": {
     "@fluentui/tokens": "^1.0.0-alpha.23",
+    "@vicons/fluent": "^0.13.0",
     "@vitejs/plugin-vue": "latest",
-    "material-symbols": "^0.44.8",
+    "naive-ui": "^2.44.1",
     "pinia": "latest",
     "vite": "latest",
     "vue": "latest",

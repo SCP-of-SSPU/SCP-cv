@@ -1,22 +1,24 @@
 <script setup lang="ts">
 /**
  * 仪表盘：Hero + 大屏模式 + 系统音量 + 设备电源四块。
- * 设计稿 §4.1：仅承载顶层、无需进入子页即可完成的指令。
+ * 仅承载顶层、无需进入子页即可完成的指令。
  *  - 不放预案调用、上传、窗口状态等明细能力；
  *  - 关机统一走 useDialog 二次确认。
  */
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-
 import {
-  FCard,
-  FButton,
-  FSegmented,
-  FSlider,
-  FSwitch,
-  FMessageBar,
-  FSpinner,
-} from '@/design-system';
+  NAlert,
+  NButton,
+  NCard,
+  NRadio,
+  NRadioGroup,
+  NSlider,
+  NSpin,
+  NSwitch,
+} from 'naive-ui';
+
+import FIcon from '@/design-system/FIcon.vue';
 import { useDialog } from '@/composables/useDialog';
 import { useThrottledSlider } from '@/composables/useThrottledSlider';
 import { useToast } from '@/composables/useToast';
@@ -29,22 +31,14 @@ const device = useDeviceStore();
 const toast = useToast();
 const dialog = useDialog();
 
-/*
- * 大屏模式切换：后端会同步关闭/打开窗口、刷新会话快照，整体耗时 1–3 秒；
- * 历史实现仅 await + 成功 toast，过程没有任何视觉反馈，导致操作员误以为点击未生效
- * 进而重复点击。新实现：
- *   - 显式 pendingMode：被锁定的目标值，期间 FSegmented 锁定为 disabled；
- *   - inline Loading + 提示文字「切换中…」；
- *   - 同一时刻只允许一笔切换；并发点击被忽略，避免多笔互相覆盖。
- */
 const pendingMode = ref<'single' | 'double' | null>(null);
 const isModeSwitching = computed(() => pendingMode.value !== null);
 
 const screenMode = computed({
   get: (): 'single' | 'double' => pendingMode.value ?? (runtime.runtime?.big_screen_mode ?? 'single'),
-  set: (mode: 'single' | 'double'): void => {
+  set: (mode: string): void => {
     if (isModeSwitching.value) return;
-    void switchScreenMode(mode);
+    void switchScreenMode(mode as 'single' | 'double');
   },
 });
 
@@ -70,8 +64,6 @@ async function switchScreenMode(mode: 'single' | 'double'): Promise<void> {
   }
 }
 
-// 系统音量节流：拖动期间 120 ms 节流提交、抬手时一次最终上报；
-// 后端 PATCH 响应在拖动期间不会覆盖本地 UI 值，避免回弹。
 const volume = useThrottledSlider(
   () => runtime.systemVolume.level,
   {
@@ -86,7 +78,6 @@ const muteToggle = computed({
   get: () => runtime.systemVolume.muted,
   set: async (next: boolean) => {
     try {
-      // 静音切换沿用滑块当前显示值，避免回写到节流前的旧值。
       await runtime.setSystemVolume(volume.value.value, next);
     } catch (error) {
       toast.error(t('dashboard.muteFail'), error instanceof Error ? error.message : t('common.retry'));
@@ -133,7 +124,6 @@ async function powerOffSplice(): Promise<void> {
 async function toggleTv(deviceType: 'tv_left' | 'tv_right', label: string): Promise<void> {
   try {
     await device.toggle(deviceType);
-    // 设备无回读，按钮按"切换电源 toggle"语义命名；此处也保持「开/关机状态」用语统一。
     toast.success(t('dashboard.tvToggleOk', { label }), t('dashboard.tvToggleOkDetail'));
   } catch (error) {
     toast.error(t('dashboard.tvToggleFail', { label }), error instanceof Error ? error.message : t('common.retry'));
@@ -150,64 +140,76 @@ const hasDeviceError = computed(() =>
     <section class="dashboard__hero" :aria-label="t('dashboard.overview')">
       <p class="dashboard__hero-eyebrow">{{ t('dashboard.heroEyebrow') }}</p>
       <h2 class="dashboard__hero-title">{{ heroSubtitle }}</h2>
-      <p class="dashboard__hero-caption">
-        {{ t('dashboard.heroCaption') }}
-      </p>
+      <p class="dashboard__hero-caption">{{ t('dashboard.heroCaption') }}</p>
     </section>
 
-    <FMessageBar v-if="hasDeviceError" tone="error" :title="t('dashboard.deviceErrorTitle')">
+    <n-alert v-if="hasDeviceError" type="error" :title="t('dashboard.deviceErrorTitle')">
       {{ t('dashboard.deviceErrorBody') }}
-    </FMessageBar>
+    </n-alert>
 
     <section class="dashboard__grid" :aria-label="t('dashboard.topCommands')">
-      <FCard class="dashboard__card">
-        <template #eyebrow>{{ t('dashboard.bigScreenEyebrow') }}</template>
-        <template #title>{{ t('dashboard.bigScreenTitle') }}</template>
-        <FSegmented v-model="screenMode" :options="[
-          { label: t('screen.single'), value: 'single' },
-          { label: t('screen.double'), value: 'double' },
-        ]" :disabled="isModeSwitching" full-width :aria-label="t('dashboard.screenSelectAria')" />
-        <p class="dashboard__hint dashboard__hint--switching" v-if="isModeSwitching">
-          <FSpinner :size="14" /> {{ t('dashboard.switching') }}
+      <n-card class="dashboard__card" :title="t('dashboard.bigScreenTitle')">
+        <template #header-extra>
+          <span class="dashboard__eyebrow">{{ t('dashboard.bigScreenEyebrow') }}</span>
+        </template>
+        <n-radio-group v-model:value="screenMode" :disabled="isModeSwitching">
+          <n-radio value="single">{{ t('screen.single') }}</n-radio>
+          <n-radio value="double">{{ t('screen.double') }}</n-radio>
+        </n-radio-group>
+        <p v-if="isModeSwitching" class="dashboard__hint dashboard__hint--switching">
+          <n-spin :size="14" /> {{ t('dashboard.switching') }}
         </p>
-        <p class="dashboard__hint" v-else>
-          {{ t('dashboard.bigScreenHint') }}
-        </p>
-      </FCard>
+        <p v-else class="dashboard__hint">{{ t('dashboard.bigScreenHint') }}</p>
+      </n-card>
 
-      <FCard class="dashboard__card">
-        <template #eyebrow>{{ t('dashboard.volumeEyebrow') }}</template>
-        <template #title>{{ t('dashboard.volumeTitle') }}</template>
-        <FSlider :model-value="volume.value.value" :min="0" :max="100" :aria-label="t('dashboard.volumeAria')" show-value
-          @update:modelValue="volume.handleInput" @change="volume.handleChange" />
-        <FSwitch v-model="muteToggle" :label="t('dashboard.enableSystemMute')" />
-      </FCard>
+      <n-card class="dashboard__card" :title="t('dashboard.volumeTitle')">
+        <template #header-extra>
+          <span class="dashboard__eyebrow">{{ t('dashboard.volumeEyebrow') }}</span>
+        </template>
+        <n-slider
+          :value="volume.value.value"
+          :min="0"
+          :max="100"
+          :aria-label="t('dashboard.volumeAria')"
+          @update:value="volume.handleInput"
+          @dragend="volume.handleChange(volume.value.value)"
+        />
+        <div class="dashboard__mute-row">
+          <span>{{ t('dashboard.enableSystemMute') }}</span>
+          <n-switch v-model:value="muteToggle" />
+        </div>
+      </n-card>
 
-      <FCard class="dashboard__card">
-        <template #eyebrow>{{ t('dashboard.powerEyebrow') }}</template>
-        <template #title>{{ t('dashboard.powerTitle') }}</template>
+      <n-card class="dashboard__card" :title="t('dashboard.powerTitle')">
+        <template #header-extra>
+          <span class="dashboard__eyebrow">{{ t('dashboard.powerEyebrow') }}</span>
+        </template>
         <div class="dashboard__power-row">
           <span class="dashboard__power-label">{{ t('dashboard.splice') }}</span>
-          <FButton appearance="primary" icon-start="power_24_regular" @click="powerOnSplice">
+          <n-button type="primary" @click="powerOnSplice">
+            <template #icon><FIcon name="power_24_regular" /></template>
             {{ t('dashboard.powerOn') }}
-          </FButton>
-          <FButton appearance="danger" icon-start="plug_disconnected_24_regular" @click="powerOffSplice">
+          </n-button>
+          <n-button type="error" @click="powerOffSplice">
+            <template #icon><FIcon name="plug_disconnected_24_regular" /></template>
             {{ t('dashboard.powerOff') }}
-          </FButton>
+          </n-button>
         </div>
         <div class="dashboard__power-row">
           <span class="dashboard__power-label">{{ t('dashboard.tvLeft') }}</span>
-          <FButton appearance="secondary" icon-start="arrow_swap_24_regular" @click="toggleTv('tv_left', t('dashboard.tvLeft'))">
+          <n-button @click="toggleTv('tv_left', t('dashboard.tvLeft'))">
+            <template #icon><FIcon name="arrow_swap_24_regular" /></template>
             {{ t('dashboard.toggleState') }}
-          </FButton>
+          </n-button>
         </div>
         <div class="dashboard__power-row">
           <span class="dashboard__power-label">{{ t('dashboard.tvRight') }}</span>
-          <FButton appearance="secondary" icon-start="arrow_swap_24_regular" @click="toggleTv('tv_right', t('dashboard.tvRight'))">
+          <n-button @click="toggleTv('tv_right', t('dashboard.tvRight'))">
+            <template #icon><FIcon name="arrow_swap_24_regular" /></template>
             {{ t('dashboard.toggleState') }}
-          </FButton>
+          </n-button>
         </div>
-      </FCard>
+      </n-card>
     </section>
   </div>
 </template>
@@ -216,7 +218,7 @@ const hasDeviceError = computed(() =>
 .dashboard {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-2xl);
+  gap: var(--spacingVerticalXXL);
   max-width: 1280px;
 }
 
@@ -224,18 +226,15 @@ const hasDeviceError = computed(() =>
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-s);
-  padding: var(--spacing-2xl) var(--spacing-3xl);
-  /* Hero 用 xxlarge 大圆角与渐变背景配合，是仪表盘视觉重心。渐变来自 token，便于深色模式复用。 */
-  border-radius: var(--radius-xxlarge);
-  background: var(--gradient-hero);
-  border: 1px solid color-mix(in srgb, var(--colorNeutralStroke2) 60%, transparent);
-  box-shadow: var(--shadow-card), var(--ring-accent);
+  gap: var(--spacingVerticalS);
+  padding: var(--spacingVerticalXXL) var(--spacingHorizontalXXXL);
+  border-radius: var(--borderRadius2XLarge);
+  background: linear-gradient(135deg, var(--colorBrandBackground2) 0%, var(--colorNeutralBackground1) 100%);
+  border: 1px solid var(--colorNeutralStroke2);
+  box-shadow: var(--shadow4);
   overflow: hidden;
-  animation: f-rise var(--motion-duration-entrance) var(--motion-curve-emphasized) both;
 }
 
-/* 装饰性光晕：右下角放一颗模糊的 brand 色光球，让 hero 有"现场感"。 */
 .dashboard__hero::after {
   content: '';
   position: absolute;
@@ -282,33 +281,15 @@ const hasDeviceError = computed(() =>
 .dashboard__grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: var(--spacing-l);
+  gap: var(--spacingHorizontalL);
 }
 
 .dashboard__card {
   min-height: 220px;
-  transition: transform var(--motion-duration-entrance) var(--motion-curve-emphasized);
-}
-
-.dashboard__card:hover {
-  transform: translateY(var(--motion-hover-lift));
-}
-
-/*
- * 列表内卡片入场加 30 ms 错峰，整组卡片"瀑布式"浮起。
- * 当浏览器命中 prefers-reduced-motion 时，delay 仍生效但 duration 已被 token 收敛到 0，
- * 视觉上等价于一次性同时出现。
- */
-.dashboard__grid>.dashboard__card:nth-child(2) {
-  animation-delay: 40ms;
-}
-
-.dashboard__grid>.dashboard__card:nth-child(3) {
-  animation-delay: 80ms;
 }
 
 .dashboard__hint {
-  margin: 0;
+  margin: var(--spacingVerticalS) 0 0;
   color: var(--colorNeutralForeground3);
   font-size: var(--fontSizeBase200);
 }
@@ -316,16 +297,31 @@ const hasDeviceError = computed(() =>
 .dashboard__hint--switching {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-xs);
+  gap: var(--spacingHorizontalXS);
   color: var(--colorBrandForeground1);
   font-weight: 600;
+}
+
+.dashboard__eyebrow {
+  font-size: var(--fontSizeBase200);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--colorNeutralForeground3);
+}
+
+.dashboard__mute-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--spacingVerticalM);
 }
 
 .dashboard__power-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--spacing-s);
+  gap: var(--spacingHorizontalS);
+  margin-bottom: var(--spacingVerticalS);
 }
 
 .dashboard__power-label {
@@ -335,7 +331,7 @@ const hasDeviceError = computed(() =>
 
 @media (max-width: 767px) {
   .dashboard__hero {
-    padding: var(--spacing-l) var(--spacing-l) var(--spacing-xl);
+    padding: var(--spacingVerticalL) var(--spacingHorizontalL) var(--spacingVerticalXL);
   }
 
   .dashboard__hero-title {
@@ -345,10 +341,6 @@ const hasDeviceError = computed(() =>
 
   .dashboard__grid {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .dashboard__power-row :deep(.f-button) {
-    flex: 1 1 0;
   }
 }
 </style>

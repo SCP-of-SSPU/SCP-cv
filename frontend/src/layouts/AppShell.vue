@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * M3 自适应应用外壳（DESIGN.md §12.3 规范导航）。
+ * Fluent 2 自适应应用外壳（DESIGN.md §2 Scale + §4 架构实现）。
  *  - Compact：底部导航栏（3–5 项，溢出走「更多」Sheet）；
  *  - Medium / Expanded：导航轨道（navigation rail，图标 + 短标签）；
  *  - Large / Extra-large：持久导航抽屉（navigation drawer，图标 + 标签）；

@@ -24,11 +24,11 @@ export interface ThrottledSliderOptions {
 
 /** 暴露给视图绑定的接口：value 用于显示，handleInput/handleChange 用于事件。 */
 export interface ThrottledSliderHandle {
-  /** 直接绑定到 FSlider 的 model-value；拖动期间立即更新，服务端响应不覆盖。 */
+  /** 直接绑定到 n-slider 的 model-value；拖动期间立即更新，服务端响应不覆盖。 */
   value: Ref<number>;
-  /** 绑定到 FSlider 的 update:modelValue：拖动中触发，节流上报。 */
+  /** 绑定到 n-slider 的 update:modelValue：拖动中触发，节流上报。 */
   handleInput: (next: number) => void;
-  /** 绑定到 FSlider 的 change：抬手或键盘 commit 时触发，立即上报最终值。 */
+  /** 绑定到 n-slider 的 change：抬手或键盘 commit 时触发，立即上报最终值。 */
   handleChange: (next: number) => void;
 }
 

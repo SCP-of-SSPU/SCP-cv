@@ -12,17 +12,19 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from django.conf import settings
 from django.http import HttpRequest, HttpResponse
 
 
 _ALLOW_METHODS = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-_DEFAULT_ALLOW_HEADERS = "Content-Type, Authorization, X-Requested-With"
+_DEFAULT_ALLOW_HEADERS = "Content-Type, Authorization, X-Requested-With, X-CSRFToken"
 
 
 class CorsMiddleware:
     """
     为浏览器直连场景补齐通用 CORS 响应头。
-    保持 API 与媒体资源可从任意 Origin 直接访问，避免局域网或固定域名控制台受限。
+    带 cookie 的请求浏览器禁止 Allow-Origin=*，需对白名单内的 Origin 回声并
+    附 Allow-Credentials=true；非白名单时回退到无 credentials 的 * 兜底。
     """
 
     def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
@@ -45,7 +47,15 @@ class CorsMiddleware:
         :param response: HTTP 响应
         :return: None
         """
-        response["Access-Control-Allow-Origin"] = "*"
+        origin = request.headers.get("Origin", "")
+        allowed = set(getattr(settings, "CORS_ALLOWED_ORIGINS", []) or [])
+        if origin and origin in allowed:
+            response["Access-Control-Allow-Origin"] = origin
+            response["Access-Control-Allow-Credentials"] = "true"
+            # 同源策略要求 Origin 回声时声明 Vary，避免被中间缓存按错源命中。
+            response["Vary"] = "Origin"
+        else:
+            response["Access-Control-Allow-Origin"] = "*"
         response["Access-Control-Allow-Methods"] = _ALLOW_METHODS
         response["Access-Control-Allow-Headers"] = (
             request.headers.get("Access-Control-Request-Headers", "").strip()

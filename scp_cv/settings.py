@@ -55,9 +55,47 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "scp_cv.auth_middleware.ApiAuthMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
+
+# CORS 白名单：允许 Vite dev server / 本机调试控制台直连后端；带 cookie 的请求
+# 浏览器层禁止 Allow-Origin=*，因此必须显式枚举可信源。
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in env(
+        "DJANGO_CORS_ALLOWED_ORIGINS",
+        default="http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173",
+    ).split(",")
+    if origin.strip()
+]
+
+# Django 4+ 必须显式声明 CSRF 可信源（schema://host:port），否则 POST 会被
+# CsrfViewMiddleware 直接拒绝；与 CORS_ALLOWED_ORIGINS 同源对齐即可。
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in env(
+        "DJANGO_CSRF_TRUSTED_ORIGINS",
+        default="http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173",
+    ).split(",")
+    if origin.strip()
+]
+
+# 单机部署默认 Lax 足够；跨端口同站点 cookie 可正常携带。
+SESSION_COOKIE_SAMESITE = env("DJANGO_SESSION_COOKIE_SAMESITE", default="Lax")
+CSRF_COOKIE_SAMESITE = env("DJANGO_CSRF_COOKIE_SAMESITE", default="Lax")
+# CSRF cookie 不能设为 HttpOnly，前端要把 csrftoken 读出来回填到请求头。
+CSRF_COOKIE_HTTPONLY = False
+
+LOGIN_URL = "/api/auth/login/"
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.SessionAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
+}
 
 ROOT_URLCONF = "scp_cv.urls"
 
@@ -164,6 +202,18 @@ LOGGING = {
     },
 }
 
+def _grpc_server_interceptors() -> list:
+    """
+    返回 gRPC 服务端拦截器实例列表。
+    socio-grpc 不把 SERVER_INTERCEPTORS 加入 IMPORT_STRINGS，必须传具体实例；
+    使用工厂函数延迟到 import 完成后再实例化，避免 settings 加载阶段的循环依赖。
+    :return: List[grpc.aio.ServerInterceptor]
+    """
+    from scp_cv.grpc_auth import GrpcAuthInterceptor
+
+    return [GrpcAuthInterceptor()]
+
+
 GRPC_FRAMEWORK = {
     "ROOT_HANDLERS_HOOK": "scp_cv.grpc_handlers.grpc_handlers",
     "GRPC_ASYNC": True,
@@ -171,5 +221,8 @@ GRPC_FRAMEWORK = {
         ("grpc.max_send_message_length", 100 * 1024 * 1024),
         ("grpc.max_receive_message_length", 100 * 1024 * 1024),
     ],
-    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
+    # gRPC 与 REST 共用 Django session：每个 RPC 必须携带有效 sessionid metadata
+    # （或 cookie 头），未登录返回 UNAUTHENTICATED。
+    "SERVER_INTERCEPTORS": _grpc_server_interceptors(),
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
 }

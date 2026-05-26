@@ -5,7 +5,7 @@
 import { nextTick, watch, type ComponentPublicInstance } from 'vue';
 import { useI18n } from 'vue-i18n';
 
-import { FIcon } from '@/design-system';
+import FIcon from '@/design-system/FIcon.vue';
 
 interface PptSlideRailItem {
   pageIndex: number;

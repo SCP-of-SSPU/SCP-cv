@@ -1,5 +1,5 @@
 /*
- * M3 自适应 AppShell 样式。
+ * Fluent 2 自适应 AppShell 样式（DESIGN.md §2 Scale 适配）。
  * 顶栏、rail/drawer、compact bottom navigation 由子组件共享这些类名，故使用普通 CSS。
  */
 .app-shell {
@@ -153,7 +153,7 @@
     var(--curveEasyEase);
 }
 
-/* Rail：图标在上、短标签在下，垂直堆叠（M3 navigation rail）。 */
+/* Rail：图标在上、短标签在下，垂直堆叠（Fluent 2 导航轨道）。 */
 .app-shell__nav[data-variant='rail'] .app-shell__nav-item {
   flex-direction: column;
   gap: var(--spacingHorizontalXS);
@@ -173,7 +173,7 @@
   outline-offset: 2px;
 }
 
-/* 活动指示器：M3 用 secondary-container 药丸承托图标。 */
+/* 活动指示器：Fluent 2 选中态用品牌色描边 + 中性背景承托图标。 */
 .app-shell__nav-indicator {
   display: inline-grid;
   place-items: center;

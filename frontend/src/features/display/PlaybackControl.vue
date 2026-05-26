@@ -12,18 +12,17 @@
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { RouterLink } from 'vue-router';
-
 import {
-  FButton,
-  FIcon,
-  FInput,
-  FProgress,
-  FSlider,
-  FSwitch,
-  FTag,
-  FMessageBar,
-} from '@/design-system';
-import type { TagTone } from '@/design-system';
+  NAlert,
+  NButton,
+  NInput,
+  NProgress,
+  NSlider,
+  NSwitch,
+  NTag,
+} from 'naive-ui';
+
+import FIcon from '@/design-system/FIcon.vue';
 import { useToast } from '@/composables/useToast';
 import { useThrottledSlider } from '@/composables/useThrottledSlider';
 import { useSessionStore } from '@/stores/sessions';
@@ -41,20 +40,20 @@ const sourceStore = useSourceStore();
 
 const category = computed(() => sourceStore.resolveCategory(props.session.source_type));
 
-const stateTone = computed<TagTone>(() => {
+type NTagType = 'default' | 'primary' | 'info' | 'success' | 'warning' | 'error';
+
+const stateType = computed<NTagType>(() => {
   switch (props.session.playback_state) {
     case 'playing':
       return 'success';
     case 'paused':
-      return 'warning';
     case 'loading':
       return 'warning';
     case 'error':
       return 'error';
     case 'idle':
-      return 'subtle';
     default:
-      return 'neutral';
+      return 'default';
   }
 });
 
@@ -99,8 +98,6 @@ function onJump(): void {
     toast.warning(t('playback.pageInvalid'), t('playback.pageInvalidDetail'));
     return;
   }
-  // 后端 PlaybackCommand 中跳页指令命名为 GOTO；早先误传 'jump' 会被
-  // services.playback.navigate_content 校验为「无效的导航动作」，跳转无效。
   void call(() => sessionStore.navigate(props.session.window_id, 'goto', target), t('playback.jumpFail'));
 }
 
@@ -112,8 +109,6 @@ function onMuteToggle(value: boolean): void {
   void call(() => sessionStore.setWindowMute(props.session.window_id, value), t('playback.windowMuteFail'));
 }
 
-// 窗口音量节流：拖动每 ~120 ms 上报一次，抬手再 flush，
-// SSE 回写在拖动 / 飞行 / 待发期间不会覆盖本地 UI 值。
 const windowVolume = useThrottledSlider(
   () => props.session.volume,
   {
@@ -158,8 +153,6 @@ watch(
   { immediate: true },
 );
 
-// 后端 PptResource.page_index 与 session.current_slide 都是 1-based，
-// 这里直接对齐即可；旧实现 `- 1` 会取到前一页，使「当前页媒体」比实际播放慢一页。
 const currentResource = computed(() =>
   pptResources.value.find((res) => res.page_index === props.session.current_slide),
 );
@@ -177,13 +170,15 @@ const pptProgressLabel = computed(() => {
   return `${props.session.current_slide} / ${props.session.total_slides}`;
 });
 
+const pptProgressPercentage = computed(() => {
+  if (props.session.total_slides <= 0) return 0;
+  return Math.round((props.session.current_slide / props.session.total_slides) * 100);
+});
+
 const seekValue = computed(() => Math.min(props.session.duration_ms, Math.max(0, props.session.position_ms)));
 
 const isPlaying = computed(() => props.session.playback_state === 'playing');
 
-/*
- * 直播首帧握手期间可能短暂 error；错误条由 usePlaybackErrorGate 延迟确认。
- */
 async function reopenCurrentSource(): Promise<void> {
   if (!props.session.source_id) return;
   try {
@@ -217,9 +212,9 @@ const errorBarDescription = computed(() => {
   <div class="playback-control">
     <header class="playback-control__heading">
       <div>
-        <FTag :tone="stateTone">
+        <n-tag :type="stateType" round size="small">
           {{ session.playback_state_label || session.playback_state }}
-        </FTag>
+        </n-tag>
         <h3 class="playback-control__source-name">
           {{ session.source_name || t('playback.notOpened') }}
         </h3>
@@ -235,33 +230,43 @@ const errorBarDescription = computed(() => {
       </RouterLink>
     </header>
 
-    <FMessageBar v-if="showErrorBar" tone="error" :title="errorBarTitle" dismissible @dismiss="dismissErrorBar">
-      {{ errorBarDescription }}
-      <template #actions>
-        <FButton appearance="secondary" size="compact" :disabled="!session.source_id" @click="reopenCurrentSource">
+    <n-alert v-if="showErrorBar" type="error" :title="errorBarTitle" closable @close="dismissErrorBar">
+      <div class="playback-control__alert-body">
+        <span>{{ errorBarDescription }}</span>
+        <n-button size="small" :disabled="!session.source_id" @click="reopenCurrentSource">
           {{ t('playback.reopen') }}
-        </FButton>
-      </template>
-    </FMessageBar>
+        </n-button>
+      </div>
+    </n-alert>
 
-    <!-- PPT 控制 -->
     <section v-if="category === 'ppt'" class="playback-control__section">
       <div class="playback-control__row playback-control__row--ppt">
-        <FButton appearance="secondary" icon-start="previous_24_regular" @click="onPrev">{{ t('playback.prevPage') }}</FButton>
-        <FButton appearance="primary" icon-start="next_24_regular" @click="onNext">{{ t('playback.nextPage') }}</FButton>
+        <n-button @click="onPrev">
+          <template #icon><FIcon name="previous_24_regular" /></template>
+          {{ t('playback.prevPage') }}
+        </n-button>
+        <n-button type="primary" @click="onNext">
+          <template #icon><FIcon name="next_24_regular" /></template>
+          {{ t('playback.nextPage') }}
+        </n-button>
         <div class="playback-control__jump">
-          <FInput v-model="jumpInput" type="number" :placeholder="t('playback.jumpPlaceholder')" :max-length="4" />
-          <FButton appearance="secondary" @click="onJump">{{ t('playback.jump') }}</FButton>
+          <n-input v-model:value="jumpInput" type="text" :placeholder="t('playback.jumpPlaceholder')" :maxlength="4" />
+          <n-button @click="onJump">{{ t('playback.jump') }}</n-button>
         </div>
       </div>
       <div v-if="session.total_slides > 0" class="playback-control__row playback-control__row--progress">
-        <FProgress :value="session.current_slide" :max="session.total_slides" />
+        <n-progress
+          type="line"
+          :percentage="pptProgressPercentage"
+          :show-indicator="false"
+          class="playback-control__progress"
+        />
         <span class="playback-control__progress-label">{{ pptProgressLabel }}</span>
       </div>
 
-      <FMessageBar v-if="pptError" tone="error" :title="t('playback.pptLoadFail')">
+      <n-alert v-if="pptError" type="error" :title="t('playback.pptLoadFail')">
         {{ pptError }}
-      </FMessageBar>
+      </n-alert>
 
       <div v-if="currentResource && currentResource.media_items.length > 0" class="playback-control__media">
         <h4 class="playback-control__media-title">{{ t('playback.currentMedia') }}</h4>
@@ -269,50 +274,68 @@ const errorBarDescription = computed(() => {
           <li v-for="media in currentResource.media_items" :key="media.id" class="playback-control__media-item">
             <span class="playback-control__media-name">{{ media.name }}</span>
             <span class="playback-control__media-actions">
-              <FButton size="compact" icon-only icon-start="play_24_regular" :aria-label="t('playback.playMedia')"
-                @click="pptMediaAction(media.id, media.media_index, 'play')" />
-              <FButton size="compact" icon-only icon-start="pause_24_regular" :aria-label="t('playback.pauseMedia')"
-                @click="pptMediaAction(media.id, media.media_index, 'pause')" />
-              <FButton size="compact" icon-only icon-start="stop_24_regular" :aria-label="t('playback.stopMedia')" appearance="danger"
-                @click="pptMediaAction(media.id, media.media_index, 'stop')" />
+              <n-button size="small" circle :aria-label="t('playback.playMedia')"
+                @click="pptMediaAction(media.id, media.media_index, 'play')">
+                <template #icon><FIcon name="play_24_regular" /></template>
+              </n-button>
+              <n-button size="small" circle :aria-label="t('playback.pauseMedia')"
+                @click="pptMediaAction(media.id, media.media_index, 'pause')">
+                <template #icon><FIcon name="pause_24_regular" /></template>
+              </n-button>
+              <n-button size="small" circle type="error" :aria-label="t('playback.stopMedia')"
+                @click="pptMediaAction(media.id, media.media_index, 'stop')">
+                <template #icon><FIcon name="stop_24_regular" /></template>
+              </n-button>
             </span>
           </li>
         </ul>
       </div>
     </section>
 
-    <!-- 视频控制（旧 audio 源回退至此分支） -->
     <section v-else-if="category === 'video'" class="playback-control__section">
       <div class="playback-control__row">
-        <FButton v-if="!isPlaying" appearance="primary" icon-start="play_24_regular" @click="onPlay">
+        <n-button v-if="!isPlaying" type="primary" @click="onPlay">
+          <template #icon><FIcon name="play_24_regular" /></template>
           {{ t('playback.play') }}
-        </FButton>
-        <FButton v-else appearance="primary" icon-start="pause_24_regular" @click="onPause">
+        </n-button>
+        <n-button v-else type="primary" @click="onPause">
+          <template #icon><FIcon name="pause_24_regular" /></template>
           {{ t('playback.pause') }}
-        </FButton>
-        <FButton appearance="secondary" icon-start="stop_24_regular" @click="onStop">{{ t('playback.stop') }}</FButton>
-        <FSwitch :model-value="session.loop_enabled" :label="t('playback.loop')" @update:modelValue="onLoopToggle" />
+        </n-button>
+        <n-button @click="onStop">
+          <template #icon><FIcon name="stop_24_regular" /></template>
+          {{ t('playback.stop') }}
+        </n-button>
+        <div class="playback-control__switch">
+          <span>{{ t('playback.loop') }}</span>
+          <n-switch :value="session.loop_enabled" @update:value="onLoopToggle" />
+        </div>
       </div>
       <div v-if="session.duration_ms > 0" class="playback-control__row playback-control__row--seek">
-        <FSlider :model-value="seekValue" :min="0" :max="session.duration_ms" :step="1000" :aria-label="t('playback.seekAria')"
-          @update:modelValue="onSeek" />
+        <n-slider
+          :value="seekValue"
+          :min="0"
+          :max="session.duration_ms"
+          :step="1000"
+          :aria-label="t('playback.seekAria')"
+          class="playback-control__seek"
+          @update:value="onSeek"
+        />
         <span class="playback-control__progress-label">
           {{ formatDuration(session.position_ms) }} / {{ formatDuration(session.duration_ms) }}
         </span>
       </div>
     </section>
 
-    <!-- 图片 / 网页 -->
     <section v-else-if="category === 'image' || category === 'web'" class="playback-control__section">
       <p v-if="session.source_uri" class="playback-control__uri">{{ session.source_uri }}</p>
       <p v-else class="playback-control__uri">{{ t('playback.uriMissing') }}</p>
     </section>
 
-    <!-- 直播 -->
     <section v-else-if="category === 'stream'" class="playback-control__section">
-      <FTag :tone="session.source_uri ? 'warning' : 'subtle'" :dot="!!session.source_uri">
+      <n-tag :type="session.source_uri ? 'warning' : 'default'" round size="small">
         {{ session.source_uri ? t('playback.live') : t('playback.notStreaming') }}
-      </FTag>
+      </n-tag>
       <p v-if="session.source_uri" class="playback-control__uri">{{ session.source_uri }}</p>
     </section>
 
@@ -320,20 +343,33 @@ const errorBarDescription = computed(() => {
       <p class="playback-control__caption">{{ t('playback.noSource') }}</p>
     </section>
 
-    <!-- 通用：窗口音量、关闭显示 -->
     <section class="playback-control__section">
       <div class="playback-control__row">
         <span class="playback-control__field-label">{{ t('playback.windowVolume') }}</span>
-        <FSlider :model-value="windowVolume.value.value" :min="0" :max="100" :aria-label="t('playback.windowVolumeAria')" show-value
-          :disabled="category === 'image' || category === 'web'" @update:modelValue="windowVolume.handleInput"
-          @change="windowVolume.handleChange" />
+        <n-slider
+          :value="windowVolume.value.value"
+          :min="0"
+          :max="100"
+          :aria-label="t('playback.windowVolumeAria')"
+          :disabled="category === 'image' || category === 'web'"
+          class="playback-control__seek"
+          @update:value="windowVolume.handleInput"
+          @dragend="windowVolume.handleChange(windowVolume.value.value)"
+        />
       </div>
       <div class="playback-control__row">
-        <FSwitch :model-value="session.is_muted" :label="t('playback.windowMute')" :disabled="category === 'image' || category === 'web'"
-          @update:modelValue="onMuteToggle" />
-        <FButton appearance="danger" icon-start="dismiss_24_regular" :disabled="!session.source_id" @click="onClose">
+        <div class="playback-control__switch">
+          <span>{{ t('playback.windowMute') }}</span>
+          <n-switch
+            :value="session.is_muted"
+            :disabled="category === 'image' || category === 'web'"
+            @update:value="onMuteToggle"
+          />
+        </div>
+        <n-button type="error" :disabled="!session.source_id" @click="onClose">
+          <template #icon><FIcon name="dismiss_24_regular" /></template>
           {{ t('playback.closeDisplay') }}
-        </FButton>
+        </n-button>
       </div>
     </section>
   </div>
@@ -343,25 +379,25 @@ const errorBarDescription = computed(() => {
 .playback-control {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-l);
+  gap: var(--spacingVerticalL);
 }
 
 .playback-control__heading {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: var(--spacing-l);
+  gap: var(--spacingHorizontalL);
 }
 
 .playback-control__source-name {
-  margin: var(--spacing-xs) 0 0;
+  margin: var(--spacingVerticalXS) 0 0;
   font-size: var(--fontSizeBase600);
   line-height: var(--lineHeightBase600);
   font-weight: 600;
 }
 
 .playback-control__caption {
-  margin: var(--spacing-xs) 0 0;
+  margin: var(--spacingVerticalXS) 0 0;
   color: var(--colorNeutralForeground2);
   font-size: var(--fontSizeBase200);
 }
@@ -369,38 +405,25 @@ const errorBarDescription = computed(() => {
 .playback-control__focus-link {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-xs);
-  padding: var(--spacing-s) var(--spacing-m);
+  gap: var(--spacingHorizontalXS);
+  padding: var(--spacingVerticalS) var(--spacingHorizontalM);
   border-radius: var(--borderRadiusMedium);
-  background: var(--colorBrandBackgroundSelected);
+  background: var(--colorBrandBackground2);
   color: var(--colorBrandForeground1);
   font-weight: 600;
   text-decoration: none;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--colorBrandBackground) 18%, transparent);
-  transition:
-    background var(--motion-duration-medium) var(--motion-curve-ease),
-    color var(--motion-duration-medium) var(--motion-curve-ease),
-    box-shadow var(--motion-duration-medium) var(--motion-curve-ease),
-    transform var(--motion-duration-medium) var(--motion-curve-ease);
 }
 
 .playback-control__focus-link:hover {
   background: var(--colorBrandBackground);
-  color: var(--color-text-inverse);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-brand);
-}
-
-.playback-control__focus-link:focus-visible {
-  outline: none;
-  box-shadow: var(--shadow-focus);
+  color: #ffffff;
 }
 
 .playback-control__section {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-m);
-  padding: var(--spacing-l);
+  gap: var(--spacingVerticalM);
+  padding: var(--spacingVerticalL);
   border-radius: var(--borderRadiusLarge);
   background: var(--colorNeutralBackground2);
   border: 1px solid var(--colorNeutralStroke2);
@@ -409,22 +432,18 @@ const errorBarDescription = computed(() => {
 .playback-control__row {
   display: flex;
   align-items: center;
-  gap: var(--spacing-m);
+  gap: var(--spacingHorizontalM);
   flex-wrap: wrap;
-}
-
-.playback-control__row--ppt {
-  align-items: stretch;
 }
 
 .playback-control__jump {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-s);
+  gap: var(--spacingHorizontalS);
   flex: 0 0 auto;
 }
 
-.playback-control__jump :deep(.f-input) {
+.playback-control__jump :deep(.n-input) {
   width: 96px;
 }
 
@@ -434,10 +453,21 @@ const errorBarDescription = computed(() => {
   flex-wrap: nowrap;
 }
 
+.playback-control__progress,
+.playback-control__seek {
+  flex: 1 1 auto;
+}
+
 .playback-control__progress-label {
   font-variant-numeric: tabular-nums;
   color: var(--colorNeutralForeground2);
   flex-shrink: 0;
+}
+
+.playback-control__switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacingHorizontalS);
 }
 
 .playback-control__media-title {
@@ -452,16 +482,16 @@ const errorBarDescription = computed(() => {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xs);
+  gap: var(--spacingVerticalXS);
 }
 
 .playback-control__media-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--spacing-m);
-  padding: var(--spacing-s) var(--spacing-m);
-  background: var(--color-background-card);
+  gap: var(--spacingHorizontalM);
+  padding: var(--spacingVerticalS) var(--spacingHorizontalM);
+  background: var(--colorNeutralBackground1);
   border: 1px solid var(--colorNeutralStroke2);
   border-radius: var(--borderRadiusMedium);
 }
@@ -478,7 +508,7 @@ const errorBarDescription = computed(() => {
 .playback-control__media-actions {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-xs);
+  gap: var(--spacingHorizontalXS);
 }
 
 .playback-control__uri {
@@ -496,16 +526,12 @@ const errorBarDescription = computed(() => {
 @media (max-width: 767px) {
   .playback-control__heading {
     flex-direction: column;
-    gap: var(--spacing-s);
+    gap: var(--spacingVerticalS);
   }
 
   .playback-control__row {
     align-items: stretch;
     flex-direction: column;
-  }
-
-  .playback-control__row :deep(.f-button) {
-    width: 100%;
   }
 
   .playback-control__field-label {

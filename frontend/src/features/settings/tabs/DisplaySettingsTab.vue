@@ -5,13 +5,14 @@
  */
 import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-
 import {
-  FButton,
-  FCard,
-  FIcon,
-  FSegmented,
-} from '@/design-system';
+  NButton,
+  NCard,
+  NRadio,
+  NRadioGroup,
+} from 'naive-ui';
+
+import FIcon from '@/design-system/FIcon.vue';
 import { useToast } from '@/composables/useToast';
 import { useDisplayStore } from '@/stores/displays';
 import type { DisplayTargetItem } from '@/services/api';
@@ -66,18 +67,16 @@ async function applyDisplay(): Promise<void> {
 
 <template>
   <section class="settings-view__display">
-    <FCard padding="cozy">
-      <template #title>{{ t('settings.windowSelect') }}</template>
-      <FSegmented v-model="targetWindowId" :options="[
-        { label: t('settings.window', { id: 1 }), value: 1 },
-        { label: t('settings.window', { id: 2 }), value: 2 },
-        { label: t('settings.window', { id: 3 }), value: 3 },
-        { label: t('settings.window', { id: 4 }), value: 4 },
-      ]" full-width />
-    </FCard>
+    <n-card :title="t('settings.windowSelect')">
+      <n-radio-group v-model:value="targetWindowId">
+        <n-radio :value="1">{{ t('settings.window', { id: 1 }) }}</n-radio>
+        <n-radio :value="2">{{ t('settings.window', { id: 2 }) }}</n-radio>
+        <n-radio :value="3">{{ t('settings.window', { id: 3 }) }}</n-radio>
+        <n-radio :value="4">{{ t('settings.window', { id: 4 }) }}</n-radio>
+      </n-radio-group>
+    </n-card>
 
-    <FCard padding="cozy">
-      <template #title>{{ t('settings.availableDisplays') }}</template>
+    <n-card :title="t('settings.availableDisplays')">
       <div class="settings-view__display-grid">
         <button v-for="target in display.targets" :key="target.index" type="button"
           class="settings-view__display-tile"
@@ -95,11 +94,11 @@ async function applyDisplay(): Promise<void> {
           <p class="settings-view__display-meta">{{ t('settings.spliceMeta') }}</p>
         </button>
       </div>
-    </FCard>
+    </n-card>
 
-    <FButton appearance="primary" icon-start="checkmark_24_regular" :disabled="!displaySelection.label"
-      @click="applyDisplay">
+    <n-button type="primary" :disabled="!displaySelection.label" @click="applyDisplay">
+      <template #icon><FIcon name="checkmark_24_regular" /></template>
       {{ t('settings.applyToWindow', { id: targetWindowId }) }}
-    </FButton>
+    </n-button>
   </section>
 </template>

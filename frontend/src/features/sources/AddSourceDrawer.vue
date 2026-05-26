@@ -1,23 +1,24 @@
 <script setup lang="ts">
 /**
  * 添加源 Drawer / Sheet：仅暴露「上传文件」「网页」两个 Tab。
- * 设计稿 §4.4：两颗按钮分别表达「上传但不保存」与「上传并保存」。
+ * 两颗按钮分别表达「上传但不保存」与「上传并保存」。
  */
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-
 import {
-  FButton,
-  FDrawer,
-  FField,
-  FIcon,
-  FInput,
-  FMessageBar,
-  FProgress,
-  FSwitch,
-  FTabs,
-} from '@/design-system';
-import type { FTabsItem } from '@/design-system';
+  NAlert,
+  NButton,
+  NDrawer,
+  NDrawerContent,
+  NFormItem,
+  NInput,
+  NProgress,
+  NSwitch,
+  NTabs,
+  NTabPane,
+} from 'naive-ui';
+
+import FIcon from '@/design-system/FIcon.vue';
 import { useToast } from '@/composables/useToast';
 import { useSourceStore } from '@/stores/sources';
 
@@ -34,17 +35,11 @@ const toast = useToast();
 type TabId = 'file' | 'web';
 
 const activeTab = ref<TabId>('file');
-const tabs = computed<FTabsItem<TabId>[]>(() => [
-  { label: t('sources.add.tabFile'), value: 'file', icon: 'arrow_upload_24_regular' },
-  { label: t('sources.add.tabWeb'), value: 'web', icon: 'link_24_regular' },
-]);
 
 const fileToUpload = ref<File | null>(null);
 const fileDisplayName = ref('');
 const webUrl = ref('');
 const webName = ref('');
-// 网页源默认开启「预热」：播放器启动时提前加载 QWebEngineView，
-// 切换到该网页时可复用已加载视图，减少首屏白屏时间。
 const webPreheatEnabled = ref(true);
 const uploadProgress = ref(0);
 const uploading = ref(false);
@@ -62,6 +57,11 @@ const fileSize = computed(() => {
     unitIdx += 1;
   }
   return `${value.toFixed(unitIdx === 0 ? 0 : 1)} ${units[unitIdx]}`;
+});
+
+const isOpen = computed({
+  get: () => props.open,
+  set: (value: boolean) => emit('update:open', value),
 });
 
 function close(): void {
@@ -141,73 +141,85 @@ async function addWebSource(): Promise<void> {
 </script>
 
 <template>
-  <FDrawer :open="open" :title="t('sources.add.title')" :description="t('sources.add.desc')" :primary-label="t('common.add')"
-    :hide-default-actions="true" :width="480" @update:open="(value) => emit('update:open', value)">
-    <FTabs v-model="activeTab" :items="tabs" appearance="line" :aria-label="t('sources.add.typeAria')" />
+  <n-drawer v-model:show="isOpen" :width="480" placement="right">
+    <n-drawer-content :title="t('sources.add.title')" closable>
+      <p class="add-source__desc">{{ t('sources.add.desc') }}</p>
 
-    <template v-if="activeTab === 'file'">
-      <FField :label="t('sources.add.file')" required :hint="t('sources.add.fileHint')">
-        <label class="add-source__file">
-          <input ref="fileInputEl" type="file" class="visually-hidden" :disabled="uploading" @change="onFileSelect" />
-          <span class="add-source__file-info">
-            <FIcon name="arrow_upload_24_regular" />
-            <span>{{ fileLabel }}</span>
-            <span v-if="fileSize" class="add-source__file-size">{{ fileSize }}</span>
-          </span>
-          <FButton appearance="secondary" type="button" @click="triggerFilePicker">
-            {{ t('sources.add.chooseFile') }}
-          </FButton>
-        </label>
-      </FField>
-      <FField :label="t('sources.add.displayName')" :hint="t('sources.add.displayNameHint')">
-        <FInput v-model="fileDisplayName" :placeholder="t('sources.add.displayNamePlaceholder')" />
-      </FField>
+      <n-tabs v-model:value="activeTab" type="line" :aria-label="t('sources.add.typeAria')">
+        <n-tab-pane name="file" :tab="t('sources.add.tabFile')">
+          <n-form-item :label="t('sources.add.file')" required :feedback="t('sources.add.fileHint')">
+            <label class="add-source__file">
+              <input ref="fileInputEl" type="file" class="visually-hidden" :disabled="uploading" @change="onFileSelect" />
+              <span class="add-source__file-info">
+                <FIcon name="arrow_upload_24_regular" />
+                <span>{{ fileLabel }}</span>
+                <span v-if="fileSize" class="add-source__file-size">{{ fileSize }}</span>
+              </span>
+              <n-button @click="triggerFilePicker">{{ t('sources.add.chooseFile') }}</n-button>
+            </label>
+          </n-form-item>
+          <n-form-item :label="t('sources.add.displayName')" :feedback="t('sources.add.displayNameHint')">
+            <n-input v-model:value="fileDisplayName" :placeholder="t('sources.add.displayNamePlaceholder')" />
+          </n-form-item>
 
-      <FProgress v-if="uploading" :value="uploadProgress" show-label />
-    </template>
+          <n-progress v-if="uploading" type="line" :percentage="uploadProgress" />
+        </n-tab-pane>
 
-    <template v-if="activeTab === 'web'">
-      <FField :label="t('sources.add.url')" required :hint="t('sources.add.urlHint')">
-        <FInput v-model="webUrl" placeholder="https://" type="url" :aria-label="t('sources.add.url')" />
-      </FField>
-      <FField :label="t('sources.add.webName')" :hint="t('sources.add.webNameHint')">
-        <FInput v-model="webName" :placeholder="t('sources.add.webNamePlaceholder')" />
-      </FField>
-      <FField :label="t('sources.add.preheat')" :hint="t('sources.add.preheatHint')">
-        <FSwitch v-model="webPreheatEnabled" :label="t('sources.add.preheatSwitch')" />
-      </FField>
-    </template>
+        <n-tab-pane name="web" :tab="t('sources.add.tabWeb')">
+          <n-form-item :label="t('sources.add.url')" required :feedback="t('sources.add.urlHint')">
+            <n-input v-model:value="webUrl" placeholder="https://" :aria-label="t('sources.add.url')" />
+          </n-form-item>
+          <n-form-item :label="t('sources.add.webName')" :feedback="t('sources.add.webNameHint')">
+            <n-input v-model:value="webName" :placeholder="t('sources.add.webNamePlaceholder')" />
+          </n-form-item>
+          <n-form-item :label="t('sources.add.preheat')" :feedback="t('sources.add.preheatHint')">
+            <n-switch v-model:value="webPreheatEnabled">
+              <template #checked>{{ t('sources.add.preheatSwitch') }}</template>
+              <template #unchecked>{{ t('sources.add.preheatSwitch') }}</template>
+            </n-switch>
+          </n-form-item>
+        </n-tab-pane>
+      </n-tabs>
 
-    <FMessageBar v-if="errorMessage" tone="error" :title="t('sources.add.cantComplete')">
-      {{ errorMessage }}
-    </FMessageBar>
+      <n-alert v-if="errorMessage" type="error" :title="t('sources.add.cantComplete')">
+        {{ errorMessage }}
+      </n-alert>
 
-    <template #actions="{ cancel }">
-      <FButton appearance="secondary" :disabled="uploading" @click="cancel">{{ t('common.cancel') }}</FButton>
-      <template v-if="activeTab === 'file'">
-        <FButton appearance="secondary" :disabled="uploading || !fileToUpload"
-          :loading="uploading && uploadProgress < 100" @click="() => uploadFile(false)">
-          {{ t('sources.add.uploadNoSave') }}
-        </FButton>
-        <FButton appearance="primary" :disabled="uploading || !fileToUpload" :loading="uploading"
-          @click="() => uploadFile(true)">
-          {{ t('sources.add.uploadSave') }}
-        </FButton>
+      <template #footer>
+        <div class="add-source__actions">
+          <n-button :disabled="uploading" @click="close">{{ t('common.cancel') }}</n-button>
+          <template v-if="activeTab === 'file'">
+            <n-button :disabled="uploading || !fileToUpload"
+              :loading="uploading && uploadProgress < 100" @click="() => uploadFile(false)">
+              {{ t('sources.add.uploadNoSave') }}
+            </n-button>
+            <n-button type="primary" :disabled="uploading || !fileToUpload" :loading="uploading"
+              @click="() => uploadFile(true)">
+              {{ t('sources.add.uploadSave') }}
+            </n-button>
+          </template>
+          <n-button v-else type="primary" :disabled="uploading" :loading="uploading" @click="addWebSource">
+            {{ t('sources.add.addWeb') }}
+          </n-button>
+        </div>
       </template>
-      <FButton v-else appearance="primary" :disabled="uploading" :loading="uploading" @click="addWebSource">
-        {{ t('sources.add.addWeb') }}
-      </FButton>
-    </template>
-  </FDrawer>
+    </n-drawer-content>
+  </n-drawer>
 </template>
 
 <style scoped>
+.add-source__desc {
+  margin: 0 0 var(--spacingVerticalM);
+  color: var(--colorNeutralForeground2);
+  font-size: var(--fontSizeBase200);
+}
+
 .add-source__file {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--spacing-m);
-  padding: var(--spacing-m);
+  gap: var(--spacingHorizontalM);
+  padding: var(--spacingVerticalM);
   border: 1px dashed var(--colorNeutralStroke1);
   border-radius: var(--borderRadiusMedium);
   cursor: pointer;
@@ -221,7 +233,7 @@ async function addWebSource(): Promise<void> {
 .add-source__file-info {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-s);
+  gap: var(--spacingHorizontalS);
   color: var(--colorNeutralForeground2);
   flex: 1 1 auto;
   min-width: 0;
@@ -230,6 +242,26 @@ async function addWebSource(): Promise<void> {
 .add-source__file-size {
   color: var(--colorNeutralForeground3);
   font-size: var(--fontSizeBase200);
+}
+
+.add-source__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacingHorizontalS);
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 @media (max-width: 767px) {

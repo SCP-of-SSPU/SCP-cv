@@ -1,7 +1,9 @@
-import type { TagTone } from '@/design-system';
 import { t } from '@/locales';
 import type { MediaSourceItem } from '@/services/api';
 import { SOURCE_TYPE_TO_CATEGORY, type SourceCategory } from '@/stores/sources';
+
+/** NUI NTag 兼容的 type；'default' 对齐原 'subtle'。 */
+export type SourceTagType = 'default' | 'info' | 'success' | 'warning' | 'error';
 
 /** 将后端 source_type 聚合成前端可视大类。 */
 export function resolveSourceCategory(source: MediaSourceItem): SourceCategory {
@@ -45,7 +47,7 @@ export function sourceCategoryIcon(source: MediaSourceItem): string {
 }
 
 /** 媒体源类型标签色彩，直播源额外体现在线状态。 */
-export function sourceCategoryTone(source: MediaSourceItem): TagTone {
+export function sourceCategoryTone(source: MediaSourceItem): SourceTagType {
   switch (resolveSourceCategory(source)) {
     case 'ppt':
       return 'info';
@@ -53,10 +55,10 @@ export function sourceCategoryTone(source: MediaSourceItem): TagTone {
       return 'success';
     case 'image':
     case 'web':
-      return 'subtle';
+      return 'default';
     case 'stream':
       return source.is_available ? 'warning' : 'error';
     default:
-      return 'subtle';
+      return 'default';
   }
 }
