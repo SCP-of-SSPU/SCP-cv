@@ -47,6 +47,7 @@ def test_sources_api_lists_media_sources(media_source_ppt: MediaSource) -> None:
     payload = response.json()
     assert payload["success"] is True
     assert payload["sources"][0]["id"] == media_source_ppt.pk
+    assert payload["sources"][0]["ppt_backend"] == "libreoffice"
     assert "preview_url" in payload["sources"][0]
     assert "thumbnail_url" in payload["sources"][0]
 
@@ -66,6 +67,7 @@ def test_playback_open_api_updates_session(media_source_ppt: MediaSource) -> Non
     payload = response.json()
     assert payload["success"] is True
     assert payload["sessions"][0]["source_name"] == media_source_ppt.name
+    assert payload["sessions"][0]["ppt_backend"] == "libreoffice"
 
 
 @pytest.mark.django_db
@@ -247,6 +249,50 @@ def test_ppt_media_control_api_sets_command(media_source_ppt: MediaSource) -> No
     assert response.status_code == 200
     assert session.pending_command == PlaybackCommand.PPT_MEDIA
     assert session.command_args["media_id"] == "m1"
+
+
+@pytest.mark.django_db
+def test_switch_ppt_backend_api_reopens_current_ppt(media_source_ppt: MediaSource) -> None:
+    """POST /api/playback/{window}/ppt-backend/ 应临时切换 PPT 播放器。"""
+    client = Client()
+    client.post(
+        "/api/playback/1/open/",
+        data={"source_id": media_source_ppt.pk, "autoplay": True},
+        content_type="application/json",
+    )
+
+    response = client.post(
+        "/api/playback/1/ppt-backend/",
+        data={"ppt_backend": "powerpoint"},
+        content_type="application/json",
+    )
+    session = PlaybackSession.objects.get(window_id=1)
+
+    assert response.status_code == 200
+    assert session.pending_command == PlaybackCommand.OPEN
+    assert session.command_args["ppt_backend"] == "powerpoint"
+
+
+@pytest.mark.django_db
+def test_reset_ppt_playback_api_requests_ppt_reset(media_source_ppt: MediaSource) -> None:
+    """POST /api/playback/reset-ppt/ 应下发 PPT 重置指令并保留页码。"""
+    client = Client()
+    client.post(
+        "/api/playback/1/open/",
+        data={"source_id": media_source_ppt.pk, "autoplay": True, "ppt_backend": "powerpoint"},
+        content_type="application/json",
+    )
+    session = PlaybackSession.objects.get(window_id=1)
+    session.current_slide = 6
+    session.total_slides = 9
+    session.save(update_fields=["current_slide", "total_slides"])
+
+    response = client.post("/api/playback/reset-ppt/")
+    session.refresh_from_db()
+
+    assert response.status_code == 200
+    assert session.pending_command == PlaybackCommand.RESET_PPT
+    assert session.command_args["restart_sessions"][0]["target_slide"] == 6
 
 
 @pytest.mark.django_db

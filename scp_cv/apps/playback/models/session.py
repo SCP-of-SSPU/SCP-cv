@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from django.db import models
 
-from .enums import PlaybackCommand, PlaybackMode, PlaybackState
+from .enums import PlaybackCommand, PlaybackMode, PlaybackState, PptPlaybackBackend
 from .media import MediaSource
 
 
@@ -81,6 +81,13 @@ class PlaybackSession(models.Model):
     total_slides = models.IntegerField(
         default=0,
         verbose_name="总页数",
+    )
+    ppt_backend = models.CharField(
+        max_length=24,
+        choices=PptPlaybackBackend.choices,
+        default=PptPlaybackBackend.LIBREOFFICE,
+        verbose_name="当前 PPT 播放器",
+        help_text="记录当前窗口本次 PPT 放映实际使用的播放器。",
     )
 
     # ── 时间线型源状态（视频/音频） ──

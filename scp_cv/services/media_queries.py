@@ -14,6 +14,7 @@ from typing import Optional
 
 from scp_cv.apps.playback.models import MediaSource
 from scp_cv.services.media_previews import source_preview_payload
+from scp_cv.ppt_backend import DEFAULT_PPT_BACKEND, ppt_backend_label
 
 
 def list_media_sources(
@@ -60,6 +61,8 @@ def media_source_payload(source: MediaSource) -> dict[str, object]:
         "metadata": source.metadata,
         "keep_alive": keep_alive,
         "preheat_enabled": keep_alive,
+        "ppt_backend": getattr(source, "ppt_backend", DEFAULT_PPT_BACKEND),
+        "ppt_backend_label": ppt_backend_label(getattr(source, "ppt_backend", DEFAULT_PPT_BACKEND)),
         "created_at": source.created_at.isoformat() if source.created_at else "",
     }
     payload.update(source_preview_payload(source))

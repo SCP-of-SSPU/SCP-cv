@@ -13,6 +13,7 @@ import {
   NFormItem,
   NInput,
   NProgress,
+  NSelect,
   NSpin,
   NTabs,
   NTabPane,
@@ -20,10 +21,11 @@ import {
 } from 'naive-ui';
 
 import FIcon from '@/design-system/FIcon.vue';
+import { useDialog } from '@/composables/useDialog';
 import { useToast } from '@/composables/useToast';
 import { useSessionStore } from '@/stores/sessions';
 import { useSourceStore, type SourceCategory } from '@/stores/sources';
-import type { MediaSourceItem } from '@/services/api';
+import type { MediaSourceItem, PptBackend } from '@/services/api';
 import SourceThumbnail from '../sources/SourceThumbnail.vue';
 import { sourceCategoryLabel } from '../sources/sourcePresentation';
 
@@ -33,12 +35,15 @@ const { t } = useI18n();
 const sourceStore = useSourceStore();
 const sessionStore = useSessionStore();
 const toast = useToast();
+const dialog = useDialog();
 
 const filterValue = ref<SourceCategory>('all');
 const searchKeyword = ref('');
 const expanded = ref(false);
 const fileToUpload = ref<File | null>(null);
 const fileDisplayName = ref('');
+const filePptBackend = ref<PptBackend>('libreoffice');
+const pptOpenBackend = ref<PptBackend | 'source-default'>('source-default');
 const uploadProgress = ref(0);
 const uploading = ref(false);
 const uploadError = ref('');
@@ -55,10 +60,33 @@ const filteredSources = computed<MediaSourceItem[]>(() => {
     return hay.includes(keyword);
   });
 });
+const isPptUpload = computed(() => /\.(pptx?|ppsx?)$/i.test(fileToUpload.value?.name ?? ''));
+const hasPptSources = computed(() => sourceStore.sources.some((source) => source.source_type === 'ppt'));
+const pptBackendOptions = computed(() => [
+  { label: t('sourcePicker.pptBackendDefault'), value: 'source-default' },
+  { label: t('sources.pptBackend.libreoffice'), value: 'libreoffice' },
+  { label: t('sources.pptBackend.powerpoint'), value: 'powerpoint' },
+]);
+const pptBackendStrictOptions = computed(() => [
+  { label: t('sources.pptBackend.libreoffice'), value: 'libreoffice' },
+  { label: t('sources.pptBackend.powerpoint'), value: 'powerpoint' },
+]);
 
 async function selectSource(source: MediaSourceItem): Promise<void> {
   try {
-    await sessionStore.openSource(props.windowId, source.id, true);
+    const selectedBackend = source.source_type === 'ppt' && pptOpenBackend.value !== 'source-default'
+      ? pptOpenBackend.value
+      : undefined;
+    if (selectedBackend && selectedBackend !== source.ppt_backend) {
+      const confirmed = await dialog.confirm({
+        title: t('sourcePicker.switchPptBackendTitle'),
+        description: t('sourcePicker.switchPptBackendDesc', { backend: selectedBackend === 'libreoffice' ? t('sources.pptBackend.libreoffice') : t('sources.pptBackend.powerpoint') }),
+        confirmLabel: t('sourcePicker.switchPptBackendConfirm'),
+        cancelLabel: t('common.cancel'),
+      });
+      if (!confirmed) return;
+    }
+    await sessionStore.openSource(props.windowId, source.id, true, selectedBackend);
     toast.success(t('sourcePicker.openedOk', { name: source.name }));
   } catch (error) {
     toast.error(t('sourcePicker.openFail'), error instanceof Error ? error.message : t('common.retry'));
@@ -82,14 +110,16 @@ async function uploadAndOpen(persist: boolean): Promise<void> {
     const result = await sourceStore.upload(fileToUpload.value, {
       name: fileDisplayName.value.trim() || undefined,
       isTemporary: !persist,
+      pptBackend: isPptUpload.value ? filePptBackend.value : undefined,
       onProgress: (percent) => {
         uploadProgress.value = percent;
       },
     });
-    await sessionStore.openSource(props.windowId, result.id, true);
+    await sessionStore.openSource(props.windowId, result.id, true, result.source_type === 'ppt' ? result.ppt_backend : undefined);
     toast.success(persist ? t('sourcePicker.uploadedOpenedSave') : t('sourcePicker.uploadedOpenedNoSave'), t('sourcePicker.sourceNameDetail', { name: result.name }));
     fileToUpload.value = null;
     fileDisplayName.value = '';
+    filePptBackend.value = 'libreoffice';
     if (fileInputRef.value) fileInputRef.value.value = '';
   } catch (error) {
     uploadError.value = error instanceof Error ? error.message : t('sourcePicker.uploadFail');
@@ -127,6 +157,10 @@ const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.v
       <n-tab-pane name="web" :tab="t('sourcePicker.filter.web')" />
       <n-tab-pane name="stream" :tab="t('sourcePicker.filter.stream')" />
     </n-tabs>
+
+    <n-form-item v-if="hasPptSources" :label="t('sourcePicker.pptBackend')" :feedback="t('sourcePicker.pptBackendHint')">
+      <n-select v-model:value="pptOpenBackend" :options="pptBackendOptions" size="small" />
+    </n-form-item>
 
     <ul class="source-picker__list">
       <li v-if="filteredSources.length === 0" class="source-picker__empty">
@@ -170,6 +204,9 @@ const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.v
         </n-form-item>
         <n-form-item :label="t('sourcePicker.displayName')" :feedback="t('sourcePicker.displayNameHint')">
           <n-input v-model:value="fileDisplayName" :placeholder="t('sourcePicker.displayNamePlaceholder')" />
+        </n-form-item>
+        <n-form-item v-if="isPptUpload" :label="t('sources.pptBackend.label')" :feedback="t('sources.pptBackend.importHint')">
+          <n-select v-model:value="filePptBackend" :options="pptBackendStrictOptions" />
         </n-form-item>
         <p v-if="uploadError" class="source-picker__upload-error">{{ uploadError }}</p>
         <n-progress v-if="uploading" type="line" :percentage="uploadProgress" />

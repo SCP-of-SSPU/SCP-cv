@@ -23,8 +23,10 @@ from .playback import (
 	get_session_snapshot,
 	navigate_content,
 	open_source,
+	reset_ppt_playback,
 	select_display_target,
 	stop_current_content,
+	switch_ppt_backend,
 	update_playback_progress,
 )
 from .sse import (
@@ -64,8 +66,10 @@ __all__ = [
 	"get_session_snapshot",
 	"navigate_content",
 	"open_source",
+	"reset_ppt_playback",
 	"select_display_target",
 	"stop_current_content",
+	"switch_ppt_backend",
 	"update_playback_progress",
 	"event_stream",
 	"get_current_sequence",

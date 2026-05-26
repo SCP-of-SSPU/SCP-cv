@@ -36,6 +36,7 @@ from scp_cv.services.media_types import (
     detect_source_type,
     guess_mime_type as _guess_mime_type,
 )
+from scp_cv.ppt_backend import DEFAULT_PPT_BACKEND, normalize_ppt_backend
 from scp_cv.services.media_previews import get_source_preview_file_info as get_source_preview_file_info
 from scp_cv.services.media_queries import (
     list_media_sources as list_media_sources,
@@ -61,6 +62,7 @@ def add_uploaded_file(
     source_type: Optional[str] = None,
     folder_id: Optional[int] = None,
     is_temporary: bool = False,
+    ppt_backend: Optional[str] = None,
 ) -> MediaSource:
     """
     通过 Web 上传添加媒体源，文件保存到 media/uploads/。
@@ -69,6 +71,7 @@ def add_uploaded_file(
     :param source_type: 源类型，默认自动检测
     :param folder_id: 所属文件夹 ID
     :param is_temporary: 是否为临时源
+    :param ppt_backend: PPT 播放器后端，仅 PPT 源生效
     :return: 创建的 MediaSource 实例
     :raises MediaError: 文件类型无法识别时
     """
@@ -96,6 +99,7 @@ def add_uploaded_file(
         folder=folder,
         is_temporary=is_temporary,
         expires_at=timezone.now() + timedelta(days=1) if is_temporary else None,
+        ppt_backend=_ppt_backend_for_source_type(source_type, ppt_backend),
     )
     media_source.uploaded_file.save(file_name, uploaded_file, save=False)
     media_source.uri = media_source.uploaded_file.path
@@ -111,6 +115,7 @@ def add_local_path(
     display_name: Optional[str] = None,
     source_type: Optional[str] = None,
     folder_id: Optional[int] = None,
+    ppt_backend: Optional[str] = None,
 ) -> MediaSource:
     """
     通过本地路径注册媒体源。
@@ -118,6 +123,7 @@ def add_local_path(
     :param display_name: 显示名称，默认使用文件名
     :param source_type: 源类型，默认自动检测
     :param folder_id: 所属文件夹 ID
+    :param ppt_backend: PPT 播放器后端，仅 PPT 源生效
     :return: 创建的 MediaSource 实例
     :raises MediaError: 文件不存在或类型无法识别时
     """
@@ -148,6 +154,7 @@ def add_local_path(
         file_size=resolved_path.stat().st_size,
         mime_type=_guess_mime_type(resolved_path.name),
         folder=folder,
+        ppt_backend=_ppt_backend_for_source_type(source_type, ppt_backend),
     )
     _prepare_ppt_source_resources(media_source)
 
@@ -255,6 +262,22 @@ def _prepare_ppt_source_resources(source: MediaSource) -> None:
     :return: None
     """
     _ppt_resources.prepare_ppt_source_resources(source, preview_exporter=_export_ppt_slide_previews)
+
+
+def _ppt_backend_for_source_type(source_type: str, raw_backend: Optional[str]) -> str:
+    """
+    根据源类型规范化 PPT 播放器后端。
+    :param source_type: 媒体源类型
+    :param raw_backend: 请求中传入的后端值
+    :return: 可保存的 PPT 后端值
+    :raises MediaError: PPT 后端不受支持时
+    """
+    if source_type != SourceType.PPT:
+        return DEFAULT_PPT_BACKEND
+    try:
+        return normalize_ppt_backend(raw_backend)
+    except ValueError as backend_error:
+        raise MediaError(str(backend_error)) from backend_error
 
 
 def _export_ppt_slide_previews(file_path: Path, source_id: int) -> list[str]:

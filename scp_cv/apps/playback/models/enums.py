@@ -25,6 +25,13 @@ class SourceType(models.TextChoices):
     SRT_STREAM = "srt_stream", "SRT 流"
 
 
+class PptPlaybackBackend(models.TextChoices):
+    """PPT 放映后端枚举，由媒体源或本次打开请求显式选择。"""
+
+    LIBREOFFICE = "libreoffice", "LibreOffice（稳定）"
+    POWERPOINT = "powerpoint", "Microsoft PowerPoint"
+
+
 class PlaybackMode(models.TextChoices):
     """播放目标布局。"""
 
@@ -67,6 +74,7 @@ class PlaybackCommand(models.TextChoices):
     SET_VOLUME = "set_volume", "设置音量"
     SET_MUTE = "set_mute", "设置静音"
     PPT_MEDIA = "ppt_media", "控制 PPT 当前页媒体"
+    RESET_PPT = "reset_ppt", "重置 PPT 放映"
     SHOW_ID = "show_id", "显示窗口 ID"
 
 

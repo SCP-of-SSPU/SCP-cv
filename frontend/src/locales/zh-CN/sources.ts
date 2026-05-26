@@ -59,6 +59,13 @@ export default {
       stream: '直播',
       other: '其它',
     },
+    pptBackend: {
+      label: 'PPT 播放器',
+      libreoffice: 'LibreOffice（稳定）',
+      powerpoint: 'Microsoft PowerPoint',
+      importHint: '该选择会保存为此 PPT 的默认放映播放器。',
+      editHint: '修改后只影响后续打开；正在放映的窗口不会被打断。',
+    },
     add: {
       title: '添加媒体源',
       desc: '仅支持上传文件或注册网页 URL；直播源由推流端自动注入。',

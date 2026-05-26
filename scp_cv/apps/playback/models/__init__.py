@@ -15,6 +15,7 @@ from .enums import (
     PlaybackCommand,
     PlaybackMode,
     PlaybackState,
+    PptPlaybackBackend,
     SourceState,
     SourceType,
 )
@@ -32,6 +33,7 @@ __all__ = [
     "PlaybackMode",
     "PlaybackSession",
     "PlaybackState",
+    "PptPlaybackBackend",
     "PptResource",
     "RuntimeState",
     "Scenario",

@@ -356,6 +356,7 @@ class PlayerController(PlayerCommandHandlersMixin, QObject):
             PlaybackCommand.SET_VOLUME: self._handle_set_volume,
             PlaybackCommand.SET_MUTE: self._handle_set_mute,
             PlaybackCommand.PPT_MEDIA: self._handle_ppt_media,
+            PlaybackCommand.RESET_PPT: self._handle_reset_ppt,
             PlaybackCommand.SHOW_ID: self._handle_show_id,
         }
 

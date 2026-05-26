@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## 2026-05-26
+
+### 迁移 PPT 后端并支持显式播放器选择
+
+- 播放器：新增 LibreOffice Impress PPT 适配器，通过独立 UNO pipe 和隔离 profile 启动放映，窗口查找支持 `SALFRAME` / `SALSUBFRAME` 并继续嵌入 PySide 播放窗口。
+- 播放器：PPT 工厂切换为后端路由，导入或编辑 PPT 媒体源时显式选择 `LibreOffice（稳定）` / `Microsoft PowerPoint`；已删除 `auto` 模式，不再按系统配置或失败情况隐式回退。
+- PPT 控制：LibreOffice 路径使用 `gotoNextEffect()` / `gotoPreviousEffect()` 保留动画级推进，服务层不再按页边界拦截 PPT next/prev，跳页按 1-based 前端页码转换为 UNO 0-based 页码；页面媒体控制改用 `XSlideShow.startShapeActivity()` / `stopShapeActivity()` 控制媒体形状。
+- PPT 控制：显控页可对当前 PPT 放映临时切换播放器，切换前二次确认，切换后关闭旧后端、重开原 PPT 并跳回切换前页码；右上角新增“重置 PPT 放映”，用于关闭 LibreOffice / PowerPoint 后端进程并恢复原页。
+- 预览导出：PPT PNG 预览按媒体源选择的播放器导出，选择 LibreOffice 就只使用 LibreOffice，选择 PowerPoint 就只使用 PowerPoint，不再自动兜底。
+- 配置与文档：保留 `LIBREOFFICE_BIN_PATH`、`LIBREOFFICE_CONNECT_TIMEOUT_SECONDS`，移除 `SCP_CV_PPT_BACKEND` 配置说明，更新 README、使用文档和维护文档。
+- 测试：补充 PPT 后端路由、LibreOffice 适配器、LibreOffice HWND 查找、预览后端选择测试，并保留原 PowerPoint 适配器测试。
+
 ## 2026-05-15
 
 ### 完善 gRPC 媒体源接口与状态端点

@@ -10,7 +10,6 @@ PPT 媒体源资源解析服务，负责页资源、备注、嵌入媒体和预�
 from __future__ import annotations
 
 import logging
-import os
 import re
 import zipfile
 from pathlib import Path
@@ -21,10 +20,10 @@ from django.conf import settings
 
 from scp_cv.apps.playback.models import MediaSource, PptResource, SourceType
 from scp_cv.services.media_types import MediaError
+from scp_cv.services import ppt_preview
 
 logger = logging.getLogger(__name__)
 
-_PPT_ALERTS_NONE = 1
 PreviewExporter = Callable[[Path, int], list[str]]
 ResourcePreparer = Callable[[MediaSource], None]
 
@@ -101,65 +100,12 @@ def resolve_ppt_image_path(image_reference: str) -> Optional[Path]:
 
 def export_ppt_slide_previews(file_path: Path, source_id: int) -> list[str]:
     """
-    使用本机 PowerPoint 将每页幻灯片导出为 PNG 预览。
+    使用当前 PPT 后端策略导出每页 PNG 预览，默认 LibreOffice 优先。
     :param file_path: PPT 文件路径
     :param source_id: 媒体源 ID，用于隔离导出目录
     :return: 按页码排序的媒体 URL 列表；不可导出时返回空列表
     """
-    if os.name != "nt" or not file_path.is_file() or not _is_powerpoint_export_candidate(file_path):
-        return []
-    try:
-        import pythoncom
-        import win32com.client
-    except ImportError as import_error:
-        logger.info("PPT 预览导出跳过，缺少 COM 依赖：%s", import_error)
-        return []
-
-    relative_dir = Path("ppt_previews") / str(source_id)
-    preview_dir = Path(settings.MEDIA_ROOT) / relative_dir
-    preview_dir.mkdir(parents=True, exist_ok=True)
-    for old_preview in preview_dir.glob("*.png"):
-        old_preview.unlink(missing_ok=True)
-
-    pythoncom.CoInitialize()
-    ppt_app: Optional[object] = None
-    presentation: Optional[object] = None
-    try:
-        ppt_app = win32com.client.DispatchEx("PowerPoint.Application")
-        ppt_app.DisplayAlerts = _PPT_ALERTS_NONE
-        presentation = ppt_app.Presentations.Open(
-            str(file_path),
-            ReadOnly=True,
-            Untitled=False,
-            WithWindow=False,
-        )
-        preview_paths: list[str] = []
-        slide_count = int(presentation.Slides.Count)
-        for page_index in range(1, slide_count + 1):
-            output_path = preview_dir / f"slide-{page_index}.png"
-            presentation.Slides(page_index).Export(str(output_path), "PNG")
-            relative_path = (relative_dir / output_path.name).as_posix()
-            preview_paths.append(f"{settings.MEDIA_URL.rstrip('/')}/{relative_path}")
-        return preview_paths
-    except Exception as export_error:
-        logger.info("PPT 预览导出失败：%s", export_error)
-        return []
-    finally:
-        if presentation is not None:
-            try:
-                presentation.Saved = True
-                presentation.Close()
-            except Exception:
-                pass
-        if ppt_app is not None:
-            try:
-                ppt_app.Quit()
-            except Exception:
-                pass
-        try:
-            pythoncom.CoUninitialize()
-        except Exception:
-            pass
+    return ppt_preview.export_ppt_slide_previews(file_path, source_id)
 
 
 def list_ppt_resources(
@@ -212,7 +158,7 @@ def replace_ppt_resources(source_id: int, resources: list[dict[str, object]]) ->
 
 def _apply_preview_paths(resources: list[dict[str, object]], preview_paths: list[str]) -> None:
     """
-    将 PowerPoint 导出的 PNG 预览写入解析资源。
+    将 PPT 后端导出的 PNG 预览写入解析资源。
     :param resources: PPT 页资源字典列表
     :param preview_paths: 按页码排序的预览 URL 列表
     :return: None
@@ -239,24 +185,6 @@ def _resources_from_preview_paths(preview_paths: list[str]) -> list[dict[str, ob
             "media_items": [],
         })
     return resources
-
-
-def _is_powerpoint_export_candidate(file_path: Path) -> bool:
-    """
-    粗略判断文件是否适合交给 PowerPoint COM 导出，避免测试用简化 zip 触发修复弹窗。
-    :param file_path: 待导出的 PPT 文件路径
-    :return: True 表示可尝试导出预览
-    """
-    suffix = file_path.suffix.lower()
-    if suffix in {".ppt", ".pps"}:
-        return True
-    if suffix not in {".pptx", ".ppsx"}:
-        return False
-    try:
-        with zipfile.ZipFile(file_path) as archive:
-            return "[Content_Types].xml" in archive.namelist()
-    except (zipfile.BadZipFile, OSError):
-        return False
 
 
 def _extract_pptx_resources(file_path: Path) -> list[dict[str, object]]:

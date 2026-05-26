@@ -44,6 +44,7 @@ from scp_cv.services.playback_window_controls import (
     set_window_volume as set_window_volume,
     toggle_loop_playback as toggle_loop_playback,
 )
+from scp_cv.ppt_backend import DEFAULT_PPT_BACKEND, normalize_ppt_backend
 from scp_cv.services.video_wall import VideoWallError, apply_big_screen_mode as apply_video_wall_mode
 
 logger = logging.getLogger(__name__)
@@ -142,12 +143,20 @@ def apply_runtime_audio_policy() -> None:
         session.save(update_fields=["is_muted", "pending_command", "command_args"])
 
 
-def open_source(window_id: int, media_source_id: int, autoplay: bool = True) -> PlaybackSession:
+def open_source(
+    window_id: int,
+    media_source_id: int,
+    autoplay: bool = True,
+    ppt_backend: Optional[str] = None,
+    target_slide: int = 0,
+) -> PlaybackSession:
     """
     打开指定媒体源到指定窗口。
     :param window_id: 目标窗口编号（1-4）
     :param media_source_id: MediaSource 主键
     :param autoplay: 是否自动开始播放
+    :param ppt_backend: PPT 源本次打开使用的播放器；空值时使用媒体源默认播放器
+    :param target_slide: PPT 打开后自动跳转的页码（从 1 开始）
     :return: 更新后的播放会话
     :raises PlaybackError: 源不存在时
     """
@@ -158,13 +167,19 @@ def open_source(window_id: int, media_source_id: int, autoplay: bool = True) -> 
 
     session = get_or_create_session(window_id)
     previous_source_id = session.media_source_id
-    previous_source_is_temporary = bool(session.media_source and session.media_source.is_temporary)
+    previous_source_is_temporary = bool(
+        session.media_source
+        and session.media_source.is_temporary
+        and previous_source_id != source.pk
+    )
+    resolved_ppt_backend = _resolve_ppt_backend(source, ppt_backend)
     # 先关闭当前内容
     _reset_playback_fields(session)
 
     session.media_source = source
     session.playback_state = PlaybackState.LOADING
     session.is_muted = _is_muted_by_runtime(window_id)
+    session.ppt_backend = resolved_ppt_backend
     session.pending_command = PlaybackCommand.OPEN
     session.command_args = {
         "source_id": source.pk,
@@ -175,11 +190,94 @@ def open_source(window_id: int, media_source_id: int, autoplay: bool = True) -> 
         "muted": session.is_muted,
         "preheat_enabled": bool(getattr(source, "keep_alive", True)),
     }
+    if source.source_type == SourceType.PPT:
+        session.command_args["ppt_backend"] = resolved_ppt_backend
+        if target_slide > 0:
+            session.command_args["target_slide"] = int(target_slide)
     if previous_source_is_temporary:
         session.command_args["cleanup_source_id"] = previous_source_id
     session.save()
-    logger.info("窗口 %d 打开媒体源「%s」（%s: %s）", window_id, source.name, source.source_type, source.uri)
+    logger.info(
+        "窗口 %d 打开媒体源「%s」（%s: %s，ppt_backend=%s）",
+        window_id, source.name, source.source_type, source.uri, resolved_ppt_backend,
+    )
     return session
+
+
+def switch_ppt_backend(window_id: int, ppt_backend: str) -> PlaybackSession:
+    """
+    临时切换当前窗口 PPT 放映播放器，并保持原源与页码重启。
+    :param window_id: 窗口编号（1-4）
+    :param ppt_backend: 目标 PPT 播放器后端
+    :return: 更新后的播放会话
+    :raises PlaybackError: 当前窗口未打开 PPT 或后端无效时
+    """
+    session = get_or_create_session(window_id)
+    if session.media_source is None:
+        raise PlaybackError(f"窗口 {window_id} 当前没有打开的媒体源")
+    if session.media_source.source_type != SourceType.PPT:
+        raise PlaybackError("当前窗口未打开 PPT 源")
+    try:
+        normalized_backend = normalize_ppt_backend(ppt_backend)
+    except ValueError as backend_error:
+        raise PlaybackError(str(backend_error)) from backend_error
+    target_slide = max(1, int(session.current_slide or 1))
+    previous_volume = session.volume
+    previous_muted = session.is_muted
+    logger.info(
+        "窗口 %d 临时切换 PPT 播放器为 %s，并回到第 %d 页",
+        window_id, normalized_backend, target_slide,
+    )
+    switched_session = open_source(
+        window_id,
+        int(session.media_source_id),
+        autoplay=True,
+        ppt_backend=normalized_backend,
+        target_slide=target_slide,
+    )
+    switched_session.volume = previous_volume
+    switched_session.is_muted = previous_muted
+    switched_session.command_args["volume"] = previous_volume
+    switched_session.command_args["muted"] = previous_muted
+    switched_session.save(update_fields=["volume", "is_muted", "command_args", "last_updated_at"])
+    return switched_session
+
+
+def reset_ppt_playback() -> list[PlaybackSession]:
+    """
+    重置所有 PPT 放映后端进程，并让当前 PPT 窗口回到重置前页码。
+    :return: 更新后的会话列表
+    """
+    restart_sessions: list[dict[str, object]] = []
+    updated_sessions: list[PlaybackSession] = []
+    for window_id in sorted(VALID_WINDOW_IDS):
+        session = get_or_create_session(window_id)
+        if session.media_source is None or session.media_source.source_type != SourceType.PPT:
+            continue
+        restart_args = _ppt_restart_args(session)
+        restart_sessions.append(restart_args)
+        session.playback_state = PlaybackState.LOADING
+        session.error_message = ""
+        session.pending_command = PlaybackCommand.NONE
+        session.command_args = {}
+        session.save(update_fields=[
+            "playback_state",
+            "error_message",
+            "pending_command",
+            "command_args",
+            "last_updated_at",
+        ])
+        updated_sessions.append(session)
+
+    coordinator_window_id = min(VALID_WINDOW_IDS)
+    coordinator = get_or_create_session(coordinator_window_id)
+    coordinator.pending_command = PlaybackCommand.RESET_PPT
+    coordinator.command_args = {"restart_sessions": restart_sessions}
+    coordinator.save(update_fields=["pending_command", "command_args", "last_updated_at"])
+    if coordinator not in updated_sessions:
+        updated_sessions.append(coordinator)
+    logger.info("已请求重置 PPT 放映，待重启窗口数=%d", len(restart_sessions))
+    return updated_sessions
 
 
 def control_playback(window_id: int, action: str) -> PlaybackSession:
@@ -278,9 +376,48 @@ def control_ppt_media(
     return session
 
 
+def _resolve_ppt_backend(source: MediaSource, raw_backend: Optional[str]) -> str:
+    """
+    解析 PPT 源本次放映使用的播放器后端。
+    :param source: 媒体源
+    :param raw_backend: 本次请求覆盖值
+    :return: PPT 后端枚举值
+    :raises PlaybackError: 后端值无效时
+    """
+    if source.source_type != SourceType.PPT:
+        return DEFAULT_PPT_BACKEND
+    try:
+        return normalize_ppt_backend(raw_backend or getattr(source, "ppt_backend", DEFAULT_PPT_BACKEND))
+    except ValueError as backend_error:
+        raise PlaybackError(str(backend_error)) from backend_error
+
+
+def _ppt_restart_args(session: PlaybackSession) -> dict[str, object]:
+    """
+    为 PPT 重启构造播放器 OPEN 指令参数。
+    :param session: 当前 PPT 播放会话
+    :return: 可直接交给播放器 _handle_open 的参数字典
+    """
+    source = session.media_source
+    if source is None:
+        return {}
+    return {
+        "window_id": session.window_id,
+        "source_id": source.pk,
+        "source_type": source.source_type,
+        "uri": source.uri,
+        "autoplay": True,
+        "volume": session.volume,
+        "muted": session.is_muted,
+        "preheat_enabled": bool(getattr(source, "keep_alive", True)),
+        "ppt_backend": _resolve_ppt_backend(source, session.ppt_backend),
+        "target_slide": max(1, int(session.current_slide or 1)),
+    }
+
+
 def _navigation_is_noop(session: PlaybackSession, action: str, target_index: int) -> bool:
     """
-    校验翻页/跳页边界，并判断是否应保持当前页不下发指令。
+    校验导航动作，并判断是否应保持当前页不下发指令。
     :param session: 当前播放会话
     :param action: 导航动作
     :param target_index: 目标页码
@@ -295,10 +432,6 @@ def _navigation_is_noop(session: PlaybackSession, action: str, target_index: int
                 raise PlaybackError("PPT 跳页页码必须大于 0")
             if session.total_slides > 0 and target_index > session.total_slides:
                 raise PlaybackError(f"PPT 跳页页码超出范围：{target_index}/{session.total_slides}")
-        if action == PlaybackCommand.PREV and 0 < session.current_slide <= 1:
-            return True
-        if action == PlaybackCommand.NEXT and session.total_slides > 0 and session.current_slide >= session.total_slides:
-            return True
     elif action in {PlaybackCommand.NEXT, PlaybackCommand.PREV, PlaybackCommand.GOTO}:
         raise PlaybackError("当前源不是翻页型内容")
     return False
@@ -330,6 +463,7 @@ def close_source(window_id: int) -> PlaybackSession:
         session.error_message = ""
         session.current_slide = 0
         session.total_slides = 0
+        session.ppt_backend = DEFAULT_PPT_BACKEND
         session.position_ms = 0
         session.duration_ms = 0
         session.save()
@@ -482,6 +616,7 @@ def _reset_playback_fields(session: PlaybackSession) -> None:
     session.error_message = ""
     session.current_slide = 0
     session.total_slides = 0
+    session.ppt_backend = DEFAULT_PPT_BACKEND
     session.position_ms = 0
     session.duration_ms = 0
     session.loop_enabled = False

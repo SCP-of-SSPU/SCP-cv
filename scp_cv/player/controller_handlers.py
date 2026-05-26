@@ -45,6 +45,8 @@ class PlayerCommandHandlersMixin:
         autoplay = bool(command_args.get("autoplay", True))
         source_id = int(command_args.get("source_id") or 0)
         preheat_enabled = bool(command_args.get("preheat_enabled", False))
+        ppt_backend = str(command_args.get("ppt_backend", "")).strip()
+        target_slide = int(command_args.get("target_slide") or 0)
 
         if not source_type or not uri:
             logger.warning("窗口 %d：OPEN 指令缺少 source_type 或 uri", window_id)
@@ -53,7 +55,8 @@ class PlayerCommandHandlersMixin:
         self._close_adapter(window_id)
         self._cleanup_temporary_source(command_args)
 
-        adapter = create_adapter(source_type)
+        adapter_options = {"ppt_backend": ppt_backend} if source_type == "ppt" and ppt_backend else {}
+        adapter = create_adapter(source_type, **adapter_options)
         window_handle = self.get_window_handle(window_id)
         if window_handle == 0:
             logger.warning("窗口 %d 没有可用句柄，跳过 OPEN", window_id)
@@ -69,6 +72,8 @@ class PlayerCommandHandlersMixin:
                     adapter.set_preheat_context(source_id, preheat_enabled, self._web_preheat_pool)
 
         adapter.open(uri=uri, window_handle=window_handle, autoplay=autoplay)
+        if source_type == "ppt" and target_slide > 0:
+            adapter.goto_item(target_slide)
         adapter.set_volume(int(command_args.get("volume", 100)))
         adapter.set_mute(bool(command_args.get("muted", False)))
         self._adapters[window_id] = adapter
@@ -123,7 +128,7 @@ class PlayerCommandHandlersMixin:
         if window is not None:
             window.show_black_screen()
 
-        from scp_cv.apps.playback.models import PlaybackState, PlaybackSession
+        from scp_cv.apps.playback.models import PlaybackState, PlaybackSession, PptPlaybackBackend
         session = PlaybackSession.objects.filter(window_id=window_id).first()
         if session is not None:
             session.media_source = None
@@ -131,6 +136,7 @@ class PlayerCommandHandlersMixin:
             session.error_message = ""
             session.current_slide = 0
             session.total_slides = 0
+            session.ppt_backend = PptPlaybackBackend.LIBREOFFICE
             session.position_ms = 0
             session.duration_ms = 0
             session.save()
@@ -164,7 +170,7 @@ class PlayerCommandHandlersMixin:
         :param window_id: 窗口编号
         :return: None
         """
-        from scp_cv.apps.playback.models import PlaybackState, PlaybackSession
+        from scp_cv.apps.playback.models import PlaybackState, PlaybackSession, PptPlaybackBackend
 
         session = PlaybackSession.objects.filter(window_id=window_id).first()
         if session is None:
@@ -174,6 +180,7 @@ class PlayerCommandHandlersMixin:
         session.error_message = ""
         session.current_slide = 0
         session.total_slides = 0
+        session.ppt_backend = PptPlaybackBackend.LIBREOFFICE
         session.position_ms = 0
         session.duration_ms = 0
         session.save(update_fields=[
@@ -182,6 +189,7 @@ class PlayerCommandHandlersMixin:
             "error_message",
             "current_slide",
             "total_slides",
+            "ppt_backend",
             "position_ms",
             "duration_ms",
             "last_updated_at",
@@ -238,6 +246,30 @@ class PlayerCommandHandlersMixin:
                 str(command_args.get("media_action", "")),
                 media_index,
             )
+
+    def _handle_reset_ppt(self, window_id: int, command_args: dict[str, object]) -> None:
+        """
+        处理全局 PPT 放映重置：关闭所有 PPT 后端进程并按原页码重开。
+        :param window_id: 协调窗口编号
+        :param command_args: 包含 restart_sessions 的参数字典
+        :return: None
+        """
+        restart_sessions = command_args.get("restart_sessions", [])
+        for adapter_window_id, source_type in list(self._adapter_source_types.items()):
+            if source_type == "ppt":
+                self._close_adapter(adapter_window_id)
+
+        if not isinstance(restart_sessions, list):
+            logger.warning("窗口 %d：RESET_PPT 参数 restart_sessions 不是列表", window_id)
+            return
+        for raw_restart in restart_sessions:
+            if not isinstance(raw_restart, dict):
+                continue
+            restart_window_id = int(raw_restart.get("window_id") or 0)
+            if restart_window_id not in self.registered_window_ids:
+                continue
+            self._handle_open(restart_window_id, dict(raw_restart))
+        logger.info("播放器已完成 PPT 放映重置，重启窗口数=%d", len(restart_sessions))
 
     def _handle_set_loop(self, window_id: int, command_args: dict[str, object]) -> None:
         """

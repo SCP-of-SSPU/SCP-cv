@@ -17,12 +17,13 @@ import {
   NDrawerContent,
   NFormItem,
   NInput,
+  NSelect,
   NSwitch,
 } from 'naive-ui';
 
 import { useToast } from '@/composables/useToast';
 import { useSourceStore } from '@/stores/sources';
-import type { MediaSourceItem, MediaSourceUpdate } from '@/services/api';
+import type { MediaSourceItem, MediaSourceUpdate, PptBackend } from '@/services/api';
 
 const props = defineProps<{
   open: boolean;
@@ -41,10 +42,16 @@ const toast = useToast();
 const draftName = ref('');
 const draftUri = ref('');
 const draftPreheatEnabled = ref(true);
+const draftPptBackend = ref<PptBackend>('libreoffice');
 const saving = ref(false);
 const errorMessage = ref('');
 
 const isWebSource = computed(() => props.source?.source_type === 'web');
+const isPptSource = computed(() => props.source?.source_type === 'ppt');
+const pptBackendOptions = computed(() => [
+  { label: t('sources.pptBackend.libreoffice'), value: 'libreoffice' },
+  { label: t('sources.pptBackend.powerpoint'), value: 'powerpoint' },
+]);
 
 const isOpen = computed({
   get: () => props.open,
@@ -59,6 +66,7 @@ watch(
     draftName.value = source.name ?? '';
     draftUri.value = source.uri ?? '';
     draftPreheatEnabled.value = source.preheat_enabled ?? source.keep_alive ?? true;
+    draftPptBackend.value = source.ppt_backend ?? 'libreoffice';
     errorMessage.value = '';
   },
   { immediate: true },
@@ -80,6 +88,9 @@ function buildPatch(): MediaSourceUpdate | null {
     if (draftPreheatEnabled.value !== currentPreheat) {
       patch.preheat_enabled = draftPreheatEnabled.value;
     }
+  }
+  if (isPptSource.value && draftPptBackend.value !== props.source.ppt_backend) {
+    patch.ppt_backend = draftPptBackend.value;
   }
   return Object.keys(patch).length > 0 ? patch : null;
 }
@@ -137,7 +148,13 @@ function close(): void {
           </n-form-item>
         </template>
 
-        <n-alert v-if="!isWebSource" type="info" :closable="false">
+        <template v-if="isPptSource">
+          <n-form-item :label="t('sources.pptBackend.label')" :feedback="t('sources.pptBackend.editHint')">
+            <n-select v-model:value="draftPptBackend" :options="pptBackendOptions" :disabled="saving" />
+          </n-form-item>
+        </template>
+
+        <n-alert v-if="!isWebSource && !isPptSource" type="info" :closable="false">
           {{ t('sources.editDrawer.nonWebInfo') }}
         </n-alert>
       </template>

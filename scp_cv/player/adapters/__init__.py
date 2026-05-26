@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 # 源类型 → 适配器类的延迟映射（避免启动时导入所有依赖）
 _ADAPTER_CLASS_MAP: dict[str, str] = {
-    "ppt": "scp_cv.player.adapters.ppt.PptSourceAdapter",
+    "ppt": "scp_cv.player.adapters.ppt_router.PptSourceAdapter",
     "video": "scp_cv.player.adapters.video.VideoSourceAdapter",
     "audio": "scp_cv.player.adapters.video.VideoSourceAdapter",  # 音频复用视频适配器
     "image": "scp_cv.player.adapters.image.ImageSourceAdapter",
@@ -30,10 +30,11 @@ _ADAPTER_CLASS_MAP: dict[str, str] = {
 }
 
 
-def create_adapter(source_type: str) -> SourceAdapter:
+def create_adapter(source_type: str, **adapter_options: object) -> SourceAdapter:
     """
     根据源类型创建对应的适配器实例。
     :param source_type: SourceType 枚举值
+    :param adapter_options: 传给适配器构造函数的可选参数
     :return: 适配器实例
     :raises ValueError: 不支持的源类型
     """
@@ -47,7 +48,7 @@ def create_adapter(source_type: str) -> SourceAdapter:
     module = importlib.import_module(module_path)
     adapter_class = getattr(module, class_name)
 
-    adapter_instance: SourceAdapter = adapter_class()
+    adapter_instance: SourceAdapter = adapter_class(**adapter_options)
     logger.info("创建适配器：%s → %s", source_type, class_name)
     return adapter_instance
 

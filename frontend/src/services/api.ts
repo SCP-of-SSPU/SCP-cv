@@ -8,6 +8,8 @@ export interface MediaFolderItem {
   updated_at: string;
 }
 
+export type PptBackend = 'libreoffice' | 'powerpoint';
+
 export interface MediaSourceItem {
   id: number;
   source_type: string;
@@ -28,6 +30,8 @@ export interface MediaSourceItem {
    */
   preheat_enabled: boolean;
   keep_alive: boolean;
+  ppt_backend: PptBackend;
+  ppt_backend_label: string;
   preview_url: string;
   thumbnail_url: string;
   preview_kind: 'icon' | 'image' | 'video';
@@ -41,6 +45,7 @@ export interface MediaSourceUpdate {
   uri?: string;
   preheat_enabled?: boolean;
   keep_alive?: boolean;
+  ppt_backend?: PptBackend;
 }
 
 export interface SessionSnapshot {
@@ -61,6 +66,8 @@ export interface SessionSnapshot {
   is_spliced: boolean;
   current_slide: number;
   total_slides: number;
+  ppt_backend: PptBackend;
+  ppt_backend_label: string;
   position_ms: number;
   duration_ms: number;
   pending_command: string;
@@ -355,7 +362,7 @@ export const api = {
   deleteFolder: (folderId: number) => requestJson<{ success: boolean }>(`/api/folders/${folderId}/`, { method: 'DELETE' }),
   listSources: (sourceType = '', folderId: number | null = null) => requestJson<{ success: boolean; sources: MediaSourceItem[] }>(`/api/sources/${sourceQuery(sourceType, folderId)}`),
   uploadSource: (formData: FormData, options?: UploadOptions) => uploadFormData<{ success: boolean; source: MediaSourceItem }>('/api/sources/upload/', formData, options),
-  addLocalSource: (payload: { path: string; name?: string; folder_id?: number | null }) => requestJson<{ success: boolean; source: MediaSourceItem }>('/api/sources/local/', { method: 'POST', body: JSON.stringify(payload) }),
+  addLocalSource: (payload: { path: string; name?: string; folder_id?: number | null; ppt_backend?: PptBackend }) => requestJson<{ success: boolean; source: MediaSourceItem }>('/api/sources/local/', { method: 'POST', body: JSON.stringify(payload) }),
   addWebSource: (payload: { url: string; name?: string; folder_id?: number | null; preheat_enabled?: boolean; keep_alive?: boolean }) => requestJson<{ success: boolean; source: MediaSourceItem }>('/api/sources/web/', { method: 'POST', body: JSON.stringify(payload) }),
   moveSource: (sourceId: number, folderId: number | null) => requestJson<{ success: boolean; source: MediaSourceItem }>(`/api/sources/${sourceId}/move/`, { method: 'PATCH', body: JSON.stringify({ folder_id: folderId }) }),
   updateSource: (sourceId: number, payload: MediaSourceUpdate) => requestJson<{ success: boolean; source: MediaSourceItem }>(`/api/sources/${sourceId}/`, { method: 'PATCH', body: JSON.stringify(payload) }),
@@ -368,11 +375,14 @@ export const api = {
   getSystemVolume: () => requestJson<{ success: boolean; volume: { level: number; muted: boolean; system_synced: boolean; backend: string } }>('/api/volume/'),
   setSystemVolume: (level: number, muted?: boolean) => requestJson<{ success: boolean; volume: { level: number; muted: boolean; system_synced: boolean; backend: string } }>('/api/volume/', { method: 'PATCH', body: JSON.stringify({ level, ...(muted === undefined ? {} : { muted }) }) }),
   openSource: (windowId: number, sourceId: number, autoplay = true) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/open/`, { method: 'POST', body: JSON.stringify({ source_id: sourceId, autoplay }) }),
+  openSourceWithOptions: (windowId: number, payload: { source_id: number; autoplay?: boolean; ppt_backend?: PptBackend; target_slide?: number }) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/open/`, { method: 'POST', body: JSON.stringify(payload) }),
   controlPlayback: (windowId: number, action: string) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/control/`, { method: 'POST', body: JSON.stringify({ action }) }),
   navigateContent: (windowId: number, action: string, targetIndex = 0, positionMs = 0) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/navigate/`, { method: 'POST', body: JSON.stringify({ action, target_index: targetIndex, position_ms: positionMs }) }),
   controlPptMedia: (windowId: number, action: string, mediaId: string, mediaIndex: number) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/ppt-media/`, { method: 'POST', body: JSON.stringify({ action, media_id: mediaId, media_index: mediaIndex }) }),
+  switchPptBackend: (windowId: number, pptBackend: PptBackend) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/ppt-backend/`, { method: 'POST', body: JSON.stringify({ ppt_backend: pptBackend }) }),
   closeSource: (windowId: number) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/close/`, { method: 'POST' }),
   resetAllSessions: () => requestJson<ApiStatePayload>('/api/playback/reset-all/', { method: 'POST' }),
+  resetPptPlayback: () => requestJson<ApiStatePayload>('/api/playback/reset-ppt/', { method: 'POST' }),
   shutdownSystem: () => requestJson<ApiStatePayload & { detail?: string }>('/api/system/shutdown/', { method: 'POST' }),
   setLoop: (windowId: number, enabled: boolean) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/loop/`, { method: 'PATCH', body: JSON.stringify({ enabled }) }),
   setWindowVolume: (windowId: number, volume: number) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/volume/`, { method: 'PATCH', body: JSON.stringify({ volume }) }),

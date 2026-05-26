@@ -16,7 +16,7 @@ SCP-cv 是用于控制 **上海第二工业大学 28#108 多媒体显示系统**
 
 - **统一媒体源管理**：上传文件、添加本机路径、添加网页源、自动发现 MediaMTX SRT 流。
 - **四窗口播控**：大屏左、大屏右、TV 左、TV 右分别独立控制，支持 single / double 大屏模式。
-- **PPT 控制**：PowerPoint COM 自动化驱动，支持翻页、跳转、提词器、预览图和页面媒体控制。
+- **PPT 控制**：导入 PPT 时可选择 LibreOffice（稳定）或 Microsoft PowerPoint，媒体源可修改默认播放器，显控页可临时切换并自动回到原页码。
 - **SRT 直播播放**：MediaMTX 接收 OBS / 外部设备推流，播放器通过 libVLC 低延迟拉流。
 - **REST + SSE 控制台**：Vue 前端通过 REST 下发指令，通过 SSE 同步播放状态。
 - **保留 gRPC 接口**：用于兼容中控系统和自动化脚本。
@@ -42,7 +42,8 @@ MediaMTX (SRT publish/read)
 - Windows 10/11
 - Python 3.12 或更高版本（推荐使用 `uv` 管理）
 - Node.js 20 或更高版本
-- Microsoft PowerPoint（PPT 播放必需）
+- LibreOffice（推荐的 PPT 播放与预览导出后端）
+- Microsoft PowerPoint（可作为单个 PPT 源或本次放映的显式选择）
 - VLC/libVLC Windows x64 运行时（SRT 播放必需）
 - MediaMTX Windows x64 可执行文件
 
@@ -74,6 +75,7 @@ uv run python manage.py migrate
 
 - `tools/third_party/mediamtx/mediamtx.exe`：MediaMTX 主程序，配置文件同目录放置。
 - `tools/third_party/vlc/runtime/`：项目内置 VLC/libVLC runtime；也可以使用系统安装的 `C:\Program Files\VideoLAN\VLC`。
+- LibreOffice 可使用系统安装路径或 PATH 中的 `soffice`；找不到时在 `.env` 配置 `LIBREOFFICE_BIN_PATH`。
 
 ## 环境变量
 
@@ -81,6 +83,13 @@ uv run python manage.py migrate
 
 - `.env`：Django、gRPC、MediaMTX、日志和后端运行配置。
 - `frontend/.env`：`VITE_FRONTEND_PORT` 与 `VITE_BACKEND_TARGET`。
+
+PPT 后端相关配置：
+
+- PPT 播放器不再通过 `.env` 全局选择；导入 PPT 时选择默认播放器，媒体源编辑页可修改，四个显控页可对当前放映临时切换。
+- 临时切换或右上角“重置 PPT 放映”会先关闭当前 PPT 后端进程，再重开原 PPT 并自动跳回操作前页码。
+- `LIBREOFFICE_BIN_PATH=`：可指向 `soffice.exe`、`soffice.com`、LibreOffice 安装目录或 `program` 目录；留空时从 PATH 和常见安装路径查找。
+- `LIBREOFFICE_CONNECT_TIMEOUT_SECONDS=10`：LibreOffice UNO 启动连接超时。
 
 `runall` 启动前端时会移除父进程继承的 `VITE_*` 变量，让 `frontend/.env` 成为前端开发服务的实际配置来源。若 `frontend/.env` 未配置 `VITE_BACKEND_TARGET`，`runall` 才会按当前后端监听地址提供兜底值。
 

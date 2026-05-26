@@ -32,8 +32,10 @@ from scp_cv.services.playback import (
     get_session_snapshot,
     navigate_content,
     open_source,
+    reset_ppt_playback,
     set_big_screen_mode,
     stop_current_content,
+    switch_ppt_backend,
     update_playback_progress,
 )
 from scp_cv.services.video_wall import VideoWallError
@@ -114,7 +116,7 @@ class TestGetSessionSnapshot:
             "display_mode", "display_mode_label",
             "target_display_label", "spliced_display_label", "is_spliced",
             "error_message",
-            "current_slide", "total_slides", "position_ms", "duration_ms",
+            "current_slide", "total_slides", "ppt_backend", "ppt_backend_label", "position_ms", "duration_ms",
             "pending_command", "last_updated_at", "volume", "is_muted", "loop_enabled",
         }
         assert set(snapshot.keys()) == required_keys
@@ -139,6 +141,15 @@ class TestOpenSource:
         assert session.command_args["source_type"] == "ppt"
         assert session.command_args["uri"] == media_source_ppt.uri
         assert session.command_args["autoplay"] is True
+        assert session.command_args["ppt_backend"] == "libreoffice"
+
+    def test_open_ppt_with_selected_powerpoint(self, media_source_ppt: MediaSource) -> None:
+        """打开 PPT 时可临时选择 PowerPoint 后端。"""
+        session = open_source(1, media_source_ppt.pk, ppt_backend="powerpoint", target_slide=3)
+
+        assert session.ppt_backend == "powerpoint"
+        assert session.command_args["ppt_backend"] == "powerpoint"
+        assert session.command_args["target_slide"] == 3
 
     def test_open_with_autoplay_false(self, media_source_video: MediaSource) -> None:
         """autoplay=False 时指令参数应反映。"""
@@ -263,14 +274,29 @@ class TestNavigateContent:
         with pytest.raises(PlaybackError, match="超出范围"):
             navigate_content(1, PlaybackCommand.GOTO, target_index=4)
 
-    def test_boundary_prev_keeps_first_slide(self, media_source_ppt: MediaSource) -> None:
-        """第一页继续上一页时应保持当前页且不下发新指令。"""
+    def test_boundary_prev_still_dispatches_for_ppt_animations(
+        self,
+        media_source_ppt: MediaSource,
+    ) -> None:
+        """第一页仍应下发 prev，让播放器后端自行处理动画级回退。"""
         open_source(1, media_source_ppt.pk)
         update_playback_progress(1, current_slide=1, total_slides=3)
         clear_pending_command(1)
         session = navigate_content(1, PlaybackCommand.PREV)
 
-        assert session.pending_command == PlaybackCommand.NONE
+        assert session.pending_command == PlaybackCommand.PREV
+
+    def test_boundary_next_still_dispatches_for_ppt_animations(
+        self,
+        media_source_ppt: MediaSource,
+    ) -> None:
+        """最后一页仍应下发 next，让 LibreOffice 可推进末页动画。"""
+        open_source(1, media_source_ppt.pk)
+        update_playback_progress(1, current_slide=3, total_slides=3)
+        clear_pending_command(1)
+        session = navigate_content(1, PlaybackCommand.NEXT)
+
+        assert session.pending_command == PlaybackCommand.NEXT
 
     def test_seek_with_position(self, media_source_video: MediaSource) -> None:
         """Seek 到指定毫秒位置应在 command_args 中记录。"""
@@ -328,12 +354,63 @@ class TestControlPptMedia:
         assert session.command_args["media_id"] == "m1"
         assert session.command_args["media_index"] == 2
 
+    def test_selected_backend_allows_ppt_media_command(
+        self,
+        media_source_ppt: MediaSource,
+    ) -> None:
+        """显式 LibreOffice 后端也应下发 PPT 媒体控制指令。"""
+        open_source(1, media_source_ppt.pk, ppt_backend="libreoffice")
+
+        session = control_ppt_media(1, PlaybackCommand.PLAY, media_id="m1", media_index=1)
+
+        assert session.pending_command == PlaybackCommand.PPT_MEDIA
+        assert session.command_args["media_action"] == PlaybackCommand.PLAY
+
     def test_rejects_non_ppt_source(self, media_source_video: MediaSource) -> None:
         """非 PPT 源不应接受 PPT 媒体控制。"""
         open_source(1, media_source_video.pk)
 
         with pytest.raises(PlaybackError, match="未打开 PPT"):
             control_ppt_media(1, PlaybackCommand.PLAY, media_id="m1", media_index=1)
+
+
+@pytest.mark.django_db
+class TestPptBackendOperations:
+    """测试 PPT 播放器临时切换和重置。"""
+
+    def test_switch_ppt_backend_reopens_same_source_at_current_slide(self, media_source_ppt: MediaSource) -> None:
+        """切换播放器应下发 OPEN 指令并保留当前页码。"""
+        open_source(1, media_source_ppt.pk)
+        update_playback_progress(1, current_slide=4, total_slides=8)
+        session = get_or_create_session(1)
+        session.volume = 66
+        session.is_muted = True
+        session.save(update_fields=["volume", "is_muted"])
+
+        switched = switch_ppt_backend(1, "powerpoint")
+
+        assert switched.media_source_id == media_source_ppt.pk
+        assert switched.pending_command == PlaybackCommand.OPEN
+        assert switched.ppt_backend == "powerpoint"
+        assert switched.command_args["ppt_backend"] == "powerpoint"
+        assert switched.command_args["target_slide"] == 4
+        assert switched.command_args["volume"] == 66
+        assert switched.command_args["muted"] is True
+
+    def test_reset_ppt_playback_keeps_current_slide(self, media_source_ppt: MediaSource) -> None:
+        """重置 PPT 放映应收集当前 PPT 窗口并保留页码。"""
+        open_source(1, media_source_ppt.pk, ppt_backend="powerpoint")
+        update_playback_progress(1, current_slide=5, total_slides=10)
+        clear_pending_command(1)
+
+        reset_ppt_playback()
+        session = get_or_create_session(1)
+
+        assert session.pending_command == PlaybackCommand.RESET_PPT
+        restart_sessions = session.command_args["restart_sessions"]
+        assert restart_sessions[0]["source_id"] == media_source_ppt.pk
+        assert restart_sessions[0]["ppt_backend"] == "powerpoint"
+        assert restart_sessions[0]["target_slide"] == 5
 
 
 # ══════════════════════════════════════════════════════════════

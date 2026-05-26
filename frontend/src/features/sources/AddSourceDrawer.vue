@@ -13,6 +13,7 @@ import {
   NFormItem,
   NInput,
   NProgress,
+  NSelect,
   NSwitch,
   NTabs,
   NTabPane,
@@ -21,6 +22,7 @@ import {
 import FIcon from '@/design-system/FIcon.vue';
 import { useToast } from '@/composables/useToast';
 import { useSourceStore } from '@/stores/sources';
+import type { PptBackend } from '@/services/api';
 
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{
@@ -38,6 +40,7 @@ const activeTab = ref<TabId>('file');
 
 const fileToUpload = ref<File | null>(null);
 const fileDisplayName = ref('');
+const filePptBackend = ref<PptBackend>('libreoffice');
 const webUrl = ref('');
 const webName = ref('');
 const webPreheatEnabled = ref(true);
@@ -46,6 +49,11 @@ const uploading = ref(false);
 const errorMessage = ref('');
 
 const fileLabel = computed(() => fileToUpload.value?.name ?? t('sources.add.noFile'));
+const isPptFile = computed(() => /\.(pptx?|ppsx?)$/i.test(fileToUpload.value?.name ?? ''));
+const pptBackendOptions = computed(() => [
+  { label: t('sources.pptBackend.libreoffice'), value: 'libreoffice' },
+  { label: t('sources.pptBackend.powerpoint'), value: 'powerpoint' },
+]);
 const fileSize = computed(() => {
   if (!fileToUpload.value) return '';
   const bytes = fileToUpload.value.size;
@@ -71,6 +79,7 @@ function close(): void {
 function reset(): void {
   fileToUpload.value = null;
   fileDisplayName.value = '';
+  filePptBackend.value = 'libreoffice';
   webUrl.value = '';
   webName.value = '';
   webPreheatEnabled.value = true;
@@ -103,6 +112,7 @@ async function uploadFile(persist: boolean): Promise<void> {
     const result = await sourceStore.upload(fileToUpload.value, {
       name: fileDisplayName.value.trim() || undefined,
       isTemporary: !persist,
+      pptBackend: isPptFile.value ? filePptBackend.value : undefined,
       onProgress: (percent) => {
         uploadProgress.value = percent;
       },
@@ -160,6 +170,9 @@ async function addWebSource(): Promise<void> {
           </n-form-item>
           <n-form-item :label="t('sources.add.displayName')" :feedback="t('sources.add.displayNameHint')">
             <n-input v-model:value="fileDisplayName" :placeholder="t('sources.add.displayNamePlaceholder')" />
+          </n-form-item>
+          <n-form-item v-if="isPptFile" :label="t('sources.pptBackend.label')" :feedback="t('sources.pptBackend.importHint')">
+            <n-select v-model:value="filePptBackend" :options="pptBackendOptions" />
           </n-form-item>
 
           <n-progress v-if="uploading" type="line" :percentage="uploadProgress" />

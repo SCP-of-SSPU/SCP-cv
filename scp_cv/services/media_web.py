@@ -14,6 +14,7 @@ from typing import Optional
 
 from scp_cv.apps.playback.models import MediaFolder, MediaSource, SourceType
 from scp_cv.services.media_types import MediaError
+from scp_cv.ppt_backend import normalize_ppt_backend
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,7 @@ def update_source(
     uri: Optional[str] = None,
     preheat_enabled: Optional[bool] = None,
     keep_alive: Optional[bool] = None,
+    ppt_backend: Optional[str] = None,
 ) -> MediaSource:
     """
     更新媒体源可编辑字段。
@@ -72,6 +74,7 @@ def update_source(
     :param uri: 新 URI / URL（仅对网页源生效）
     :param preheat_enabled: 是否启用网页预热（None 表示不修改）
     :param keep_alive: 旧字段兼容；传入时覆盖 preheat_enabled
+    :param ppt_backend: PPT 播放器后端（仅 PPT 源生效）
     :return: 更新后的 MediaSource 实例
     :raises MediaError: 源不存在或参数非法时
     """
@@ -83,6 +86,7 @@ def update_source(
     update_fields: list[str] = []
     _apply_source_name(source, name, update_fields)
     _apply_web_uri(source, uri, update_fields)
+    _apply_ppt_backend(source, ppt_backend, update_fields)
 
     enabled = preheat_enabled if keep_alive is None else keep_alive
     if enabled is not None and source.keep_alive != bool(enabled):
@@ -162,3 +166,25 @@ def _apply_web_uri(source: MediaSource, uri: Optional[str], update_fields: list[
     if source.uri != normalized_uri:
         source.uri = normalized_uri
         update_fields.append("uri")
+
+
+def _apply_ppt_backend(source: MediaSource, ppt_backend: Optional[str], update_fields: list[str]) -> None:
+    """
+    校验并写入 PPT 播放器后端。
+    :param source: 待更新的媒体源
+    :param ppt_backend: 新 PPT 后端；None 表示不修改
+    :param update_fields: 已变更字段收集器
+    :return: None
+    :raises MediaError: 非 PPT 源传入后端或后端值无效时
+    """
+    if ppt_backend is None:
+        return
+    if source.source_type != SourceType.PPT:
+        raise MediaError("仅 PPT 源支持修改 PPT 播放器")
+    try:
+        normalized_backend = normalize_ppt_backend(ppt_backend)
+    except ValueError as backend_error:
+        raise MediaError(str(backend_error)) from backend_error
+    if source.ppt_backend != normalized_backend:
+        source.ppt_backend = normalized_backend
+        update_fields.append("ppt_backend")

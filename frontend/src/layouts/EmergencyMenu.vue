@@ -30,6 +30,22 @@ async function onResetAll(): Promise<void> {
   }
 }
 
+async function onResetPptPlayback(): Promise<void> {
+  const confirmed = await dialog.danger({
+    title: t('emergency.resetPptTitle'),
+    description: t('emergency.resetPptDesc'),
+    confirmLabel: t('emergency.resetPptConfirm'),
+    cancelLabel: t('common.cancel'),
+  });
+  if (!confirmed) return;
+  try {
+    await session.resetPptPlayback();
+    toast.success(t('emergency.resetPptOk'));
+  } catch (error) {
+    toast.error(t('emergency.resetPptFail'), error instanceof Error ? error.message : t('common.retry'));
+  }
+}
+
 async function onShowWindowIds(): Promise<void> {
   try {
     await session.showWindowIds();
@@ -66,6 +82,7 @@ const options: DropdownOption[] = [
     key: 'group-main',
     children: [
       { label: t('emergency.resetAll'), key: 'reset', icon: renderIcon('arrow_reset_24_regular'), props: { onClick: onResetAll } },
+      { label: t('emergency.resetPpt'), key: 'reset-ppt', icon: renderIcon('arrow_clockwise_24_regular'), props: { onClick: onResetPptPlayback } },
       { label: t('emergency.showIds'), key: 'show-ids', icon: renderIcon('eye_24_regular'), props: { onClick: onShowWindowIds } },
     ],
   },
