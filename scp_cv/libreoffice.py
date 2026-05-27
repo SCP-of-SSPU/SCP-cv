@@ -139,6 +139,23 @@ def resolve_libreoffice_executable(bin_path: Optional[str] = None) -> Path:
     raise LibreOfficeError("未找到 LibreOffice soffice，可配置 LIBREOFFICE_BIN_PATH")
 
 
+def resolve_libreoffice_python_executable(bin_path: Optional[str] = None) -> Path:
+    """
+    查找 LibreOffice 自带 Python 可执行文件。
+    :param bin_path: 显式 soffice 或 LibreOffice 目录路径
+    :return: LibreOffice program/python.exe 路径
+    :raises LibreOfficeError: 未找到可执行文件时
+    """
+    soffice_executable = resolve_libreoffice_executable(bin_path)
+    program_dir = soffice_executable.parent
+    executable_names = ["python.exe", "python"] if os.name == "nt" else ["python", "python.exe"]
+    for executable_name in executable_names:
+        python_executable = program_dir / executable_name
+        if python_executable.is_file():
+            return python_executable
+    raise LibreOfficeError(f"未找到 LibreOffice 自带 Python：{program_dir}")
+
+
 def bootstrap_pyuno(program_dir: Path) -> Any:
     """
     将 LibreOffice program 目录加入 Python 搜索路径并导入 pyuno。

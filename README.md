@@ -42,7 +42,7 @@ MediaMTX (SRT publish/read)
 - Windows 10/11
 - Python 3.12 或更高版本（推荐使用 `uv` 管理）
 - Node.js 20 或更高版本
-- LibreOffice（推荐的 PPT 播放与预览导出后端）
+- LibreOffice（推荐的 PPT 播放与预览导出后端；UNO/pyuno 由 LibreOffice 自带 Python 隔离执行，项目 `.python-version` 可使用 3.14）
 - Microsoft PowerPoint（可作为单个 PPT 源或本次放映的显式选择）
 - WPS 演示（可作为单个 PPT 源或本次放映的显式选择，需要本机 COM 注册）
 - VLC/libVLC Windows x64 运行时（SRT 播放必需）

@@ -12,10 +12,10 @@ from __future__ import annotations
 import os
 import threading
 import time
-from pathlib import Path
 from typing import Optional
 
 from scp_cv import libreoffice as lo_runtime
+from scp_cv.player.adapters.ppt_libreoffice_bridge import LibreOfficeBridgeClient
 from scp_cv.player.adapters.ppt_libreoffice_media import control_libreoffice_media
 from scp_cv.player.adapters import ppt_libreoffice_window as lo_window
 from scp_cv.player.adapters.base import AdapterState, SourceAdapter
@@ -43,6 +43,8 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
         self._file_path: str = ""
         self._window_handle: int = 0
         self._lo_hwnd: int = 0
+        self._bridge: Optional[LibreOfficeBridgeClient] = None
+        self._bridge_process_id: int = 0
         self._is_paused: bool = False
         self._last_slide_index: int = 1
         self._lock = threading.Lock()
@@ -61,18 +63,12 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
         with self._lock:
             self._file_path = uri
             self._window_handle = window_handle
-            self._session = lo_runtime.start_libreoffice_session(headless=False)
-            self._document = lo_runtime.load_document(
-                self._session,
-                Path(uri),
-                hidden=False,
-                readonly=True,
-            )
-            self._presentation = self._document.getPresentation()  # type: ignore[attr-defined]
-            self._configure_presentation()
-            self._total_slides = self._read_slide_count()
+            existing_hwnds = lo_window.snapshot_libreoffice_hwnds(self._logger)
+            self._bridge = LibreOfficeBridgeClient(self._logger)
+            state = self._bridge.open(uri, autoplay)
+            self._apply_bridge_state(state)
             if autoplay:
-                self._start_slideshow(start_slide=1)
+                self._embed_bridge_slideshow(existing_hwnds)
 
         self._mark_open()
         self._logger.info("LibreOffice PPT 已打开：%s（%d 页）", uri, self._total_slides)
@@ -93,6 +89,15 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
         :return: None
         """
         with self._lock:
+            if self._bridge is not None:
+                existing_hwnds = lo_window.snapshot_libreoffice_hwnds(
+                    self._logger,
+                    process_id=self._bridge_process_id or None,
+                )
+                self._apply_bridge_state(self._bridge.request("play"))
+                if self._lo_hwnd == 0:
+                    self._embed_bridge_slideshow(existing_hwnds)
+                return
             if self._controller is None and self._presentation is not None:
                 self._start_slideshow(self._last_slide_index)
                 return
@@ -109,6 +114,9 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
         :return: None
         """
         with self._lock:
+            if self._bridge is not None:
+                self._apply_bridge_state(self._bridge.request("pause"))
+                return
             if self._controller is None or self._is_paused:
                 return
             try:
@@ -123,6 +131,10 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
         :return: None
         """
         with self._lock:
+            if self._bridge is not None:
+                self._apply_bridge_state(self._bridge.request("stop"))
+                self._detach_bridge_hwnd()
+                return
             if self._controller is not None:
                 self._last_slide_index = self._current_slide_index()
             self._end_presentation()
@@ -135,6 +147,9 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
         :return: None
         """
         with self._lock:
+            if self._bridge is not None:
+                self._apply_bridge_state(self._bridge.request("next"))
+                return
             if self._controller is None or not self._presentation_is_running():
                 return
             try:
@@ -149,6 +164,9 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
         :return: None
         """
         with self._lock:
+            if self._bridge is not None:
+                self._apply_bridge_state(self._bridge.request("prev"))
+                return
             if self._controller is None or not self._presentation_is_running():
                 return
             try:
@@ -167,6 +185,9 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
             self._logger.warning("无效页码 %d（总计 %d 页）", index, self._total_slides)
             return
         with self._lock:
+            if self._bridge is not None:
+                self._apply_bridge_state(self._bridge.request("goto", {"index": index}))
+                return
             if self._controller is None or not self._presentation_is_running():
                 return
             try:
@@ -184,6 +205,14 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
         :return: None
         """
         with self._lock:
+            if self._bridge is not None:
+                self._apply_bridge_state(
+                    self._bridge.request(
+                        "control_media",
+                        {"media_id": media_id, "action": action, "media_index": media_index},
+                    )
+                )
+                return
             if self._controller is None:
                 return
             control_libreoffice_media(
@@ -207,6 +236,11 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
         :return: AdapterState 状态快照
         """
         with self._lock:
+            if self._bridge is not None:
+                try:
+                    return self._state_from_bridge_payload(self._bridge.request("state"))
+                except Exception as state_error:
+                    return AdapterState(playback_state="error", error_message=str(state_error))
             if self._controller is not None and self._presentation_is_running():
                 current_slide = self._current_slide_index()
                 playback_state = "paused" if self._controller_is_paused() else "playing"
@@ -395,6 +429,11 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
         释放 LibreOffice 文档和进程资源。
         :return: None
         """
+        if self._bridge is not None:
+            self._detach_bridge_hwnd()
+            self._bridge.close()
+            self._bridge = None
+            self._bridge_process_id = 0
         self._end_presentation()
         if self._document is not None:
             lo_runtime.close_document(self._document)
@@ -406,6 +445,66 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
         self._controller = None
         self._total_slides = 0
         self._is_paused = False
+
+    def _embed_bridge_slideshow(self, existing_hwnds: set[int]) -> None:
+        """
+        查找 bridge 启动的 LibreOffice 放映窗口并嵌入播放器。
+        :param existing_hwnds: 启动放映前已存在的候选 HWND
+        :return: None
+        """
+        lo_hwnd = lo_window.find_libreoffice_slideshow_hwnd(
+            self._logger,
+            existing_hwnds=existing_hwnds,
+            process_id=self._bridge_process_id or None,
+        )
+        if lo_hwnd == 0:
+            self._logger.warning("未找到 LibreOffice 放映窗口句柄，无法嵌入")
+            return
+        self._lo_hwnd = lo_hwnd
+        lo_window.embed_slideshow_window(lo_hwnd, self._window_handle)
+        container_width, container_height = lo_window.resize_slideshow_window(lo_hwnd, self._window_handle)
+        self._logger.debug(
+            "LibreOffice PPT 窗口已调整大小：%dx%d",
+            container_width,
+            container_height,
+        )
+
+    def _detach_bridge_hwnd(self) -> None:
+        """
+        解除 bridge 放映窗口嵌入。
+        :return: None
+        """
+        if self._lo_hwnd == 0:
+            return
+        try:
+            lo_window.detach_slideshow_window(self._lo_hwnd)
+        except Exception:
+            pass
+        self._lo_hwnd = 0
+
+    def _apply_bridge_state(self, payload: dict[str, object]) -> None:
+        """
+        应用 bridge 返回的状态。
+        :param payload: bridge 状态数据
+        :return: None
+        """
+        self._total_slides = int(payload.get("total_slides", 0) or 0)
+        self._last_slide_index = int(payload.get("current_slide", 0) or 0)
+        self._bridge_process_id = int(payload.get("process_id", 0) or 0)
+        self._is_paused = payload.get("playback_state") == "paused"
+
+    def _state_from_bridge_payload(self, payload: dict[str, object]) -> AdapterState:
+        """
+        将 bridge 状态转换为 AdapterState。
+        :param payload: bridge 状态数据
+        :return: AdapterState 实例
+        """
+        self._apply_bridge_state(payload)
+        return AdapterState(
+            playback_state=str(payload.get("playback_state", "idle")),
+            current_slide=self._last_slide_index,
+            total_slides=self._total_slides,
+        )
 
 
 __all__ = ["LibreOfficePptSourceAdapter"]

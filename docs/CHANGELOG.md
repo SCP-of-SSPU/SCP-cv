@@ -5,6 +5,7 @@
 ### 修复 PPT 上传预览隔离
 
 - 预览导出：上传或导入 PPT 时改为通过独立 Python worker 执行 LibreOffice / PowerPoint / WPS 预览导出，避免 Office/UNO 原生库污染 Django 主进程的 Windows socket 状态导致 `WinError 10093` 后进程退出。
+- LibreOffice：预览导出和放映控制不再在项目 Python 中直接导入 `pyuno`，改为通过 LibreOffice 自带 `program/python.exe` worker 执行 UNO，兼容 `.python-version=3.14` 与 LibreOffice `python311.dll` 的版本差异。
 - 配置：新增 `PPT_PREVIEW_WORKER_TIMEOUT_SECONDS` 控制预览 worker 超时；worker 失败或超时只跳过缩略图，不阻断媒体源创建。
 
 ### 新增 clearall 清除运行数据命令

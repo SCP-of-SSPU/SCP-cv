@@ -127,6 +127,19 @@ def _parse_worker_preview_output(stdout: str) -> list[str]:
     :param stdout: worker 标准输出
     :return: 预览 URL 列表；无法解析时返回空列表
     """
+    payload = _parse_worker_payload(stdout)
+    previews = payload.get("previews", [])
+    if not isinstance(previews, list):
+        return []
+    return [str(preview) for preview in previews if isinstance(preview, str)]
+
+
+def _parse_worker_payload(stdout: str) -> dict[str, object]:
+    """
+    从 worker 标准输出解析最后一行有效 JSON payload。
+    :param stdout: worker 标准输出
+    :return: worker payload；无法解析或失败时返回空字典
+    """
     for line in reversed(stdout.splitlines()):
         line = line.strip()
         if not line:
@@ -136,13 +149,10 @@ def _parse_worker_preview_output(stdout: str) -> list[str]:
         except json.JSONDecodeError:
             continue
         if not isinstance(payload, dict) or not payload.get("success"):
-            return []
-        previews = payload.get("previews", [])
-        if not isinstance(previews, list):
-            return []
-        return [str(preview) for preview in previews if isinstance(preview, str)]
+            return {}
+        return payload
     logger.info("PPT 预览 worker 未输出有效 JSON")
-    return []
+    return {}
 
 
 def _preview_worker_timeout_seconds() -> float:
@@ -175,38 +185,62 @@ def export_ppt_slide_previews_with_libreoffice(file_path: Path, source_id: int) 
     :return: 按页码排序的媒体 URL 列表
     """
     relative_dir, preview_dir = _prepare_preview_dir(source_id)
-    session: Optional[lo_runtime.LibreOfficeSession] = None
-    document: Optional[object] = None
     try:
-        session = lo_runtime.start_libreoffice_session(headless=True)
-        document = lo_runtime.load_document(session, file_path, hidden=True, readonly=True)
-        draw_pages = document.getDrawPages()
-        slide_count = int(draw_pages.getCount())
-        exporter = session.create_instance("com.sun.star.drawing.GraphicExportFilter")
-        preview_paths: list[str] = []
-        for page_index in range(slide_count):
-            output_path = preview_dir / f"slide-{page_index + 1}.png"
-            draw_page = draw_pages.getByIndex(page_index)
-            exporter.setSourceDocument(draw_page)
-            exporter.filter(
-                (
-                    session.property_value("URL", session.path_to_file_url(output_path)),
-                    session.property_value("MediaType", "image/png"),
-                )
-            )
-            if not output_path.is_file():
-                raise lo_runtime.LibreOfficeError(f"LibreOffice 未生成预览文件：{output_path}")
-            preview_paths.append(_media_url(relative_dir / output_path.name))
-        return preview_paths
+        return _run_libreoffice_preview_worker(file_path, relative_dir, preview_dir)
     except Exception as export_error:
         logger.info("LibreOffice PPT 预览导出失败：%s", export_error)
         _clear_preview_dir(preview_dir)
         return []
-    finally:
-        if document is not None:
-            lo_runtime.close_document(document)
-        if session is not None:
-            session.close()
+
+
+def _run_libreoffice_preview_worker(file_path: Path, relative_dir: Path, preview_dir: Path) -> list[str]:
+    """
+    使用 LibreOffice 自带 Python 运行 pyuno 预览导出 worker。
+    :param file_path: PPT 文件路径
+    :param relative_dir: MEDIA_ROOT 下相对预览目录
+    :param preview_dir: 预览输出目录
+    :return: 按页码排序的媒体 URL 列表
+    """
+    python_executable = lo_runtime.resolve_libreoffice_python_executable()
+    env = os.environ.copy()
+    env["LIBREOFFICE_CONNECT_TIMEOUT_SECONDS"] = str(lo_runtime.configured_libreoffice_timeout())
+    command = [
+        str(python_executable),
+        "-m",
+        "scp_cv.libreoffice_worker",
+        "preview",
+        str(file_path),
+        str(preview_dir),
+    ]
+    completed = subprocess.run(
+        command,
+        cwd=str(settings.BASE_DIR),
+        env=env,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=_preview_worker_timeout_seconds(),
+        creationflags=_subprocess_creation_flags(),
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise lo_runtime.LibreOfficeError(completed.stderr.strip() or completed.stdout.strip())
+    preview_names = _parse_libreoffice_worker_output(completed.stdout)
+    return [_media_url(relative_dir / preview_name) for preview_name in preview_names]
+
+
+def _parse_libreoffice_worker_output(stdout: str) -> list[str]:
+    """
+    解析 LibreOffice Python worker 输出的预览文件名。
+    :param stdout: worker 标准输出
+    :return: 预览文件名列表
+    """
+    payload = _parse_worker_payload(stdout)
+    previews = payload.get("previews", [])
+    if not isinstance(previews, list):
+        return []
+    return [str(preview) for preview in previews if isinstance(preview, str)]
 
 
 def export_ppt_slide_previews_with_powerpoint(file_path: Path, source_id: int) -> list[str]:

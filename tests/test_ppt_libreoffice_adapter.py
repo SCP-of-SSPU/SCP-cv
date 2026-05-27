@@ -9,6 +9,11 @@ LibreOffice PPT 适配器单元测试，覆盖动画推进、跳页和状态读�
 '''
 from __future__ import annotations
 
+from pathlib import Path
+
+from pytest import MonkeyPatch
+
+from scp_cv.player.adapters import ppt_libreoffice
 from scp_cv.player.adapters.ppt_libreoffice import LibreOfficePptSourceAdapter
 
 
@@ -184,6 +189,50 @@ class _MediaShapeStub:
         return "com.sun.star.presentation.MediaShape"
 
 
+class _BridgeStub:
+    """LibreOffice bridge 客户端替身。"""
+
+    instances: list["_BridgeStub"] = []
+
+    def __init__(self, _logger: object) -> None:
+        """
+        初始化 bridge 替身。
+        :param _logger: 日志器
+        :return: None
+        """
+        self.open_calls: list[tuple[str, bool]] = []
+        self.requests: list[tuple[str, dict[str, object] | None]] = []
+        self.closed = False
+        _BridgeStub.instances.append(self)
+
+    def open(self, file_path: str, autoplay: bool) -> dict[str, object]:
+        """
+        模拟打开 PPT。
+        :param file_path: PPT 文件路径
+        :param autoplay: 是否自动播放
+        :return: 状态数据
+        """
+        self.open_calls.append((file_path, autoplay))
+        return {"playback_state": "playing", "current_slide": 1, "total_slides": 4, "process_id": 123}
+
+    def request(self, command: str, payload: dict[str, object] | None = None) -> dict[str, object]:
+        """
+        模拟 bridge 命令。
+        :param command: 命令名称
+        :param payload: 命令参数
+        :return: 状态数据
+        """
+        self.requests.append((command, payload))
+        return {"playback_state": "playing", "current_slide": 2, "total_slides": 4, "process_id": 123}
+
+    def close(self) -> None:
+        """
+        模拟关闭 bridge。
+        :return: None
+        """
+        self.closed = True
+
+
 class _ShapeContainerStub:
     """XShapes 容器替身。"""
 
@@ -223,6 +272,36 @@ def test_next_item_uses_next_effect_to_preserve_animations() -> None:
 
     assert controller.next_effect_called is True
     assert adapter._last_slide_index == 3
+
+
+def test_open_uses_bridge_client_and_embeds_window(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
+    """LibreOffice 打开路径应走 bridge，避免在项目 Python 中导入 pyuno。"""
+    ppt_file = tmp_path / "demo.pptx"
+    ppt_file.write_text("placeholder", encoding="utf-8")
+    calls: list[object] = []
+    _BridgeStub.instances.clear()
+
+    def fail_start_session(**_kwargs: object) -> object:
+        """
+        确认不会调用项目 Python 内的 pyuno 启动路径。
+        :param _kwargs: 启动参数
+        :return: 不返回
+        """
+        raise AssertionError("should use LibreOffice bridge")
+
+    monkeypatch.setattr(ppt_libreoffice, "LibreOfficeBridgeClient", _BridgeStub)
+    monkeypatch.setattr(ppt_libreoffice.lo_runtime, "start_libreoffice_session", fail_start_session)
+    monkeypatch.setattr(ppt_libreoffice.lo_window, "snapshot_libreoffice_hwnds", lambda *_args, **_kwargs: {1})
+    monkeypatch.setattr(ppt_libreoffice.lo_window, "find_libreoffice_slideshow_hwnd", lambda *_args, **_kwargs: 99)
+    monkeypatch.setattr(ppt_libreoffice.lo_window, "embed_slideshow_window", lambda *args: calls.append(args))
+    monkeypatch.setattr(ppt_libreoffice.lo_window, "resize_slideshow_window", lambda *_args: (800, 600))
+
+    adapter = LibreOfficePptSourceAdapter()
+    adapter.open(str(ppt_file), window_handle=1001, autoplay=True)
+
+    assert adapter.get_state().total_slides == 4
+    assert _BridgeStub.instances[0].open_calls == [(str(ppt_file), True)]
+    assert calls == [(99, 1001)]
 
 
 def test_prev_item_uses_previous_effect_to_preserve_animations() -> None:

@@ -249,3 +249,54 @@ def test_parse_worker_preview_output_ignores_noisy_lines() -> None:
     previews = ppt_preview._parse_worker_preview_output(stdout)
 
     assert previews == ["/media/ppt_previews/13/slide-1.png"]
+
+
+def test_libreoffice_preview_uses_libreoffice_python_worker(
+    monkeypatch: MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """LibreOffice 预览应由 LibreOffice 自带 Python 执行，避免导入项目 Python 的 pyuno。"""
+    captured: dict[str, object] = {}
+    lo_python = tmp_path / "lo-python.exe"
+    ppt_file = _make_ppt_file(tmp_path)
+    preview_dir = tmp_path / "previews"
+
+    def fail_start_session(**_kwargs: object) -> object:
+        """
+        确认不会走项目 Python 进程内 pyuno 导入路径。
+        :param _kwargs: 启动参数
+        :return: 不返回
+        """
+        raise AssertionError("should not import pyuno in project Python")
+
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        """
+        模拟 LibreOffice Python worker 成功导出。
+        :param command: 子进程命令
+        :param kwargs: subprocess.run 参数
+        :return: 模拟完成结果
+        """
+        captured["command"] = command
+        captured["kwargs"] = kwargs
+        return subprocess.CompletedProcess(
+            args=command,
+            returncode=0,
+            stdout='{"success": true, "previews": ["slide-1.png", "slide-2.png"], "error": ""}\n',
+            stderr="",
+        )
+
+    monkeypatch.setattr(ppt_preview.lo_runtime, "start_libreoffice_session", fail_start_session)
+    monkeypatch.setattr(ppt_preview.lo_runtime, "resolve_libreoffice_python_executable", lambda: lo_python)
+    monkeypatch.setattr(ppt_preview.subprocess, "run", fake_run)
+
+    previews = ppt_preview._run_libreoffice_preview_worker(ppt_file, Path("ppt_previews/31"), preview_dir)
+
+    assert previews == ["/media/ppt_previews/31/slide-1.png", "/media/ppt_previews/31/slide-2.png"]
+    assert captured["command"] == [
+        str(lo_python),
+        "-m",
+        "scp_cv.libreoffice_worker",
+        "preview",
+        str(ppt_file),
+        str(preview_dir),
+    ]
