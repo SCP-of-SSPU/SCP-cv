@@ -111,26 +111,16 @@ class Command(BaseCommand):
         signal.signal(signal.SIGINT, request_qt_shutdown)
         signal.signal(signal.SIGTERM, request_qt_shutdown)
 
-        from scp_cv.player.launcher_gui import LauncherResult, LauncherWindow
+        from scp_cv.player.launcher_gui import LauncherResult
 
         launcher_result_holder: list[LauncherResult] = []
 
         if bool(options.get("headless", False)):
             launcher_result_holder.append(self._build_headless_result(options))
         else:
-
-            def on_launch_requested(launch_result: LauncherResult) -> None:
-                """
-                启动器回调：保存选择结果。
-                :param launch_result: 用户选择的窗口→屏幕分配
-                :return: None
-                """
+            launch_result = self._collect_launcher_result(qt_app, dev_mode)
+            if launch_result is not None:
                 launcher_result_holder.append(launch_result)
-
-            launcher = LauncherWindow(debug_mode=dev_mode)
-            launcher.launch_requested.connect(on_launch_requested)
-            launcher.show()
-            qt_app.exec()
 
         # 检查用户是否完成了选择
         if not launcher_result_holder:
@@ -154,6 +144,47 @@ class Command(BaseCommand):
 
         # ═══ 根据分配结果创建播放窗口 ═══
         self._start_player(qt_app, launch_result, dev_mode, poll_interval)
+
+    def _collect_launcher_result(self, qt_app: object, dev_mode: bool) -> object | None:
+        """
+        显示启动器并收集用户选择，避免启动器关闭事件影响后续播放器事件循环。
+        :param qt_app: QApplication 实例
+        :param dev_mode: 是否开发模式
+        :return: LauncherResult；用户取消时返回 None
+        """
+        from scp_cv.player.launcher_gui import LauncherResult, LauncherWindow
+
+        launcher_result_holder: list[LauncherResult] = []
+        previous_quit_on_last_window: bool | None = None
+        if (
+            hasattr(qt_app, "quitOnLastWindowClosed")
+            and hasattr(qt_app, "setQuitOnLastWindowClosed")
+        ):
+            previous_quit_on_last_window = bool(qt_app.quitOnLastWindowClosed())
+            qt_app.setQuitOnLastWindowClosed(False)
+
+        def on_launch_requested(launch_result: LauncherResult) -> None:
+            """
+            启动器回调：保存选择结果并退出启动器事件循环。
+            :param launch_result: 用户选择的窗口→屏幕分配
+            :return: None
+            """
+            launcher_result_holder.append(launch_result)
+            qt_app.quit()
+
+        try:
+            launcher = LauncherWindow(debug_mode=dev_mode)
+            launcher.launch_requested.connect(on_launch_requested)
+            launcher.launch_cancelled.connect(qt_app.quit)
+            launcher.show()
+            qt_app.exec()
+        finally:
+            if previous_quit_on_last_window is not None:
+                qt_app.setQuitOnLastWindowClosed(previous_quit_on_last_window)
+
+        if not launcher_result_holder:
+            return None
+        return launcher_result_holder[0]
 
     def _build_headless_result(self, options: dict[str, object]) -> object:
         """

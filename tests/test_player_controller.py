@@ -242,6 +242,7 @@ def test_reset_all_windows_command_rebuilds_player_runtime(
     layout_applied: list[bool] = []
     preheated: list[bool] = []
     close_callbacks: list[object] = []
+    quit_on_last_window_values: list[bool] = []
 
     class _FakeSignal:
         """记录窗口关闭信号连接的测试替身。"""
@@ -335,7 +336,29 @@ def test_reset_all_windows_command_rebuilds_player_runtime(
             """
             preheat_pool_closed.append(True)
 
+    class _FakeQtApp:
+        """Qt 应用替身，记录窗口重建期间的自动退出保护。"""
+
+        def quitOnLastWindowClosed(self) -> bool:
+            """
+            返回原自动退出设置。
+            :return: True 表示最后窗口关闭会退出
+            """
+            return True
+
+        def setQuitOnLastWindowClosed(self, enabled: bool) -> None:
+            """
+            记录自动退出设置变更。
+            :param enabled: 是否启用最后窗口关闭即退出
+            :return: None
+            """
+            quit_on_last_window_values.append(enabled)
+
     monkeypatch.setattr("scp_cv.player.window.PlayerWindow", _FakePlayerWindow)
+    monkeypatch.setattr(
+        "PySide6.QtWidgets.QApplication.instance",
+        lambda: _FakeQtApp(),
+    )
     open_source(1, media_source_video.pk)
     open_source(2, media_source_video.pk)
 
@@ -365,3 +388,4 @@ def test_reset_all_windows_command_rebuilds_player_runtime(
     assert layout_applied == [True]
     assert preheated == [True]
     assert len(close_callbacks) == 4
+    assert quit_on_last_window_values == [False, True]

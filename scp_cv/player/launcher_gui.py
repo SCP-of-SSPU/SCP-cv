@@ -69,6 +69,8 @@ class LauncherWindow(QWidget):
 
     # 选择完成信号，携带 LauncherResult
     launch_requested = Signal(object)
+    # 用户取消启动器，run_player 需要显式退出启动器事件循环。
+    launch_cancelled = Signal()
 
     def __init__(self, debug_mode: bool = False) -> None:
         """
@@ -90,6 +92,7 @@ class LauncherWindow(QWidget):
         self._assignments: dict[int, DisplayTarget] = {}
         self._display_buttons: dict[int, QPushButton] = {}
         self._pending_selection: int | None = None
+        self._launch_accepted = False
         # 当前正在选择的窗口编号（1-4）
         self._current_step = 1
         # 可分配的最大窗口数
@@ -440,6 +443,7 @@ class LauncherWindow(QWidget):
             assignment_summary,
             gpu_label,
         )
+        self._launch_accepted = True
         self.launch_requested.emit(launch_result)
         self.close()
 
@@ -462,3 +466,9 @@ class LauncherWindow(QWidget):
             self.close()
         else:
             super().keyPressEvent(event)
+
+    def closeEvent(self, event: object) -> None:
+        """关闭启动器时通知 run_player 是取消还是正常启动。"""
+        if not self._launch_accepted:
+            self.launch_cancelled.emit()
+        super().closeEvent(event)

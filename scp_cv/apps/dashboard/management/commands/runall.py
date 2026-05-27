@@ -460,17 +460,13 @@ class Command(BaseCommand):
         在前端和播放器启动前，将所有窗口状态重置为待机。
         :return: None
         """
-        from urllib.error import HTTPError, URLError
-        from urllib.request import Request, urlopen
+        from scp_cv.services.playback import reset_all_sessions_to_idle
 
-        backend_url = f"http://127.0.0.1:{self._backend_port}/api/playback/reset-all/"
-        request = Request(backend_url, method="POST")
         try:
-            with urlopen(request, timeout=8) as response:
-                response.read()
+            reset_all_sessions_to_idle()
             self._reset_startup_state_done = True
             self.stdout.write(self.style.SUCCESS("启动前已将所有窗口重置为待机状态"))
-        except (OSError, HTTPError, URLError) as reset_error:
+        except Exception as reset_error:
             self._startup_reset_failed = True
             self._startup_reset_message = str(reset_error)
             self.stderr.write(

@@ -227,27 +227,67 @@ class PlayerController(PlayerCommandHandlersMixin, QObject):
         """
         from scp_cv.player.window import PlayerWindow
 
+        qt_app, previous_quit_on_last_window = self._disable_qt_last_window_auto_quit()
         old_windows = list(self._windows.items())
-        self._windows = {}
-        for window_id, old_window in old_windows:
-            self._disconnect_window_signals(old_window)
-            if hasattr(old_window, "close_for_rebuild"):
-                old_window.close_for_rebuild()
-            else:
-                old_window.hide()
-                old_window.deleteLater()
-            logger.info("窗口 %d 已为全局重置关闭", window_id)
+        try:
+            self._windows = {}
+            for window_id, old_window in old_windows:
+                self._disconnect_window_signals(old_window)
+                if hasattr(old_window, "close_for_rebuild"):
+                    old_window.close_for_rebuild()
+                else:
+                    old_window.hide()
+                    old_window.deleteLater()
+                logger.info("窗口 %d 已为全局重置关闭", window_id)
 
-        for window_id, old_window in old_windows:
-            debug_mode = bool(getattr(old_window, "debug_mode", False))
-            new_window = PlayerWindow(window_id=window_id, debug_mode=debug_mode)
-            self.register_window(window_id, new_window)
-            if debug_mode:
-                new_window.resize(960, 540)
-                new_window.show()
+            for window_id, old_window in old_windows:
+                debug_mode = bool(getattr(old_window, "debug_mode", False))
+                new_window = PlayerWindow(window_id=window_id, debug_mode=debug_mode)
+                self.register_window(window_id, new_window)
+                if debug_mode:
+                    new_window.resize(960, 540)
+                    new_window.show()
 
-        self.apply_current_layout()
+            self.apply_current_layout()
+        finally:
+            self._restore_qt_last_window_auto_quit(qt_app, previous_quit_on_last_window)
         logger.info("已按当前显示配置重建 %d 个播放器窗口", len(old_windows))
+
+    @staticmethod
+    def _disable_qt_last_window_auto_quit() -> tuple[object | None, bool | None]:
+        """
+        重建播放窗口期间暂时关闭 Qt 最后窗口关闭即退出，避免启动重置导致播放器退出。
+        :return: QApplication 实例和原设置；不可用时均为空
+        """
+        try:
+            from PySide6.QtWidgets import QApplication
+        except Exception as import_error:
+            logger.debug("Qt 应用不可用，跳过自动退出保护：%s", import_error)
+            return None, None
+        qt_app = QApplication.instance()
+        if qt_app is None:
+            return None, None
+        previous_quit_on_last_window = bool(qt_app.quitOnLastWindowClosed())
+        qt_app.setQuitOnLastWindowClosed(False)
+        return qt_app, previous_quit_on_last_window
+
+    @staticmethod
+    def _restore_qt_last_window_auto_quit(
+        qt_app: object | None,
+        previous_quit_on_last_window: bool | None,
+    ) -> None:
+        """
+        恢复 Qt 最后窗口关闭即退出原设置。
+        :param qt_app: QApplication 实例
+        :param previous_quit_on_last_window: 原设置
+        :return: None
+        """
+        if qt_app is None or previous_quit_on_last_window is None:
+            return
+        try:
+            qt_app.setQuitOnLastWindowClosed(previous_quit_on_last_window)
+        except RuntimeError as restore_error:
+            logger.debug("恢复 Qt 自动退出设置失败：%s", restore_error)
 
     def _disconnect_window_signals(self, player_window: object) -> None:
         """

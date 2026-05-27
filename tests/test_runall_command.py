@@ -392,6 +392,34 @@ def test_start_player_forwards_headless_display_and_gpu_options(
     ]
 
 
+def test_reset_startup_state_uses_internal_service(monkeypatch: Any) -> None:
+    """
+    runall 启动前重置应直接调用服务层，避免未登录 HTTP 请求被 401 拦截。
+    :param monkeypatch: pytest monkeypatch fixture
+    :return: None
+    """
+    reset_calls: list[str] = []
+    command = runall.Command()
+
+    def fake_reset_all_sessions_to_idle() -> None:
+        """
+        记录服务层重置调用。
+        :return: None
+        """
+        reset_calls.append("reset")
+
+    monkeypatch.setattr(
+        "scp_cv.services.playback.reset_all_sessions_to_idle",
+        fake_reset_all_sessions_to_idle,
+    )
+
+    command._reset_startup_state()
+
+    assert reset_calls == ["reset"]
+    assert command._reset_startup_state_done is True
+    assert command._startup_reset_failed is False
+
+
 def test_terminate_process_tree_stops_children_before_parent(monkeypatch: Any) -> None:
     """
     清理服务时应终止子进程树，避免 npm/cmd 留下 node 孤儿进程。
