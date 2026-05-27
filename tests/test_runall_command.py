@@ -14,9 +14,11 @@ from __future__ import annotations
 from pathlib import Path
 import shutil
 from typing import Any
+from datetime import datetime
 
 from scp_cv.apps.dashboard.management import runall_processes
 from scp_cv.apps.dashboard.management.commands import runall
+from scp_cv.apps.dashboard.management.runall_processes import create_runall_log_dir
 from scp_cv.apps.dashboard.management.runall_frontend import resolve_frontend_port
 
 
@@ -323,6 +325,21 @@ def test_spawn_removes_prefixed_environment(monkeypatch: Any) -> None:
 
     assert captured_env["VITE_BACKEND_TARGET"] == "http://127.0.0.1:8000"
     assert "VITE_FRONTEND_PORT" not in captured_env
+
+
+def test_create_runall_log_dir_uses_run_specific_directory(tmp_path: Path) -> None:
+    """
+    runall 每次启动应使用独立子进程日志目录，避免日志全部堆在 logs 根目录。
+    :param tmp_path: pytest 临时目录 fixture
+    :return: None
+    """
+    log_dir = create_runall_log_dir(
+        tmp_path,
+        started_at=datetime(2026, 5, 27, 12, 30, 45, 123456),
+    )
+
+    assert log_dir == tmp_path / "runall" / "20260527-123045-123456"
+    assert log_dir.is_dir()
 
 
 def test_start_player_forwards_headless_display_and_gpu_options(

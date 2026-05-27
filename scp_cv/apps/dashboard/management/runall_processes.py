@@ -15,10 +15,24 @@ import os
 import socket
 import subprocess
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import BinaryIO
 
 import psutil
+
+
+def create_runall_log_dir(log_dir: Path, started_at: datetime | None = None) -> Path:
+    """
+    为一次 runall 启动创建独立日志目录。
+    :param log_dir: 日志根目录
+    :param started_at: 启动时间；未传时使用当前时间
+    :return: 本次 runall 子进程日志目录
+    """
+    timestamp = (started_at or datetime.now()).strftime("%Y%m%d-%H%M%S-%f")
+    process_log_dir = log_dir / "runall" / timestamp
+    process_log_dir.mkdir(parents=True, exist_ok=True)
+    return process_log_dir
 
 
 def open_process_log(log_dir: Path, process_name: str) -> BinaryIO:
@@ -28,6 +42,7 @@ def open_process_log(log_dir: Path, process_name: str) -> BinaryIO:
     :param process_name: 服务名称
     :return: 二进制追加模式文件句柄
     """
+    log_dir.mkdir(parents=True, exist_ok=True)
     safe_name = process_name.lower().replace(" ", "-").replace("/", "-")
     log_path = log_dir / f"{safe_name}.log"
     return log_path.open("ab")

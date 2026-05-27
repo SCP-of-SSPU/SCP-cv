@@ -2,6 +2,13 @@
 
 ## 2026-05-27
 
+### 新增 clearall 清除运行数据命令
+
+- 管理命令：新增 `uv run manage.py clearall`，用于停止服务后清除 SQLite 数据库、`media/` 和 `logs/` 运行时数据，再执行迁移重建新数据库。
+- 固定数据：新增根目录 `config.toml`，默认管理员从 `[auth.default_admin]` 读取；当前只保留默认管理员作为固定写入数据。
+- 日志结构：Django 应用日志移动到 `logs/app/scp-cv.log`，`runall` 子进程日志按启动批次写入 `logs/runall/<启动时间>/`，后台拉起日志写入 `logs/runall/service/`。
+- 文档与测试：补充清库操作、日志路径说明、固定配置读取和 clearall 命令测试。
+
 ### 新增 WPS 演示 PPT 后端
 
 - 播放器：新增显式 PPT 后端值 `wps` 和 WPS 演示 COM 适配器，路由层按媒体源或本次打开请求选择 LibreOffice、PowerPoint 或 WPS，仍不恢复 `auto` 或隐式失败回退。
@@ -57,7 +64,7 @@
 ### 新增 runall 纯 CLI 与后台启动模式
 
 - 管理命令：`runall` 与 `run_player` 新增 `--headless`，可跳过播放器启动器 GUI，直接按显示器 ID 创建 4 个播放窗口。
-- 管理命令：新增 `--service`，以后台子进程重新启动 `runall` 并立即释放当前终端，日志写入 `logs/runall-service.log`。
+- 管理命令：新增 `--service`，以后台子进程重新启动 `runall` 并立即释放当前终端，日志写入 `logs/runall/service/`。
 - 参数：新增 `--window1`、`--window2`、`--window3` / `--windows3`、`--window4` 和 `--gpu`；未显式配置时窗口 1-4 默认映射到显示器 1-4，GPU 使用系统默认。
 - 文档：README、使用文档和维护文档同步补充 headless/service 启动、日志和故障定位说明。
 

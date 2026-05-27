@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+from datetime import datetime
 from pathlib import Path
 
 
@@ -30,7 +31,7 @@ def launch_runall_service(
 
     service_command = [sys.executable, *argv]
     service_command = _remove_service_flag(service_command)
-    service_log_path = log_dir / "runall-service.log"
+    service_log_path = _service_log_path(log_dir)
     service_env = os.environ.copy()
     service_env.setdefault("PYTHONUTF8", "1")
     service_env.setdefault("PYTHONIOENCODING", "utf-8")
@@ -49,6 +50,19 @@ def launch_runall_service(
     finally:
         service_log.close()
     return int(service_process.pid), service_log_path
+
+
+def _service_log_path(log_dir: Path, started_at: datetime | None = None) -> Path:
+    """
+    返回后台 runall 服务启动日志路径。
+    :param log_dir: 日志根目录
+    :param started_at: 启动时间；未传时使用当前时间
+    :return: 后台服务日志路径
+    """
+    timestamp = (started_at or datetime.now()).strftime("%Y%m%d-%H%M%S-%f")
+    service_log_dir = log_dir / "runall" / "service"
+    service_log_dir.mkdir(parents=True, exist_ok=True)
+    return service_log_dir / f"runall-service-{timestamp}.log"
 
 
 def _remove_service_flag(command_args: list[str]) -> list[str]:

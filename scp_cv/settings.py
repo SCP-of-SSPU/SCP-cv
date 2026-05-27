@@ -10,6 +10,8 @@ import environ
 BASE_DIR = Path(__file__).resolve().parent.parent
 LOG_DIR = BASE_DIR / "logs"
 LOG_DIR.mkdir(exist_ok=True)
+APP_LOG_DIR = LOG_DIR / "app"
+APP_LOG_DIR.mkdir(parents=True, exist_ok=True)
 env = environ.Env(
     DJANGO_DEBUG=(bool, False),
     DJANGO_LANGUAGE_CODE=(str, "zh-hans"),
@@ -187,7 +189,7 @@ LOGGING = {
         },
         "file": {
             "class": "logging.handlers.RotatingFileHandler",
-            "filename": LOG_DIR / "scp-cv.log",
+            "filename": APP_LOG_DIR / "scp-cv.log",
             "maxBytes": 5 * 1024 * 1024,
             "backupCount": 5,
             "encoding": "utf-8",

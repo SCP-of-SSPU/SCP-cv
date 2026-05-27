@@ -92,7 +92,9 @@ def test_launch_runall_service_detaches_and_writes_log(
     )
 
     assert service_pid == 4321
-    assert service_log_path == tmp_path / "runall-service.log"
+    assert service_log_path.parent == tmp_path / "runall" / "service"
+    assert service_log_path.name.startswith("runall-service-")
+    assert service_log_path.name.endswith(".log")
     assert captured_popen["command_args"] == [
         "C:/Python/python.exe",
         "manage.py",

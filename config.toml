@@ -1,0 +1,7 @@
+[auth.default_admin]
+username = "admin"
+password = "admin"
+email = ""
+is_staff = true
+is_superuser = true
+is_active = true

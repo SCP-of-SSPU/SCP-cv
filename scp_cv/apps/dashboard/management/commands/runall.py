@@ -31,6 +31,7 @@ from scp_cv.apps.dashboard.management.runall_frontend import (
 )
 from scp_cv.apps.dashboard.management.runall_processes import (
     connect_host,
+    create_runall_log_dir,
     open_process_log,
     public_host,
     spawn_process,
@@ -70,6 +71,7 @@ class Command(BaseCommand):
         self._startup_reset_failed = False
         self._startup_reset_message = ""
         self._backend_port = 8000
+        self._process_log_dir = Path(settings.LOG_DIR)
 
     def add_arguments(self, parser: object) -> None:
         """
@@ -101,6 +103,9 @@ class Command(BaseCommand):
                 )
             )
             return
+
+        self._process_log_dir = create_runall_log_dir(Path(settings.LOG_DIR))
+        self.stdout.write(f"本次 runall 子进程日志目录：{self._process_log_dir}")
 
         backend_host = str(options.get("backend_host", "127.0.0.1"))
         backend_port = int(options.get("backend_port", 8000))
@@ -327,7 +332,7 @@ class Command(BaseCommand):
         """
         log_handle: BinaryIO | None = None
         try:
-            log_handle = open_process_log(Path(settings.LOG_DIR), name)
+            log_handle = open_process_log(self._process_log_dir, name)
             process = spawn_process(
                 command_args,
                 log_handle=log_handle,

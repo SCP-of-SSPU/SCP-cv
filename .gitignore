@@ -61,6 +61,8 @@ cover/
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
+db.sqlite3-wal
+db.sqlite3-shm
 
 # Flask stuff:
 instance/
@@ -186,8 +188,8 @@ frontend/vite.config.d.ts
 .playwright-cli/
 .ruff_cache/
 requirements*.txt
-media/uploads/
-media/ppt_previews/
+media/*
+!media/.gitkeep
 logs/*
 !logs/.gitkeep
 

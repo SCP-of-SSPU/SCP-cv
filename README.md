@@ -68,6 +68,9 @@ npm ci --prefix frontend
 copy .env.example .env
 copy frontend\.env.example frontend\.env
 
+# 确认固定启动数据配置；默认管理员来自 config.toml
+type config.toml
+
 # 初始化数据库
 uv run python manage.py migrate
 ```
@@ -126,7 +129,7 @@ uv run python manage.py runall --skip-frontend
 # 无启动器 GUI 启动全部服务和 4 个播放窗口
 uv run python manage.py runall --headless
 
-# 后台启动，不绑定当前终端生命周期；输出写入 logs/runall-service.log
+# 后台启动，不绑定当前终端生命周期；输出写入 logs/runall/service/
 uv run python manage.py runall --headless --service
 
 # 指定窗口到 Windows 显示器 ID，并指定 GPU ID
@@ -173,6 +176,16 @@ uv run pytest tests/ -v
 npm --prefix frontend run typecheck
 npm --prefix frontend run build
 ```
+
+## 清除运行数据
+
+如需把现场恢复到空数据库和空媒体状态，先停止 `runall`、Django、播放器等正在运行的进程，再执行：
+
+```powershell
+uv run manage.py clearall
+```
+
+该命令只作为 Django 管理命令提供，不暴露 API 或前端入口。它会删除 `db.sqlite3` 及 SQLite 附属文件，清空 `media/` 和 `logs/`，重新执行迁移，并仅按 `config.toml` 写入固定数据；当前固定数据只有默认管理员。
 
 ## 文档
 
