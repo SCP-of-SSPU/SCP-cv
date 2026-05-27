@@ -12,19 +12,24 @@ from __future__ import annotations
 import logging
 import os
 import zipfile
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Optional
 
 from django.conf import settings
 
 from scp_cv import libreoffice as lo_runtime
-from scp_cv.ppt_backend import DEFAULT_PPT_BACKEND, normalize_ppt_backend
+from scp_cv.ppt_backend import (
+    DEFAULT_PPT_BACKEND,
+    PPT_BACKEND_POWERPOINT,
+    PPT_BACKEND_WPS,
+    normalize_ppt_backend,
+)
+from scp_cv.ppt_com import POWERPOINT_COM_PROG_IDS, WPS_COM_PROG_IDS
 
 logger = logging.getLogger(__name__)
 
 _PPT_ALERTS_NONE = 1
-_PPT_BACKEND_LIBREOFFICE = "libreoffice"
-_PPT_BACKEND_POWERPOINT = "powerpoint"
 
 
 def export_ppt_slide_previews(file_path: Path, source_id: int) -> list[str]:
@@ -37,8 +42,10 @@ def export_ppt_slide_previews(file_path: Path, source_id: int) -> list[str]:
     if os.name != "nt" or not file_path.is_file() or not _is_ppt_export_candidate(file_path):
         return []
     backend = _source_ppt_backend(source_id)
-    if backend == _PPT_BACKEND_POWERPOINT:
+    if backend == PPT_BACKEND_POWERPOINT:
         return export_ppt_slide_previews_with_powerpoint(file_path, source_id)
+    if backend == PPT_BACKEND_WPS:
+        return export_ppt_slide_previews_with_wps(file_path, source_id)
     return export_ppt_slide_previews_with_libreoffice(file_path, source_id)
 
 
@@ -91,13 +98,50 @@ def export_ppt_slide_previews_with_powerpoint(file_path: Path, source_id: int) -
     :param source_id: 媒体源 ID
     :return: 按页码排序的媒体 URL 列表
     """
-    if not _is_powerpoint_export_candidate(file_path):
+    return _export_ppt_slide_previews_with_com(
+        file_path,
+        source_id,
+        POWERPOINT_COM_PROG_IDS,
+        "PowerPoint",
+    )
+
+
+def export_ppt_slide_previews_with_wps(file_path: Path, source_id: int) -> list[str]:
+    """
+    使用本机 WPS 演示将每页幻灯片导出为 PNG 预览。
+    :param file_path: PPT 文件路径
+    :param source_id: 媒体源 ID
+    :return: 按页码排序的媒体 URL 列表
+    """
+    return _export_ppt_slide_previews_with_com(
+        file_path,
+        source_id,
+        WPS_COM_PROG_IDS,
+        "WPS 演示",
+    )
+
+
+def _export_ppt_slide_previews_with_com(
+    file_path: Path,
+    source_id: int,
+    com_prog_ids: Iterable[str],
+    app_label: str,
+) -> list[str]:
+    """
+    使用本机 PPT COM 应用将每页幻灯片导出为 PNG 预览。
+    :param file_path: PPT 文件路径
+    :param source_id: 媒体源 ID
+    :param com_prog_ids: 同一后端可尝试的 COM ProgID 候选
+    :param app_label: 日志展示名称
+    :return: 按页码排序的媒体 URL 列表
+    """
+    if not _is_com_export_candidate(file_path):
         return []
     try:
         import pythoncom
         import win32com.client
     except ImportError as import_error:
-        logger.info("PPT 预览导出跳过，缺少 COM 依赖：%s", import_error)
+        logger.info("%s PPT 预览导出跳过，缺少 COM 依赖：%s", app_label, import_error)
         return []
 
     relative_dir, preview_dir = _prepare_preview_dir(source_id)
@@ -105,14 +149,9 @@ def export_ppt_slide_previews_with_powerpoint(file_path: Path, source_id: int) -
     ppt_app: Optional[object] = None
     presentation: Optional[object] = None
     try:
-        ppt_app = win32com.client.DispatchEx("PowerPoint.Application")
+        ppt_app = _dispatch_ppt_preview_app(win32com.client, com_prog_ids, app_label)
         ppt_app.DisplayAlerts = _PPT_ALERTS_NONE
-        presentation = ppt_app.Presentations.Open(
-            str(file_path),
-            ReadOnly=True,
-            Untitled=False,
-            WithWindow=False,
-        )
+        presentation = _open_com_presentation_readonly(ppt_app, str(file_path))
         preview_paths: list[str] = []
         slide_count = int(presentation.Slides.Count)
         for page_index in range(1, slide_count + 1):
@@ -121,7 +160,7 @@ def export_ppt_slide_previews_with_powerpoint(file_path: Path, source_id: int) -
             preview_paths.append(_media_url(relative_dir / output_path.name))
         return preview_paths
     except Exception as export_error:
-        logger.info("PowerPoint PPT 预览导出失败：%s", export_error)
+        logger.info("%s PPT 预览导出失败：%s", app_label, export_error)
         _clear_preview_dir(preview_dir)
         return []
     finally:
@@ -140,6 +179,60 @@ def export_ppt_slide_previews_with_powerpoint(file_path: Path, source_id: int) -
             pythoncom.CoUninitialize()
         except Exception:
             pass
+
+
+def _dispatch_ppt_preview_app(
+    win32com_client: object,
+    com_prog_ids: Iterable[str],
+    app_label: str,
+) -> object:
+    """
+    按候选 ProgID 创建 PPT 预览导出 COM 应用。
+    :param win32com_client: win32com.client 模块对象
+    :param com_prog_ids: 同一后端可尝试的 ProgID 候选
+    :param app_label: 日志展示名称
+    :return: PPT 应用 COM 对象
+    :raises RuntimeError: 所有 ProgID 均不可用时
+    """
+    last_error: Optional[Exception] = None
+    prog_id_tuple = tuple(com_prog_ids)
+    for prog_id in prog_id_tuple:
+        try:
+            return win32com_client.DispatchEx(prog_id)
+        except Exception as dispatch_error:
+            last_error = dispatch_error
+            logger.debug(
+                "%s 预览导出 COM ProgID 不可用：%s，原因：%s",
+                app_label,
+                prog_id,
+                dispatch_error,
+            )
+    supported_prog_ids = ", ".join(prog_id_tuple)
+    raise RuntimeError(
+        f"未找到 {app_label} COM 自动化对象：{supported_prog_ids}"
+    ) from last_error
+
+
+def _open_com_presentation_readonly(ppt_app: object, file_path: str) -> object:
+    """
+    以只读、无编辑窗口方式打开演示文稿。
+    :param ppt_app: PPT 应用 COM 对象
+    :param file_path: PPT 文件路径
+    :return: Presentation COM 对象
+    """
+    presentations = ppt_app.Presentations
+    try:
+        return presentations.Open(
+            file_path,
+            ReadOnly=True,
+            Untitled=False,
+            WithWindow=False,
+        )
+    except Exception as keyword_error:
+        try:
+            return presentations.Open(file_path, True, False, False)
+        except Exception:
+            raise keyword_error
 
 
 def _prepare_preview_dir(source_id: int) -> tuple[Path, Path]:
@@ -178,7 +271,7 @@ def _source_ppt_backend(source_id: int) -> str:
     """
     读取媒体源选择的 PPT 预览后端。
     :param source_id: 媒体源 ID
-    :return: libreoffice 或 powerpoint
+    :return: libreoffice、powerpoint 或 wps
     """
     try:
         from scp_cv.apps.playback.models import MediaSource
@@ -208,11 +301,11 @@ def _is_ppt_export_candidate(file_path: Path) -> bool:
         return False
 
 
-def _is_powerpoint_export_candidate(file_path: Path) -> bool:
+def _is_com_export_candidate(file_path: Path) -> bool:
     """
-    判断文件是否适合交给 PowerPoint COM 导出。
+    判断文件是否适合交给本机 PPT COM 应用导出。
     :param file_path: 待导出的 PPT 文件路径
-    :return: True 表示可尝试 PowerPoint 导出
+    :return: True 表示可尝试 COM 导出
     """
     return _is_ppt_export_candidate(file_path)
 
@@ -221,4 +314,5 @@ __all__ = [
     "export_ppt_slide_previews",
     "export_ppt_slide_previews_with_libreoffice",
     "export_ppt_slide_previews_with_powerpoint",
+    "export_ppt_slide_previews_with_wps",
 ]

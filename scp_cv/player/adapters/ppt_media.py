@@ -1,7 +1,7 @@
 #!/user/bin/env python
 # -*- coding: UTF-8 -*-
 """
-PowerPoint 页面媒体控制辅助函数。
+PPT 页面媒体控制辅助函数。
 集中处理当前幻灯片音视频 shape 的查找和播放控制，避免 PPT 适配器继续堆积实现。
 @Project : SCP-cv
 @File : ppt_media.py
@@ -27,10 +27,10 @@ def control_slide_media(
 ) -> None:
     """
     控制当前幻灯片中的音视频媒体对象。
-    :param slideshow_view: PowerPoint SlideShowView COM 对象
-    :param presentation: PowerPoint Presentation COM 对象
+    :param slideshow_view: PPT SlideShowView COM 对象
+    :param presentation: PPT Presentation COM 对象
     :param logger: 适配器日志器
-    :param media_id: 媒体对象标识，可为 PowerPoint shape id
+    :param media_id: 媒体对象标识，可为 PPT shape id
     :param action: 控制动作，支持 play / pause / stop
     :param media_index: 当前页媒体序号，从 1 开始
     :return: None
@@ -61,12 +61,12 @@ def resolve_media_player(
     media_index: int,
 ) -> Optional[object]:
     """
-    根据 shape id 或当前页媒体序号获取 PowerPoint Player 对象。
-    :param slideshow_view: PowerPoint SlideShowView COM 对象
-    :param presentation: PowerPoint Presentation COM 对象
+    根据 shape id 或当前页媒体序号获取 PPT Player 对象。
+    :param slideshow_view: PPT SlideShowView COM 对象
+    :param presentation: PPT Presentation COM 对象
     :param media_id: 媒体对象标识
     :param media_index: 媒体序号
-    :return: PowerPoint Player COM 对象；找不到时返回 None
+    :return: PPT Player COM 对象；找不到时返回 None
     """
     for shape_id in candidate_media_shape_ids(
         presentation, slideshow_view, media_id, media_index
@@ -86,8 +86,8 @@ def candidate_media_shape_ids(
 ) -> list[int]:
     """
     生成可尝试的媒体 shape id 列表。
-    :param presentation: PowerPoint Presentation COM 对象
-    :param slideshow_view: PowerPoint SlideShowView COM 对象
+    :param presentation: PPT Presentation COM 对象
+    :param slideshow_view: PPT SlideShowView COM 对象
     :param media_id: 前端媒体对象标识
     :param media_index: 当前页媒体序号
     :return: shape id 列表
@@ -110,8 +110,8 @@ def current_slide_media_shape_ids(
 ) -> list[int]:
     """
     枚举当前页可作为媒体控制目标的 shape id。
-    :param presentation: PowerPoint Presentation COM 对象
-    :param slideshow_view: PowerPoint SlideShowView COM 对象
+    :param presentation: PPT Presentation COM 对象
+    :param slideshow_view: PPT SlideShowView COM 对象
     :return: 当前页媒体 shape id 列表
     """
     if presentation is None:

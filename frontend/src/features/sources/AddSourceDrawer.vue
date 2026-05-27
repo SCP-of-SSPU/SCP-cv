@@ -53,6 +53,7 @@ const isPptFile = computed(() => /\.(pptx?|ppsx?)$/i.test(fileToUpload.value?.na
 const pptBackendOptions = computed(() => [
   { label: t('sources.pptBackend.libreoffice'), value: 'libreoffice' },
   { label: t('sources.pptBackend.powerpoint'), value: 'powerpoint' },
+  { label: t('sources.pptBackend.wps'), value: 'wps' },
 ]);
 const fileSize = computed(() => {
   if (!fileToUpload.value) return '';

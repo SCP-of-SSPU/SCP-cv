@@ -51,6 +51,7 @@ const isPptSource = computed(() => props.source?.source_type === 'ppt');
 const pptBackendOptions = computed(() => [
   { label: t('sources.pptBackend.libreoffice'), value: 'libreoffice' },
   { label: t('sources.pptBackend.powerpoint'), value: 'powerpoint' },
+  { label: t('sources.pptBackend.wps'), value: 'wps' },
 ]);
 
 const isOpen = computed({

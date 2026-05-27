@@ -41,6 +41,58 @@ class _StateAdapter:
         return self.adapter_state
 
 
+class _OpenAdapter:
+    """记录 OPEN 流程调用的 adapter 替身。"""
+
+    def __init__(self) -> None:
+        """
+        初始化调用记录。
+        :return: None
+        """
+        self.open_args: dict[str, object] = {}
+        self.goto_items: list[int] = []
+        self.volumes: list[int] = []
+        self.mutes: list[bool] = []
+
+    def open(self, uri: str, window_handle: int, autoplay: bool = True) -> None:
+        """
+        记录打开参数。
+        :param uri: 媒体 URI
+        :param window_handle: 窗口句柄
+        :param autoplay: 是否自动播放
+        :return: None
+        """
+        self.open_args = {
+            "uri": uri,
+            "window_handle": window_handle,
+            "autoplay": autoplay,
+        }
+
+    def goto_item(self, index: int) -> None:
+        """
+        记录跳页参数。
+        :param index: 目标页码
+        :return: None
+        """
+        self.goto_items.append(index)
+
+    def set_volume(self, volume: int) -> None:
+        """
+        记录音量参数。
+        :param volume: 音量
+        :return: None
+        """
+        self.volumes.append(volume)
+
+    def set_mute(self, muted: bool) -> None:
+        """
+        记录静音参数。
+        :param muted: 是否静音
+        :return: None
+        """
+        self.mutes.append(muted)
+
+
 class _SingleLoopController(PlayerController):
     """只执行一轮轮询的控制器替身，用于验证线程边界调度。"""
 
@@ -129,6 +181,52 @@ def test_report_persists_adapter_error_message(media_source_video: MediaSource) 
     assert session.playback_state == PlaybackState.ERROR
     assert session.error_message == "libVLC 播放 SRT 流失败"
     assert snapshot["error_message"] == "libVLC 播放 SRT 流失败"
+
+
+def test_handle_open_passes_wps_backend_to_adapter(monkeypatch: pytest.MonkeyPatch) -> None:
+    """播放器处理 OPEN 指令时应把 WPS 后端透传给适配器工厂。"""
+    controller = PlayerController()
+    adapter = _OpenAdapter()
+    created_options: dict[str, object] = {}
+    states: list[tuple[int, str]] = []
+
+    def create_adapter_stub(source_type: str, **adapter_options: object) -> _OpenAdapter:
+        """
+        记录适配器创建参数。
+        :param source_type: 源类型
+        :param adapter_options: 适配器选项
+        :return: adapter 替身
+        """
+        created_options["source_type"] = source_type
+        created_options.update(adapter_options)
+        return adapter
+
+    monkeypatch.setattr("scp_cv.player.controller_handlers.create_adapter", create_adapter_stub)
+    monkeypatch.setattr(controller, "get_window_handle", lambda _window_id: 2001)
+    monkeypatch.setattr(controller, "get_window", lambda _window_id: None)
+    monkeypatch.setattr(controller, "_close_adapter", lambda _window_id: None)
+    monkeypatch.setattr(controller, "_cleanup_temporary_source", lambda _command_args: None)
+    monkeypatch.setattr(controller, "_update_session_state", lambda window_id, state: states.append((window_id, state)))
+
+    controller._handle_open(1, {
+        "source_id": 7,
+        "source_type": "ppt",
+        "uri": "C:/demo/wps.pptx",
+        "autoplay": True,
+        "ppt_backend": "wps",
+        "target_slide": 4,
+        "volume": 88,
+        "muted": True,
+    })
+
+    assert created_options == {"source_type": "ppt", "ppt_backend": "wps"}
+    assert adapter.open_args == {"uri": "C:/demo/wps.pptx", "window_handle": 2001, "autoplay": True}
+    assert adapter.goto_items == [4]
+    assert adapter.volumes == [88]
+    assert adapter.mutes == [True]
+    assert controller._adapters[1] is adapter
+    assert controller._adapter_source_ids[1] == 7
+    assert states == [(1, "playing")]
 
 
 @pytest.mark.django_db

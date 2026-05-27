@@ -69,7 +69,7 @@ export default {
     resetAllOk: '已将所有窗口重置为待机',
     resetAllFail: '重置失败',
     resetPptTitle: '重置 PPT 放映？',
-    resetPptDesc: '将关闭当前 LibreOffice / PowerPoint PPT 放映后端进程，再重启所有正在放映的 PPT，并自动回到重置前页码。非 PPT 窗口不受影响。',
+    resetPptDesc: '将关闭当前 PPT 放映后端进程，再重启所有正在放映的 PPT，并自动回到重置前页码。非 PPT 窗口不受影响。',
     resetPptConfirm: '确认重置 PPT',
     resetPptOk: '已重置 PPT 放映',
     resetPptFail: 'PPT 放映重置失败',

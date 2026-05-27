@@ -71,6 +71,23 @@ def test_playback_open_api_updates_session(media_source_ppt: MediaSource) -> Non
 
 
 @pytest.mark.django_db
+def test_playback_open_api_accepts_wps_backend(media_source_ppt: MediaSource) -> None:
+    """POST /api/playback/{window}/open/ 应接受 WPS 演示后端。"""
+    client = Client()
+
+    response = client.post(
+        "/api/playback/1/open/",
+        data={"source_id": media_source_ppt.pk, "autoplay": True, "ppt_backend": "wps"},
+        content_type="application/json",
+    )
+
+    assert response.status_code == 200
+    session = PlaybackSession.objects.get(window_id=1)
+    assert session.ppt_backend == "wps"
+    assert session.command_args["ppt_backend"] == "wps"
+
+
+@pytest.mark.django_db
 def test_playback_control_api_reports_missing_source() -> None:
     """无媒体源时发送播放控制应返回稳定错误响应。"""
     client = Client()
@@ -263,14 +280,14 @@ def test_switch_ppt_backend_api_reopens_current_ppt(media_source_ppt: MediaSourc
 
     response = client.post(
         "/api/playback/1/ppt-backend/",
-        data={"ppt_backend": "powerpoint"},
+        data={"ppt_backend": "wps"},
         content_type="application/json",
     )
     session = PlaybackSession.objects.get(window_id=1)
 
     assert response.status_code == 200
     assert session.pending_command == PlaybackCommand.OPEN
-    assert session.command_args["ppt_backend"] == "powerpoint"
+    assert session.command_args["ppt_backend"] == "wps"
 
 
 @pytest.mark.django_db
@@ -279,7 +296,7 @@ def test_reset_ppt_playback_api_requests_ppt_reset(media_source_ppt: MediaSource
     client = Client()
     client.post(
         "/api/playback/1/open/",
-        data={"source_id": media_source_ppt.pk, "autoplay": True, "ppt_backend": "powerpoint"},
+        data={"source_id": media_source_ppt.pk, "autoplay": True, "ppt_backend": "wps"},
         content_type="application/json",
     )
     session = PlaybackSession.objects.get(window_id=1)
@@ -293,6 +310,7 @@ def test_reset_ppt_playback_api_requests_ppt_reset(media_source_ppt: MediaSource
     assert response.status_code == 200
     assert session.pending_command == PlaybackCommand.RESET_PPT
     assert session.command_args["restart_sessions"][0]["target_slide"] == 6
+    assert session.command_args["restart_sessions"][0]["ppt_backend"] == "wps"
 
 
 @pytest.mark.django_db

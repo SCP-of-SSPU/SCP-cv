@@ -97,6 +97,52 @@ def test_preview_uses_selected_powerpoint(monkeypatch: MonkeyPatch, tmp_path: Pa
     assert calls == ["powerpoint"]
 
 
+def test_preview_uses_selected_wps(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
+    """媒体源选择 WPS 时应只使用 WPS 导出预览。"""
+    calls: list[str] = []
+
+    def libreoffice_export(file_path: Path, source_id: int) -> list[str]:
+        """
+        LibreOffice 不应被调用。
+        :param file_path: PPT 文件路径
+        :param source_id: 媒体源 ID
+        :return: 空列表
+        """
+        calls.append("libreoffice")
+        return []
+
+    def powerpoint_export(file_path: Path, source_id: int) -> list[str]:
+        """
+        PowerPoint 不应被调用。
+        :param file_path: PPT 文件路径
+        :param source_id: 媒体源 ID
+        :return: 空列表
+        """
+        calls.append("powerpoint")
+        return []
+
+    def wps_export(file_path: Path, source_id: int) -> list[str]:
+        """
+        模拟 WPS 导出成功。
+        :param file_path: PPT 文件路径
+        :param source_id: 媒体源 ID
+        :return: 预览 URL 列表
+        """
+        calls.append("wps")
+        return [f"/media/ppt_previews/{source_id}/slide-1.png"]
+
+    monkeypatch.setattr(ppt_preview.os, "name", "nt")
+    monkeypatch.setattr(ppt_preview, "_source_ppt_backend", lambda _source_id: "wps")
+    monkeypatch.setattr(ppt_preview, "export_ppt_slide_previews_with_libreoffice", libreoffice_export)
+    monkeypatch.setattr(ppt_preview, "export_ppt_slide_previews_with_powerpoint", powerpoint_export)
+    monkeypatch.setattr(ppt_preview, "export_ppt_slide_previews_with_wps", wps_export)
+
+    previews = ppt_preview.export_ppt_slide_previews(_make_ppt_file(tmp_path), 10)
+
+    assert previews == ["/media/ppt_previews/10/slide-1.png"]
+    assert calls == ["wps"]
+
+
 def test_selected_libreoffice_never_falls_back_to_powerpoint(
     monkeypatch: MonkeyPatch,
     tmp_path: Path,

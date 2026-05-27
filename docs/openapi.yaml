@@ -149,6 +149,8 @@ paths:
                   nullable: true
                 is_temporary:
                   type: boolean
+                ppt_backend:
+                  $ref: '#/components/schemas/PptBackend'
       responses:
         '201':
           description: 创建成功
@@ -303,7 +305,7 @@ paths:
       - $ref: '#/components/parameters/SourceId'
     patch:
       tags: [sources]
-      summary: 更新媒体源名称、网页 URL 或预热开关
+      summary: 更新媒体源名称、网页 URL、预热开关或 PPT 后端
       operationId: updateSource
       requestBody:
         required: true
@@ -520,6 +522,29 @@ paths:
         '400':
           $ref: '#/components/responses/ErrorResponse'
 
+  /playback/{window_id}/ppt-backend/:
+    parameters:
+      - $ref: '#/components/parameters/WindowId'
+    post:
+      tags: [playback]
+      summary: 临时切换当前 PPT 放映后端
+      operationId: switchPptBackend
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SwitchPptBackendRequest'
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionsResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
   /playback/{window_id}/close/:
     parameters:
       - $ref: '#/components/parameters/WindowId'
@@ -625,6 +650,20 @@ paths:
       summary: 重置全部窗口并重建播放器窗口
       description: 清空全部播放会话，通知运行中的 PySide 播放器关闭并重建窗口，同时重建网页预热池。
       operationId: resetAllSessions
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionsResponse'
+
+  /playback/reset-ppt/:
+    post:
+      tags: [playback]
+      summary: 重置 PPT 放映后端并恢复页码
+      description: 关闭当前 PPT 放映后端进程，重启所有正在放映的 PPT，并回到重置前页码。
+      operationId: resetPptPlayback
       responses:
         '200':
           description: 操作成功
@@ -996,6 +1035,11 @@ components:
         - rtsp_stream
         - srt_stream
 
+    PptBackend:
+      type: string
+      enum: [libreoffice, powerpoint, wps]
+      description: PPT 放映后端。WPS 演示为显式选择，不会从其他后端失败后隐式兜底。
+
     PlaybackState:
       type: string
       enum: [idle, loading, playing, paused, stopped, error]
@@ -1060,7 +1104,7 @@ components:
 
     MediaSource:
       type: object
-      required: [id, source_type, name, uri, is_available, is_temporary, metadata, keep_alive, preheat_enabled, preview_url, thumbnail_url, preview_kind, preview_label, created_at]
+      required: [id, source_type, name, uri, is_available, is_temporary, metadata, keep_alive, preheat_enabled, ppt_backend, ppt_backend_label, preview_url, thumbnail_url, preview_kind, preview_label, created_at]
       properties:
         id:
           type: integer
@@ -1100,6 +1144,11 @@ components:
         preheat_enabled:
           type: boolean
           description: 网页源预热开关；播放器启动时提前加载并复用 WebView
+        ppt_backend:
+          $ref: '#/components/schemas/PptBackend'
+        ppt_backend_label:
+          type: string
+          description: PPT 后端展示名称
         preview_url:
           type: string
           description: 可嵌入前端缩略位的预览 URL；无真实预览时为空字符串
@@ -1160,6 +1209,8 @@ components:
         - is_spliced
         - current_slide
         - total_slides
+        - ppt_backend
+        - ppt_backend_label
         - position_ms
         - duration_ms
         - pending_command
@@ -1203,6 +1254,10 @@ components:
           type: integer
         total_slides:
           type: integer
+        ppt_backend:
+          $ref: '#/components/schemas/PptBackend'
+        ppt_backend_label:
+          type: string
         position_ms:
           type: integer
         duration_ms:
@@ -1409,6 +1464,8 @@ components:
         folder_id:
           type: integer
           nullable: true
+        ppt_backend:
+          $ref: '#/components/schemas/PptBackend'
 
     WebSourceCreateRequest:
       type: object
@@ -1445,6 +1502,8 @@ components:
           type: boolean
           deprecated: true
           description: 旧字段兼容别名；建议改用 preheat_enabled
+        ppt_backend:
+          $ref: '#/components/schemas/PptBackend'
 
     MoveSourceRequest:
       type: object
@@ -1493,6 +1552,12 @@ components:
         autoplay:
           type: boolean
           default: true
+        ppt_backend:
+          $ref: '#/components/schemas/PptBackend'
+        target_slide:
+          type: integer
+          minimum: 1
+          description: PPT 打开后自动跳转的页码；非 PPT 源忽略
 
     PlaybackControlRequest:
       type: object
@@ -1524,6 +1589,13 @@ components:
           type: string
         media_index:
           type: integer
+
+    SwitchPptBackendRequest:
+      type: object
+      required: [ppt_backend]
+      properties:
+        ppt_backend:
+          $ref: '#/components/schemas/PptBackend'
 
     ToggleLoopRequest:
       type: object

@@ -1,7 +1,7 @@
 #!/user/bin/env python
 # -*- coding: UTF-8 -*-
 '''
-PPT 后端路由测试，覆盖显式 LibreOffice / PowerPoint 选择行为。
+PPT 后端路由测试，覆盖显式 LibreOffice / PowerPoint / WPS 选择行为。
 @Project : SCP-cv
 @File : test_ppt_router.py
 @Author : Qintsg
@@ -125,6 +125,26 @@ def test_backend_uses_explicit_powerpoint(monkeypatch: MonkeyPatch) -> None:
     assert "libreoffice" not in created
 
 
+def test_backend_uses_explicit_wps(monkeypatch: MonkeyPatch) -> None:
+    """显式 WPS 时只创建 WPS 后端。"""
+    created: dict[str, _FakePptBackend] = {}
+
+    def factory(backend: str) -> SourceAdapter:
+        fake_backend = _FakePptBackend(backend)
+        created[backend] = fake_backend
+        return fake_backend
+
+    monkeypatch.setattr(ppt_router, "create_ppt_backend_adapter", factory)
+    adapter = ppt_router.PptSourceAdapter("wps")
+
+    adapter.open("demo.pptx", 1001, autoplay=True)
+
+    assert adapter.active_backend == "wps"
+    assert created["wps"].open_called is True
+    assert "libreoffice" not in created
+    assert "powerpoint" not in created
+
+
 def test_explicit_backend_failure_does_not_fallback(monkeypatch: MonkeyPatch) -> None:
     """显式后端失败时不应触发另一个后端兜底。"""
     requested_backends: list[str] = []
@@ -147,3 +167,12 @@ def test_rejects_auto_backend() -> None:
     """auto 已删除，传入 auto 应直接报错。"""
     with pytest.raises(ValueError, match="不支持"):
         ppt_router.PptSourceAdapter("auto")
+
+
+def test_create_backend_adapter_routes_wps() -> None:
+    """后端工厂应把 wps 路由到 WPS 适配器。"""
+    from scp_cv.player.adapters.ppt_wps import WpsPptSourceAdapter
+
+    adapter = ppt_router.create_ppt_backend_adapter("wps")
+
+    assert isinstance(adapter, WpsPptSourceAdapter)

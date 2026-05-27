@@ -66,11 +66,17 @@ const pptBackendOptions = computed(() => [
   { label: t('sourcePicker.pptBackendDefault'), value: 'source-default' },
   { label: t('sources.pptBackend.libreoffice'), value: 'libreoffice' },
   { label: t('sources.pptBackend.powerpoint'), value: 'powerpoint' },
+  { label: t('sources.pptBackend.wps'), value: 'wps' },
 ]);
 const pptBackendStrictOptions = computed(() => [
   { label: t('sources.pptBackend.libreoffice'), value: 'libreoffice' },
   { label: t('sources.pptBackend.powerpoint'), value: 'powerpoint' },
+  { label: t('sources.pptBackend.wps'), value: 'wps' },
 ]);
+
+function pptBackendLabel(backend: PptBackend): string {
+  return t(`sources.pptBackend.${backend}`);
+}
 
 async function selectSource(source: MediaSourceItem): Promise<void> {
   try {
@@ -80,7 +86,7 @@ async function selectSource(source: MediaSourceItem): Promise<void> {
     if (selectedBackend && selectedBackend !== source.ppt_backend) {
       const confirmed = await dialog.confirm({
         title: t('sourcePicker.switchPptBackendTitle'),
-        description: t('sourcePicker.switchPptBackendDesc', { backend: selectedBackend === 'libreoffice' ? t('sources.pptBackend.libreoffice') : t('sources.pptBackend.powerpoint') }),
+        description: t('sourcePicker.switchPptBackendDesc', { backend: pptBackendLabel(selectedBackend) }),
         confirmLabel: t('sourcePicker.switchPptBackendConfirm'),
         cancelLabel: t('common.cancel'),
       });

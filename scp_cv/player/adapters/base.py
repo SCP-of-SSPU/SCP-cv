@@ -44,7 +44,7 @@ class SourceAdapter(ABC):
     媒体源适配器抽象基类。
 
     每种可播放内容类型对应一个子类实现：
-    - PptSourceAdapter：PowerPoint COM 放映
+    - PptSourceAdapter：PPT COM 放映
     - VideoSourceAdapter：QMediaPlayer 本地视频
     - WebRTCStreamAdapter / RtspStreamAdapter：RTSP 流播放
 

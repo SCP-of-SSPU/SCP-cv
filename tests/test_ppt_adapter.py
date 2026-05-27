@@ -11,9 +11,14 @@ PPT 播放适配器单元测试，覆盖 PowerPoint COM 状态读取容错。
 from __future__ import annotations
 
 from scp_cv.player.adapters.ppt import PptSourceAdapter
-from scp_cv.player.adapters.ppt_constants import PP_SLIDE_SHOW_WINDOW
+from scp_cv.player.adapters.ppt_constants import (
+    PP_SLIDE_SHOW_RUNNING,
+    PP_SLIDE_SHOW_WINDOW,
+)
 from scp_cv.player.adapters.ppt_media import candidate_media_shape_ids
+from scp_cv.player.adapters.ppt_wps import WpsPptSourceAdapter
 from scp_cv.player.adapters.ppt_window import configure_windowed_slideshow
+from scp_cv.ppt_com import WPS_COM_PROG_IDS
 
 
 class _PresentationStub:
@@ -55,6 +60,29 @@ class _PptAppStub:
         self.quit_called = True
 
 
+class _Win32ComClientStub:
+    """可控的 win32com.client 替身。"""
+
+    def __init__(self) -> None:
+        """
+        初始化调用记录。
+        :return: None
+        """
+        self.calls: list[str] = []
+        self.app = object()
+
+    def DispatchEx(self, prog_id: str) -> object:
+        """
+        记录 ProgID，并让第一个 WPS ProgID 失败以验证候选顺序。
+        :param prog_id: COM ProgID
+        :return: 应用替身
+        """
+        self.calls.append(prog_id)
+        if prog_id == WPS_COM_PROG_IDS[0]:
+            raise RuntimeError("KWPP unavailable")
+        return self.app
+
+
 class _StateFailingSlideShowView:
     """模拟 State 不可读但页码和翻页仍可用的 PowerPoint 放映视图。"""
 
@@ -90,6 +118,103 @@ class _StateFailingSlideShowView:
         """
         self.next_called = True
         self.current_position += 1
+
+
+class _ClickCapableSlideShowView:
+    """模拟支持动画点击级导航的 PowerPoint/WPS 放映视图。"""
+
+    def __init__(self, current_position: int = 1) -> None:
+        """
+        初始化放映视图替身。
+        :param current_position: 当前页码
+        :return: None
+        """
+        self.current_position = current_position
+        self.next_click_called = False
+        self.previous_click_called = False
+        self.next_called = False
+        self.previous_called = False
+
+    @property
+    def State(self) -> int:
+        """
+        返回放映中状态。
+        :return: PowerPoint 放映中常量
+        """
+        return PP_SLIDE_SHOW_RUNNING
+
+    @property
+    def CurrentShowPosition(self) -> int:
+        """
+        返回当前页码。
+        :return: 当前页码
+        """
+        return self.current_position
+
+    def GotoNextClick(self) -> None:
+        """
+        记录下一动画点击调用。
+        :return: None
+        """
+        self.next_click_called = True
+
+    def GotoPreClick(self) -> None:
+        """
+        记录上一动画点击调用。
+        :return: None
+        """
+        self.previous_click_called = True
+
+    def Next(self) -> None:
+        """
+        记录页级下一页调用。
+        :return: None
+        """
+        self.next_called = True
+        self.current_position += 1
+
+    def Previous(self) -> None:
+        """
+        记录页级上一页调用。
+        :return: None
+        """
+        self.previous_called = True
+        self.current_position -= 1
+
+
+class _ClickCountingSlideShowView(_ClickCapableSlideShowView):
+    """模拟可读取动画点击计数的 PowerPoint/WPS 放映视图。"""
+
+    def __init__(
+        self,
+        current_position: int,
+        click_count: int,
+        click_index: int,
+    ) -> None:
+        """
+        初始化可计数的放映视图替身。
+        :param current_position: 当前页码
+        :param click_count: 当前页总点击数
+        :param click_index: 当前点击索引
+        :return: None
+        """
+        super().__init__(current_position=current_position)
+        self.click_count = click_count
+        self.click_index = click_index
+
+    def GetClickCount(self) -> int:
+        """
+        返回当前页动画点击总数。
+        :return: 当前页动画点击总数
+        """
+        return self.click_count
+
+    def GetClickIndex(self) -> int:
+        """
+        返回当前动画点击索引。
+        :return: 当前动画点击索引
+        """
+        return self.click_index
 
 
 class _ShapeStub:
@@ -214,6 +339,70 @@ def test_next_item_allows_navigation_when_state_unreadable_but_position_availabl
     assert adapter._last_slide_index == 3
 
 
+def test_next_item_prefers_click_navigation_on_last_slide() -> None:
+    """最后一页仍应优先下发下一动画点击，避免阻断末页动画。"""
+    slideshow_view = _ClickCapableSlideShowView(current_position=5)
+    adapter = PptSourceAdapter()
+    adapter._slideshow_view = slideshow_view
+    adapter._total_slides = 5
+
+    adapter.next_item()
+
+    assert slideshow_view.next_click_called is True
+    assert slideshow_view.next_called is False
+    assert adapter._last_slide_index == 5
+
+
+def test_prev_item_prefers_click_navigation_on_first_slide() -> None:
+    """第一页仍应优先下发上一动画点击，避免阻断页内动画回退。"""
+    slideshow_view = _ClickCapableSlideShowView(current_position=1)
+    adapter = PptSourceAdapter()
+    adapter._slideshow_view = slideshow_view
+    adapter._total_slides = 5
+
+    adapter.prev_item()
+
+    assert slideshow_view.previous_click_called is True
+    assert slideshow_view.previous_called is False
+    assert adapter._last_slide_index == 1
+
+
+def test_next_item_keeps_last_slide_when_click_count_is_exhausted() -> None:
+    """末页无剩余动画点击时不应越界推进导致放映结束。"""
+    slideshow_view = _ClickCountingSlideShowView(
+        current_position=5,
+        click_count=2,
+        click_index=2,
+    )
+    adapter = PptSourceAdapter()
+    adapter._slideshow_view = slideshow_view
+    adapter._total_slides = 5
+
+    adapter.next_item()
+
+    assert slideshow_view.next_click_called is False
+    assert slideshow_view.next_called is False
+    assert adapter._last_slide_index == 5
+
+
+def test_prev_item_keeps_first_slide_when_click_index_is_zero() -> None:
+    """首页无已播放动画点击时不应越界回退。"""
+    slideshow_view = _ClickCountingSlideShowView(
+        current_position=1,
+        click_count=2,
+        click_index=0,
+    )
+    adapter = PptSourceAdapter()
+    adapter._slideshow_view = slideshow_view
+    adapter._total_slides = 5
+
+    adapter.prev_item()
+
+    assert slideshow_view.previous_click_called is False
+    assert slideshow_view.previous_called is False
+    assert adapter._last_slide_index == 1
+
+
 def test_mark_presentation_clean_sets_saved_flag() -> None:
     """关闭前应将演示文稿标记为已保存，避免 PowerPoint 请求保存。"""
     adapter = PptSourceAdapter()
@@ -322,3 +511,15 @@ def test_close_com_resources_keeps_external_powerpoint_app_running() -> None:
     assert ppt_app.quit_called is False
     assert adapter._ppt_app is None
     assert adapter._owns_ppt_app is False
+
+
+def test_wps_adapter_uses_wps_com_prog_id_candidates() -> None:
+    """WPS 适配器应按 WPS ProgID 候选创建 COM 应用。"""
+    adapter = WpsPptSourceAdapter()
+    win32com_client = _Win32ComClientStub()
+
+    app = adapter._dispatch_ppt_application(win32com_client)
+
+    assert app is win32com_client.app
+    assert win32com_client.calls == list(WPS_COM_PROG_IDS)
+    assert adapter._active_com_prog_id == WPS_COM_PROG_IDS[1]

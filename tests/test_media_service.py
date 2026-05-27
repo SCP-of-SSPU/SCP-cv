@@ -168,6 +168,15 @@ class TestAddLocalPath:
 
         assert source.ppt_backend == "powerpoint"
 
+    def test_add_ppt_with_selected_wps_backend(self, tmp_path: Path) -> None:
+        """注册 PPT 时可保存 WPS 演示播放器。"""
+        ppt_file = tmp_path / "file.pptx"
+        ppt_file.write_bytes(b"fake-pptx")
+
+        source = add_local_path(str(ppt_file), source_type=SourceType.PPT, ppt_backend="wps")
+
+        assert source.ppt_backend == "wps"
+
     def test_nonexistent_file_raises(self) -> None:
         """注册不存在的文件路径应抛出 MediaError。"""
         with pytest.raises(MediaError, match="文件不存在"):
@@ -247,6 +256,16 @@ class TestListMediaSources:
             "ppt_backend", "ppt_backend_label", "thumbnail_url", "preview_kind", "preview_label",
         }
         assert set(sources[0].keys()) == expected_keys
+
+    def test_wps_backend_label(self, media_source_ppt: MediaSource) -> None:
+        """媒体源列表应返回 WPS 后端展示名。"""
+        media_source_ppt.ppt_backend = "wps"
+        media_source_ppt.save(update_fields=["ppt_backend"])
+
+        sources = list_media_sources()
+
+        assert sources[0]["ppt_backend"] == "wps"
+        assert sources[0]["ppt_backend_label"] == "WPS 演示"
 
 # ══════════════════════════════════════════════════════════════
 # delete_media_source

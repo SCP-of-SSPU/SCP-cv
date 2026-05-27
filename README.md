@@ -16,7 +16,7 @@ SCP-cv 是用于控制 **上海第二工业大学 28#108 多媒体显示系统**
 
 - **统一媒体源管理**：上传文件、添加本机路径、添加网页源、自动发现 MediaMTX SRT 流。
 - **四窗口播控**：大屏左、大屏右、TV 左、TV 右分别独立控制，支持 single / double 大屏模式。
-- **PPT 控制**：导入 PPT 时可选择 LibreOffice（稳定）或 Microsoft PowerPoint，媒体源可修改默认播放器，显控页可临时切换并自动回到原页码。
+- **PPT 控制**：导入 PPT 时可选择 LibreOffice（稳定）、Microsoft PowerPoint 或 WPS 演示，媒体源可修改默认播放器，显控页可临时切换并自动回到原页码。
 - **SRT 直播播放**：MediaMTX 接收 OBS / 外部设备推流，播放器通过 libVLC 低延迟拉流。
 - **REST + SSE 控制台**：Vue 前端通过 REST 下发指令，通过 SSE 同步播放状态。
 - **保留 gRPC 接口**：用于兼容中控系统和自动化脚本。
@@ -44,6 +44,7 @@ MediaMTX (SRT publish/read)
 - Node.js 20 或更高版本
 - LibreOffice（推荐的 PPT 播放与预览导出后端）
 - Microsoft PowerPoint（可作为单个 PPT 源或本次放映的显式选择）
+- WPS 演示（可作为单个 PPT 源或本次放映的显式选择，需要本机 COM 注册）
 - VLC/libVLC Windows x64 运行时（SRT 播放必需）
 - MediaMTX Windows x64 可执行文件
 
@@ -76,6 +77,7 @@ uv run python manage.py migrate
 - `tools/third_party/mediamtx/mediamtx.exe`：MediaMTX 主程序，配置文件同目录放置。
 - `tools/third_party/vlc/runtime/`：项目内置 VLC/libVLC runtime；也可以使用系统安装的 `C:\Program Files\VideoLAN\VLC`。
 - LibreOffice 可使用系统安装路径或 PATH 中的 `soffice`；找不到时在 `.env` 配置 `LIBREOFFICE_BIN_PATH`。
+- WPS 演示需要安装在当前 Windows 用户可自动化调用的环境中，播放器会尝试 `KWPP.Application` / `WPP.Application` COM ProgID。
 
 ## 环境变量
 
@@ -86,7 +88,7 @@ uv run python manage.py migrate
 
 PPT 后端相关配置：
 
-- PPT 播放器不再通过 `.env` 全局选择；导入 PPT 时选择默认播放器，媒体源编辑页可修改，四个显控页可对当前放映临时切换。
+- PPT 播放器不再通过 `.env` 全局选择；导入 PPT 时从 `LibreOffice（稳定）`、`Microsoft PowerPoint`、`WPS 演示` 中选择默认播放器，媒体源编辑页可修改，四个显控页可对当前放映临时切换。
 - 临时切换或右上角“重置 PPT 放映”会先关闭当前 PPT 后端进程，再重开原 PPT 并自动跳回操作前页码。
 - `LIBREOFFICE_BIN_PATH=`：可指向 `soffice.exe`、`soffice.com`、LibreOffice 安装目录或 `program` 目录；留空时从 PATH 和常见安装路径查找。
 - `LIBREOFFICE_CONNECT_TIMEOUT_SECONDS=10`：LibreOffice UNO 启动连接超时。

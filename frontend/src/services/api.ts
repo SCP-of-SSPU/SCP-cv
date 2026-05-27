@@ -8,7 +8,7 @@ export interface MediaFolderItem {
   updated_at: string;
 }
 
-export type PptBackend = 'libreoffice' | 'powerpoint';
+export type PptBackend = 'libreoffice' | 'powerpoint' | 'wps';
 
 export interface MediaSourceItem {
   id: number;

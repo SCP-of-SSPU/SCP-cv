@@ -1,7 +1,7 @@
 #!/user/bin/env python
 # -*- coding: UTF-8 -*-
 """
-PowerPoint 放映窗口查找测试，覆盖多窗口同时放映时的 HWND 归属过滤。
+    PPT 放映窗口查找测试，覆盖多窗口同时放映时的 HWND 归属过滤。
 @Project : SCP-cv
 @File : test_ppt_window.py
 @Author : Qintsg
@@ -67,7 +67,7 @@ def _install_fake_win32gui(
 def test_snapshot_slideshow_hwnds_collects_visible_powerpoint_windows(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """快照只应包含可见的 PowerPoint 放映窗口。"""
+    """快照只应包含可见的默认 PPT 放映窗口。"""
     _install_fake_win32gui(
         monkeypatch,
         {
@@ -79,6 +79,25 @@ def test_snapshot_slideshow_hwnds_collects_visible_powerpoint_windows(
     )
     slideshow_hwnds = snapshot_slideshow_hwnds(logging.getLogger(__name__))
     assert slideshow_hwnds == {101, 202}
+
+
+def test_snapshot_slideshow_hwnds_uses_custom_window_classes(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """调用方可指定 WPS 等后端自己的放映窗口 class name。"""
+    _install_fake_win32gui(
+        monkeypatch,
+        {
+            101: ("screenClass", True),
+            202: ("KWppShowWindow", True),
+            303: ("Chrome_WidgetWin_1", True),
+        },
+    )
+    slideshow_hwnds = snapshot_slideshow_hwnds(
+        logging.getLogger(__name__),
+        class_names={"KWppShowWindow"},
+    )
+    assert slideshow_hwnds == {202}
 
 
 def test_find_slideshow_hwnd_prefers_com_hwnd() -> None:
@@ -134,3 +153,23 @@ def test_find_slideshow_hwnd_returns_zero_for_ambiguous_new_windows(
     )
     hwnd = find_slideshow_hwnd(None, logging.getLogger(__name__), existing_hwnds=set())
     assert hwnd == 0
+
+
+def test_find_slideshow_hwnd_uses_custom_window_classes(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """回退枚举应支持调用方传入的后端窗口 class name。"""
+    _install_fake_win32gui(
+        monkeypatch,
+        {
+            101: ("screenClass", True),
+            202: ("KWppShowWindow", True),
+        },
+    )
+    hwnd = find_slideshow_hwnd(
+        None,
+        logging.getLogger(__name__),
+        existing_hwnds=set(),
+        class_names={"KWppShowWindow"},
+    )
+    assert hwnd == 202

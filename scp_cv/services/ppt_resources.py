@@ -100,7 +100,7 @@ def resolve_ppt_image_path(image_reference: str) -> Optional[Path]:
 
 def export_ppt_slide_previews(file_path: Path, source_id: int) -> list[str]:
     """
-    使用当前 PPT 后端策略导出每页 PNG 预览，默认 LibreOffice 优先。
+    使用当前媒体源选择的 PPT 后端导出每页 PNG 预览。
     :param file_path: PPT 文件路径
     :param source_id: 媒体源 ID，用于隔离导出目录
     :return: 按页码排序的媒体 URL 列表；不可导出时返回空列表

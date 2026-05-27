@@ -62,10 +62,14 @@ def test_handle_checks_django_via_loopback_for_wildcard_host(monkeypatch: Any) -
     assert checked_ports == [("Django", "127.0.0.1", 8000, True)]
 
 
-def test_start_frontend_respects_configured_backend_target(monkeypatch: Any) -> None:
+def test_start_frontend_respects_configured_backend_target(
+    monkeypatch: Any,
+    tmp_path: Path,
+) -> None:
     """
     frontend/.env 已配置 VITE_BACKEND_TARGET 时，runall 不应覆盖该值。
     :param monkeypatch: pytest monkeypatch fixture
+    :param tmp_path: pytest 临时目录 fixture
     :return: None
     """
     spawned_processes: list[dict[str, Any]] = []
@@ -99,14 +103,19 @@ def test_start_frontend_respects_configured_backend_target(monkeypatch: Any) -> 
             }
         )
 
-    project_dir = Path("E:/Projects/SCP-cv")
+    frontend_dir = tmp_path / "frontend"
+    frontend_dir.mkdir()
+    (frontend_dir / ".env").write_text(
+        "VITE_BACKEND_TARGET=http://192.168.1.50:8000\n",
+        encoding="utf-8",
+    )
     monkeypatch.setattr(
         shutil,
         "which",
         lambda command_name: "npm.cmd" if command_name == "npm" else None,
     )
     monkeypatch.setattr(command, "_spawn", record_spawn)
-    monkeypatch.setattr(runall.settings, "BASE_DIR", project_dir)
+    monkeypatch.setattr(runall.settings, "BASE_DIR", tmp_path)
     monkeypatch.setenv("VITE_BACKEND_TARGET", "http://root-env-should-not-win:8000")
 
     command._start_frontend("0.0.0.0", 5173, "0.0.0.0", 8000)

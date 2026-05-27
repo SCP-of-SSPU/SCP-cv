@@ -151,6 +151,14 @@ class TestOpenSource:
         assert session.command_args["ppt_backend"] == "powerpoint"
         assert session.command_args["target_slide"] == 3
 
+    def test_open_ppt_with_selected_wps(self, media_source_ppt: MediaSource) -> None:
+        """打开 PPT 时可临时选择 WPS 演示后端。"""
+        session = open_source(1, media_source_ppt.pk, ppt_backend="wps", target_slide=4)
+
+        assert session.ppt_backend == "wps"
+        assert session.command_args["ppt_backend"] == "wps"
+        assert session.command_args["target_slide"] == 4
+
     def test_open_with_autoplay_false(self, media_source_video: MediaSource) -> None:
         """autoplay=False 时指令参数应反映。"""
         session = open_source(1, media_source_video.pk, autoplay=False)
@@ -387,19 +395,19 @@ class TestPptBackendOperations:
         session.is_muted = True
         session.save(update_fields=["volume", "is_muted"])
 
-        switched = switch_ppt_backend(1, "powerpoint")
+        switched = switch_ppt_backend(1, "wps")
 
         assert switched.media_source_id == media_source_ppt.pk
         assert switched.pending_command == PlaybackCommand.OPEN
-        assert switched.ppt_backend == "powerpoint"
-        assert switched.command_args["ppt_backend"] == "powerpoint"
+        assert switched.ppt_backend == "wps"
+        assert switched.command_args["ppt_backend"] == "wps"
         assert switched.command_args["target_slide"] == 4
         assert switched.command_args["volume"] == 66
         assert switched.command_args["muted"] is True
 
     def test_reset_ppt_playback_keeps_current_slide(self, media_source_ppt: MediaSource) -> None:
         """重置 PPT 放映应收集当前 PPT 窗口并保留页码。"""
-        open_source(1, media_source_ppt.pk, ppt_backend="powerpoint")
+        open_source(1, media_source_ppt.pk, ppt_backend="wps")
         update_playback_progress(1, current_slide=5, total_slides=10)
         clear_pending_command(1)
 
@@ -409,7 +417,7 @@ class TestPptBackendOperations:
         assert session.pending_command == PlaybackCommand.RESET_PPT
         restart_sessions = session.command_args["restart_sessions"]
         assert restart_sessions[0]["source_id"] == media_source_ppt.pk
-        assert restart_sessions[0]["ppt_backend"] == "powerpoint"
+        assert restart_sessions[0]["ppt_backend"] == "wps"
         assert restart_sessions[0]["target_slide"] == 5
 
 

@@ -30,6 +30,7 @@ class PptPlaybackBackend(models.TextChoices):
 
     LIBREOFFICE = "libreoffice", "LibreOffice（稳定）"
     POWERPOINT = "powerpoint", "Microsoft PowerPoint"
+    WPS = "wps", "WPS 演示"
 
 
 class PlaybackMode(models.TextChoices):

@@ -85,7 +85,12 @@ watch(
 const pptBackendOptions = computed(() => [
   { label: t('sources.pptBackend.libreoffice'), value: 'libreoffice' },
   { label: t('sources.pptBackend.powerpoint'), value: 'powerpoint' },
+  { label: t('sources.pptBackend.wps'), value: 'wps' },
 ]);
+
+function pptBackendLabel(backend: PptBackend): string {
+  return t(`sources.pptBackend.${backend}`);
+}
 
 async function call(action: () => Promise<void>, errorTitle: string): Promise<void> {
   try {
@@ -151,7 +156,7 @@ function onClose(): void {
 async function onPptBackendChange(nextBackend: PptBackend): Promise<void> {
   const previousBackend = props.session.ppt_backend || 'libreoffice';
   if (nextBackend === previousBackend) return;
-  const backendLabel = nextBackend === 'libreoffice' ? t('sources.pptBackend.libreoffice') : t('sources.pptBackend.powerpoint');
+  const backendLabel = pptBackendLabel(nextBackend);
   const confirmed = await dialog.confirm({
     title: t('playback.switchPptBackendTitle'),
     description: t('playback.switchPptBackendDesc', { backend: backendLabel }),

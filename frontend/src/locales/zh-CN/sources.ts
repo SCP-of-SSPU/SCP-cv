@@ -63,6 +63,7 @@ export default {
       label: 'PPT 播放器',
       libreoffice: 'LibreOffice（稳定）',
       powerpoint: 'Microsoft PowerPoint',
+      wps: 'WPS 演示',
       importHint: '该选择会保存为此 PPT 的默认放映播放器。',
       editHint: '修改后只影响后续打开；正在放映的窗口不会被打断。',
     },

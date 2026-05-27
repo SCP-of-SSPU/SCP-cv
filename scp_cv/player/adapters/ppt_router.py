@@ -1,7 +1,7 @@
 #!/user/bin/env python
 # -*- coding: UTF-8 -*-
 '''
-PPT 适配器路由层，按本次打开指令显式选择 LibreOffice 或 PowerPoint 后端。
+PPT 适配器路由层，按本次打开指令显式选择 PPT 放映后端。
 @Project : SCP-cv
 @File : ppt_router.py
 @Author : Qintsg
@@ -12,10 +12,13 @@ from __future__ import annotations
 from typing import Optional
 
 from scp_cv.player.adapters.base import AdapterState, SourceAdapter
-from scp_cv.ppt_backend import DEFAULT_PPT_BACKEND, normalize_ppt_backend
-
-PPT_BACKEND_LIBREOFFICE = "libreoffice"
-PPT_BACKEND_POWERPOINT = "powerpoint"
+from scp_cv.ppt_backend import (
+    DEFAULT_PPT_BACKEND,
+    PPT_BACKEND_LIBREOFFICE,
+    PPT_BACKEND_POWERPOINT,
+    PPT_BACKEND_WPS,
+    normalize_ppt_backend,
+)
 
 
 class PptSourceAdapter(SourceAdapter):
@@ -40,7 +43,7 @@ class PptSourceAdapter(SourceAdapter):
     def active_backend(self) -> str:
         """
         当前实际使用的 PPT 后端。
-        :return: libreoffice、powerpoint 或空字符串
+        :return: libreoffice、powerpoint、wps 或空字符串
         """
         return self._active_backend
 
@@ -48,7 +51,7 @@ class PptSourceAdapter(SourceAdapter):
     def configured_backend(self) -> str:
         """
         当前指定的 PPT 后端。
-        :return: libreoffice 或 powerpoint
+        :return: libreoffice、powerpoint 或 wps
         """
         return self._configured_backend
 
@@ -223,12 +226,17 @@ def create_ppt_backend_adapter(backend: str) -> SourceAdapter:
         from scp_cv.player.adapters.ppt import PptSourceAdapter as PowerPointPptSourceAdapter
 
         return PowerPointPptSourceAdapter()
+    if backend == PPT_BACKEND_WPS:
+        from scp_cv.player.adapters.ppt_wps import WpsPptSourceAdapter
+
+        return WpsPptSourceAdapter()
     raise ValueError(f"不支持的 PPT 后端：{backend}")
 
 
 __all__ = [
     "PPT_BACKEND_LIBREOFFICE",
     "PPT_BACKEND_POWERPOINT",
+    "PPT_BACKEND_WPS",
     "PptSourceAdapter",
     "create_ppt_backend_adapter",
 ]
