@@ -10,6 +10,9 @@ PPT 播放适配器单元测试，覆盖 PowerPoint COM 状态读取容错。
 
 from __future__ import annotations
 
+from pytest import MonkeyPatch
+
+from scp_cv.player.adapters import ppt
 from scp_cv.player.adapters.ppt import PptSourceAdapter
 from scp_cv.player.adapters.ppt_constants import (
     PP_SLIDE_SHOW_RUNNING,
@@ -426,12 +429,25 @@ def test_close_presentation_without_save_prefers_explicit_false() -> None:
     assert presentation.close_args == (False,)
 
 
-def test_start_slideshow_only_updates_slide_range() -> None:
+def test_start_slideshow_only_updates_slide_range(monkeypatch: MonkeyPatch) -> None:
     """启动放映时应只改页码范围，避免额外改写文稿级放映设置。"""
     adapter = PptSourceAdapter()
     presentation = _PresentationWithSettingsStub()
     adapter._presentation = presentation
     adapter._total_slides = 5
+    find_calls: list[dict[str, object]] = []
+
+    def fake_find_slideshow_hwnd(*_args: object, **kwargs: object) -> int:
+        """
+        记录 HWND 查找参数，避免单元测试依赖真实 Win32 桌面。
+        :param _args: 位置参数
+        :param kwargs: 关键字参数
+        :return: 固定返回未找到
+        """
+        find_calls.append(kwargs)
+        return 0
+
+    monkeypatch.setattr(ppt, "find_slideshow_hwnd", fake_find_slideshow_hwnd)
 
     adapter._start_slideshow(start_slide=3)
 
@@ -440,6 +456,7 @@ def test_start_slideshow_only_updates_slide_range() -> None:
     assert presentation.SlideShowSettings.ShowType == PP_SLIDE_SHOW_WINDOW
     assert presentation.SlideShowSettings.run_called is True
     assert presentation.Saved is True
+    assert find_calls[0]["timeout_seconds"] == ppt._SLIDESHOW_HWND_TIMEOUT_SECONDS
 
 
 def test_configure_windowed_slideshow_sets_window_mode() -> None:

@@ -11,6 +11,7 @@ PPT 放映窗口 Win32 操作工具，封装 HWND 查找、嵌入和尺寸同步
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Iterable
 from typing import Optional
 
@@ -75,6 +76,8 @@ def find_slideshow_hwnd(
     logger: logging.Logger,
     existing_hwnds: Optional[set[int]] = None,
     class_names: Optional[Iterable[str]] = None,
+    timeout_seconds: float = 0.0,
+    poll_interval_seconds: float = 0.1,
 ) -> int:
     """
     查找 PPT 放映窗口的 HWND。
@@ -82,25 +85,91 @@ def find_slideshow_hwnd(
     :param logger: 适配器日志器
     :param existing_hwnds: 启动本次放映前已存在的放映 HWND，用于排除其他窗口
     :param class_names: 可识别为放映窗口的 Win32 class name 集合
+    :param timeout_seconds: 等待异步创建窗口的最长秒数；0 表示只查一次
+    :param poll_interval_seconds: 重试间隔秒数
     :return: 本次放映窗口句柄，无法唯一确定时返回 0
     """
-    if slideshow_window is not None:
-        try:
-            ppt_hwnd = slideshow_window.HWND
-            if ppt_hwnd and ppt_hwnd > 0:
-                logger.debug("通过 COM 获取到放映 HWND=%d", ppt_hwnd)
-                return int(ppt_hwnd)
-        except Exception as com_error:
-            logger.debug("COM 获取 HWND 失败：%s，尝试枚举窗口", com_error)
-
     try:
         import win32gui
     except Exception as import_error:
-        logger.warning(
-            "Win32 模块不可用，无法查找 PPT 放映窗口：%s", import_error
-        )
+        win32gui = None
+        logger.debug("Win32 模块不可用，将仅通过 COM 查找 PPT 放映窗口：%s", import_error)
+
+    deadline = time.monotonic() + max(0.0, timeout_seconds)
+    retry_interval = max(0.01, poll_interval_seconds)
+    matched_hwnds: list[int] = []
+    while True:
+        ppt_hwnd = _read_com_slideshow_hwnd(slideshow_window, logger)
+        if ppt_hwnd != 0:
+            return ppt_hwnd
+
+        if win32gui is not None:
+            matched_hwnds = _find_matching_slideshow_hwnds(
+                win32gui,
+                logger,
+                existing_hwnds,
+                class_names,
+            )
+            if len(matched_hwnds) == 1:
+                logger.debug("通过枚举窗口找到本次放映 HWND=%d", matched_hwnds[0])
+                return matched_hwnds[0]
+            if len(matched_hwnds) > 1:
+                break
+
+        now = time.monotonic()
+        if now >= deadline:
+            break
+        time.sleep(min(retry_interval, deadline - now))
+
+    if win32gui is None:
+        logger.warning("Win32 模块不可用，无法查找 PPT 放映窗口")
         return 0
 
+    if len(matched_hwnds) > 1:
+        logger.warning(
+            "找到多个候选 PPT 放映窗口，无法唯一确定：%s", matched_hwnds
+        )
+    else:
+        logger.warning("未能找到 PPT 放映窗口")
+    return 0
+
+
+def _read_com_slideshow_hwnd(
+    slideshow_window: Optional[object],
+    logger: logging.Logger,
+) -> int:
+    """
+    从 COM SlideShowWindow 读取 HWND。
+    :param slideshow_window: COM SlideShowWindow 对象
+    :param logger: 日志器
+    :return: 有效 HWND；读取失败返回 0
+    """
+    if slideshow_window is None:
+        return 0
+    try:
+        ppt_hwnd = slideshow_window.HWND
+        if ppt_hwnd and ppt_hwnd > 0:
+            logger.debug("通过 COM 获取到放映 HWND=%d", ppt_hwnd)
+            return int(ppt_hwnd)
+    except Exception as com_error:
+        logger.debug("COM 获取 HWND 失败：%s，尝试枚举窗口", com_error)
+    return 0
+
+
+def _find_matching_slideshow_hwnds(
+    win32gui: object,
+    logger: logging.Logger,
+    existing_hwnds: Optional[set[int]] = None,
+    class_names: Optional[Iterable[str]] = None,
+) -> list[int]:
+    """
+    枚举匹配当前放映 class 且不属于启动前快照的窗口。
+    :param win32gui: win32gui 模块或测试替身
+    :param logger: 日志器
+    :param existing_hwnds: 启动前已存在的 HWND
+    :param class_names: 放映窗口 class name 候选集合
+    :return: 候选 HWND 列表
+    """
     excluded_hwnds = existing_hwnds or set()
     matched_hwnds: list[int] = []
     selected_class_names = _selected_slideshow_class_names(class_names)
@@ -116,17 +185,7 @@ def find_slideshow_hwnd(
         win32gui.EnumWindows(enum_callback, None)
     except Exception as enum_error:
         logger.debug("枚举 PPT 放映窗口失败：%s", enum_error)
-
-    if len(matched_hwnds) == 1:
-        logger.debug("通过枚举窗口找到本次放映 HWND=%d", matched_hwnds[0])
-        return matched_hwnds[0]
-    if len(matched_hwnds) > 1:
-        logger.warning(
-            "找到多个候选 PPT 放映窗口，无法唯一确定：%s", matched_hwnds
-        )
-    else:
-        logger.warning("未能找到 PPT 放映窗口")
-    return 0
+    return matched_hwnds
 
 
 def _selected_slideshow_class_names(

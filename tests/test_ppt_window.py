@@ -13,6 +13,7 @@ import logging
 import sys
 from types import ModuleType
 from pytest import MonkeyPatch
+from scp_cv.player.adapters import ppt_window
 from scp_cv.player.adapters.ppt_window import (
     find_slideshow_hwnd,
     snapshot_slideshow_hwnds,
@@ -173,3 +174,37 @@ def test_find_slideshow_hwnd_uses_custom_window_classes(
         class_names={"KWppShowWindow"},
     )
     assert hwnd == 202
+
+
+def test_find_slideshow_hwnd_waits_for_delayed_window(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """回退枚举应等待启动后异步出现的放映窗口。"""
+    windows = {202: ("screenClass", False)}
+    sleep_calls: list[float] = []
+    now = [0.0]
+    _install_fake_win32gui(monkeypatch, windows)
+
+    def fake_sleep(seconds: float) -> None:
+        """
+        模拟等待期间 PowerPoint 创建并显示放映窗口。
+        :param seconds: 等待秒数
+        :return: None
+        """
+        sleep_calls.append(seconds)
+        now[0] += seconds
+        windows[202] = ("screenClass", True)
+
+    monkeypatch.setattr(ppt_window.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(ppt_window.time, "sleep", fake_sleep)
+
+    hwnd = find_slideshow_hwnd(
+        None,
+        logging.getLogger(__name__),
+        existing_hwnds=set(),
+        timeout_seconds=1.0,
+        poll_interval_seconds=0.1,
+    )
+
+    assert hwnd == 202
+    assert sleep_calls == [0.1]

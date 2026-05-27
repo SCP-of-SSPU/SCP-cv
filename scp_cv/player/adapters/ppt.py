@@ -35,6 +35,8 @@ from scp_cv.player.adapters.ppt_window import (
 )
 from scp_cv.ppt_com import POWERPOINT_COM_PROG_IDS
 
+_SLIDESHOW_HWND_TIMEOUT_SECONDS = 5.0
+
 
 class PptSourceAdapter(SourceAdapter):
     """
@@ -208,6 +210,7 @@ class PptSourceAdapter(SourceAdapter):
             self._logger,
             existing_hwnds,
             class_names=self._slideshow_class_names,
+            timeout_seconds=_SLIDESHOW_HWND_TIMEOUT_SECONDS,
         )
         if ppt_hwnd == 0:
             self._logger.warning("未找到 %s 放映窗口句柄，无法嵌入", self._app_label)
