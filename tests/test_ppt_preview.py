@@ -9,6 +9,7 @@ PPT 预览导出后端选择测试，覆盖媒体源显式播放器策略。
 '''
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 from pytest import MonkeyPatch
@@ -56,7 +57,7 @@ def test_preview_uses_selected_libreoffice(monkeypatch: MonkeyPatch, tmp_path: P
     monkeypatch.setattr(ppt_preview, "export_ppt_slide_previews_with_libreoffice", libreoffice_export)
     monkeypatch.setattr(ppt_preview, "export_ppt_slide_previews_with_powerpoint", powerpoint_export)
 
-    previews = ppt_preview.export_ppt_slide_previews(_make_ppt_file(tmp_path), 7)
+    previews = ppt_preview.export_ppt_slide_previews_in_process(_make_ppt_file(tmp_path), 7)
 
     assert previews == ["/media/ppt_previews/7/slide-1.png"]
     assert calls == ["libreoffice"]
@@ -91,7 +92,7 @@ def test_preview_uses_selected_powerpoint(monkeypatch: MonkeyPatch, tmp_path: Pa
     monkeypatch.setattr(ppt_preview, "export_ppt_slide_previews_with_libreoffice", libreoffice_export)
     monkeypatch.setattr(ppt_preview, "export_ppt_slide_previews_with_powerpoint", powerpoint_export)
 
-    previews = ppt_preview.export_ppt_slide_previews(_make_ppt_file(tmp_path), 8)
+    previews = ppt_preview.export_ppt_slide_previews_in_process(_make_ppt_file(tmp_path), 8)
 
     assert previews == ["/media/ppt_previews/8/slide-1.png"]
     assert calls == ["powerpoint"]
@@ -137,7 +138,7 @@ def test_preview_uses_selected_wps(monkeypatch: MonkeyPatch, tmp_path: Path) -> 
     monkeypatch.setattr(ppt_preview, "export_ppt_slide_previews_with_powerpoint", powerpoint_export)
     monkeypatch.setattr(ppt_preview, "export_ppt_slide_previews_with_wps", wps_export)
 
-    previews = ppt_preview.export_ppt_slide_previews(_make_ppt_file(tmp_path), 10)
+    previews = ppt_preview.export_ppt_slide_previews_in_process(_make_ppt_file(tmp_path), 10)
 
     assert previews == ["/media/ppt_previews/10/slide-1.png"]
     assert calls == ["wps"]
@@ -175,7 +176,76 @@ def test_selected_libreoffice_never_falls_back_to_powerpoint(
     monkeypatch.setattr(ppt_preview, "export_ppt_slide_previews_with_libreoffice", libreoffice_export)
     monkeypatch.setattr(ppt_preview, "export_ppt_slide_previews_with_powerpoint", powerpoint_export)
 
-    previews = ppt_preview.export_ppt_slide_previews(_make_ppt_file(tmp_path), 9)
+    previews = ppt_preview.export_ppt_slide_previews_in_process(_make_ppt_file(tmp_path), 9)
 
     assert previews == []
     assert calls == ["libreoffice"]
+
+
+def test_preview_dispatches_worker_with_selected_backend(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
+    """公网入口应只启动隔离 worker，不在 Django 进程内加载 Office 运行时。"""
+    captured: dict[str, object] = {}
+
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        """
+        模拟 PPT 预览 worker 成功返回。
+        :param command: 子进程命令
+        :param kwargs: subprocess.run 关键字参数
+        :return: 模拟完成结果
+        """
+        captured["command"] = command
+        captured["kwargs"] = kwargs
+        return subprocess.CompletedProcess(
+            args=command,
+            returncode=0,
+            stdout='{"success": true, "previews": ["/media/ppt_previews/11/slide-1.png"], "error": ""}\n',
+            stderr="",
+        )
+
+    ppt_file = _make_ppt_file(tmp_path)
+    monkeypatch.setattr(ppt_preview.os, "name", "nt")
+    monkeypatch.setattr(ppt_preview, "_source_ppt_backend", lambda _source_id: "wps")
+    monkeypatch.setattr(ppt_preview.subprocess, "run", fake_run)
+
+    previews = ppt_preview.export_ppt_slide_previews(ppt_file, 11)
+
+    assert previews == ["/media/ppt_previews/11/slide-1.png"]
+    assert captured["command"] == [
+        ppt_preview.sys.executable,
+        "-m",
+        "scp_cv.services.ppt_preview_worker",
+        str(ppt_file),
+        "11",
+        "wps",
+    ]
+    assert captured["kwargs"]["capture_output"] is True
+    assert captured["kwargs"]["check"] is False
+
+
+def test_preview_worker_failure_returns_empty(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
+    """worker 异常退出不应影响上传流程。"""
+    ppt_file = _make_ppt_file(tmp_path)
+
+    def fake_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        """
+        模拟 worker 异常退出。
+        :param command: 子进程命令
+        :param _kwargs: subprocess.run 关键字参数
+        :return: 模拟完成结果
+        """
+        return subprocess.CompletedProcess(args=command, returncode=1, stdout="", stderr="boom")
+
+    monkeypatch.setattr(ppt_preview.os, "name", "nt")
+    monkeypatch.setattr(ppt_preview, "_source_ppt_backend", lambda _source_id: "libreoffice")
+    monkeypatch.setattr(ppt_preview.subprocess, "run", fake_run)
+
+    assert ppt_preview.export_ppt_slide_previews(ppt_file, 12) == []
+
+
+def test_parse_worker_preview_output_ignores_noisy_lines() -> None:
+    """worker stdout 中有普通输出时应解析最后一行 JSON 结果。"""
+    stdout = "noise\n{\"success\": true, \"previews\": [\"/media/ppt_previews/13/slide-1.png\"]}\n"
+
+    previews = ppt_preview._parse_worker_preview_output(stdout)
+
+    assert previews == ["/media/ppt_previews/13/slide-1.png"]

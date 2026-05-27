@@ -2,6 +2,11 @@
 
 ## 2026-05-27
 
+### 修复 PPT 上传预览隔离
+
+- 预览导出：上传或导入 PPT 时改为通过独立 Python worker 执行 LibreOffice / PowerPoint / WPS 预览导出，避免 Office/UNO 原生库污染 Django 主进程的 Windows socket 状态导致 `WinError 10093` 后进程退出。
+- 配置：新增 `PPT_PREVIEW_WORKER_TIMEOUT_SECONDS` 控制预览 worker 超时；worker 失败或超时只跳过缩略图，不阻断媒体源创建。
+
 ### 新增 clearall 清除运行数据命令
 
 - 管理命令：新增 `uv run manage.py clearall`，用于停止服务后清除 SQLite 数据库、`media/` 和 `logs/` 运行时数据，再执行迁移重建新数据库。

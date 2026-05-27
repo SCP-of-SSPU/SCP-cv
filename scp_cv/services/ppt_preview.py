@@ -11,6 +11,9 @@ from __future__ import annotations
 
 import logging
 import os
+import json
+import subprocess
+import sys
 import zipfile
 from collections.abc import Iterable
 from pathlib import Path
@@ -30,6 +33,7 @@ from scp_cv.ppt_com import POWERPOINT_COM_PROG_IDS, WPS_COM_PROG_IDS
 logger = logging.getLogger(__name__)
 
 _PPT_ALERTS_NONE = 1
+_PREVIEW_WORKER_TIMEOUT_SECONDS = 180.0
 
 
 def export_ppt_slide_previews(file_path: Path, source_id: int) -> list[str]:
@@ -42,11 +46,125 @@ def export_ppt_slide_previews(file_path: Path, source_id: int) -> list[str]:
     if os.name != "nt" or not file_path.is_file() or not _is_ppt_export_candidate(file_path):
         return []
     backend = _source_ppt_backend(source_id)
+    return _export_ppt_slide_previews_with_worker(file_path, source_id, backend)
+
+
+def export_ppt_slide_previews_in_process(
+    file_path: Path,
+    source_id: int,
+    backend: Optional[str] = None,
+) -> list[str]:
+    """
+    在当前进程内导出 PPT 预览，供隔离 worker 调用。
+    :param file_path: PPT 文件路径
+    :param source_id: 媒体源 ID，用于隔离导出目录
+    :param backend: 显式 PPT 后端；为空时读取媒体源配置
+    :return: 按页码排序的媒体 URL 列表；不可导出时返回空列表
+    """
+    if os.name != "nt" or not file_path.is_file() or not _is_ppt_export_candidate(file_path):
+        return []
+    backend = normalize_ppt_backend(backend) if backend is not None else _source_ppt_backend(source_id)
     if backend == PPT_BACKEND_POWERPOINT:
         return export_ppt_slide_previews_with_powerpoint(file_path, source_id)
     if backend == PPT_BACKEND_WPS:
         return export_ppt_slide_previews_with_wps(file_path, source_id)
     return export_ppt_slide_previews_with_libreoffice(file_path, source_id)
+
+
+def _export_ppt_slide_previews_with_worker(file_path: Path, source_id: int, backend: str) -> list[str]:
+    """
+    通过独立 Python 子进程导出 PPT 预览，隔离 Office/UNO 原生库副作用。
+    :param file_path: PPT 文件路径
+    :param source_id: 媒体源 ID
+    :param backend: 已规范化的 PPT 后端
+    :return: 按页码排序的媒体 URL 列表；worker 失败时返回空列表
+    """
+    command = [
+        sys.executable,
+        "-m",
+        "scp_cv.services.ppt_preview_worker",
+        str(file_path),
+        str(source_id),
+        backend,
+    ]
+    env = os.environ.copy()
+    env.setdefault("DJANGO_SETTINGS_MODULE", "scp_cv.settings")
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=str(settings.BASE_DIR),
+            env=env,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=_preview_worker_timeout_seconds(),
+            creationflags=_subprocess_creation_flags(),
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        logger.info("PPT 预览 worker 超时：source_id=%d, backend=%s", source_id, backend)
+        return []
+    except OSError as worker_error:
+        logger.info("PPT 预览 worker 启动失败：%s", worker_error)
+        return []
+
+    if completed.returncode != 0:
+        logger.info(
+            "PPT 预览 worker 失败：source_id=%d, backend=%s, returncode=%s, stderr=%s",
+            source_id,
+            backend,
+            completed.returncode,
+            completed.stderr.strip(),
+        )
+        return []
+    return _parse_worker_preview_output(completed.stdout)
+
+
+def _parse_worker_preview_output(stdout: str) -> list[str]:
+    """
+    从 worker 标准输出解析预览路径 JSON。
+    :param stdout: worker 标准输出
+    :return: 预览 URL 列表；无法解析时返回空列表
+    """
+    for line in reversed(stdout.splitlines()):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(payload, dict) or not payload.get("success"):
+            return []
+        previews = payload.get("previews", [])
+        if not isinstance(previews, list):
+            return []
+        return [str(preview) for preview in previews if isinstance(preview, str)]
+    logger.info("PPT 预览 worker 未输出有效 JSON")
+    return []
+
+
+def _preview_worker_timeout_seconds() -> float:
+    """
+    获取 PPT 预览 worker 超时时间。
+    :return: 超时秒数
+    """
+    raw_value = getattr(settings, "PPT_PREVIEW_WORKER_TIMEOUT_SECONDS", _PREVIEW_WORKER_TIMEOUT_SECONDS)
+    try:
+        return max(1.0, float(raw_value))
+    except (TypeError, ValueError):
+        return _PREVIEW_WORKER_TIMEOUT_SECONDS
+
+
+def _subprocess_creation_flags() -> int:
+    """
+    返回 PPT 预览 worker 的 Windows 子进程创建标志。
+    :return: subprocess creationflags
+    """
+    if os.name != "nt":
+        return 0
+    return getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 
 def export_ppt_slide_previews_with_libreoffice(file_path: Path, source_id: int) -> list[str]:
@@ -312,6 +430,7 @@ def _is_com_export_candidate(file_path: Path) -> bool:
 
 __all__ = [
     "export_ppt_slide_previews",
+    "export_ppt_slide_previews_in_process",
     "export_ppt_slide_previews_with_libreoffice",
     "export_ppt_slide_previews_with_powerpoint",
     "export_ppt_slide_previews_with_wps",
