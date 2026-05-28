@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import traceback
 import uuid
@@ -103,7 +104,7 @@ class LibreOfficeBridge:
         """
         self.close()
         self.session = _start_session(headless=False)
-        self.document = _load_document(self.session, file_path, hidden=False, readonly=True)
+        self.document = self._load_document_with_retry(file_path, hidden=False, readonly=True)
         self.presentation = self.document.getPresentation()  # type: ignore[attr-defined]
         self._configure_presentation()
         self.total_slides = self._read_slide_count()
@@ -111,6 +112,25 @@ class LibreOfficeBridge:
         if autoplay:
             self._start_slideshow(self.last_slide_index or 1)
         return self.state_payload()
+
+    def _load_document_with_retry(self, file_path: Path, hidden: bool, readonly: bool) -> object:
+        """
+        加载文档；LibreOffice 冷启动后 UNO bridge 偶发断开时重建一次会话。
+        :param file_path: PPT 文件路径
+        :param hidden: 是否隐藏文档窗口
+        :param readonly: 是否只读打开
+        :return: UNO 文档对象
+        """
+        if self.session is None:
+            raise WorkerError("LibreOffice 会话未初始化")
+        try:
+            return _load_document(self.session, file_path, hidden=hidden, readonly=readonly)
+        except Exception as load_error:
+            if not _is_recoverable_bridge_dispose_error(load_error):
+                raise
+            self.session.close()
+            self.session = _start_session(headless=False)
+            return _load_document(self.session, file_path, hidden=hidden, readonly=readonly)
 
     def close(self) -> dict[str, object]:
         """
@@ -266,24 +286,29 @@ class LibreOfficeBridge:
         """启动放映并按需跳页。"""
         if self.presentation is None:
             return
-        start_with_arguments = getattr(self.presentation, "startWithArguments", None)
-        if start_with_arguments is not None:
-            start_with_arguments(())
-        else:
-            self.presentation.start()  # type: ignore[attr-defined]
-        self.controller = self._wait_for_controller()
+        start_errors: list[BaseException] = []
+        start_thread = threading.Thread(
+            target=_invoke_presentation_start,
+            args=(self.presentation, start_errors),
+            daemon=True,
+            name="libreoffice-slideshow-start",
+        )
+        start_thread.start()
+        self.controller = self._wait_for_controller(start_errors)
         self.is_paused = False
         if start_slide > 1 and self.controller is not None:
             self.controller.gotoSlideIndex(start_slide - 1)  # type: ignore[attr-defined]
             self.last_slide_index = start_slide
 
-    def _wait_for_controller(self) -> object:
+    def _wait_for_controller(self, start_errors: list[BaseException]) -> object:
         """等待 SlideShowController 创建。"""
         if self.presentation is None:
             raise WorkerError("LibreOffice Presentation 未初始化")
-        deadline = time.monotonic() + _timeout_seconds()
+        deadline = time.monotonic() + _bridge_command_timeout_seconds()
         last_error: Optional[Exception] = None
         while time.monotonic() < deadline:
+            if start_errors:
+                raise WorkerError(f"LibreOffice 放映启动失败：{start_errors[0]}")
             try:
                 controller = self.presentation.getController()  # type: ignore[attr-defined]
                 if controller is not None:
@@ -454,6 +479,18 @@ def _execute_bridge_command(bridge: LibreOfficeBridge, command: str, payload: di
     raise WorkerError(f"不支持的 LibreOffice bridge 命令：{command}")
 
 
+def _invoke_presentation_start(presentation: object, start_errors: list[BaseException]) -> None:
+    """在线程中调用 LibreOffice 放映启动，避免同步阻塞 bridge 命令循环。"""
+    try:
+        start_with_arguments = getattr(presentation, "startWithArguments", None)
+        if start_with_arguments is not None:
+            start_with_arguments(())
+            return
+        presentation.start()  # type: ignore[attr-defined]
+    except BaseException as start_error:
+        start_errors.append(start_error)
+
+
 def _export_previews(file_path: Path, output_dir: Path) -> list[str]:
     """使用 LibreOffice UNO 导出每页 PNG。"""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -596,6 +633,25 @@ def _timeout_seconds() -> float:
         return max(1.0, float(raw_value))
     except (TypeError, ValueError):
         return 10.0
+
+
+def _bridge_command_timeout_seconds() -> float:
+    """读取 bridge 命令超时秒数。"""
+    raw_value = os.environ.get("LIBREOFFICE_BRIDGE_COMMAND_TIMEOUT_SECONDS", "120")
+    try:
+        return max(1.0, float(raw_value))
+    except (TypeError, ValueError):
+        return 120.0
+
+
+def _is_recoverable_bridge_dispose_error(error: BaseException) -> bool:
+    """
+    判断是否为 LibreOffice 冷启动后 UNO bridge 断开的可恢复错误。
+    :param error: 捕获到的异常
+    :return: True 表示可重建 session 后重试一次
+    """
+    error_text = f"{error.__class__.__name__}: {error}"
+    return "DisposedException" in error_text or "Binary URP bridge disposed" in error_text
 
 
 def _terminate_process(process: subprocess.Popen[bytes]) -> None:

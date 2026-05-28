@@ -71,6 +71,14 @@ class SourceAdapter(ABC):
         """资源是否已打开。"""
         return self._is_open
 
+    @property
+    def has_external_slideshow_window(self) -> bool:
+        """
+        当前是否存在由适配器管理的外部放映窗口。
+        :return: True 表示播放器窗口可隐藏，由外部窗口负责显示画面
+        """
+        return False
+
     # ═══════════════════ 生命周期 ═══════════════════
 
     @abstractmethod

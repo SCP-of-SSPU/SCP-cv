@@ -25,17 +25,18 @@ from scp_cv.player.adapters.ppt_constants import (
     PP_SLIDE_SHOW_RUNNING as _PP_SLIDE_SHOW_RUNNING,
 )
 from scp_cv.player.adapters.ppt_media import control_slide_media
+from scp_cv.player.adapters.ppt_external_window import (
+    present_external_slideshow_window,
+    release_external_slideshow_window,
+)
 from scp_cv.player.adapters.ppt_window import (
     configure_windowed_slideshow,
-    detach_slideshow_window,
-    embed_slideshow_window,
     find_slideshow_hwnd,
-    resize_slideshow_window,
     snapshot_slideshow_hwnds,
 )
 from scp_cv.ppt_com import POWERPOINT_COM_PROG_IDS
 
-_SLIDESHOW_HWND_TIMEOUT_SECONDS = 5.0
+_SLIDESHOW_HWND_TIMEOUT_SECONDS = 12.0
 
 
 class PptSourceAdapter(SourceAdapter):
@@ -72,11 +73,20 @@ class PptSourceAdapter(SourceAdapter):
         self._file_path: str = ""
         self._window_handle: int = 0
         self._ppt_hwnd: int = 0
+        self._ppt_process_id: int = 0
         self._is_paused: bool = False
         self._last_slide_index: int = 1
         self._owns_ppt_app: bool = False
         # COM 线程锁（所有 COM 调用须串行）
         self._com_lock = threading.Lock()
+
+    @property
+    def has_external_slideshow_window(self) -> bool:
+        """
+        当前是否存在已铺满目标区域的外部 PPT 放映窗口。
+        :return: True 表示外部放映窗口正在承担显示输出
+        """
+        return self._ppt_hwnd != 0
 
     def open(self, uri: str, window_handle: int, autoplay: bool = True) -> None:
         """
@@ -110,8 +120,10 @@ class PptSourceAdapter(SourceAdapter):
         pythoncom.CoInitialize()
 
         self._owns_ppt_app = False
+        existing_process_ids = self._snapshot_candidate_process_ids()
         self._ppt_app = self._dispatch_ppt_application(win32com.client)
         self._owns_ppt_app = True
+        self._ppt_process_id = self._read_ppt_app_process_id(existing_process_ids)
         self._set_powerpoint_alerts(_PP_ALERTS_NONE)
 
         # 最小化编辑窗口；WPS 部分版本可能不支持该属性，失败时不影响放映。
@@ -120,7 +132,7 @@ class PptSourceAdapter(SourceAdapter):
         except Exception as minimize_error:
             self._logger.debug("%s 编辑窗口最小化失败：%s", self._app_label, minimize_error)
 
-        self._presentation = self._open_presentation_readonly(file_path)
+        self._presentation = self._open_presentation_for_slideshow(file_path)
         self._mark_presentation_clean()
         self._total_slides = self._presentation.Slides.Count
 
@@ -154,9 +166,9 @@ class PptSourceAdapter(SourceAdapter):
             f"未找到 {self._app_label} COM 自动化对象：{supported_prog_ids}"
         ) from last_error
 
-    def _open_presentation_readonly(self, file_path: str) -> object:
+    def _open_presentation_for_slideshow(self, file_path: str) -> object:
         """
-        以只读、无编辑窗口方式打开演示文稿。
+        以可配置放映设置但不显示编辑窗口的方式打开演示文稿副本。
         :param file_path: PPT 文件路径
         :return: Presentation COM 对象
         """
@@ -166,19 +178,19 @@ class PptSourceAdapter(SourceAdapter):
         try:
             return presentations.Open(
                 file_path,
-                ReadOnly=True,
-                Untitled=False,
+                ReadOnly=False,
+                Untitled=True,
                 WithWindow=False,
             )
         except Exception as keyword_error:
             try:
-                return presentations.Open(file_path, True, False, False)
+                return presentations.Open(file_path, False, True, False)
             except Exception:
                 raise keyword_error
 
     def _start_slideshow(self, start_slide: int = 1) -> None:
         """
-        启动幻灯片放映并嵌入到 PySide 播放器窗口中。
+        启动幻灯片放映并将外部放映窗口铺满目标显示区域。
         :param start_slide: 起始页码
         """
         if self._presentation is None:
@@ -196,6 +208,7 @@ class PptSourceAdapter(SourceAdapter):
         existing_hwnds = snapshot_slideshow_hwnds(
             self._logger,
             class_names=self._slideshow_class_names,
+            process_id=self._ppt_process_id or None,
         )
 
         # 启动放映
@@ -211,22 +224,27 @@ class PptSourceAdapter(SourceAdapter):
             existing_hwnds,
             class_names=self._slideshow_class_names,
             timeout_seconds=_SLIDESHOW_HWND_TIMEOUT_SECONDS,
+            process_id=self._ppt_process_id or None,
+            allow_existing_when_unique=True,
         )
         if ppt_hwnd == 0:
-            self._logger.warning("未找到 %s 放映窗口句柄，无法嵌入", self._app_label)
+            self._logger.warning("未找到 %s 放映窗口句柄，无法铺满目标显示区域", self._app_label)
             return
 
-        self._ppt_hwnd = ppt_hwnd
-        embed_slideshow_window(ppt_hwnd, self._window_handle)
-        container_width, container_height = resize_slideshow_window(
+        container_width, container_height = present_external_slideshow_window(
             ppt_hwnd, self._window_handle
         )
+        self._ppt_hwnd = ppt_hwnd
         self._logger.debug(
-            "PPT 窗口已调整大小：%dx%d", container_width, container_height
+            "%s 外部放映窗口已铺满目标区域：%dx%d",
+            self._app_label,
+            container_width,
+            container_height,
         )
 
         self._logger.info(
-            "PPT 放映已启动并嵌入到播放器窗口（HWND=%d，共 %d 页）",
+            "%s 放映已启动为外部顶层窗口（HWND=%d，共 %d 页）",
+            self._app_label,
             ppt_hwnd,
             self._total_slides,
         )
@@ -239,15 +257,15 @@ class PptSourceAdapter(SourceAdapter):
         self._logger.info("PPT 已关闭")
 
     def _close_com_resources(self) -> None:
-        """释放所有 COM 资源，并解除 PPT 窗口嵌入。"""
+        """释放所有 COM 资源，并解除 PPT 外部窗口置顶。"""
         import pythoncom
 
         try:
             self._set_powerpoint_alerts(_PP_ALERTS_NONE)
-            # 先解除父窗口关系，避免 PPT 应用关闭时影响 PySide 窗口
+            # 先释放外部窗口置顶关系，避免 PPT 应用关闭时影响其它窗口层级。
             if self._ppt_hwnd != 0:
                 try:
-                    detach_slideshow_window(self._ppt_hwnd)
+                    release_external_slideshow_window(self._ppt_hwnd)
                 except Exception:
                     pass
                 self._ppt_hwnd = 0
@@ -276,6 +294,7 @@ class PptSourceAdapter(SourceAdapter):
             self._set_powerpoint_alerts(_PP_ALERTS_ALL)
             self._ppt_app = None
             self._owns_ppt_app = False
+            self._ppt_process_id = 0
         finally:
             try:
                 pythoncom.CoUninitialize()
@@ -297,6 +316,68 @@ class PptSourceAdapter(SourceAdapter):
             self._ppt_app.DisplayAlerts = alert_level
         except Exception:
             pass
+
+    def _read_ppt_app_process_id(self, existing_process_ids: Optional[set[int]] = None) -> int:
+        """
+        从 PPT/WPS 应用主窗口读取进程 ID。
+        :param existing_process_ids: 创建 COM 前已有的候选进程 ID
+        :return: 进程 ID；读取失败返回 0
+        """
+        if self._ppt_app is None:
+            return 0
+        app_hwnd = 0
+        for attr_name in ("HWND", "Hwnd", "hwnd"):
+            try:
+                app_hwnd = int(getattr(self._ppt_app, attr_name) or 0)
+            except Exception:
+                app_hwnd = 0
+            if app_hwnd:
+                break
+        if not app_hwnd:
+            return 0
+        try:
+            import win32process
+
+            _, process_id = win32process.GetWindowThreadProcessId(app_hwnd)
+        except Exception:
+            process_id = 0
+        if process_id:
+            return int(process_id)
+        new_process_ids = self._snapshot_candidate_process_ids() - (existing_process_ids or set())
+        if len(new_process_ids) == 1:
+            return next(iter(new_process_ids))
+        return 0
+
+    def _snapshot_candidate_process_ids(self) -> set[int]:
+        """
+        获取当前 PPT/WPS 后端候选进程 ID。
+        :return: 进程 ID 集合
+        """
+        process_names = self._candidate_process_names()
+        if not process_names:
+            return set()
+        try:
+            import psutil
+        except Exception:
+            return set()
+        process_ids: set[int] = set()
+        for process in psutil.process_iter(["name"]):
+            process_name = str(process.info.get("name") or "").lower()
+            if process_name in process_names:
+                process_ids.add(int(process.pid))
+        return process_ids
+
+    def _candidate_process_names(self) -> set[str]:
+        """
+        根据当前 COM ProgID 推断 PPT/WPS 进程名。
+        :return: 小写进程名集合
+        """
+        active_prog_id = self._active_com_prog_id.lower()
+        if "powerpoint" in active_prog_id:
+            return {"powerpnt.exe"}
+        if "wpp" in active_prog_id or "kwpp" in active_prog_id:
+            return {"wpp.exe", "wps.exe"}
+        return set()
 
     def _mark_presentation_clean(self) -> None:
         """
@@ -362,6 +443,9 @@ class PptSourceAdapter(SourceAdapter):
                         or self._last_slide_index
                     )
                     self._mark_presentation_clean()
+                    if self._ppt_hwnd != 0:
+                        release_external_slideshow_window(self._ppt_hwnd)
+                        self._ppt_hwnd = 0
                     self._slideshow_view.Exit()
                 except Exception:
                     pass

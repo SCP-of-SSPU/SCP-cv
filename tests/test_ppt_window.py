@@ -65,6 +65,25 @@ def _install_fake_win32gui(
     monkeypatch.setitem(sys.modules, "win32gui", fake_win32gui)
 
 
+def _install_fake_win32process(
+    monkeypatch: MonkeyPatch,
+    window_process_ids: dict[int, int],
+) -> None:
+    """安装可控的 win32process 替身。"""
+    fake_win32process = ModuleType("win32process")
+
+    def get_window_thread_process_id(hwnd: int) -> tuple[int, int]:
+        """
+        返回伪窗口所属进程。
+        :param hwnd: 窗口句柄
+        :return: 线程 ID 与进程 ID
+        """
+        return 1, window_process_ids[hwnd]
+
+    fake_win32process.GetWindowThreadProcessId = get_window_thread_process_id
+    monkeypatch.setitem(sys.modules, "win32process", fake_win32process)
+
+
 def test_snapshot_slideshow_hwnds_collects_visible_powerpoint_windows(
     monkeypatch: MonkeyPatch,
 ) -> None:
@@ -174,6 +193,71 @@ def test_find_slideshow_hwnd_uses_custom_window_classes(
         class_names={"KWppShowWindow"},
     )
     assert hwnd == 202
+
+
+def test_find_slideshow_hwnd_matches_powerpoint_frame_class(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """新版 PowerPoint 窗口化放映可能只暴露 PPTFrameClass。"""
+    _install_fake_win32gui(
+        monkeypatch,
+        {
+            101: ("PPTFrameClass", True),
+        },
+    )
+
+    hwnd = find_slideshow_hwnd(
+        None,
+        logging.getLogger(__name__),
+        existing_hwnds=set(),
+    )
+
+    assert hwnd == 101
+
+
+def test_find_slideshow_hwnd_can_use_process_scoped_existing_window(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """进程可确认时，可使用 Run 前已存在的唯一窗口化放映候选。"""
+    _install_fake_win32gui(
+        monkeypatch,
+        {
+            101: ("PPTFrameClass", True),
+            202: ("PPTFrameClass", True),
+        },
+    )
+    _install_fake_win32process(monkeypatch, {101: 900, 202: 901})
+
+    hwnd = find_slideshow_hwnd(
+        None,
+        logging.getLogger(__name__),
+        existing_hwnds={101},
+        process_id=900,
+        allow_existing_when_unique=True,
+    )
+
+    assert hwnd == 101
+
+
+def test_find_slideshow_hwnd_can_use_single_global_existing_window(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """进程不可读时，只能回收系统中唯一的放映候选。"""
+    _install_fake_win32gui(
+        monkeypatch,
+        {
+            101: ("PPTFrameClass", True),
+        },
+    )
+
+    hwnd = find_slideshow_hwnd(
+        None,
+        logging.getLogger(__name__),
+        existing_hwnds={101},
+        allow_existing_when_unique=True,
+    )
+
+    assert hwnd == 101
 
 
 def test_find_slideshow_hwnd_waits_for_delayed_window(

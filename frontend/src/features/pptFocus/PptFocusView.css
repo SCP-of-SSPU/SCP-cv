@@ -23,7 +23,8 @@
   --ppt-focus-prompter-ring-strong: 0 0 0 var(--strokeWidthThick)
     color-mix(in srgb, var(--colorBrandStroke1) 70%, transparent);
 
-  min-height: var(--app-height, 100vh);
+  block-size: var(--app-height, 100dvh);
+  min-block-size: 0;
   display: flex;
   flex-direction: column;
   /*
@@ -37,6 +38,7 @@
     var(--colorNeutralBackgroundCanvas);
   color: var(--colorNeutralForeground1);
   position: relative;
+  overflow: hidden;
 }
 
 .ppt-focus::after {
@@ -63,7 +65,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--spacing-l);
+  gap: clamp(var(--spacing-s), 1.2vw, var(--spacing-l));
+  flex: 0 0 auto;
   /* safe-area：刘海屏 / 横屏全面屏的顶部 + 两侧空白由 env() 接管。 */
   padding-block-start: max(var(--spacingVerticalM), env(safe-area-inset-top, 0px));
   padding-block-end: var(--spacingVerticalM);
@@ -101,29 +104,32 @@
 }
 
 .ppt-focus__stage {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-l);
-  padding: var(--spacing-xl);
+  gap: clamp(var(--spacing-s), 1.2vh, var(--spacing-l));
+  padding: clamp(var(--spacing-s), 1.8vh, var(--spacing-xl));
   min-height: 0;
+  overflow: hidden;
 }
 
 .ppt-focus__stage[data-orientation='portrait'] {
-  gap: var(--spacing-m);
-  padding: var(--spacing-l);
+  gap: clamp(var(--spacing-xs), 1vh, var(--spacing-m));
+  padding: clamp(var(--spacing-xs), 1.4vh, var(--spacing-l));
 }
 
 .ppt-focus__layout {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   display: grid;
   grid-template-columns: minmax(136px, 168px) minmax(0, 1fr) minmax(300px, 360px);
-  gap: var(--spacing-l);
+  gap: clamp(var(--spacing-s), 1.2vw, var(--spacing-l));
   min-height: 0;
+  overflow: hidden;
 }
 
 .ppt-focus__stage[data-orientation='portrait'] .ppt-focus__layout {
   grid-template-columns: 1fr;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 0.78fr);
 }
 
 .ppt-focus__stage[data-orientation='portrait'] .ppt-focus__slide-rail {
@@ -175,15 +181,18 @@
 
 .ppt-focus__side {
   display: grid;
-  grid-template-rows: auto auto minmax(240px, 1fr);
-  gap: var(--spacing-l);
+  grid-template-rows: minmax(0, 0.52fr) auto minmax(0, 1fr);
+  gap: clamp(var(--spacing-s), 1.2vh, var(--spacing-l));
   min-height: 0;
+  overflow: hidden;
 }
 
 .ppt-focus__next,
 .ppt-focus__progress,
 .ppt-focus__teleprompter {
-  padding: var(--spacing-m);
+  min-height: 0;
+  padding: clamp(var(--spacing-xs), 1vh, var(--spacing-m));
+  overflow: hidden;
 }
 
 .ppt-focus__next {
@@ -193,20 +202,22 @@
 }
 
 .ppt-focus__next img {
+  flex: 1 1 0;
   width: 100%;
-  aspect-ratio: 16 / 9;
+  min-height: 0;
   border-radius: var(--borderRadiusMedium);
-  object-fit: cover;
+  object-fit: contain;
   background: color-mix(in srgb, var(--colorNeutralBackground2) 88%, transparent);
   box-shadow: inset 0 0 0 1px var(--colorNeutralStroke2);
 }
 
 .ppt-focus__next-fallback {
+  flex: 1 1 0;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 100%;
-  aspect-ratio: 16 / 9;
+  min-height: 0;
   border-radius: var(--borderRadiusMedium);
   background: linear-gradient(135deg,
       color-mix(in srgb, var(--colorBrandBackground) 24%, transparent),
@@ -274,8 +285,9 @@
 }
 
 .ppt-focus__teleprompter-body {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -283,8 +295,8 @@
 .ppt-focus__teleprompter-text {
   margin: 0;
   color: var(--colorNeutralForeground1);
-  font-size: 22px;
-  line-height: 1.6;
+  font-size: clamp(var(--fontSizeBase300), 1.3vw, 22px);
+  line-height: 1.48;
   white-space: pre-wrap;
 }
 
@@ -298,6 +310,7 @@
  * 用于在演讲过程中保留稳定的操作可读性。
  */
 .ppt-focus__controls {
+  flex: 0 0 auto;
   display: grid;
   grid-template-columns: minmax(240px, 320px) repeat(4, minmax(128px, auto));
   align-items: center;
@@ -307,8 +320,8 @@
   max-width: 100%;
   margin: 0 auto;
   /* safe-area：底部 home indicator 与横屏左右黑边给 env() 让位。 */
-  padding-block-start: var(--spacingVerticalS);
-  padding-block-end: max(var(--spacingVerticalS), env(safe-area-inset-bottom, 0px));
+  padding-block-start: clamp(4px, 0.7vh, var(--spacingVerticalS));
+  padding-block-end: max(clamp(4px, 0.7vh, var(--spacingVerticalS)), env(safe-area-inset-bottom, 0px));
   padding-inline: max(var(--spacingHorizontalS), env(safe-area-inset-left, 0px));
   border: var(--strokeWidthThin) solid var(--ppt-focus-panel-border);
   border-radius: var(--borderRadiusLarge);
@@ -325,6 +338,13 @@
 
 .ppt-focus__controls :deep(.f-button) {
   min-width: 128px;
+}
+
+.ppt-focus__control-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ppt-focus__controls :deep(.f-combobox__trigger) {
@@ -382,6 +402,7 @@
 @media (max-width: 839px) {
   .ppt-focus__layout {
     grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) minmax(0, 0.78fr);
   }
 
   .ppt-focus__slide-rail {
@@ -390,7 +411,7 @@
 
   .ppt-focus__side {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: auto minmax(220px, 1fr);
+    grid-template-rows: minmax(0, 0.78fr) minmax(0, 1fr);
   }
 
   .ppt-focus__teleprompter {
@@ -413,8 +434,7 @@
 
 @media (max-width: 599px) {
   .ppt-focus__topbar {
-    flex-wrap: wrap;
-    align-items: flex-start;
+    align-items: center;
     padding-block-start: max(var(--spacingVerticalS), env(safe-area-inset-top, 0px));
     padding-block-end: var(--spacingVerticalS);
     padding-inline-start: max(var(--spacingHorizontalL), env(safe-area-inset-left, 0px));
@@ -422,23 +442,32 @@
   }
 
   .ppt-focus__topbar-center {
-    width: 100%;
-    flex-wrap: wrap;
-    order: 3;
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .ppt-focus__topbar-center :deep(.n-tag),
+  .ppt-focus__topbar-progress {
+    display: none;
   }
 
   .ppt-focus__topbar-title {
-    max-width: 200px;
+    max-width: 44vw;
   }
 
   .ppt-focus__side {
     grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .ppt-focus__next,
+  .ppt-focus__progress {
+    display: none;
   }
 
   .ppt-focus__teleprompter {
     grid-column: auto;
     min-height: 0;
-    max-height: 34vh;
   }
 
   .ppt-focus__teleprompter-text {
@@ -457,5 +486,33 @@
 
   .ppt-focus__controls :deep(.f-button) {
     width: 100%;
+  }
+}
+
+@media (max-height: 760px) and (min-width: 600px) {
+  .ppt-focus__progress {
+    display: none;
+  }
+
+  .ppt-focus__side {
+    grid-template-rows: minmax(0, 0.7fr) minmax(0, 1fr);
+  }
+
+  .ppt-focus__teleprompter {
+    grid-row: auto;
+  }
+}
+
+@media (max-height: 620px), (max-width: 479px) {
+  .ppt-focus__control-label {
+    display: none;
+  }
+
+  .ppt-focus__controls {
+    grid-template-columns: minmax(148px, 1fr) repeat(4, minmax(44px, auto));
+  }
+
+  .ppt-focus__controls :deep(.f-button) {
+    min-width: 44px;
   }
 }

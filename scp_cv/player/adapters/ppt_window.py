@@ -17,7 +17,7 @@ from typing import Optional
 
 from scp_cv.player.adapters.ppt_constants import PP_SLIDE_SHOW_WINDOW
 
-SLIDESHOW_CLASS_NAMES = frozenset({"screenClass", "paneClassDC"})
+SLIDESHOW_CLASS_NAMES = frozenset({"screenClass", "paneClassDC", "PPTFrameClass"})
 
 
 def configure_windowed_slideshow(
@@ -39,11 +39,13 @@ def configure_windowed_slideshow(
 def snapshot_slideshow_hwnds(
     logger: Optional[logging.Logger] = None,
     class_names: Optional[Iterable[str]] = None,
+    process_id: Optional[int] = None,
 ) -> set[int]:
     """
     获取当前系统中可见的 PPT 放映窗口句柄快照。
     :param logger: 可选日志器；导入 Win32 失败时记录调试信息
     :param class_names: 可识别为放映窗口的 Win32 class name 集合
+    :param process_id: 可选进程 ID；传入时只记录当前 PPT/WPS 实例窗口
     :return: 可见放映窗口 HWND 集合
     """
     try:
@@ -59,7 +61,7 @@ def snapshot_slideshow_hwnds(
     def enum_callback(hwnd: int, _extra: object) -> bool:
         if win32gui.IsWindowVisible(hwnd):
             class_name = win32gui.GetClassName(hwnd)
-            if class_name in selected_class_names:
+            if class_name in selected_class_names and _window_belongs_to_process(hwnd, process_id):
                 slideshow_hwnds.add(int(hwnd))
         return True
 
@@ -78,6 +80,8 @@ def find_slideshow_hwnd(
     class_names: Optional[Iterable[str]] = None,
     timeout_seconds: float = 0.0,
     poll_interval_seconds: float = 0.1,
+    process_id: Optional[int] = None,
+    allow_existing_when_unique: bool = False,
 ) -> int:
     """
     查找 PPT 放映窗口的 HWND。
@@ -87,6 +91,8 @@ def find_slideshow_hwnd(
     :param class_names: 可识别为放映窗口的 Win32 class name 集合
     :param timeout_seconds: 等待异步创建窗口的最长秒数；0 表示只查一次
     :param poll_interval_seconds: 重试间隔秒数
+    :param process_id: 可选进程 ID；用于确认候选窗口属于当前 PPT/WPS 实例
+    :param allow_existing_when_unique: 进程可确认时，允许使用启动前已存在的唯一候选窗口
     :return: 本次放映窗口句柄，无法唯一确定时返回 0
     """
     try:
@@ -109,6 +115,7 @@ def find_slideshow_hwnd(
                 logger,
                 existing_hwnds,
                 class_names,
+                process_id=process_id,
             )
             if len(matched_hwnds) == 1:
                 logger.debug("通过枚举窗口找到本次放映 HWND=%d", matched_hwnds[0])
@@ -120,6 +127,43 @@ def find_slideshow_hwnd(
         if now >= deadline:
             break
         time.sleep(min(retry_interval, deadline - now))
+
+    if win32gui is not None and allow_existing_when_unique and process_id is not None:
+        scoped_hwnds = _find_matching_slideshow_hwnds(
+            win32gui,
+            logger,
+            existing_hwnds=None,
+            class_names=class_names,
+            process_id=process_id,
+        )
+        if len(scoped_hwnds) == 1:
+            logger.debug(
+                "使用当前进程中已存在的唯一放映 HWND=%d",
+                scoped_hwnds[0],
+            )
+            return scoped_hwnds[0]
+        selected_hwnd = _largest_window(win32gui, scoped_hwnds)
+        if selected_hwnd:
+            logger.debug(
+                "当前进程存在多个候选放映窗口，选择最大窗口 HWND=%d，候选=%s",
+                selected_hwnd,
+                scoped_hwnds,
+            )
+            return selected_hwnd
+
+    if win32gui is not None and allow_existing_when_unique and process_id is None:
+        all_hwnds = _find_matching_slideshow_hwnds(
+            win32gui,
+            logger,
+            existing_hwnds=None,
+            class_names=class_names,
+        )
+        if len(all_hwnds) == 1:
+            logger.debug(
+                "进程 ID 不可用，使用系统中唯一放映 HWND=%d",
+                all_hwnds[0],
+            )
+            return all_hwnds[0]
 
     if win32gui is None:
         logger.warning("Win32 模块不可用，无法查找 PPT 放映窗口")
@@ -161,6 +205,7 @@ def _find_matching_slideshow_hwnds(
     logger: logging.Logger,
     existing_hwnds: Optional[set[int]] = None,
     class_names: Optional[Iterable[str]] = None,
+    process_id: Optional[int] = None,
 ) -> list[int]:
     """
     枚举匹配当前放映 class 且不属于启动前快照的窗口。
@@ -168,6 +213,7 @@ def _find_matching_slideshow_hwnds(
     :param logger: 日志器
     :param existing_hwnds: 启动前已存在的 HWND
     :param class_names: 放映窗口 class name 候选集合
+    :param process_id: 可选进程 ID；传入时只匹配当前 PPT/WPS 实例窗口
     :return: 候选 HWND 列表
     """
     excluded_hwnds = existing_hwnds or set()
@@ -177,7 +223,11 @@ def _find_matching_slideshow_hwnds(
     def enum_callback(hwnd: int, _extra: object) -> bool:
         if win32gui.IsWindowVisible(hwnd):
             class_name = win32gui.GetClassName(hwnd)
-            if class_name in selected_class_names and int(hwnd) not in excluded_hwnds:
+            if (
+                class_name in selected_class_names
+                and int(hwnd) not in excluded_hwnds
+                and _window_belongs_to_process(hwnd, process_id)
+            ):
                 matched_hwnds.append(int(hwnd))
         return True
 
@@ -199,6 +249,45 @@ def _selected_slideshow_class_names(
     if class_names is None:
         return SLIDESHOW_CLASS_NAMES
     return frozenset(class_names)
+
+
+def _window_belongs_to_process(hwnd: int, process_id: Optional[int]) -> bool:
+    """
+    判断窗口是否属于指定进程。
+    :param hwnd: 窗口句柄
+    :param process_id: 目标进程 ID；为空时不做过滤
+    :return: True 表示可作为当前进程候选
+    """
+    if process_id is None:
+        return True
+    try:
+        import win32process
+
+        _, window_process_id = win32process.GetWindowThreadProcessId(hwnd)
+    except Exception:
+        return True
+    return int(window_process_id) == int(process_id)
+
+
+def _largest_window(win32gui: object, hwnds: list[int]) -> int:
+    """
+    从候选窗口中选择面积最大的窗口。
+    :param win32gui: win32gui 模块或测试替身
+    :param hwnds: 候选 HWND 列表
+    :return: 最大窗口 HWND；无法读取尺寸时返回 0
+    """
+    best_hwnd = 0
+    best_area = -1
+    for hwnd in hwnds:
+        try:
+            left, top, right, bottom = win32gui.GetWindowRect(hwnd)  # type: ignore[attr-defined]
+        except Exception:
+            continue
+        area = max(0, right - left) * max(0, bottom - top)
+        if area > best_area:
+            best_area = area
+            best_hwnd = int(hwnd)
+    return best_hwnd
 
 
 def embed_slideshow_window(ppt_hwnd: int, parent_hwnd: int) -> None:

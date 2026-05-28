@@ -15,6 +15,10 @@ import time
 from typing import Optional
 
 from scp_cv import libreoffice as lo_runtime
+from scp_cv.player.adapters.ppt_external_window import (
+    present_external_slideshow_window,
+    release_external_slideshow_window,
+)
 from scp_cv.player.adapters.ppt_libreoffice_bridge import LibreOfficeBridgeClient
 from scp_cv.player.adapters.ppt_libreoffice_media import control_libreoffice_media
 from scp_cv.player.adapters import ppt_libreoffice_window as lo_window
@@ -48,6 +52,14 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
         self._is_paused: bool = False
         self._last_slide_index: int = 1
         self._lock = threading.Lock()
+
+    @property
+    def has_external_slideshow_window(self) -> bool:
+        """
+        当前是否存在已铺满目标区域的外部 LibreOffice 放映窗口。
+        :return: True 表示外部放映窗口正在承担显示输出
+        """
+        return self._lo_hwnd != 0
 
     def open(self, uri: str, window_handle: int, autoplay: bool = True) -> None:
         """
@@ -278,15 +290,15 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
 
     def _start_slideshow(self, start_slide: int = 1) -> None:
         """
-        启动 Impress 放映并嵌入播放器窗口。
+        启动 Impress 放映并将外部放映窗口铺满目标区域。
         :param start_slide: 起始页码，1-based
         :return: None
         """
         if self._presentation is None:
             return
         existing_hwnds = lo_window.snapshot_libreoffice_hwnds(self._logger)
-        self._invoke_presentation_start()
-        self._controller = self._wait_for_controller()
+        start_errors = self._invoke_presentation_start_async()
+        self._controller = self._wait_for_controller(start_errors)
         self._is_paused = False
         if start_slide > 1 and self._controller is not None:
             try:
@@ -299,44 +311,67 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
             existing_hwnds=existing_hwnds,
         )
         if lo_hwnd == 0:
-            self._logger.warning("未找到 LibreOffice 放映窗口句柄，无法嵌入")
+            self._logger.warning("未找到 LibreOffice 放映窗口句柄，无法铺满目标显示区域")
             return
-        self._lo_hwnd = lo_hwnd
-        lo_window.embed_slideshow_window(lo_hwnd, self._window_handle)
-        container_width, container_height = lo_window.resize_slideshow_window(
+        container_width, container_height = present_external_slideshow_window(
             lo_hwnd,
             self._window_handle,
         )
+        self._lo_hwnd = lo_hwnd
         self._logger.debug(
-            "LibreOffice PPT 窗口已调整大小：%dx%d",
+            "LibreOffice PPT 外部放映窗口已铺满目标区域：%dx%d",
             container_width,
             container_height,
         )
 
-    def _invoke_presentation_start(self) -> None:
+    def _invoke_presentation_start_async(self) -> list[BaseException]:
+        """
+        异步启动 Impress 放映，避免 LibreOffice start 调用同步阻塞播放器主线程。
+        :return: 异步启动异常容器
+        """
+        start_errors: list[BaseException] = []
+        if self._presentation is None:
+            return start_errors
+        start_thread = threading.Thread(
+            target=self._invoke_presentation_start,
+            args=(self._presentation, start_errors),
+            daemon=True,
+            name="libreoffice-slideshow-start",
+        )
+        start_thread.start()
+        return start_errors
+
+    @staticmethod
+    def _invoke_presentation_start(presentation: object, start_errors: list[BaseException]) -> None:
         """
         兼容 XPresentation 与 XPresentation2 的启动方式。
+        :param presentation: LibreOffice Presentation 对象
+        :param start_errors: 异步启动异常容器
         :return: None
         """
-        if self._presentation is None:
-            return
-        start_with_arguments = getattr(self._presentation, "startWithArguments", None)
-        if start_with_arguments is not None:
-            start_with_arguments(())
-            return
-        self._presentation.start()
+        try:
+            start_with_arguments = getattr(presentation, "startWithArguments", None)
+            if start_with_arguments is not None:
+                start_with_arguments(())
+                return
+            presentation.start()
+        except BaseException as start_error:
+            start_errors.append(start_error)
 
-    def _wait_for_controller(self) -> object:
+    def _wait_for_controller(self, start_errors: list[BaseException] | None = None) -> object:
         """
         等待 Impress 创建 SlideShowController。
+        :param start_errors: 可选异步启动异常容器
         :return: SlideShowController
         :raises lo_runtime.LibreOfficeError: 超时无法获取时
         """
         if self._presentation is None:
             raise lo_runtime.LibreOfficeError("LibreOffice Presentation 未初始化")
-        deadline = time.monotonic() + lo_runtime.configured_libreoffice_timeout()
+        deadline = time.monotonic() + lo_runtime.configured_libreoffice_bridge_command_timeout()
         last_error: Optional[Exception] = None
         while time.monotonic() < deadline:
+            if start_errors:
+                raise lo_runtime.LibreOfficeError(f"LibreOffice 放映启动失败：{start_errors[0]}")
             try:
                 controller = self._presentation.getController()
                 if controller is not None:
@@ -419,7 +454,7 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
             pass
         if self._lo_hwnd != 0:
             try:
-                lo_window.detach_slideshow_window(self._lo_hwnd)
+                release_external_slideshow_window(self._lo_hwnd)
             except Exception:
                 pass
             self._lo_hwnd = 0
@@ -448,7 +483,7 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
 
     def _embed_bridge_slideshow(self, existing_hwnds: set[int]) -> None:
         """
-        查找 bridge 启动的 LibreOffice 放映窗口并嵌入播放器。
+        查找 bridge 启动的 LibreOffice 放映窗口并铺满目标区域。
         :param existing_hwnds: 启动放映前已存在的候选 HWND
         :return: None
         """
@@ -458,26 +493,28 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
             process_id=self._bridge_process_id or None,
         )
         if lo_hwnd == 0:
-            self._logger.warning("未找到 LibreOffice 放映窗口句柄，无法嵌入")
+            self._logger.warning("未找到 LibreOffice 放映窗口句柄，无法铺满目标显示区域")
             return
+        container_width, container_height = present_external_slideshow_window(
+            lo_hwnd,
+            self._window_handle,
+        )
         self._lo_hwnd = lo_hwnd
-        lo_window.embed_slideshow_window(lo_hwnd, self._window_handle)
-        container_width, container_height = lo_window.resize_slideshow_window(lo_hwnd, self._window_handle)
         self._logger.debug(
-            "LibreOffice PPT 窗口已调整大小：%dx%d",
+            "LibreOffice PPT 外部放映窗口已铺满目标区域：%dx%d",
             container_width,
             container_height,
         )
 
     def _detach_bridge_hwnd(self) -> None:
         """
-        解除 bridge 放映窗口嵌入。
+        释放 bridge 放映窗口外部置顶状态。
         :return: None
         """
         if self._lo_hwnd == 0:
             return
         try:
-            lo_window.detach_slideshow_window(self._lo_hwnd)
+            release_external_slideshow_window(self._lo_hwnd)
         except Exception:
             pass
         self._lo_hwnd = 0

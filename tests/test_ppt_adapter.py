@@ -63,6 +63,38 @@ class _PptAppStub:
         self.quit_called = True
 
 
+class _PresentationsOpenStub:
+    """记录 Presentations.Open 调用参数。"""
+
+    def __init__(self) -> None:
+        """
+        初始化调用记录。
+        :return: None
+        """
+        self.keyword_calls: list[dict[str, object]] = []
+
+    def Open(self, _file_path: str, **kwargs: object) -> object:
+        """
+        模拟 PowerPoint Presentations.Open。
+        :param _file_path: PPT 文件路径
+        :param kwargs: 打开参数
+        :return: 演示文稿替身
+        """
+        self.keyword_calls.append(kwargs)
+        return _PresentationStub()
+
+
+class _PptAppWithPresentationsStub:
+    """带 Presentations 集合的 PPT 应用替身。"""
+
+    def __init__(self) -> None:
+        """
+        初始化 PPT 应用替身。
+        :return: None
+        """
+        self.Presentations = _PresentationsOpenStub()
+
+
 class _Win32ComClientStub:
     """可控的 win32com.client 替身。"""
 
@@ -457,6 +489,38 @@ def test_start_slideshow_only_updates_slide_range(monkeypatch: MonkeyPatch) -> N
     assert presentation.SlideShowSettings.run_called is True
     assert presentation.Saved is True
     assert find_calls[0]["timeout_seconds"] == ppt._SLIDESHOW_HWND_TIMEOUT_SECONDS
+
+
+def test_start_slideshow_presents_external_window(monkeypatch: MonkeyPatch) -> None:
+    """找到放映 HWND 后应铺满外部顶层窗口，而不是嵌入 PySide。"""
+    adapter = PptSourceAdapter()
+    presentation = _PresentationWithSettingsStub()
+    calls: list[object] = []
+    adapter._presentation = presentation
+    adapter._total_slides = 5
+    adapter._window_handle = 2001
+
+    monkeypatch.setattr(ppt, "find_slideshow_hwnd", lambda *_args, **_kwargs: 909)
+    monkeypatch.setattr(ppt, "present_external_slideshow_window", lambda *args: calls.append(args) or (1920, 1080))
+
+    adapter._start_slideshow(start_slide=2)
+
+    assert adapter._ppt_hwnd == 909
+    assert calls == [(909, 2001)]
+
+
+def test_open_presentation_for_slideshow_uses_editable_untitled_copy() -> None:
+    """PowerPoint 只读打开时不能设置 SlideShowSettings，应打开可编辑临时副本。"""
+    adapter = PptSourceAdapter()
+    ppt_app = _PptAppWithPresentationsStub()
+    adapter._ppt_app = ppt_app
+
+    presentation = adapter._open_presentation_for_slideshow("demo.pptx")
+
+    assert isinstance(presentation, _PresentationStub)
+    assert ppt_app.Presentations.keyword_calls == [
+        {"ReadOnly": False, "Untitled": True, "WithWindow": False},
+    ]
 
 
 def test_configure_windowed_slideshow_sets_window_mode() -> None:

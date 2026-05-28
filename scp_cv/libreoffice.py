@@ -114,6 +114,20 @@ def configured_libreoffice_timeout() -> float:
         return 10.0
 
 
+def configured_libreoffice_bridge_command_timeout() -> float:
+    """
+    获取 LibreOffice bridge 命令响应超时时间。
+    :return: 超时秒数
+    """
+    raw_value = os.environ.get("LIBREOFFICE_BRIDGE_COMMAND_TIMEOUT_SECONDS")
+    if raw_value is None:
+        raw_value = str(_settings_value("LIBREOFFICE_BRIDGE_COMMAND_TIMEOUT_SECONDS", 120.0))
+    try:
+        return max(1.0, float(raw_value))
+    except (TypeError, ValueError):
+        return 120.0
+
+
 def resolve_libreoffice_executable(bin_path: Optional[str] = None) -> Path:
     """
     查找 LibreOffice soffice 可执行文件。

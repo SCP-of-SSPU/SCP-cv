@@ -38,6 +38,28 @@ class _FakeProcess:
         """
         return self.returncode
 
+    def terminate(self) -> None:
+        """
+        模拟终止进程。
+        :return: None
+        """
+        self.returncode = -15
+
+    def wait(self, timeout: float | None = None) -> int:
+        """
+        模拟等待进程退出。
+        :param timeout: 等待超时秒数
+        :return: 退出码
+        """
+        return int(self.returncode or 0)
+
+    def kill(self) -> None:
+        """
+        模拟强制结束进程。
+        :return: None
+        """
+        self.returncode = -9
+
 
 def test_bridge_client_uses_libreoffice_python(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
     """bridge 客户端应使用 LibreOffice 自带 Python，而不是项目 Python。"""
@@ -64,6 +86,12 @@ def test_bridge_client_uses_libreoffice_python(monkeypatch: MonkeyPatch, tmp_pat
         "resolve_libreoffice_python_executable",
         lambda: lo_python,
     )
+    monkeypatch.setattr(ppt_libreoffice_bridge.lo_runtime, "configured_libreoffice_timeout", lambda: 7.0)
+    monkeypatch.setattr(
+        ppt_libreoffice_bridge.lo_runtime,
+        "configured_libreoffice_bridge_command_timeout",
+        lambda: 66.0,
+    )
     monkeypatch.setattr(ppt_libreoffice_bridge.subprocess, "Popen", fake_popen)
 
     client = ppt_libreoffice_bridge.LibreOfficeBridgeClient(logging.getLogger(__name__))
@@ -71,4 +99,33 @@ def test_bridge_client_uses_libreoffice_python(monkeypatch: MonkeyPatch, tmp_pat
 
     assert state == {"playback_state": "playing", "current_slide": 1, "total_slides": 3, "process_id": 42}
     assert captured["command"] == [str(lo_python), "-m", "scp_cv.libreoffice_worker", "bridge"]
+    assert captured["kwargs"]["env"]["LIBREOFFICE_CONNECT_TIMEOUT_SECONDS"] == "7.0"
+    assert captured["kwargs"]["env"]["LIBREOFFICE_BRIDGE_COMMAND_TIMEOUT_SECONDS"] == "66.0"
+    assert '"command": "open"' in fake_process.stdin.getvalue()
+
+
+def test_bridge_client_request_times_out_without_worker_response(monkeypatch: MonkeyPatch) -> None:
+    """bridge worker 无响应时应超时终止，避免卡住播放器主线程。"""
+    fake_process = _FakeProcess("")
+    client = ppt_libreoffice_bridge.LibreOfficeBridgeClient(logging.getLogger(__name__))
+    client._process = fake_process
+    monkeypatch.setattr(
+        ppt_libreoffice_bridge.lo_runtime,
+        "configured_libreoffice_timeout",
+        lambda: (_ for _ in ()).throw(AssertionError("不应使用 UNO 连接超时")),
+    )
+    monkeypatch.setattr(
+        ppt_libreoffice_bridge.lo_runtime,
+        "configured_libreoffice_bridge_command_timeout",
+        lambda: 0.01,
+    )
+
+    try:
+        client.request("open", {"file_path": "demo.pptx", "autoplay": True})
+    except ppt_libreoffice_bridge.LibreOfficeBridgeError as request_error:
+        assert "响应超时" in str(request_error)
+    else:
+        raise AssertionError("expected LibreOfficeBridgeError")
+
+    assert fake_process.returncode == -15
     assert '"command": "open"' in fake_process.stdin.getvalue()

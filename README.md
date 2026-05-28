@@ -92,9 +92,11 @@ uv run python manage.py migrate
 PPT 后端相关配置：
 
 - PPT 播放器不再通过 `.env` 全局选择；导入 PPT 时从 `LibreOffice（稳定）`、`Microsoft PowerPoint`、`WPS 演示` 中选择默认播放器，媒体源编辑页可修改，四个显控页可对当前放映临时切换。
+- PPT 放映时对应 PySide 播放窗口会先切到黑屏并隐藏，Office/LibreOffice/WPS 原生放映窗口作为外部顶层窗口铺满目标显示区域；结束播放或切换到其它内容时恢复 PySide 黑屏窗口。
 - 临时切换或右上角“重置 PPT 放映”会先关闭当前 PPT 后端进程，再重开原 PPT 并自动跳回操作前页码。
 - `LIBREOFFICE_BIN_PATH=`：可指向 `soffice.exe`、`soffice.com`、LibreOffice 安装目录或 `program` 目录；留空时从 PATH 和常见安装路径查找。
 - `LIBREOFFICE_CONNECT_TIMEOUT_SECONDS=10`：LibreOffice UNO 启动连接超时。
+- `LIBREOFFICE_BRIDGE_COMMAND_TIMEOUT_SECONDS=120`：LibreOffice 放映 worker 命令响应超时；打开大型 PPT 或现场机器冷启动较慢时可适当调大。
 - `PPT_PREVIEW_WORKER_TIMEOUT_SECONDS=180`：上传或导入 PPT 时，预览导出 worker 的最长等待时间；Office 预览导出失败或超时只会跳过预览，不会阻断媒体源创建。
 
 `runall` 启动前端时会移除父进程继承的 `VITE_*` 变量，让 `frontend/.env` 成为前端开发服务的实际配置来源。若 `frontend/.env` 未配置 `VITE_BACKEND_TARGET`，`runall` 才会按当前后端监听地址提供兜底值。

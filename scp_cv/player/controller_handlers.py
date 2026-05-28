@@ -63,28 +63,45 @@ class PlayerCommandHandlersMixin:
             return
 
         is_web_source = source_type == "web"
+        is_ppt_source = source_type == "ppt"
+        window = self.get_window(window_id)
+        if window is not None:
+            window.show_black_screen()
+            window.show()
+            window.raise_()
+
         if is_web_source:
-            window = self.get_window(window_id)
             if window is not None:
                 from scp_cv.player.adapters.web import WebSourceAdapter
                 if isinstance(adapter, WebSourceAdapter):
                     adapter.set_parent_container(window.web_container)
                     adapter.set_preheat_context(source_id, preheat_enabled, self._web_preheat_pool)
 
-        adapter.open(uri=uri, window_handle=window_handle, autoplay=autoplay)
-        if source_type == "ppt" and target_slide > 0:
-            adapter.goto_item(target_slide)
-        adapter.set_volume(int(command_args.get("volume", 100)))
-        adapter.set_mute(bool(command_args.get("muted", False)))
+        try:
+            adapter.open(uri=uri, window_handle=window_handle, autoplay=autoplay)
+            if is_ppt_source and target_slide > 0:
+                adapter.goto_item(target_slide)
+            adapter.set_volume(int(command_args.get("volume", 100)))
+            adapter.set_mute(bool(command_args.get("muted", False)))
+        except Exception:
+            if is_ppt_source:
+                try:
+                    adapter.close()
+                except Exception as close_error:
+                    logger.debug("窗口 %d PPT 打开失败后关闭适配器异常：%s", window_id, close_error)
+            if is_ppt_source:
+                self._restore_player_window_to_black(window_id)
+            raise
         self._adapters[window_id] = adapter
         self._adapter_source_types[window_id] = source_type
         if source_id > 0:
             self._adapter_source_ids[window_id] = source_id
 
-        window = self.get_window(window_id)
         if window is not None:
             if is_web_source:
                 window.show_web_container()
+            elif is_ppt_source:
+                self._sync_ppt_window_visibility(window_id, adapter)
             else:
                 window.show_video_container()
 
@@ -97,6 +114,8 @@ class PlayerCommandHandlersMixin:
         adapter = self._adapters.get(window_id)
         if adapter is not None:
             adapter.play()
+            if self._adapter_source_types.get(window_id) == "ppt":
+                self._sync_ppt_window_visibility(window_id, adapter)
             self._update_session_state(window_id, "playing")
 
     def _handle_pause(self, window_id: int, command_args: dict[str, object]) -> None:
@@ -111,6 +130,8 @@ class PlayerCommandHandlersMixin:
         adapter = self._adapters.get(window_id)
         if adapter is not None:
             adapter.stop()
+            if self._adapter_source_types.get(window_id) == "ppt":
+                self._restore_player_window_to_black(window_id)
             self._update_session_state(window_id, "stopped")
 
     def _handle_close(self, window_id: int, command_args: dict[str, object]) -> None:
@@ -126,6 +147,8 @@ class PlayerCommandHandlersMixin:
 
         window = self.get_window(window_id)
         if window is not None:
+            window.show()
+            window.raise_()
             window.show_black_screen()
 
         from scp_cv.apps.playback.models import PlaybackState, PlaybackSession, PptPlaybackBackend
@@ -324,14 +347,44 @@ class PlayerCommandHandlersMixin:
         :param window_id: 窗口编号
         """
         adapter = self._adapters.pop(window_id, None)
+        source_type = self._adapter_source_types.get(window_id)
         if adapter is not None:
             try:
                 adapter.close()
             except Exception as close_error:
                 logger.warning("关闭窗口 %d 适配器异常：%s", window_id, close_error)
+        if source_type == "ppt":
+            self._restore_player_window_to_black(window_id)
         self._adapter_source_types.pop(window_id, None)
         self._adapter_source_ids.pop(window_id, None)
         self._last_reported_states.pop(window_id, None)
+
+    def _sync_ppt_window_visibility(self, window_id: int, adapter: object) -> None:
+        """
+        根据 PPT 外部放映窗口是否存在切换 PySide 播放窗口可见性。
+        :param window_id: 窗口编号
+        :param adapter: 当前 PPT 适配器
+        :return: None
+        """
+        if bool(getattr(adapter, "has_external_slideshow_window", False)):
+            window = self.get_window(window_id)
+            if window is not None:
+                window.hide_window()
+            return
+        self._restore_player_window_to_black(window_id)
+
+    def _restore_player_window_to_black(self, window_id: int) -> None:
+        """
+        恢复 PySide 播放窗口并显示黑屏。
+        :param window_id: 窗口编号
+        :return: None
+        """
+        window = self.get_window(window_id)
+        if window is None:
+            return
+        window.show()
+        window.raise_()
+        window.show_black_screen()
 
     def _update_session_state(self, window_id: int, playback_state: str) -> None:
         """

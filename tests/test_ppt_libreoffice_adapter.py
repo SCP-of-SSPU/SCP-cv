@@ -9,6 +9,7 @@ LibreOffice PPT 适配器单元测试，覆盖动画推进、跳页和状态读�
 '''
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 
 from pytest import MonkeyPatch
@@ -34,6 +35,53 @@ class _PresentationStub:
         :return: True 表示正在放映
         """
         return self.running
+
+
+class _BlockingPresentationStub:
+    """模拟 LibreOffice startWithArguments 同步阻塞的 Presentation。"""
+
+    def __init__(self) -> None:
+        """
+        初始化阻塞 Presentation 替身。
+        :return: None
+        """
+        self.start_called = False
+        self.unblock_start = threading.Event()
+
+    def startWithArguments(self, _args: tuple[object, ...]) -> None:
+        """
+        模拟阻塞的放映启动调用。
+        :param _args: 启动参数
+        :return: None
+        """
+        self.start_called = True
+        self.unblock_start.wait(timeout=1.0)
+
+    def getController(self) -> object | None:
+        """
+        启动调用进入后返回 controller。
+        :return: controller 替身或 None
+        """
+        return _ControllerStub() if self.start_called else None
+
+
+class _FailingPresentationStub:
+    """模拟 LibreOffice 放映启动失败的 Presentation。"""
+
+    def startWithArguments(self, _args: tuple[object, ...]) -> None:
+        """
+        抛出放映启动失败异常。
+        :param _args: 启动参数
+        :return: None
+        """
+        raise RuntimeError("start failed")
+
+    def getController(self) -> object | None:
+        """
+        启动失败时不返回 controller。
+        :return: None
+        """
+        return None
 
 
 class _ControllerStub:
@@ -274,8 +322,8 @@ def test_next_item_uses_next_effect_to_preserve_animations() -> None:
     assert adapter._last_slide_index == 3
 
 
-def test_open_uses_bridge_client_and_embeds_window(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
-    """LibreOffice 打开路径应走 bridge，避免在项目 Python 中导入 pyuno。"""
+def test_open_uses_bridge_client_and_presents_external_window(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
+    """LibreOffice 打开路径应走 bridge，并将放映窗口铺满目标区域。"""
     ppt_file = tmp_path / "demo.pptx"
     ppt_file.write_text("placeholder", encoding="utf-8")
     calls: list[object] = []
@@ -293,8 +341,7 @@ def test_open_uses_bridge_client_and_embeds_window(monkeypatch: MonkeyPatch, tmp
     monkeypatch.setattr(ppt_libreoffice.lo_runtime, "start_libreoffice_session", fail_start_session)
     monkeypatch.setattr(ppt_libreoffice.lo_window, "snapshot_libreoffice_hwnds", lambda *_args, **_kwargs: {1})
     monkeypatch.setattr(ppt_libreoffice.lo_window, "find_libreoffice_slideshow_hwnd", lambda *_args, **_kwargs: 99)
-    monkeypatch.setattr(ppt_libreoffice.lo_window, "embed_slideshow_window", lambda *args: calls.append(args))
-    monkeypatch.setattr(ppt_libreoffice.lo_window, "resize_slideshow_window", lambda *_args: (800, 600))
+    monkeypatch.setattr(ppt_libreoffice, "present_external_slideshow_window", lambda *args: calls.append(args) or (800, 600))
 
     adapter = LibreOfficePptSourceAdapter()
     adapter.open(str(ppt_file), window_handle=1001, autoplay=True)
@@ -302,6 +349,43 @@ def test_open_uses_bridge_client_and_embeds_window(monkeypatch: MonkeyPatch, tmp
     assert adapter.get_state().total_slides == 4
     assert _BridgeStub.instances[0].open_calls == [(str(ppt_file), True)]
     assert calls == [(99, 1001)]
+
+
+def test_start_slideshow_does_not_block_on_libreoffice_start(monkeypatch: MonkeyPatch) -> None:
+    """播放器内 LibreOffice 放映启动不应被 startWithArguments 同步阻塞。"""
+    calls: list[object] = []
+    presentation = _BlockingPresentationStub()
+    adapter = LibreOfficePptSourceAdapter()
+    adapter._presentation = presentation
+    adapter._window_handle = 1001
+    adapter._total_slides = 3
+    monkeypatch.setattr(ppt_libreoffice.lo_window, "snapshot_libreoffice_hwnds", lambda *_args, **_kwargs: {1})
+    monkeypatch.setattr(ppt_libreoffice.lo_window, "find_libreoffice_slideshow_hwnd", lambda *_args, **_kwargs: 99)
+    monkeypatch.setattr(ppt_libreoffice, "present_external_slideshow_window", lambda *args: calls.append(args) or (800, 600))
+
+    adapter._start_slideshow(1)
+    presentation.unblock_start.set()
+
+    assert adapter._controller is not None
+    assert presentation.start_called is True
+    assert calls == [(99, 1001)]
+
+
+def test_start_slideshow_reports_async_start_error(monkeypatch: MonkeyPatch) -> None:
+    """播放器内 LibreOffice 异步启动失败时应快速抛出明确错误。"""
+    adapter = LibreOfficePptSourceAdapter()
+    adapter._presentation = _FailingPresentationStub()
+    adapter._window_handle = 1001
+    adapter._total_slides = 3
+    monkeypatch.setattr(ppt_libreoffice.lo_window, "snapshot_libreoffice_hwnds", lambda *_args, **_kwargs: {1})
+
+    try:
+        adapter._start_slideshow(1)
+    except ppt_libreoffice.lo_runtime.LibreOfficeError as start_error:
+        assert "LibreOffice 放映启动失败" in str(start_error)
+        assert "start failed" in str(start_error)
+    else:
+        raise AssertionError("expected LibreOfficeError")
 
 
 def test_prev_item_uses_previous_effect_to_preserve_animations() -> None:

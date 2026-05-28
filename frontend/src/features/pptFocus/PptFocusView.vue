@@ -366,19 +366,19 @@ function exitFocus(): void {
           </div>
           <n-button @click="nav('prev')">
             <template #icon><FIcon name="previous_24_regular" /></template>
-            {{ t('pptFocus.prevPage') }}
+            <span class="ppt-focus__control-label">{{ t('pptFocus.prevPage') }}</span>
           </n-button>
           <n-button :disabled="!canControlSelectedMedia" @click="controlSelectedMedia('pause')">
             <template #icon><FIcon name="pause_24_regular" /></template>
-            {{ t('pptFocus.pauseMedia') }}
+            <span class="ppt-focus__control-label">{{ t('pptFocus.pauseMedia') }}</span>
           </n-button>
           <n-button type="primary" :disabled="!canControlSelectedMedia" @click="controlSelectedMedia('play')">
             <template #icon><FIcon name="play_24_regular" /></template>
-            {{ t('pptFocus.playMedia') }}
+            <span class="ppt-focus__control-label">{{ t('pptFocus.playMedia') }}</span>
           </n-button>
           <n-button @click="nav('next')">
             <template #icon><FIcon name="next_24_regular" /></template>
-            {{ t('pptFocus.nextPage') }}
+            <span class="ppt-focus__control-label">{{ t('pptFocus.nextPage') }}</span>
           </n-button>
         </div>
       </template>

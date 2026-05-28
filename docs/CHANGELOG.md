@@ -2,6 +2,13 @@
 
 ## 2026-05-27
 
+### 修复 LibreOffice PPT 放映启动卡住
+
+- 播放器：LibreOffice 放映启动调用改为后台线程执行，避免 `startWithArguments` 在部分 PPT 或现场环境中同步阻塞后卡住 Qt 主线程。
+- Bridge：LibreOffice worker stdout 改为后台线程读取，worker 无响应时按命令超时终止 bridge 进程树，避免后续播放指令排队不执行。
+- 配置：新增 `LIBREOFFICE_BRIDGE_COMMAND_TIMEOUT_SECONDS` 区分放映 worker 命令响应超时和 `LIBREOFFICE_CONNECT_TIMEOUT_SECONDS` 的 UNO 启动连接超时，避免大型 PPT 正常加载时被 10 秒连接超时误杀。
+- 播放器：PPT 放映改为外部顶层窗口铺满目标显示区域；打开 PPT 时隐藏对应 PySide 播放窗口，结束播放或切换到其它内容后恢复 PySide 黑屏窗口，避免 Office 原生窗口嵌入不稳定。
+
 ### 修复 PPT 上传预览隔离
 
 - 预览导出：上传或导入 PPT 时改为通过独立 Python worker 执行 LibreOffice / PowerPoint / WPS 预览导出，避免 Office/UNO 原生库污染 Django 主进程的 Windows socket 状态导致 `WinError 10093` 后进程退出。

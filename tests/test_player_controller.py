@@ -53,6 +53,9 @@ class _OpenAdapter:
         self.goto_items: list[int] = []
         self.volumes: list[int] = []
         self.mutes: list[bool] = []
+        self.closed = False
+        self.fail_open = False
+        self.has_external_slideshow_window = True
 
     def open(self, uri: str, window_handle: int, autoplay: bool = True) -> None:
         """
@@ -67,6 +70,15 @@ class _OpenAdapter:
             "window_handle": window_handle,
             "autoplay": autoplay,
         }
+        if self.fail_open:
+            raise RuntimeError("open failed")
+
+    def close(self) -> None:
+        """
+        记录关闭调用。
+        :return: None
+        """
+        self.closed = True
 
     def goto_item(self, index: int) -> None:
         """
@@ -128,6 +140,42 @@ class _SingleLoopController(PlayerController):
         raise AssertionError("adapter state must be reported through the Qt signal")
 
 
+class _WindowStub:
+    """记录播放器窗口显示/隐藏调用顺序的替身。"""
+
+    def __init__(self) -> None:
+        """
+        初始化调用记录。
+        :return: None
+        """
+        self.calls: list[str] = []
+        self.web_container = object()
+
+    def show_black_screen(self) -> None:
+        """记录黑屏显示。"""
+        self.calls.append("black")
+
+    def hide_window(self) -> None:
+        """记录隐藏窗口。"""
+        self.calls.append("hide")
+
+    def show(self) -> None:
+        """记录显示窗口。"""
+        self.calls.append("show")
+
+    def raise_(self) -> None:
+        """记录置顶窗口。"""
+        self.calls.append("raise")
+
+    def show_web_container(self) -> None:
+        """记录网页容器显示。"""
+        self.calls.append("web")
+
+    def show_video_container(self) -> None:
+        """记录视频容器显示。"""
+        self.calls.append("video")
+
+
 def test_poll_loop_requests_state_report_instead_of_reading_adapter_directly() -> None:
     """后台轮询应只发起状态上报请求，避免跨线程访问 PPT COM。"""
     controller = _SingleLoopController()
@@ -187,6 +235,7 @@ def test_handle_open_passes_wps_backend_to_adapter(monkeypatch: pytest.MonkeyPat
     """播放器处理 OPEN 指令时应把 WPS 后端透传给适配器工厂。"""
     controller = PlayerController()
     adapter = _OpenAdapter()
+    window = _WindowStub()
     created_options: dict[str, object] = {}
     states: list[tuple[int, str]] = []
 
@@ -203,7 +252,7 @@ def test_handle_open_passes_wps_backend_to_adapter(monkeypatch: pytest.MonkeyPat
 
     monkeypatch.setattr("scp_cv.player.controller_handlers.create_adapter", create_adapter_stub)
     monkeypatch.setattr(controller, "get_window_handle", lambda _window_id: 2001)
-    monkeypatch.setattr(controller, "get_window", lambda _window_id: None)
+    monkeypatch.setattr(controller, "get_window", lambda _window_id: window)
     monkeypatch.setattr(controller, "_close_adapter", lambda _window_id: None)
     monkeypatch.setattr(controller, "_cleanup_temporary_source", lambda _command_args: None)
     monkeypatch.setattr(controller, "_update_session_state", lambda window_id, state: states.append((window_id, state)))
@@ -226,6 +275,110 @@ def test_handle_open_passes_wps_backend_to_adapter(monkeypatch: pytest.MonkeyPat
     assert adapter.mutes == [True]
     assert controller._adapters[1] is adapter
     assert controller._adapter_source_ids[1] == 7
+    assert states == [(1, "playing")]
+    assert window.calls == ["black", "show", "raise", "hide"]
+
+
+def test_handle_open_keeps_black_window_when_ppt_has_no_slideshow(monkeypatch: pytest.MonkeyPatch) -> None:
+    """PPT 未自动放映时应保留 PySide 黑屏窗口，避免露出桌面。"""
+    controller = PlayerController()
+    adapter = _OpenAdapter()
+    adapter.has_external_slideshow_window = False
+    window = _WindowStub()
+    states: list[tuple[int, str]] = []
+
+    monkeypatch.setattr("scp_cv.player.controller_handlers.create_adapter", lambda *_args, **_kwargs: adapter)
+    monkeypatch.setattr(controller, "get_window_handle", lambda _window_id: 2001)
+    monkeypatch.setattr(controller, "get_window", lambda _window_id: window)
+    monkeypatch.setattr(controller, "_close_adapter", lambda _window_id: None)
+    monkeypatch.setattr(controller, "_cleanup_temporary_source", lambda _command_args: None)
+    monkeypatch.setattr(controller, "_update_session_state", lambda window_id, state: states.append((window_id, state)))
+
+    controller._handle_open(1, {
+        "source_id": 7,
+        "source_type": "ppt",
+        "uri": "C:/demo/manual.pptx",
+        "autoplay": False,
+    })
+
+    assert window.calls == ["black", "show", "raise", "show", "raise", "black"]
+    assert states == [(1, "loading")]
+
+
+def test_handle_open_restores_window_when_ppt_open_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    """PPT 外部窗口打开失败时应关闭适配器并恢复 PySide 黑屏窗口。"""
+    controller = PlayerController()
+    adapter = _OpenAdapter()
+    adapter.fail_open = True
+    window = _WindowStub()
+
+    monkeypatch.setattr("scp_cv.player.controller_handlers.create_adapter", lambda *_args, **_kwargs: adapter)
+    monkeypatch.setattr(controller, "get_window_handle", lambda _window_id: 2001)
+    monkeypatch.setattr(controller, "get_window", lambda _window_id: window)
+    monkeypatch.setattr(controller, "_close_adapter", lambda _window_id: None)
+    monkeypatch.setattr(controller, "_cleanup_temporary_source", lambda _command_args: None)
+
+    with pytest.raises(RuntimeError, match="open failed"):
+        controller._handle_open(1, {
+            "source_id": 7,
+            "source_type": "ppt",
+            "uri": "C:/demo/fail.pptx",
+            "autoplay": True,
+        })
+
+    assert adapter.closed is True
+    assert controller._adapters == {}
+    assert window.calls == ["black", "show", "raise", "show", "raise", "black"]
+
+
+def test_handle_stop_restores_black_window_for_ppt(monkeypatch: pytest.MonkeyPatch) -> None:
+    """停止 PPT 后应恢复 PySide 黑屏窗口。"""
+    controller = PlayerController()
+    adapter = _OpenAdapter()
+    window = _WindowStub()
+    states: list[tuple[int, str]] = []
+    stop_calls: list[bool] = []
+
+    def stop_adapter() -> None:
+        """记录 stop 调用并模拟外部放映窗口已关闭。"""
+        stop_calls.append(True)
+        adapter.has_external_slideshow_window = False
+
+    adapter.stop = stop_adapter  # type: ignore[method-assign]
+    controller._adapters[1] = adapter  # type: ignore[assignment]
+    controller._adapter_source_types[1] = "ppt"
+    monkeypatch.setattr(controller, "get_window", lambda _window_id: window)
+    monkeypatch.setattr(controller, "_update_session_state", lambda window_id, state: states.append((window_id, state)))
+
+    controller._handle_stop(1, {})
+
+    assert stop_calls == [True]
+    assert window.calls == ["show", "raise", "black"]
+    assert states == [(1, "stopped")]
+
+
+def test_handle_open_restores_window_for_non_ppt_source(monkeypatch: pytest.MonkeyPatch) -> None:
+    """从 PPT 切换到非 PPT 内容时应恢复 PySide 播放窗口。"""
+    controller = PlayerController()
+    adapter = _OpenAdapter()
+    window = _WindowStub()
+    states: list[tuple[int, str]] = []
+
+    monkeypatch.setattr("scp_cv.player.controller_handlers.create_adapter", lambda *_args, **_kwargs: adapter)
+    monkeypatch.setattr(controller, "get_window_handle", lambda _window_id: 2001)
+    monkeypatch.setattr(controller, "get_window", lambda _window_id: window)
+    monkeypatch.setattr(controller, "_close_adapter", lambda _window_id: None)
+    monkeypatch.setattr(controller, "_cleanup_temporary_source", lambda _command_args: None)
+    monkeypatch.setattr(controller, "_update_session_state", lambda window_id, state: states.append((window_id, state)))
+
+    controller._handle_open(1, {
+        "source_id": 8,
+        "source_type": "video",
+        "uri": "C:/demo/video.mp4",
+        "autoplay": True,
+    })
+
+    assert window.calls == ["black", "show", "raise", "video"]
     assert states == [(1, "playing")]
 
 
