@@ -276,7 +276,7 @@ def test_handle_open_passes_wps_backend_to_adapter(monkeypatch: pytest.MonkeyPat
     assert controller._adapters[1] is adapter
     assert controller._adapter_source_ids[1] == 7
     assert states == [(1, "playing")]
-    assert window.calls == ["black", "show", "raise", "hide"]
+    assert window.calls == ["black", "hide", "hide"]
 
 
 def test_handle_open_keeps_black_window_when_ppt_has_no_slideshow(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -328,7 +328,7 @@ def test_handle_open_restores_window_when_ppt_open_fails(monkeypatch: pytest.Mon
 
     assert adapter.closed is True
     assert controller._adapters == {}
-    assert window.calls == ["black", "show", "raise", "show", "raise", "black"]
+    assert window.calls == ["black", "hide", "show", "raise", "black"]
 
 
 def test_handle_stop_restores_black_window_for_ppt(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -66,9 +66,13 @@ class PlayerCommandHandlersMixin:
         is_ppt_source = source_type == "ppt"
         window = self.get_window(window_id)
         if window is not None:
-            window.show_black_screen()
-            window.show()
-            window.raise_()
+            if is_ppt_source and autoplay:
+                window.show_black_screen()
+                window.hide_window()
+            else:
+                window.show_black_screen()
+                window.show()
+                window.raise_()
 
         if is_web_source:
             if window is not None:
