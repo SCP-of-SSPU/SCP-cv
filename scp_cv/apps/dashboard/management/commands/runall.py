@@ -38,7 +38,12 @@ from scp_cv.apps.dashboard.management.runall_processes import (
     terminate_process_tree,
     wait_for_port,
 )
-from scp_cv.apps.dashboard.management.runall_service import launch_runall_service
+from scp_cv.apps.dashboard.management.runall_service import (
+    active_console_session_id,
+    current_process_has_active_desktop,
+    current_process_session_id,
+    launch_runall_service,
+)
 
 
 @dataclass
@@ -94,15 +99,31 @@ class Command(BaseCommand):
 
         # 后台模式仅负责二次拉起真实 runall，避免当前进程继续占用终端生命周期。
         if bool(options.get("service", False)):
-            service_pid, service_log_path = launch_runall_service(
+            service_launch = launch_runall_service(
                 sys.argv, Path(settings.BASE_DIR), Path(settings.LOG_DIR)
             )
-            self.stdout.write(
-                self.style.SUCCESS(
-                    f"runall 后台服务已启动（pid={service_pid}，日志={service_log_path}）"
+            if service_launch.pid is not None:
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f"runall 后台服务已启动（pid={service_launch.pid}，日志={service_launch.log_path}）"
+                    )
                 )
-            )
+            else:
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        "runall 后台服务已通过交互式计划任务启动"
+                        f"（task={service_launch.task_name}，日志={service_launch.log_path}）"
+                    )
+                )
             return
+
+        if (
+            bool(options.get("headless", False))
+            and not bool(options.get("skip_player", False))
+            and not current_process_has_active_desktop()
+        ):
+            self.stderr.write(self.style.ERROR(_headless_session_error_message()))
+            sys.exit(1)
 
         self._process_log_dir = create_runall_log_dir(Path(settings.LOG_DIR))
         self.stdout.write(f"本次 runall 子进程日志目录：{self._process_log_dir}")
@@ -488,3 +509,18 @@ class Command(BaseCommand):
         self.stdout.write(self.style.WARNING(f"收到信号 {signum}，正在停止所有服务…"))
         self._cleanup_processes()
         sys.exit(0)
+
+
+def _headless_session_error_message() -> str:
+    """
+    返回 SSH/服务会话直接启动 headless 播放器时的明确错误说明。
+    :return: 错误文本
+    """
+    current_session = current_process_session_id()
+    active_session = active_console_session_id()
+    return (
+        "当前进程不在 Windows 活动控制台会话，PySide 播放器无法访问控制台的物理显示器。"
+        f"当前 Session={current_session}，活动控制台 Session={active_session}。"
+        "如需通过 SSH 远程启动，请使用：uv run python manage.py runall --headless --service；"
+        "或在 D2 控制台桌面直接运行 runall --headless。"
+    )

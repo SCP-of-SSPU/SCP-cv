@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-05-29
+
+### 修复 SSH headless 启动无法访问物理显示器
+
+- 管理命令：`runall --headless` 在 Windows 非活动控制台会话中会提前报错，提示当前 Session 与活动控制台 Session，避免先启动服务再因 PySide 只能看到服务虚拟屏而退出。
+- 管理命令：`runall --headless --service` 在 SSH / OpenSSH 服务会话中自动通过登录用户的交互式计划任务拉起真实 runall，使 PySide 在控制台桌面枚举并使用物理显示器。
+- 文档：README、使用文档和维护文档补充 SSH 远程启动必须使用 `--service` 的说明。
+
 ## 2026-05-28
 
 ### 修复 PPT 外部窗口被 PySide 黑屏覆盖

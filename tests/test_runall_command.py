@@ -409,6 +409,49 @@ def test_start_player_forwards_headless_display_and_gpu_options(
     ]
 
 
+def test_headless_requires_active_desktop_for_player(monkeypatch: Any) -> None:
+    """
+    非活动控制台会话直接启动 headless 播放器时应提前报错。
+    :param monkeypatch: pytest monkeypatch fixture
+    :return: None
+    """
+    command = runall.Command()
+    errors: list[str] = []
+
+    monkeypatch.setattr(runall.atexit, "register", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(runall.signal, "signal", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(runall, "create_runall_log_dir", lambda log_dir: log_dir / "runall")
+    monkeypatch.setattr(
+        "scp_cv.apps.dashboard.management.commands.runall.current_process_has_active_desktop",
+        lambda: False,
+    )
+    monkeypatch.setattr(command.stderr, "write", lambda message: errors.append(str(message)))
+
+    try:
+        command.handle(
+            backend_host="0.0.0.0",
+            backend_port=8000,
+            frontend_host="0.0.0.0",
+            frontend_port=0,
+            grpc_web_port=8081,
+            poll_interval=0.2,
+            skip_mediamtx=True,
+            skip_grpcweb=True,
+            skip_frontend=True,
+            skip_player=False,
+            headless=True,
+            service=False,
+        )
+    except SystemExit as exit_error:
+        assert exit_error.code == 1
+    else:
+        raise AssertionError("headless 非活动桌面应退出")
+
+    assert errors
+    assert "当前进程不在 Windows 活动控制台会话" in errors[0]
+    assert "--headless --service" in errors[0]
+
+
 def test_reset_startup_state_uses_internal_service(monkeypatch: Any) -> None:
     """
     runall 启动前重置应直接调用服务层，避免未登录 HTTP 请求被 401 拦截。
