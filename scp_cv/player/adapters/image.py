@@ -41,6 +41,21 @@ class ImageSourceAdapter(SourceAdapter):
         self._pixmap: Optional[QPixmap] = None
         self._file_path: str = ""
         self._parent_widget: Optional[QWidget] = None
+        self._source_id: int = 0
+        self._preheat_enabled: bool = False
+        self._preheat_pool: object | None = None
+
+    def set_preheat_context(self, source_id: int, preheat_enabled: bool, preheat_pool: object | None) -> None:
+        """
+        注入图片预热上下文。
+        :param source_id: 媒体源 ID
+        :param preheat_enabled: 是否启用预热复用
+        :param preheat_pool: 统一预热池
+        :return: None
+        """
+        self._source_id = source_id
+        self._preheat_enabled = preheat_enabled
+        self._preheat_pool = preheat_pool
 
     def open(self, uri: str, window_handle: int, autoplay: bool = True) -> None:
         """
@@ -54,8 +69,9 @@ class ImageSourceAdapter(SourceAdapter):
 
         self._file_path = uri
 
-        # 加载图片
-        pixmap = QPixmap(uri)
+        pixmap = self._take_preheated_pixmap(uri)
+        if pixmap is None:
+            pixmap = QPixmap(uri)
         if pixmap.isNull():
             raise ValueError(f"无法加载图片：{uri}")
         self._pixmap = pixmap
@@ -77,6 +93,19 @@ class ImageSourceAdapter(SourceAdapter):
 
         self._mark_open()
         self._logger.info("图片已打开：%s（%dx%d）", uri, pixmap.width(), pixmap.height())
+
+    def _take_preheated_pixmap(self, uri: str) -> Optional[QPixmap]:
+        """
+        从统一预热池取出图片缓存。
+        :param uri: 图片路径
+        :return: QPixmap 或 None
+        """
+        if not self._preheat_enabled or self._preheat_pool is None or self._source_id <= 0:
+            return None
+        take_image = getattr(self._preheat_pool, "take_image", None)
+        if not callable(take_image):
+            return None
+        return take_image(self._source_id, uri)
 
     def _apply_scaled_pixmap(self) -> None:
         """将原始图片缩放至 QLabel 当前尺寸并居中显示。"""
@@ -119,6 +148,9 @@ class ImageSourceAdapter(SourceAdapter):
         self._pixmap = None
         self._parent_widget = None
         self._file_path = ""
+        self._source_id = 0
+        self._preheat_enabled = False
+        self._preheat_pool = None
         self._mark_closed()
         self._logger.info("图片已关闭")
 

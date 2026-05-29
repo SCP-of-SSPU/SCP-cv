@@ -31,7 +31,7 @@ def add_web_url(
     :param url: 网页 URL（如 https://example.com）
     :param display_name: 显示名称，默认使用 URL
     :param folder_id: 所属文件夹 ID
-    :param preheat_enabled: 是否在播放器启动时预热该网页
+    :param preheat_enabled: 是否在播放器启动时预热该网页源
     :param keep_alive: 旧字段兼容；传入时覆盖 preheat_enabled
     :return: 创建的 MediaSource 实例
     :raises MediaError: URL 为空时
@@ -72,7 +72,7 @@ def update_source(
     :param source_id: 媒体源 ID
     :param name: 新显示名称（None 表示不修改）
     :param uri: 新 URI / URL（仅对网页源生效）
-    :param preheat_enabled: 是否启用网页预热（None 表示不修改）
+    :param preheat_enabled: 是否启用媒体源预热（None 表示不修改）
     :param keep_alive: 旧字段兼容；传入时覆盖 preheat_enabled
     :param ppt_backend: PPT 播放器后端（仅 PPT 源生效）
     :return: 更新后的 MediaSource 实例

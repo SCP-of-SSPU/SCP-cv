@@ -53,6 +53,21 @@ class LibreOfficeBridgeClient:
         self._ensure_process()
         return self.request("open", {"file_path": file_path, "autoplay": autoplay})
 
+    def preheat(self) -> dict[str, object]:
+        """
+        启动 bridge 与 LibreOffice 会话但不打开文档。
+        :return: worker 状态数据
+        """
+        self._ensure_process()
+        return self.request("preheat")
+
+    def close_document(self) -> dict[str, object]:
+        """
+        关闭当前文档但保留 bridge 和 LibreOffice 进程。
+        :return: worker 状态数据
+        """
+        return self.request("close_document")
+
     def request(self, command: str, payload: Optional[dict[str, object]] = None) -> dict[str, object]:
         """
         发送 bridge 命令并等待 JSON 响应。

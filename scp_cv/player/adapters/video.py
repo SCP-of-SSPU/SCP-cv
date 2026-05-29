@@ -46,6 +46,21 @@ class VideoSourceAdapter(SourceAdapter):
         self._has_error: bool = False
         self._error_message: str = ""
         self._loop_enabled: bool = False
+        self._source_id: int = 0
+        self._preheat_enabled: bool = False
+        self._preheat_pool: object | None = None
+
+    def set_preheat_context(self, source_id: int, preheat_enabled: bool, preheat_pool: object | None) -> None:
+        """
+        注入视频预热上下文。
+        :param source_id: 媒体源 ID
+        :param preheat_enabled: 是否启用预热复用
+        :param preheat_pool: 统一预热池
+        :return: None
+        """
+        self._source_id = source_id
+        self._preheat_enabled = preheat_enabled
+        self._preheat_pool = preheat_pool
 
     def open(self, uri: str, window_handle: int, autoplay: bool = True) -> None:
         """
@@ -71,28 +86,47 @@ class VideoSourceAdapter(SourceAdapter):
             self._video_widget.setGeometry(parent_widget.rect())
             self._video_widget.show()
 
-        # 创建音频输出
-        self._audio_output = QAudioOutput()
-        self._audio_output.setVolume(1.0)
+        preheated_video = self._take_preheated_video(uri)
+        if preheated_video is not None:
+            self._media_player = preheated_video.player
+            self._audio_output = preheated_video.audio_output
+        else:
+            # 创建音频输出
+            self._audio_output = QAudioOutput()
+            self._audio_output.setVolume(1.0)
 
-        # 创建播放器
-        self._media_player = QMediaPlayer()
+            # 创建播放器
+            self._media_player = QMediaPlayer()
+            self._media_player.setAudioOutput(self._audio_output)
+
         self._media_player.setVideoOutput(self._video_widget)
-        self._media_player.setAudioOutput(self._audio_output)
 
         # 连接信号
         self._media_player.durationChanged.connect(self._on_duration_changed)
         self._media_player.errorOccurred.connect(self._on_error)
         self._media_player.mediaStatusChanged.connect(self._on_media_status_changed)
 
-        # 设置源
-        self._media_player.setSource(QUrl.fromLocalFile(uri))
+        if preheated_video is None:
+            self._media_player.setSource(QUrl.fromLocalFile(uri))
 
         if autoplay:
             self._media_player.play()
 
         self._mark_open()
         self._logger.info("视频已打开：%s", uri)
+
+    def _take_preheated_video(self, uri: str) -> object | None:
+        """
+        从统一预热池取出已设置源的播放器。
+        :param uri: 视频路径
+        :return: PreheatedVideoSource 或 None
+        """
+        if not self._preheat_enabled or self._preheat_pool is None or self._source_id <= 0:
+            return None
+        take_video = getattr(self._preheat_pool, "take_video", None)
+        if not callable(take_video):
+            return None
+        return take_video(self._source_id, uri)
 
     @staticmethod
     def _find_widget_by_handle(window_handle: int) -> Optional[QWidget]:
@@ -134,6 +168,9 @@ class VideoSourceAdapter(SourceAdapter):
         self._has_error = False
         self._error_message = ""
         self._loop_enabled = False
+        self._source_id = 0
+        self._preheat_enabled = False
+        self._preheat_pool = None
         self._mark_closed()
         self._logger.info("视频已关闭")
 

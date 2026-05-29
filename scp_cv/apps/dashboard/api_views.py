@@ -239,6 +239,7 @@ def upload_source_api(request: HttpRequest) -> JsonResponse:
             folder_id=_optional_int(request.POST.get("folder_id")),
             is_temporary=_bool_value(request.POST.get("is_temporary")),
             ppt_backend=request.POST.get("ppt_backend", "").strip() or None,
+            preheat_enabled=_bool_value(request.POST.get("preheat_enabled"), default=True),
         )
     except MediaError as media_error:
         return _error_response(str(media_error), code="media_error")
@@ -268,6 +269,7 @@ def add_local_source_api(request: HttpRequest) -> JsonResponse:
             source_type=str(body.get("source_type", "")).strip() or None,
             folder_id=_optional_int(body.get("folder_id")),
             ppt_backend=str(body.get("ppt_backend", "")).strip() or None,
+            preheat_enabled=_bool_value(body.get("preheat_enabled", body.get("keep_alive", True)), default=True),
         )
     except MediaError as media_error:
         return _error_response(str(media_error), code="media_error")
@@ -309,7 +311,7 @@ def add_web_source_api(request: HttpRequest) -> JsonResponse:
 @require_http_methods(["PATCH"])
 def update_source_api(request: HttpRequest, source_id: int) -> JsonResponse:
     """
-    更新媒体源（显示名称、URI、网页预热开关）。
+    更新媒体源（显示名称、URI、媒体预热开关）。
     仅暴露安全可改写的字段；文件型源 URI 不会被本接口修改。
     :param request: HTTP 请求
     :param source_id: 媒体源主键

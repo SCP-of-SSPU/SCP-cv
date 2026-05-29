@@ -72,8 +72,8 @@ class PlayerController(PlayerCommandHandlersMixin, QObject):
         self._adapter_source_types: dict[int, str] = {}
         # 适配器源 ID 记录：切源竞态中用于阻断旧 adapter 状态写回新会话。
         self._adapter_source_ids: dict[int, int] = {}
-        # 网页源预热池：由 Qt 主线程创建和使用，避免切换网页源时重新首屏加载。
-        self._web_preheat_pool: object | None = None
+        # 统一预热池：由 Qt 主线程创建和使用，避免切源时重复冷启动。
+        self._preheat_pool: object | None = None
         # 非 dev 模式下由 run_player 注入关闭回调，窗口重建后仍需保持相同行为。
         self._window_closed_callback: Callable[[], None] | None = None
 
@@ -167,28 +167,48 @@ class PlayerController(PlayerCommandHandlersMixin, QObject):
 
         # 关闭所有窗口的适配器
         for wid in list(self._adapters.keys()):
-            self._close_adapter(wid)
-        if self._web_preheat_pool is not None:
-            self._web_preheat_pool.close_all()
-            self._web_preheat_pool = None
+            self._close_adapter(wid, reheat=False)
+        if self._preheat_pool is not None:
+            self._preheat_pool.close_all()
+            self._preheat_pool = None
         logger.info("控制器轮询已停止")
+
+    def _ensure_preheat_pool(self) -> object:
+        """
+        确保统一预热池已创建。
+        :return: PlayerPreheatPool 实例
+        """
+        from scp_cv.player.preheat_pool import PlayerPreheatPool
+
+        if self._preheat_pool is None:
+            self._preheat_pool = PlayerPreheatPool()
+        return self._preheat_pool
+
+    def preheat_sources(self) -> None:
+        """
+        启动时预热所有启用预热的媒体源。
+        :return: None
+        """
+        from scp_cv.apps.playback.models import MediaSource
+
+        preheat_pool = self._ensure_preheat_pool()
+        for source in MediaSource.objects.filter(
+            is_available=True,
+            keep_alive=True,
+        ).only("id", "source_type", "uri", "ppt_backend"):
+            preheat_pool.preheat_source(
+                source.pk,
+                source.source_type,
+                source.uri,
+                getattr(source, "ppt_backend", ""),
+            )
 
     def preheat_web_sources(self) -> None:
         """
-        启动时预热启用预热的网页源。
+        兼容旧调用：预热所有已启用预热的媒体源。
         :return: None
         """
-        from scp_cv.apps.playback.models import MediaSource, SourceType
-        from scp_cv.player.web_preheat import WebPreheatPool
-
-        if self._web_preheat_pool is None:
-            self._web_preheat_pool = WebPreheatPool()
-        for source in MediaSource.objects.filter(
-            source_type=SourceType.WEB,
-            is_available=True,
-            keep_alive=True,
-        ).only("id", "uri"):
-            self._web_preheat_pool.preheat_source(source.pk, source.uri)
+        self.preheat_sources()
 
     # ═══════════════════ 窗口定位 ═══════════════════
 

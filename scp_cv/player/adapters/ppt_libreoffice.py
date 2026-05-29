@@ -49,6 +49,9 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
         self._lo_hwnd: int = 0
         self._bridge: Optional[LibreOfficeBridgeClient] = None
         self._bridge_process_id: int = 0
+        self._preheat_enabled: bool = False
+        self._preheat_pool: object | None = None
+        self._using_preheated_bridge: bool = False
         self._is_paused: bool = False
         self._last_slide_index: int = 1
         self._lock = threading.Lock()
@@ -60,6 +63,17 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
         :return: True 表示外部放映窗口正在承担显示输出
         """
         return self._lo_hwnd != 0
+
+    def set_preheat_context(self, source_id: int, preheat_enabled: bool, preheat_pool: object | None) -> None:
+        """
+        注入 LibreOffice bridge 预热上下文。
+        :param source_id: 媒体源 ID，LibreOffice bridge 按后端共享
+        :param preheat_enabled: 是否启用预热复用
+        :param preheat_pool: 统一预热池
+        :return: None
+        """
+        self._preheat_enabled = preheat_enabled
+        self._preheat_pool = preheat_pool
 
     def open(self, uri: str, window_handle: int, autoplay: bool = True) -> None:
         """
@@ -76,7 +90,7 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
             self._file_path = uri
             self._window_handle = window_handle
             existing_hwnds = lo_window.snapshot_libreoffice_hwnds(self._logger)
-            self._bridge = LibreOfficeBridgeClient(self._logger)
+            self._bridge = self._take_preheated_bridge() or LibreOfficeBridgeClient(self._logger)
             state = self._bridge.open(uri, autoplay)
             self._apply_bridge_state(state)
             if autoplay:
@@ -84,6 +98,22 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
 
         self._mark_open()
         self._logger.info("LibreOffice PPT 已打开：%s（%d 页）", uri, self._total_slides)
+
+    def _take_preheated_bridge(self) -> Optional[LibreOfficeBridgeClient]:
+        """
+        从统一预热池取出 LibreOffice bridge。
+        :return: 预热 bridge 或 None
+        """
+        if not self._preheat_enabled or self._preheat_pool is None:
+            return None
+        take_bridge = getattr(self._preheat_pool, "take_libreoffice_bridge", None)
+        if not callable(take_bridge):
+            return None
+        bridge = take_bridge()
+        if isinstance(bridge, LibreOfficeBridgeClient):
+            self._using_preheated_bridge = True
+            return bridge
+        return None
 
     def close(self) -> None:
         """
@@ -466,9 +496,21 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
         """
         if self._bridge is not None:
             self._detach_bridge_hwnd()
-            self._bridge.close()
+            if self._using_preheated_bridge and self._preheat_pool is not None:
+                try:
+                    self._bridge.close_document()
+                except Exception:
+                    pass
+                return_bridge = getattr(self._preheat_pool, "return_libreoffice_bridge", None)
+                if callable(return_bridge):
+                    return_bridge(self._bridge)
+                else:
+                    self._bridge.close()
+            else:
+                self._bridge.close()
             self._bridge = None
             self._bridge_process_id = 0
+            self._using_preheated_bridge = False
         self._end_presentation()
         if self._document is not None:
             lo_runtime.close_document(self._document)

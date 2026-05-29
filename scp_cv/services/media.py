@@ -63,6 +63,7 @@ def add_uploaded_file(
     folder_id: Optional[int] = None,
     is_temporary: bool = False,
     ppt_backend: Optional[str] = None,
+    preheat_enabled: bool = True,
 ) -> MediaSource:
     """
     通过 Web 上传添加媒体源，文件保存到 media/uploads/。
@@ -72,6 +73,7 @@ def add_uploaded_file(
     :param folder_id: 所属文件夹 ID
     :param is_temporary: 是否为临时源
     :param ppt_backend: PPT 播放器后端，仅 PPT 源生效
+    :param preheat_enabled: 是否启用播放器预热
     :return: 创建的 MediaSource 实例
     :raises MediaError: 文件类型无法识别时
     """
@@ -100,6 +102,7 @@ def add_uploaded_file(
         is_temporary=is_temporary,
         expires_at=timezone.now() + timedelta(days=1) if is_temporary else None,
         ppt_backend=_ppt_backend_for_source_type(source_type, ppt_backend),
+        keep_alive=bool(preheat_enabled),
     )
     media_source.uploaded_file.save(file_name, uploaded_file, save=False)
     media_source.uri = media_source.uploaded_file.path
@@ -116,6 +119,7 @@ def add_local_path(
     source_type: Optional[str] = None,
     folder_id: Optional[int] = None,
     ppt_backend: Optional[str] = None,
+    preheat_enabled: bool = True,
 ) -> MediaSource:
     """
     通过本地路径注册媒体源。
@@ -124,6 +128,7 @@ def add_local_path(
     :param source_type: 源类型，默认自动检测
     :param folder_id: 所属文件夹 ID
     :param ppt_backend: PPT 播放器后端，仅 PPT 源生效
+    :param preheat_enabled: 是否启用播放器预热
     :return: 创建的 MediaSource 实例
     :raises MediaError: 文件不存在或类型无法识别时
     """
@@ -155,6 +160,7 @@ def add_local_path(
         mime_type=_guess_mime_type(resolved_path.name),
         folder=folder,
         ppt_backend=_ppt_backend_for_source_type(source_type, ppt_backend),
+        keep_alive=bool(preheat_enabled),
     )
     _prepare_ppt_source_resources(media_source)
 

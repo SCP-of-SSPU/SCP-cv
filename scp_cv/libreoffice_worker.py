@@ -102,8 +102,9 @@ class LibreOfficeBridge:
         :param autoplay: 是否立即开始放映
         :return: 状态响应
         """
-        self.close()
-        self.session = _start_session(headless=False)
+        self.close_document()
+        if self.session is None:
+            self.session = _start_session(headless=False)
         self.document = self._load_document_with_retry(file_path, hidden=False, readonly=True)
         self.presentation = self.document.getPresentation()  # type: ignore[attr-defined]
         self._configure_presentation()
@@ -111,6 +112,31 @@ class LibreOfficeBridge:
         self.last_slide_index = 1 if self.total_slides else 0
         if autoplay:
             self._start_slideshow(self.last_slide_index or 1)
+        return self.state_payload()
+
+    def preheat(self) -> dict[str, object]:
+        """
+        预启动 LibreOffice 会话但不打开文档。
+        :return: 状态响应
+        """
+        if self.session is None:
+            self.session = _start_session(headless=False)
+        return self.state_payload()
+
+    def close_document(self) -> dict[str, object]:
+        """
+        关闭当前文档但保留 LibreOffice 会话。
+        :return: 状态响应
+        """
+        self._end_presentation()
+        if self.document is not None:
+            _close_document(self.document)
+            self.document = None
+        self.presentation = None
+        self.controller = None
+        self.total_slides = 0
+        self.last_slide_index = 0
+        self.is_paused = False
         return self.state_payload()
 
     def _load_document_with_retry(self, file_path: Path, hidden: bool, readonly: bool) -> object:
@@ -137,18 +163,10 @@ class LibreOfficeBridge:
         关闭文档和 LibreOffice 会话。
         :return: 状态响应
         """
-        self._end_presentation()
-        if self.document is not None:
-            _close_document(self.document)
-            self.document = None
+        self.close_document()
         if self.session is not None:
             self.session.close()
             self.session = None
-        self.presentation = None
-        self.controller = None
-        self.total_slides = 0
-        self.last_slide_index = 0
-        self.is_paused = False
         return self.state_payload()
 
     def play(self) -> dict[str, object]:
@@ -454,6 +472,10 @@ def _execute_bridge_command(bridge: LibreOfficeBridge, command: str, payload: di
     """分发 bridge 命令。"""
     if command == "open":
         return bridge.open(Path(str(payload.get("file_path", ""))), bool(payload.get("autoplay", True)))
+    if command == "preheat":
+        return bridge.preheat()
+    if command == "close_document":
+        return bridge.close_document()
     if command == "play":
         return bridge.play()
     if command == "pause":

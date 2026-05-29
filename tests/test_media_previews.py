@@ -87,25 +87,27 @@ def test_open_source_passes_preheat_flag_to_player() -> None:
 
 
 @pytest.mark.django_db
-def test_player_controller_preheats_enabled_web_sources(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_player_controller_preheats_enabled_media_sources(monkeypatch: pytest.MonkeyPatch) -> None:
     """
-    播放器启动预热只应加载可用且开启预热的网页源。
+    播放器启动预热应加载所有可用且开启预热的媒体源。
     :param monkeypatch: pytest monkeypatch 工具
     :return: None
     """
-    preheated_sources: list[tuple[int, str]] = []
+    preheated_sources: list[tuple[int, str, str]] = []
 
-    class FakeWebPreheatPool:
-        """记录预热调用的 WebPreheatPool 替身。"""
+    class FakePreheatPool:
+        """记录预热调用的统一预热池替身。"""
 
-        def preheat_source(self, source_id: int, url: str) -> None:
+        def preheat_source(self, source_id: int, source_type: str, uri: str, ppt_backend: str = "") -> None:
             """
-            记录 source_id 与 URL。
+            记录 source_id、类型与 URI。
             :param source_id: 媒体源 ID
-            :param url: 网页 URL
+            :param source_type: 媒体源类型
+            :param uri: 媒体 URI
+            :param ppt_backend: PPT 后端
             :return: None
             """
-            preheated_sources.append((source_id, url))
+            preheated_sources.append((source_id, source_type, uri))
 
         def close_all(self) -> None:
             """
@@ -116,15 +118,18 @@ def test_player_controller_preheats_enabled_web_sources(monkeypatch: pytest.Monk
 
     enabled_source = add_web_url("enabled.local", display_name="启用预热", preheat_enabled=True)
     add_web_url("disabled.local", display_name="关闭预热", preheat_enabled=False)
-    MediaSource.objects.create(
+    video_source = MediaSource.objects.create(
         source_type=SourceType.VIDEO,
         name="视频源",
         uri="C:/demo/video.mp4",
         is_available=True,
     )
-    monkeypatch.setattr("scp_cv.player.web_preheat.WebPreheatPool", FakeWebPreheatPool)
 
     controller = PlayerController()
-    controller.preheat_web_sources()
+    controller._preheat_pool = FakePreheatPool()
+    controller.preheat_sources()
 
-    assert preheated_sources == [(enabled_source.pk, enabled_source.uri)]
+    assert preheated_sources == [
+        (video_source.pk, video_source.source_type, video_source.uri),
+        (enabled_source.pk, enabled_source.source_type, enabled_source.uri),
+    ]

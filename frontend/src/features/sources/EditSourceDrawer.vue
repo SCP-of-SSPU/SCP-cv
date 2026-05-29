@@ -4,7 +4,7 @@
  * 仅暴露安全可改写的字段：
  *   - 显示名称（所有源类型可编辑）；
  *   - URL（仅网页源；本地文件 / 流类型禁止改 URI 以防误改文件路径）；
- *   - 预热（仅网页源参与播放器启动预加载）。
+ *   - 预热（所有源类型均可参与播放器启动预加载）。
  *
  * 使用 PATCH /api/sources/{id}/，仅传递发生变更的字段，避免误覆盖后端持久值。
  */
@@ -85,10 +85,10 @@ function buildPatch(): MediaSourceUpdate | null {
     if (trimmedUri && trimmedUri !== props.source.uri) {
       patch.uri = trimmedUri;
     }
-    const currentPreheat = props.source.preheat_enabled ?? props.source.keep_alive ?? true;
-    if (draftPreheatEnabled.value !== currentPreheat) {
-      patch.preheat_enabled = draftPreheatEnabled.value;
-    }
+  }
+  const currentPreheat = props.source.preheat_enabled ?? props.source.keep_alive ?? true;
+  if (draftPreheatEnabled.value !== currentPreheat) {
+    patch.preheat_enabled = draftPreheatEnabled.value;
   }
   if (isPptSource.value && draftPptBackend.value !== props.source.ppt_backend) {
     patch.ppt_backend = draftPptBackend.value;
@@ -141,13 +141,14 @@ function close(): void {
           <n-form-item :label="t('sources.editDrawer.url')" required :feedback="t('sources.editDrawer.urlHint')">
             <n-input v-model:value="draftUri" placeholder="https://" :disabled="saving" :aria-label="t('sources.editDrawer.url')" />
           </n-form-item>
-          <n-form-item :label="t('sources.editDrawer.preheat')" :feedback="t('sources.editDrawer.preheatHint')">
-            <n-switch v-model:value="draftPreheatEnabled" :disabled="saving">
-              <template #checked>{{ t('sources.editDrawer.preheatSwitch') }}</template>
-              <template #unchecked>{{ t('sources.editDrawer.preheatSwitch') }}</template>
-            </n-switch>
-          </n-form-item>
         </template>
+
+        <n-form-item :label="t('sources.editDrawer.preheat')" :feedback="t('sources.editDrawer.preheatHint')">
+          <n-switch v-model:value="draftPreheatEnabled" :disabled="saving">
+            <template #checked>{{ t('sources.editDrawer.preheatSwitch') }}</template>
+            <template #unchecked>{{ t('sources.editDrawer.preheatSwitch') }}</template>
+          </n-switch>
+        </n-form-item>
 
         <template v-if="isPptSource">
           <n-form-item :label="t('sources.pptBackend.label')" :feedback="t('sources.pptBackend.editHint')">

@@ -356,7 +356,7 @@ def reset_all_sessions_api(request: HttpRequest) -> JsonResponse:
 @require_http_methods(["POST"])
 def reset_ppt_playback_api(request: HttpRequest) -> JsonResponse:
     """
-    重置 PPT 放映后端进程并恢复当前 PPT 页码。
+    重置 PPT 放映窗口并恢复当前 PPT 页码。
     :param request: HTTP 请求
     :return: 重置后的会话状态
     """

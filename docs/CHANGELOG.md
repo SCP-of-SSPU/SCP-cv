@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## 2026-05-28
+
+### 修复 PPT 外部窗口被 PySide 黑屏覆盖
+
+- 播放器：PPT 路由适配器转发真实后端的 `has_external_slideshow_window`，避免控制器误判未创建外部放映窗口后重新 `show()/raise_()` PySide 黑屏窗口。
+- 播放器：PPT 打开流程改回“先清空 PySide 为黑屏，Office/LibreOffice 放映启动成功后再隐藏 PySide”，打开失败时恢复旧内容或黑屏兜底。
+- 播放器：切源生命周期改为新内容可见后再关闭旧适配器，并按媒体源预热配置重新建立后台预热资源。
+
+### 扩展统一媒体源预热
+
+- 播放器：新增统一预热池，支持网页 `QWebEngineView`、图片 `QPixmap`、视频 `QMediaPlayer` 初步加载、直播流低缓存后台预连接，以及 PPT 后端应用预启动。
+- PPT：PowerPoint / WPS 预热时提前启动 COM 应用，切离 PPT 时只关闭放映和演示文稿并归还应用，不退出应用进程；LibreOffice bridge 支持预启动与关闭文档但保留进程。
+- 前端/API：媒体源新增和编辑统一展示预热开关，上传文件、本地路径和网页源均可设置 `preheat_enabled`。
+
 ## 2026-05-27
 
 ### 修复 LibreOffice PPT 放映启动卡住

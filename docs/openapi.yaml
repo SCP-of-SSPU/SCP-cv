@@ -149,6 +149,10 @@ paths:
                   nullable: true
                 is_temporary:
                   type: boolean
+                preheat_enabled:
+                  type: boolean
+                  default: true
+                  description: 是否在播放器启动时预热该媒体源
                 ppt_backend:
                   $ref: '#/components/schemas/PptBackend'
       responses:
@@ -648,7 +652,7 @@ paths:
     post:
       tags: [playback]
       summary: 重置全部窗口并重建播放器窗口
-      description: 清空全部播放会话，通知运行中的 PySide 播放器关闭并重建窗口，同时重建网页预热池。
+      description: 清空全部播放会话，通知运行中的 PySide 播放器关闭并重建窗口，同时重建媒体预热池。
       operationId: resetAllSessions
       responses:
         '200':
@@ -662,7 +666,7 @@ paths:
     post:
       tags: [playback]
       summary: 重置 PPT 放映后端并恢复页码
-      description: 关闭当前 PPT 放映后端进程，重启所有正在放映的 PPT，并回到重置前页码。
+      description: 关闭当前 PPT 放映窗口与文档，重启所有正在放映的 PPT，并回到重置前页码；已预热的后端应用会尽量保留。
       operationId: resetPptPlayback
       responses:
         '200':
@@ -1140,10 +1144,10 @@ components:
         keep_alive:
           type: boolean
           deprecated: true
-          description: 旧版网页源保持活跃字段，当前与 preheat_enabled 同步
+          description: 旧版保持活跃字段，当前与 preheat_enabled 同步
         preheat_enabled:
           type: boolean
-          description: 网页源预热开关；播放器启动时提前加载并复用 WebView
+          description: 媒体源预热开关；播放器启动时按源类型提前准备后台资源
         ppt_backend:
           $ref: '#/components/schemas/PptBackend'
         ppt_backend_label:
@@ -1466,6 +1470,14 @@ components:
           nullable: true
         ppt_backend:
           $ref: '#/components/schemas/PptBackend'
+        preheat_enabled:
+          type: boolean
+          default: true
+          description: 是否在播放器启动时预热该媒体源
+        keep_alive:
+          type: boolean
+          deprecated: true
+          description: 旧字段兼容别名；建议改用 preheat_enabled
 
     WebSourceCreateRequest:
       type: object
@@ -1481,7 +1493,7 @@ components:
         preheat_enabled:
           type: boolean
           default: true
-          description: 是否在播放器启动时预热网页源
+          description: 是否在播放器启动时预热该网页源
         keep_alive:
           type: boolean
           deprecated: true
@@ -1497,7 +1509,7 @@ components:
           description: 仅网页源允许通过本接口修改 URL
         preheat_enabled:
           type: boolean
-          description: 是否在播放器启动时预热网页源
+          description: 是否在播放器启动时预热该媒体源
         keep_alive:
           type: boolean
           deprecated: true

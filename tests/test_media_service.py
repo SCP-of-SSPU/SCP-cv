@@ -113,6 +113,13 @@ class TestAddUploadedFile:
 
         assert source.source_type == SourceType.VIDEO
 
+    def test_upload_stores_preheat_flag(self) -> None:
+        """上传文件源时应保存通用预热开关。"""
+        fake_file = SimpleUploadedFile("video.mp4", b"fake-mp4")
+        source = add_uploaded_file(fake_file, preheat_enabled=False)
+
+        assert source.keep_alive is False
+
     def test_temporary_upload_sets_expiration(self) -> None:
         """临时上传源应记录过期时间，便于兜底清理。"""
         fake_file = SimpleUploadedFile("temp.mp4", b"fake-mp4")
@@ -158,6 +165,15 @@ class TestAddLocalPath:
 
         assert source.name == "年度汇报"
         assert source.source_type == SourceType.PPT
+
+    def test_add_existing_file_stores_preheat_flag(self, tmp_path: Path) -> None:
+        """注册本地文件源时应保存通用预热开关。"""
+        video_file = tmp_path / "测试视频.mp4"
+        video_file.write_bytes(b"fake-video-data")
+
+        source = add_local_path(str(video_file), preheat_enabled=False)
+
+        assert source.keep_alive is False
 
     def test_add_ppt_with_selected_backend(self, tmp_path: Path) -> None:
         """注册 PPT 时可保存用户选择的播放器。"""

@@ -38,6 +38,9 @@ class PptSourceAdapter(SourceAdapter):
         self._delegate: Optional[SourceAdapter] = None
         self._active_backend = ""
         self._configured_backend = normalize_ppt_backend(ppt_backend)
+        self._source_id = 0
+        self._preheat_enabled = False
+        self._preheat_pool: object | None = None
 
     @property
     def active_backend(self) -> str:
@@ -55,6 +58,17 @@ class PptSourceAdapter(SourceAdapter):
         """
         return self._configured_backend
 
+    @property
+    def has_external_slideshow_window(self) -> bool:
+        """
+        转发当前后端是否已接管外部放映窗口。
+        :return: True 表示 PySide 窗口可以隐藏
+        """
+        return bool(
+            self._delegate is not None
+            and getattr(self._delegate, "has_external_slideshow_window", False)
+        )
+
     def open(self, uri: str, window_handle: int, autoplay: bool = True) -> None:
         """
         按配置打开 PPT 后端。
@@ -64,6 +78,18 @@ class PptSourceAdapter(SourceAdapter):
         :return: None
         """
         self._open_with_backend(self._configured_backend, uri, window_handle, autoplay)
+
+    def set_preheat_context(self, source_id: int, preheat_enabled: bool, preheat_pool: object | None) -> None:
+        """
+        注入 PPT 预热上下文。
+        :param source_id: 媒体源 ID
+        :param preheat_enabled: 是否启用预热复用
+        :param preheat_pool: 统一预热池
+        :return: None
+        """
+        self._source_id = source_id
+        self._preheat_enabled = preheat_enabled
+        self._preheat_pool = preheat_pool
 
     def close(self) -> None:
         """
@@ -185,6 +211,9 @@ class PptSourceAdapter(SourceAdapter):
         :return: None
         """
         adapter = create_ppt_backend_adapter(backend)
+        set_preheat_context = getattr(adapter, "set_preheat_context", None)
+        if callable(set_preheat_context):
+            set_preheat_context(self._source_id, self._preheat_enabled, self._preheat_pool)
         try:
             adapter.open(uri, window_handle, autoplay)
         except Exception:

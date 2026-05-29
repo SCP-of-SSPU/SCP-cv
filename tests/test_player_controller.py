@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 import pytest
 
-from scp_cv.apps.playback.models import MediaSource, PlaybackState
+from scp_cv.apps.playback.models import MediaSource, PlaybackState, SourceType
 from scp_cv.player.adapters.base import AdapterState
 from scp_cv.player.controller import PlayerController
 from scp_cv.services.playback import RESET_ALL_WINDOWS_ARG, get_session_snapshot, open_source
@@ -276,7 +276,7 @@ def test_handle_open_passes_wps_backend_to_adapter(monkeypatch: pytest.MonkeyPat
     assert controller._adapters[1] is adapter
     assert controller._adapter_source_ids[1] == 7
     assert states == [(1, "playing")]
-    assert window.calls == ["black", "hide", "hide"]
+    assert window.calls == ["black", "show", "raise", "hide"]
 
 
 def test_handle_open_keeps_black_window_when_ppt_has_no_slideshow(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -328,7 +328,7 @@ def test_handle_open_restores_window_when_ppt_open_fails(monkeypatch: pytest.Mon
 
     assert adapter.closed is True
     assert controller._adapters == {}
-    assert window.calls == ["black", "hide", "show", "raise", "black"]
+    assert window.calls == ["black", "show", "raise", "show", "raise", "black"]
 
 
 def test_handle_stop_restores_black_window_for_ppt(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -380,6 +380,165 @@ def test_handle_open_restores_window_for_non_ppt_source(monkeypatch: pytest.Monk
 
     assert window.calls == ["black", "show", "raise", "video"]
     assert states == [(1, "playing")]
+
+
+def test_handle_open_restores_previous_adapter_when_factory_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    """新适配器创建失败时应恢复旧 adapter，避免旧内容失控或泄漏。"""
+    controller = PlayerController()
+    previous_adapter = _OpenAdapter()
+    window = _WindowStub()
+
+    controller._adapters[1] = previous_adapter
+    controller._adapter_source_types[1] = "video"
+    controller._adapter_source_ids[1] = 77
+    monkeypatch.setattr("scp_cv.player.controller_handlers.create_adapter", lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("bad source")))
+    monkeypatch.setattr(controller, "get_window", lambda _window_id: window)
+
+    with pytest.raises(ValueError, match="bad source"):
+        controller._handle_open(1, {
+            "source_id": 8,
+            "source_type": "bad_type",
+            "uri": "C:/demo/bad.bin",
+            "autoplay": True,
+        })
+
+    assert controller._adapters[1] is previous_adapter
+    assert controller._adapter_source_types[1] == "video"
+    assert controller._adapter_source_ids[1] == 77
+    assert window.calls == ["show", "raise", "video"]
+
+
+def test_stop_polling_closes_adapters_without_reheat(monkeypatch: pytest.MonkeyPatch) -> None:
+    """播放器退出时不应先重新预热当前源再立刻关闭预热池。"""
+    controller = PlayerController()
+    close_calls: list[tuple[int, bool]] = []
+
+    def close_adapter(window_id: int, restore_window: bool = True, reheat: bool = True) -> None:
+        """
+        记录关闭参数。
+        :param window_id: 窗口编号
+        :param restore_window: 是否恢复窗口
+        :param reheat: 是否触发重新预热
+        :return: None
+        """
+        close_calls.append((window_id, reheat))
+
+    controller._adapters[1] = _OpenAdapter()  # type: ignore[assignment]
+    monkeypatch.setattr(controller, "_close_adapter", close_adapter)
+
+    controller.stop_polling()
+
+    assert close_calls == [(1, False)]
+
+
+def test_handle_open_stops_stream_preheat_when_reuse_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    """打开直播前即使本次禁用预热复用，也应停止后台预连接避免抢流。"""
+    controller = PlayerController()
+    adapter = _OpenAdapter()
+    window = _WindowStub()
+    states: list[tuple[int, str]] = []
+    before_open_calls: list[tuple[int, str]] = []
+
+    class _FakePreheatPool:
+        """记录 before_open 调用的预热池替身。"""
+
+        def before_open(self, source_id: int, source_type: str) -> None:
+            """
+            记录前台打开前释放竞争资源。
+            :param source_id: 媒体源 ID
+            :param source_type: 媒体源类型
+            :return: None
+            """
+            before_open_calls.append((source_id, source_type))
+
+    monkeypatch.setattr("scp_cv.player.controller_handlers.create_adapter", lambda *_args, **_kwargs: adapter)
+    monkeypatch.setattr(controller, "get_window_handle", lambda _window_id: 2001)
+    monkeypatch.setattr(controller, "get_window", lambda _window_id: window)
+    monkeypatch.setattr(controller, "_cleanup_temporary_source", lambda _command_args: None)
+    monkeypatch.setattr(controller, "_update_session_state", lambda window_id, state: states.append((window_id, state)))
+    controller._preheat_pool = _FakePreheatPool()
+
+    controller._handle_open(1, {
+        "source_id": 9,
+        "source_type": "srt_stream",
+        "uri": "srt://127.0.0.1:8890?streamid=read:test",
+        "preheat_enabled": False,
+    })
+
+    assert before_open_calls == [(9, "srt_stream")]
+    assert states == [(1, "loading")]
+    assert window.calls == ["black", "show", "raise", "video"]
+
+
+@pytest.mark.django_db
+def test_reheat_skips_temporary_source() -> None:
+    """临时源切离后会被删除，不应重新建立后台预热。"""
+    controller = PlayerController()
+    preheated: list[tuple[int, str, str]] = []
+    source = MediaSource.objects.create(
+        source_type=SourceType.VIDEO,
+        name="临时视频",
+        uri="C:/demo/temp.mp4",
+        is_available=True,
+        is_temporary=True,
+        keep_alive=True,
+    )
+
+    class _FakePreheatPool:
+        """记录预热请求的预热池替身。"""
+
+        def preheat_source(self, source_id: int, source_type: str, uri: str, ppt_backend: str = "", force: bool = False) -> None:
+            """
+            记录预热请求。
+            :param source_id: 媒体源 ID
+            :param source_type: 媒体源类型
+            :param uri: 媒体 URI
+            :param ppt_backend: PPT 后端
+            :param force: 是否强制重建
+            :return: None
+            """
+            preheated.append((source_id, source_type, uri))
+
+    controller._preheat_pool = _FakePreheatPool()
+
+    controller._reheat_source_if_enabled(source.pk)
+
+    assert preheated == []
+
+
+@pytest.mark.django_db
+def test_reheat_web_source_keeps_returned_preheated_view() -> None:
+    """网页源切走后 WebView 已归还预热池，不应 force 重载导致登录态丢失。"""
+    controller = PlayerController()
+    preheated: list[tuple[int, str, bool]] = []
+    source = MediaSource.objects.create(
+        source_type=SourceType.WEB,
+        name="网页看板",
+        uri="http://example.local",
+        is_available=True,
+        keep_alive=True,
+    )
+
+    class _FakePreheatPool:
+        """记录预热请求的预热池替身。"""
+
+        def preheat_source(self, source_id: int, source_type: str, uri: str, ppt_backend: str = "", force: bool = False) -> None:
+            """
+            记录预热请求。
+            :param source_id: 媒体源 ID
+            :param source_type: 媒体源类型
+            :param uri: 媒体 URI
+            :param ppt_backend: PPT 后端
+            :param force: 是否强制重建
+            :return: None
+            """
+            preheated.append((source_id, source_type, force))
+
+    controller._preheat_pool = _FakePreheatPool()
+
+    controller._reheat_source_if_enabled(source.pk)
+
+    assert preheated == [(source.pk, SourceType.WEB, False)]
 
 
 @pytest.mark.django_db
@@ -479,8 +638,8 @@ def test_reset_all_windows_command_rebuilds_player_runtime(
             """
             closed_adapters.append(self.window_id)
 
-    class _FakeWebPreheatPool:
-        """网页预热池替身，记录释放调用。"""
+    class _FakePreheatPool:
+        """统一预热池替身，记录释放调用。"""
 
         def close_all(self) -> None:
             """
@@ -524,9 +683,9 @@ def test_reset_all_windows_command_rebuilds_player_runtime(
     controller._adapter_source_types[1] = "video"
     controller._adapter_source_ids[1] = media_source_video.pk
     controller._last_reported_states[1] = (PlaybackState.PLAYING, "", 0, 0, 1, 2)
-    controller._web_preheat_pool = _FakeWebPreheatPool()
+    controller._preheat_pool = _FakePreheatPool()
     monkeypatch.setattr(controller, "apply_current_layout", lambda: layout_applied.append(True))
-    monkeypatch.setattr(controller, "preheat_web_sources", lambda: preheated.append(True))
+    monkeypatch.setattr(controller, "preheat_sources", lambda: preheated.append(True))
 
     controller._handle_close(1, {RESET_ALL_WINDOWS_ARG: True})
 

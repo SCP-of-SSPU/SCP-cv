@@ -42,7 +42,7 @@ def media_source_payload(source: MediaSource) -> dict[str, object]:
     """
     将 MediaSource 实例序列化为前端/API 共用字段。
     :param source: 媒体源模型实例
-    :return: 含基础信息、网页预热兼容字段和预览字段的字典
+    :return: 含基础信息、媒体预热兼容字段和预览字段的字典
     """
     keep_alive = bool(getattr(source, "keep_alive", True))
     payload: dict[str, object] = {

@@ -19,18 +19,28 @@ from scp_cv.player.adapters.base import AdapterState, SourceAdapter
 class _FakePptBackend(SourceAdapter):
     """可控的 PPT 后端替身。"""
 
-    def __init__(self, name: str, fail_open: bool = False) -> None:
+    def __init__(self, name: str, fail_open: bool = False, has_window: bool = False) -> None:
         """
         初始化后端替身。
         :param name: 后端名称
         :param fail_open: 是否在 open 时抛错
+        :param has_window: 是否模拟已创建外部放映窗口
         :return: None
         """
         super().__init__(adapter_name=name)
         self.fail_open = fail_open
+        self._has_window = has_window
         self.open_called = False
         self.close_called = False
         self.next_called = False
+
+    @property
+    def has_external_slideshow_window(self) -> bool:
+        """
+        返回测试用外部窗口状态。
+        :return: True 表示后端已接管外部放映窗口
+        """
+        return self._has_window
 
     def open(self, uri: str, window_handle: int, autoplay: bool = True) -> None:
         """
@@ -143,6 +153,27 @@ def test_backend_uses_explicit_wps(monkeypatch: MonkeyPatch) -> None:
     assert created["wps"].open_called is True
     assert "libreoffice" not in created
     assert "powerpoint" not in created
+
+
+def test_external_slideshow_window_state_forwards_to_backend(monkeypatch: MonkeyPatch) -> None:
+    """路由适配器应转发后端外部放映窗口状态，供控制器隐藏 PySide。"""
+
+    def factory(backend: str) -> SourceAdapter:
+        """
+        创建带外部窗口状态的后端替身。
+        :param backend: 后端名称
+        :return: PPT 后端替身
+        """
+        return _FakePptBackend(backend, has_window=True)
+
+    monkeypatch.setattr(ppt_router, "create_ppt_backend_adapter", factory)
+    adapter = ppt_router.PptSourceAdapter("powerpoint")
+
+    assert adapter.has_external_slideshow_window is False
+
+    adapter.open("demo.pptx", 1001, autoplay=True)
+
+    assert adapter.has_external_slideshow_window is True
 
 
 def test_explicit_backend_failure_does_not_fallback(monkeypatch: MonkeyPatch) -> None:

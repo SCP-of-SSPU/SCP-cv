@@ -15,6 +15,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from django.conf import settings
+from django.core.files.uploadedfile import SimpleUploadedFile
 
 import pytest
 from django.test import Client
@@ -50,6 +51,42 @@ def test_sources_api_lists_media_sources(media_source_ppt: MediaSource) -> None:
     assert payload["sources"][0]["ppt_backend"] == "libreoffice"
     assert "preview_url" in payload["sources"][0]
     assert "thumbnail_url" in payload["sources"][0]
+
+
+@pytest.mark.django_db
+def test_upload_source_api_stores_preheat_flag() -> None:
+    """POST /api/sources/upload/ 应保存上传文件源预热开关。"""
+    client = Client()
+    uploaded_file = SimpleUploadedFile("video.mp4", b"fake-mp4", content_type="video/mp4")
+
+    response = client.post(
+        "/api/sources/upload/",
+        data={"file": uploaded_file, "preheat_enabled": "false"},
+    )
+
+    assert response.status_code == 201
+    source = MediaSource.objects.get(pk=response.json()["source"]["id"])
+    assert source.keep_alive is False
+    assert response.json()["source"]["preheat_enabled"] is False
+
+
+@pytest.mark.django_db
+def test_add_local_source_api_stores_preheat_flag(tmp_path: Path) -> None:
+    """POST /api/sources/local/ 应保存本地文件源预热开关。"""
+    client = Client()
+    video_file = tmp_path / "local.mp4"
+    video_file.write_bytes(b"fake-mp4")
+
+    response = client.post(
+        "/api/sources/local/",
+        data={"path": str(video_file), "preheat_enabled": False},
+        content_type="application/json",
+    )
+
+    assert response.status_code == 201
+    source = MediaSource.objects.get(pk=response.json()["source"]["id"])
+    assert source.keep_alive is False
+    assert response.json()["source"]["preheat_enabled"] is False
 
 
 @pytest.mark.django_db

@@ -133,9 +133,8 @@ class MediaSource(models.Model):
         default=True,
         verbose_name="预热",
         help_text=(
-            "仅对网页源（source_type=web）有意义；为 True 时播放器会在启动阶段预加载该网页，"
-            "切换到该源时可复用已加载的 WebView，降低首屏呈现延迟。"
-            "其它源类型保留默认 True，但暂不参与预热逻辑。"
+            "为 True 时播放器会在启动阶段按源类型建立后台预热资源；"
+            "切换到该源时优先复用已加载资源，降低现场呈现延迟。"
         ),
     )
     ppt_backend = models.CharField(

@@ -65,7 +65,7 @@ def test_update_source_omitted_fields_keep_existing_values() -> None:
 @pytest.mark.django_db
 def test_update_source_keep_alive_compatibility_flag() -> None:
     """
-    旧 keep_alive 字段仍可兼容切换网页预热开关。
+    旧 keep_alive 字段仍可兼容切换媒体源预热开关。
     :return: None
     """
     source = add_web_url("compat.local", display_name="兼容网页", preheat_enabled=True)

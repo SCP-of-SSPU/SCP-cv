@@ -25,7 +25,7 @@ export interface MediaSourceItem {
   expires_at: string | null;
   metadata: Record<string, unknown>;
   /**
-   * 是否在播放器启动时预热网页源。
+   * 是否在播放器启动时预热媒体源。
    * keep_alive 是旧字段兼容别名，后续 UI 只展示 preheat_enabled。
    */
   preheat_enabled: boolean;

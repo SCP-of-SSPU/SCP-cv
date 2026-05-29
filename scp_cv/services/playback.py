@@ -245,7 +245,7 @@ def switch_ppt_backend(window_id: int, ppt_backend: str) -> PlaybackSession:
 
 def reset_ppt_playback() -> list[PlaybackSession]:
     """
-    重置所有 PPT 放映后端进程，并让当前 PPT 窗口回到重置前页码。
+    重置所有 PPT 放映窗口，并让当前 PPT 窗口回到重置前页码。
     :return: 更新后的会话列表
     """
     restart_sessions: list[dict[str, object]] = []

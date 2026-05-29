@@ -51,18 +51,19 @@ class WebPreheatPool:
         host_layout.setSpacing(0)
         self._items: dict[int, PreheatedWebView] = {}
 
-    def preheat_source(self, source_id: int, url: str) -> None:
+    def preheat_source(self, source_id: int, url: str, force: bool = False) -> None:
         """
         预热指定网页源。
         :param source_id: 媒体源 ID
         :param url: 网页 URL
+        :param force: 是否强制重建预热视图
         :return: None
         """
         normalized_url = normalize_web_url(url)
         if source_id <= 0 or not normalized_url:
             return
         existing = self._items.get(source_id)
-        if existing is not None and existing.url == normalized_url:
+        if existing is not None and existing.url == normalized_url and not force:
             return
         if existing is not None:
             self._dispose_view(existing.view)

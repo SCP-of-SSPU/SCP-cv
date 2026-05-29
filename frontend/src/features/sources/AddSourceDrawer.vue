@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 添加源 Drawer / Sheet：仅暴露「上传文件」「网页」两个 Tab。
+ * 添加源 Drawer / Sheet：仅暴露「上传文件」「网页」两个 Tab，并统一提供预热开关。
  * 两颗按钮分别表达「上传但不保存」与「上传并保存」。
  */
 import { computed, ref } from 'vue';
@@ -41,6 +41,7 @@ const activeTab = ref<TabId>('file');
 const fileToUpload = ref<File | null>(null);
 const fileDisplayName = ref('');
 const filePptBackend = ref<PptBackend>('libreoffice');
+const filePreheatEnabled = ref(true);
 const webUrl = ref('');
 const webName = ref('');
 const webPreheatEnabled = ref(true);
@@ -81,6 +82,7 @@ function reset(): void {
   fileToUpload.value = null;
   fileDisplayName.value = '';
   filePptBackend.value = 'libreoffice';
+  filePreheatEnabled.value = true;
   webUrl.value = '';
   webName.value = '';
   webPreheatEnabled.value = true;
@@ -114,6 +116,7 @@ async function uploadFile(persist: boolean): Promise<void> {
       name: fileDisplayName.value.trim() || undefined,
       isTemporary: !persist,
       pptBackend: isPptFile.value ? filePptBackend.value : undefined,
+      preheatEnabled: filePreheatEnabled.value,
       onProgress: (percent) => {
         uploadProgress.value = percent;
       },
@@ -174,6 +177,12 @@ async function addWebSource(): Promise<void> {
           </n-form-item>
           <n-form-item v-if="isPptFile" :label="t('sources.pptBackend.label')" :feedback="t('sources.pptBackend.importHint')">
             <n-select v-model:value="filePptBackend" :options="pptBackendOptions" />
+          </n-form-item>
+          <n-form-item :label="t('sources.add.preheat')" :feedback="t('sources.add.preheatHint')">
+            <n-switch v-model:value="filePreheatEnabled">
+              <template #checked>{{ t('sources.add.preheatSwitch') }}</template>
+              <template #unchecked>{{ t('sources.add.preheatSwitch') }}</template>
+            </n-switch>
           </n-form-item>
 
           <n-progress v-if="uploading" type="line" :percentage="uploadProgress" />

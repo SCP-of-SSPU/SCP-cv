@@ -114,12 +114,13 @@ export const useSourceStore = defineStore('sources', {
       this.sources = payload.sources.filter(isVisibleSource);
     },
     /** 上传源；支持「上传但不保存（is_temporary）」/「上传并保存」两种语义。 */
-    async upload(file: File, options: { name?: string; isTemporary?: boolean; pptBackend?: PptBackend; onProgress?: (percent: number) => void }): Promise<MediaSourceItem> {
+    async upload(file: File, options: { name?: string; isTemporary?: boolean; pptBackend?: PptBackend; preheatEnabled?: boolean; onProgress?: (percent: number) => void }): Promise<MediaSourceItem> {
       const formData = new FormData();
       formData.append('file', file);
       if (options.name) formData.append('name', options.name);
       if (options.isTemporary) formData.append('is_temporary', 'true');
       if (options.pptBackend) formData.append('ppt_backend', options.pptBackend);
+      if (options.preheatEnabled !== undefined) formData.append('preheat_enabled', String(options.preheatEnabled));
       const uploadOptions: UploadOptions = options.onProgress ? { onProgress: options.onProgress } : {};
       const payload = await api.uploadSource(formData, uploadOptions);
       // 仅持久源加入列表；临时源不入列表（避免出现在管理页）。
@@ -133,7 +134,7 @@ export const useSourceStore = defineStore('sources', {
      * 添加网页/URL 源。
      * @param url 网页地址或 ip:port
      * @param name 显示名称；省略时后端用 URL 截前 80 字符作名称
-     * @param preheatEnabled 启动时是否预热网页（默认 true）
+     * @param preheatEnabled 启动时是否预热网页源（默认 true）
      */
     async addWebSource(url: string, name?: string, preheatEnabled: boolean = true): Promise<MediaSourceItem> {
       const payload = await api.addWebSource({ url, name, preheat_enabled: preheatEnabled });

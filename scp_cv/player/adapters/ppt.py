@@ -34,6 +34,11 @@ from scp_cv.player.adapters.ppt_window import (
     find_slideshow_hwnd,
     snapshot_slideshow_hwnds,
 )
+from scp_cv.player.adapters.ppt_process import (
+    read_ppt_app_process_id,
+    snapshot_candidate_process_ids,
+)
+from scp_cv.player.preheat_types import PreheatedPptApplication
 from scp_cv.ppt_com import POWERPOINT_COM_PROG_IDS
 
 _SLIDESHOW_HWND_TIMEOUT_SECONDS = 12.0
@@ -77,6 +82,9 @@ class PptSourceAdapter(SourceAdapter):
         self._is_paused: bool = False
         self._last_slide_index: int = 1
         self._owns_ppt_app: bool = False
+        self._preheated_app: PreheatedPptApplication | None = None
+        self._preheat_enabled: bool = False
+        self._preheat_pool: object | None = None
         # COM 线程锁（所有 COM 调用须串行）
         self._com_lock = threading.Lock()
 
@@ -87,6 +95,17 @@ class PptSourceAdapter(SourceAdapter):
         :return: True 表示外部放映窗口正在承担显示输出
         """
         return self._ppt_hwnd != 0
+
+    def set_preheat_context(self, source_id: int, preheat_enabled: bool, preheat_pool: object | None) -> None:
+        """
+        注入 PPT 应用预热上下文。
+        :param source_id: 媒体源 ID，COM 应用预热按后端共享，当前仅保留接口一致性
+        :param preheat_enabled: 是否启用预热复用
+        :param preheat_pool: 统一预热池
+        :return: None
+        """
+        self._preheat_enabled = preheat_enabled
+        self._preheat_pool = preheat_pool
 
     def open(self, uri: str, window_handle: int, autoplay: bool = True) -> None:
         """
@@ -120,10 +139,20 @@ class PptSourceAdapter(SourceAdapter):
         pythoncom.CoInitialize()
 
         self._owns_ppt_app = False
-        existing_process_ids = self._snapshot_candidate_process_ids()
-        self._ppt_app = self._dispatch_ppt_application(win32com.client)
-        self._owns_ppt_app = True
-        self._ppt_process_id = self._read_ppt_app_process_id(existing_process_ids)
+        existing_process_ids = snapshot_candidate_process_ids(self._active_com_prog_id)
+        self._preheated_app = self._take_preheated_application()
+        if self._preheated_app is not None:
+            self._ppt_app = self._preheated_app.app
+            self._active_com_prog_id = self._preheated_app.prog_id
+            self._logger.info("已复用预热 %s COM 应用：%s", self._app_label, self._active_com_prog_id)
+        else:
+            self._ppt_app = self._dispatch_ppt_application(win32com.client)
+            self._owns_ppt_app = True
+        self._ppt_process_id = read_ppt_app_process_id(
+            self._ppt_app,
+            self._active_com_prog_id,
+            existing_process_ids,
+        )
         self._set_powerpoint_alerts(_PP_ALERTS_NONE)
 
         # 最小化编辑窗口；WPS 部分版本可能不支持该属性，失败时不影响放映。
@@ -286,15 +315,19 @@ class PptSourceAdapter(SourceAdapter):
                     pass
                 self._presentation = None
 
-            if self._ppt_app is not None and self._owns_ppt_app:
-                try:
-                    self._ppt_app.Quit()
-                except Exception:
-                    pass
             self._set_powerpoint_alerts(_PP_ALERTS_ALL)
+            if self._ppt_app is not None:
+                if self._preheated_app is not None:
+                    self._return_preheated_application()
+                elif self._owns_ppt_app:
+                    try:
+                        self._ppt_app.Quit()
+                    except Exception:
+                        pass
             self._ppt_app = None
             self._owns_ppt_app = False
             self._ppt_process_id = 0
+            self._preheated_app = None
         finally:
             try:
                 pythoncom.CoUninitialize()
@@ -303,6 +336,32 @@ class PptSourceAdapter(SourceAdapter):
 
         self._total_slides = 0
         self._is_paused = False
+
+    def _take_preheated_application(self) -> PreheatedPptApplication | None:
+        """
+        从统一预热池取出已启动的 PowerPoint/WPS 应用。
+        :return: 预热应用或 None
+        """
+        if not self._preheat_enabled or self._preheat_pool is None:
+            return None
+        take_application = getattr(self._preheat_pool, "take_ppt_application", None)
+        if not callable(take_application):
+            return None
+        backend = "wps" if self._adapter_name == "ppt-wps" else "powerpoint"
+        return take_application(backend)
+
+    def _return_preheated_application(self) -> bool:
+        """
+        将借出的 PowerPoint/WPS 应用归还预热池。
+        :return: True 表示已归还
+        """
+        if self._preheated_app is None or self._preheat_pool is None:
+            return False
+        return_application = getattr(self._preheat_pool, "return_ppt_application", None)
+        if not callable(return_application):
+            return False
+        return_application(self._preheated_app)
+        return True
 
     def _set_powerpoint_alerts(self, alert_level: int) -> None:
         """
@@ -316,68 +375,6 @@ class PptSourceAdapter(SourceAdapter):
             self._ppt_app.DisplayAlerts = alert_level
         except Exception:
             pass
-
-    def _read_ppt_app_process_id(self, existing_process_ids: Optional[set[int]] = None) -> int:
-        """
-        从 PPT/WPS 应用主窗口读取进程 ID。
-        :param existing_process_ids: 创建 COM 前已有的候选进程 ID
-        :return: 进程 ID；读取失败返回 0
-        """
-        if self._ppt_app is None:
-            return 0
-        app_hwnd = 0
-        for attr_name in ("HWND", "Hwnd", "hwnd"):
-            try:
-                app_hwnd = int(getattr(self._ppt_app, attr_name) or 0)
-            except Exception:
-                app_hwnd = 0
-            if app_hwnd:
-                break
-        if not app_hwnd:
-            return 0
-        try:
-            import win32process
-
-            _, process_id = win32process.GetWindowThreadProcessId(app_hwnd)
-        except Exception:
-            process_id = 0
-        if process_id:
-            return int(process_id)
-        new_process_ids = self._snapshot_candidate_process_ids() - (existing_process_ids or set())
-        if len(new_process_ids) == 1:
-            return next(iter(new_process_ids))
-        return 0
-
-    def _snapshot_candidate_process_ids(self) -> set[int]:
-        """
-        获取当前 PPT/WPS 后端候选进程 ID。
-        :return: 进程 ID 集合
-        """
-        process_names = self._candidate_process_names()
-        if not process_names:
-            return set()
-        try:
-            import psutil
-        except Exception:
-            return set()
-        process_ids: set[int] = set()
-        for process in psutil.process_iter(["name"]):
-            process_name = str(process.info.get("name") or "").lower()
-            if process_name in process_names:
-                process_ids.add(int(process.pid))
-        return process_ids
-
-    def _candidate_process_names(self) -> set[str]:
-        """
-        根据当前 COM ProgID 推断 PPT/WPS 进程名。
-        :return: 小写进程名集合
-        """
-        active_prog_id = self._active_com_prog_id.lower()
-        if "powerpoint" in active_prog_id:
-            return {"powerpnt.exe"}
-        if "wpp" in active_prog_id or "kwpp" in active_prog_id:
-            return {"wpp.exe", "wps.exe"}
-        return set()
 
     def _mark_presentation_clean(self) -> None:
         """
