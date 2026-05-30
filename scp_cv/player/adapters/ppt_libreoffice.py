@@ -16,6 +16,7 @@ from typing import Optional
 
 from scp_cv import libreoffice as lo_runtime
 from scp_cv.player.adapters.ppt_external_window import (
+    libreoffice_display_index_from_anchor_window,
     present_external_slideshow_window,
     release_external_slideshow_window,
 )
@@ -91,7 +92,8 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
             self._window_handle = window_handle
             existing_hwnds = lo_window.snapshot_libreoffice_hwnds(self._logger)
             self._bridge = self._take_preheated_bridge() or LibreOfficeBridgeClient(self._logger)
-            state = self._bridge.open(uri, autoplay)
+            display_index = libreoffice_display_index_from_anchor_window(window_handle)
+            state = self._bridge.open(uri, autoplay, display_index=display_index)
             self._apply_bridge_state(state)
             if autoplay:
                 self._embed_bridge_slideshow(existing_hwnds)
@@ -300,19 +302,23 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
 
     def _configure_presentation(self) -> None:
         """
-        配置 Impress 放映为窗口化、支持动画且避免常驻置顶。
+        配置 Impress 创建真实外部放映窗口，并由播放器移动到目标区域。
         :return: None
         """
         if self._presentation is None:
             return
-        for property_name, value in (
+        display_index = libreoffice_display_index_from_anchor_window(self._window_handle)
+        properties: list[tuple[str, object]] = [
             ("AllowAnimations", True),
-            ("IsFullScreen", False),
+            ("IsFullScreen", True),
             ("IsAlwaysOnTop", False),
             ("IsEndless", False),
             ("IsMouseVisible", False),
             ("StartWithNavigator", False),
-        ):
+        ]
+        if display_index > 0:
+            properties.append(("Display", display_index))
+        for property_name, value in properties:
             try:
                 setattr(self._presentation, property_name, value)
             except Exception:
@@ -500,12 +506,16 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
                 try:
                     self._bridge.close_document()
                 except Exception:
-                    pass
-                return_bridge = getattr(self._preheat_pool, "return_libreoffice_bridge", None)
-                if callable(return_bridge):
-                    return_bridge(self._bridge)
+                    try:
+                        self._bridge.close()
+                    except Exception:
+                        pass
                 else:
-                    self._bridge.close()
+                    return_bridge = getattr(self._preheat_pool, "return_libreoffice_bridge", None)
+                    if callable(return_bridge):
+                        return_bridge(self._bridge)
+                    else:
+                        self._bridge.close()
             else:
                 self._bridge.close()
             self._bridge = None
@@ -533,7 +543,19 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
             self._logger,
             existing_hwnds=existing_hwnds,
             process_id=self._bridge_process_id or None,
+            timeout_seconds=1.5 if self._bridge_process_id else 8.0,
+            warn_on_failure=False,
         )
+        if lo_hwnd == 0 and self._bridge_process_id:
+            self._logger.debug(
+                "按 LibreOffice bridge 进程 ID 未找到放映窗口，改为按新增窗口回退查找"
+            )
+            lo_hwnd = lo_window.find_libreoffice_slideshow_hwnd(
+                self._logger,
+                existing_hwnds=existing_hwnds,
+                process_id=None,
+                timeout_seconds=12.0,
+            )
         if lo_hwnd == 0:
             self._logger.warning("未找到 LibreOffice 放映窗口句柄，无法铺满目标显示区域")
             return

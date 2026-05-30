@@ -441,7 +441,10 @@ class PptSourceAdapter(SourceAdapter):
                     )
                     self._mark_presentation_clean()
                     if self._ppt_hwnd != 0:
-                        release_external_slideshow_window(self._ppt_hwnd)
+                        try:
+                            release_external_slideshow_window(self._ppt_hwnd)
+                        except Exception:
+                            pass
                         self._ppt_hwnd = 0
                     self._slideshow_view.Exit()
                 except Exception:

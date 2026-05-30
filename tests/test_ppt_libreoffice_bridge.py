@@ -92,16 +92,31 @@ def test_bridge_client_uses_libreoffice_python(monkeypatch: MonkeyPatch, tmp_pat
         "configured_libreoffice_bridge_command_timeout",
         lambda: 66.0,
     )
+    monkeypatch.setenv("PYTHONHOME", str(tmp_path / "python-home"))
+    monkeypatch.setenv("PYTHONPATH", str(tmp_path / "python-path"))
+    monkeypatch.setenv("PYTHONEXECUTABLE", str(tmp_path / "python.exe"))
+    virtual_env = tmp_path / ".venv"
+    monkeypatch.setenv("VIRTUAL_ENV", str(virtual_env))
+    monkeypatch.setenv("__PYVENV_LAUNCHER__", str(tmp_path / "launcher.exe"))
+    monkeypatch.setenv("PATH", f"{virtual_env / 'Scripts'}{ppt_libreoffice_bridge.os.pathsep}{tmp_path / 'tools'}")
     monkeypatch.setattr(ppt_libreoffice_bridge.subprocess, "Popen", fake_popen)
 
     client = ppt_libreoffice_bridge.LibreOfficeBridgeClient(logging.getLogger(__name__))
-    state = client.open("demo.pptx", True)
+    state = client.open("demo.pptx", True, display_index=3)
 
     assert state == {"playback_state": "playing", "current_slide": 1, "total_slides": 3, "process_id": 42}
     assert captured["command"] == [str(lo_python), "-m", "scp_cv.libreoffice_worker", "bridge"]
     assert captured["kwargs"]["env"]["LIBREOFFICE_CONNECT_TIMEOUT_SECONDS"] == "7.0"
     assert captured["kwargs"]["env"]["LIBREOFFICE_BRIDGE_COMMAND_TIMEOUT_SECONDS"] == "66.0"
+    assert "PYTHONHOME" not in captured["kwargs"]["env"]
+    assert "PYTHONPATH" not in captured["kwargs"]["env"]
+    assert "PYTHONEXECUTABLE" not in captured["kwargs"]["env"]
+    assert "VIRTUAL_ENV" not in captured["kwargs"]["env"]
+    assert "__PYVENV_LAUNCHER__" not in captured["kwargs"]["env"]
+    assert str(virtual_env / "Scripts") not in captured["kwargs"]["env"]["PATH"]
+    assert str(tmp_path / "tools") in captured["kwargs"]["env"]["PATH"]
     assert '"command": "open"' in fake_process.stdin.getvalue()
+    assert '"display_index": 3' in fake_process.stdin.getvalue()
 
 
 def test_bridge_client_request_times_out_without_worker_response(monkeypatch: MonkeyPatch) -> None:
@@ -129,3 +144,26 @@ def test_bridge_client_request_times_out_without_worker_response(monkeypatch: Mo
 
     assert fake_process.returncode == -15
     assert '"command": "open"' in fake_process.stdin.getvalue()
+
+
+def test_bridge_client_close_uses_short_shutdown_timeout(monkeypatch: MonkeyPatch) -> None:
+    """bridge 关闭不应沿用较长的播放命令超时。"""
+    fake_process = _FakeProcess("")
+    client = ppt_libreoffice_bridge.LibreOfficeBridgeClient(logging.getLogger(__name__))
+    client._process = fake_process
+    monkeypatch.setattr(
+        ppt_libreoffice_bridge.lo_runtime,
+        "configured_libreoffice_bridge_command_timeout",
+        lambda: (_ for _ in ()).throw(AssertionError("不应使用全局 bridge 命令超时")),
+    )
+    monkeypatch.setattr(ppt_libreoffice_bridge, "_shutdown_timeout_seconds", lambda: 0.1)
+
+    client.close()
+
+    assert fake_process.returncode == -15
+    assert '"command": "shutdown"' in fake_process.stdin.getvalue()
+
+
+def test_bridge_worker_allows_visible_libreoffice_windows() -> None:
+    """bridge worker 不能隐藏创建，否则 LibreOffice 全屏放映窗口会卡住。"""
+    assert ppt_libreoffice_bridge._subprocess_creation_flags() == 0

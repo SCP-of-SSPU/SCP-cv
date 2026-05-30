@@ -22,12 +22,12 @@ from scp_cv.player.adapters.ppt_window import (
 
 def _install_fake_win32gui(
     monkeypatch: MonkeyPatch,
-    windows: dict[int, tuple[str, bool]],
+    windows: dict[int, tuple[str, bool] | tuple[str, bool, str]],
 ) -> None:
     """
     安装可控的 win32gui 替身，避免测试依赖真实 Windows 桌面窗口。
     :param monkeypatch: pytest monkeypatch fixture
-    :param windows: HWND 到 (class_name, visible) 的映射
+    :param windows: HWND 到 (class_name, visible[, title]) 的映射
     :return: None
     """
     fake_win32gui = ModuleType("win32gui")
@@ -48,6 +48,14 @@ def _install_fake_win32gui(
         """
         return windows[hwnd][0]
 
+    def get_window_text(hwnd: int) -> str:
+        """
+        返回伪窗口标题。
+        :param hwnd: 窗口句柄
+        :return: Win32 窗口标题
+        """
+        return windows[hwnd][2] if len(windows[hwnd]) > 2 else ""
+
     def enum_windows(callback: object, extra: object) -> None:
         """
         按插入顺序枚举伪窗口，模拟 win32gui.EnumWindows。
@@ -61,6 +69,7 @@ def _install_fake_win32gui(
 
     fake_win32gui.IsWindowVisible = is_window_visible
     fake_win32gui.GetClassName = get_class_name
+    fake_win32gui.GetWindowText = get_window_text
     fake_win32gui.EnumWindows = enum_windows
     monkeypatch.setitem(sys.modules, "win32gui", fake_win32gui)
 
@@ -213,6 +222,134 @@ def test_find_slideshow_hwnd_matches_powerpoint_frame_class(
     )
 
     assert hwnd == 101
+
+
+def test_find_slideshow_hwnd_ignores_powerpoint_editor_frame(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """PowerPoint 编辑主窗口不应被当成放映窗口。"""
+    _install_fake_win32gui(
+        monkeypatch,
+        {
+            101: ("PPTFrameClass", True, "demo.pptx - PowerPoint"),
+            202: ("PPTFrameClass", True, "PowerPoint Slide Show - demo.pptx"),
+        },
+    )
+
+    hwnd = find_slideshow_hwnd(
+        None,
+        logging.getLogger(__name__),
+        existing_hwnds=set(),
+    )
+
+    assert hwnd == 202
+
+
+def test_find_slideshow_hwnd_accepts_localized_powerpoint_slideshow_title(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """中文 PowerPoint 放映标题不应被 PowerPoint 关键词误判为编辑窗口。"""
+    _install_fake_win32gui(
+        monkeypatch,
+        {
+            101: ("PPTFrameClass", True, "demo.pptx - PowerPoint"),
+            202: ("PPTFrameClass", True, "PowerPoint幻灯片放映——demo.pptx"),
+        },
+    )
+
+    hwnd = find_slideshow_hwnd(
+        None,
+        logging.getLogger(__name__),
+        existing_hwnds=set(),
+    )
+
+    assert hwnd == 202
+
+
+def test_find_slideshow_hwnd_returns_zero_for_powerpoint_editor_only(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """只有 PowerPoint 编辑主窗口时不应返回 HWND。"""
+    _install_fake_win32gui(
+        monkeypatch,
+        {
+            101: ("PPTFrameClass", True, "demo.pptx - PowerPoint"),
+        },
+    )
+
+    hwnd = find_slideshow_hwnd(
+        None,
+        logging.getLogger(__name__),
+        existing_hwnds=set(),
+        allow_existing_when_unique=True,
+    )
+
+    assert hwnd == 0
+
+
+def test_find_slideshow_hwnd_ignores_powerpoint_editor_filename_with_keyword(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """文件名包含放映关键词时，PowerPoint 编辑窗口仍不应被当成放映窗口。"""
+    _install_fake_win32gui(
+        monkeypatch,
+        {
+            101: ("PPTFrameClass", True, "2026放映方案.pptx - PowerPoint"),
+        },
+    )
+
+    hwnd = find_slideshow_hwnd(
+        None,
+        logging.getLogger(__name__),
+        existing_hwnds=set(),
+        allow_existing_when_unique=True,
+    )
+
+    assert hwnd == 0
+
+
+def test_find_slideshow_hwnd_ignores_wps_editor_frame(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """WPS 演示编辑主窗口不应被当成放映窗口。"""
+    _install_fake_win32gui(
+        monkeypatch,
+        {
+            101: ("KWppShowWindow", True, "demo.pptx - WPS 演示"),
+            202: ("KWppShowWindow", True, "幻灯片放映 - demo.pptx"),
+        },
+    )
+
+    hwnd = find_slideshow_hwnd(
+        None,
+        logging.getLogger(__name__),
+        existing_hwnds=set(),
+        class_names={"KWppShowWindow"},
+    )
+
+    assert hwnd == 202
+
+
+def test_find_slideshow_hwnd_ignores_wps_editor_filename_with_keyword(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """文件名包含英文放映关键词时，WPS 编辑窗口仍不应被误判。"""
+    _install_fake_win32gui(
+        monkeypatch,
+        {
+            101: ("KWppShowWindow", True, "slide show checklist.pptx - WPS 演示"),
+        },
+    )
+
+    hwnd = find_slideshow_hwnd(
+        None,
+        logging.getLogger(__name__),
+        existing_hwnds=set(),
+        class_names={"KWppShowWindow"},
+        allow_existing_when_unique=True,
+    )
+
+    assert hwnd == 0
 
 
 def test_find_slideshow_hwnd_can_use_process_scoped_existing_window(

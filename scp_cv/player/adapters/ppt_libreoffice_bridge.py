@@ -43,15 +43,23 @@ class LibreOfficeBridgeClient:
         self._stdout_queue: queue.Queue[str | None] = queue.Queue()
         self._stdout_thread: Optional[threading.Thread] = None
 
-    def open(self, file_path: str, autoplay: bool) -> dict[str, object]:
+    def open(self, file_path: str, autoplay: bool, display_index: int = 0) -> dict[str, object]:
         """
         启动 bridge 并打开 PPT。
         :param file_path: PPT 文件路径
         :param autoplay: 是否立即开始放映
+        :param display_index: LibreOffice Presentation.Display 的 1-based 显示器序号
         :return: worker 状态数据
         """
         self._ensure_process()
-        return self.request("open", {"file_path": file_path, "autoplay": autoplay})
+        return self.request(
+            "open",
+            {
+                "file_path": file_path,
+                "autoplay": autoplay,
+                "display_index": max(0, int(display_index)),
+            },
+        )
 
     def preheat(self) -> dict[str, object]:
         """
@@ -61,18 +69,28 @@ class LibreOfficeBridgeClient:
         self._ensure_process()
         return self.request("preheat")
 
-    def close_document(self) -> dict[str, object]:
+    def close_document(self, timeout_seconds: float | None = None) -> dict[str, object]:
         """
         关闭当前文档但保留 bridge 和 LibreOffice 进程。
+        :param timeout_seconds: 可选命令超时秒数；未指定时使用关闭专用短超时
         :return: worker 状态数据
         """
-        return self.request("close_document")
+        return self.request(
+            "close_document",
+            timeout_seconds=timeout_seconds or _shutdown_timeout_seconds(),
+        )
 
-    def request(self, command: str, payload: Optional[dict[str, object]] = None) -> dict[str, object]:
+    def request(
+        self,
+        command: str,
+        payload: Optional[dict[str, object]] = None,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, object]:
         """
         发送 bridge 命令并等待 JSON 响应。
         :param command: 命令名称
         :param payload: 命令参数
+        :param timeout_seconds: 可选命令超时秒数；未指定时使用全局 bridge 命令超时
         :return: worker 响应 data
         :raises LibreOfficeBridgeError: 子进程未启动、退出或返回失败时
         """
@@ -88,8 +106,12 @@ class LibreOfficeBridgeClient:
             request = {"id": request_id, "command": command, "payload": payload or {}}
             process.stdin.write(json.dumps(request, ensure_ascii=False) + "\n")
             process.stdin.flush()
-            timeout_seconds = lo_runtime.configured_libreoffice_bridge_command_timeout()
-            deadline = time.monotonic() + timeout_seconds
+            effective_timeout_seconds = (
+                max(0.1, float(timeout_seconds))
+                if timeout_seconds is not None
+                else lo_runtime.configured_libreoffice_bridge_command_timeout()
+            )
+            deadline = time.monotonic() + effective_timeout_seconds
             while True:
                 if process.poll() is not None:
                     raise LibreOfficeBridgeError(f"LibreOffice bridge 已退出，退出码={process.returncode}")
@@ -97,7 +119,7 @@ class LibreOfficeBridgeClient:
                 if remaining_seconds <= 0:
                     self._terminate_process(process)
                     raise LibreOfficeBridgeError(
-                        f"LibreOffice bridge 响应超时（命令：{command}，{timeout_seconds:.1f}s）"
+                        f"LibreOffice bridge 响应超时（命令：{command}，{effective_timeout_seconds:.1f}s）"
                     )
                 try:
                     line = self._stdout_queue.get(timeout=min(0.1, remaining_seconds))
@@ -129,7 +151,7 @@ class LibreOfficeBridgeClient:
         try:
             if process.poll() is None:
                 try:
-                    self.request("shutdown")
+                    self.request("shutdown", timeout_seconds=_shutdown_timeout_seconds())
                 except Exception:
                     pass
                 process.wait(timeout=3)
@@ -145,7 +167,7 @@ class LibreOfficeBridgeClient:
         if self._process is not None and self._process.poll() is None:
             return
         python_executable = lo_runtime.resolve_libreoffice_python_executable()
-        env = os.environ.copy()
+        env = _libreoffice_bridge_environment()
         env["LIBREOFFICE_CONNECT_TIMEOUT_SECONDS"] = str(lo_runtime.configured_libreoffice_timeout())
         env["LIBREOFFICE_BRIDGE_COMMAND_TIMEOUT_SECONDS"] = str(
             lo_runtime.configured_libreoffice_bridge_command_timeout()
@@ -256,11 +278,68 @@ def _read_stdout_lines(
 def _subprocess_creation_flags() -> int:
     """
     返回 Windows 子进程创建标志。
+    LibreOffice 全屏放映需要 bridge worker 处于可创建 GUI 窗口的普通进程模式；
+    本地实测 CREATE_NO_WINDOW 会导致全屏放映 open/shutdown 超时。
     :return: subprocess creationflags
     """
-    if os.name != "nt":
-        return 0
-    return getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    return 0
+
+
+def _shutdown_timeout_seconds() -> float:
+    """
+    读取 LibreOffice bridge 关闭命令超时秒数。
+    :return: 关闭命令超时秒数
+    """
+    raw_value = os.environ.get("LIBREOFFICE_BRIDGE_SHUTDOWN_TIMEOUT_SECONDS", "5")
+    try:
+        return max(0.5, float(raw_value))
+    except (TypeError, ValueError):
+        return 5.0
+
+
+def _libreoffice_bridge_environment() -> dict[str, str]:
+    """
+    构造 LibreOffice 自带 Python worker 的环境变量。
+    :return: 清理后的环境变量
+    """
+    env = os.environ.copy()
+    virtual_env = env.get("VIRTUAL_ENV")
+    for variable_name in (
+        "PYTHONHOME",
+        "PYTHONPATH",
+        "PYTHONEXECUTABLE",
+        "VIRTUAL_ENV",
+        "__PYVENV_LAUNCHER__",
+    ):
+        env.pop(variable_name, None)
+    if virtual_env:
+        env["PATH"] = _path_without_virtualenv_scripts(
+            env.get("PATH", ""),
+            virtual_env,
+        )
+    return env
+
+
+def _path_without_virtualenv_scripts(path_value: str, virtual_env: str) -> str:
+    """
+    从 PATH 移除项目虚拟环境脚本目录，避免污染 LibreOffice 自带 Python。
+    :param path_value: 原始 PATH
+    :param virtual_env: 虚拟环境根目录
+    :return: 清理后的 PATH
+    """
+    if not path_value:
+        return path_value
+    script_dirs = {
+        os.path.normcase(os.path.normpath(os.path.join(virtual_env, "Scripts"))),
+        os.path.normcase(os.path.normpath(os.path.join(virtual_env, "bin"))),
+    }
+    kept_entries = []
+    for path_entry in path_value.split(os.pathsep):
+        normalized_entry = os.path.normcase(os.path.normpath(path_entry))
+        if normalized_entry in script_dirs:
+            continue
+        kept_entries.append(path_entry)
+    return os.pathsep.join(kept_entries)
 
 
 __all__ = ["LibreOfficeBridgeClient", "LibreOfficeBridgeError"]

@@ -15,6 +15,7 @@ from types import ModuleType
 from pytest import MonkeyPatch
 
 from scp_cv.player.adapters.ppt_external_window import (
+    libreoffice_display_index_from_anchor_window,
     present_external_slideshow_window,
     release_external_slideshow_window,
 )
@@ -27,9 +28,11 @@ def _install_fake_win32_modules(monkeypatch: MonkeyPatch) -> dict[str, object]:
     :return: 调用记录
     """
     calls: dict[str, object] = {
+        "move_window": [],
         "set_parent": [],
         "set_window_long": [],
         "set_window_pos": [],
+        "show_window": [],
     }
     fake_win32con = ModuleType("win32con")
     fake_win32con.GWL_STYLE = -16
@@ -49,7 +52,9 @@ def _install_fake_win32_modules(monkeypatch: MonkeyPatch) -> dict[str, object]:
     fake_win32con.SWP_NOACTIVATE = 0x0010
     fake_win32con.MONITOR_DEFAULTTONEAREST = 2
     fake_win32con.GA_ROOT = 2
+    fake_win32con.SW_RESTORE = 9
 
+    fake_win32api = ModuleType("win32api")
     fake_win32gui = ModuleType("win32gui")
 
     def get_window_rect(hwnd: int) -> tuple[int, int, int, int]:
@@ -61,6 +66,41 @@ def _install_fake_win32_modules(monkeypatch: MonkeyPatch) -> dict[str, object]:
         if hwnd == 2001:
             return 100, 200, 1380, 920
         return 0, 0, 300, 200
+
+    def monitor_from_window(hwnd: int, _flags: int) -> str:
+        """
+        返回锚点所在伪显示器。
+        :param hwnd: 窗口句柄
+        :param _flags: 默认显示器 flags
+        :return: 伪显示器句柄
+        """
+        return "monitor-2" if hwnd == 2001 else "monitor-1"
+
+    def enum_display_monitors(_hdc: object, _clip: object) -> list[tuple[str, None, tuple[int, int, int, int]]]:
+        """
+        按 Win32 顺序枚举伪显示器。
+        :param _hdc: 未使用
+        :param _clip: 未使用
+        :return: pywin32 EnumDisplayMonitors 返回形态
+        """
+        return [
+            ("monitor-1", None, (0, 0, 100, 100)),
+            ("monitor-2", None, (100, 0, 200, 100)),
+            ("monitor-3", None, (200, 0, 300, 100)),
+        ]
+
+    def get_monitor_info(monitor: str) -> dict[str, tuple[int, int, int, int]]:
+        """
+        返回伪显示器信息。
+        :param monitor: 伪显示器句柄
+        :return: 显示器矩形信息
+        """
+        monitor_rects = {
+            "monitor-1": (0, 0, 100, 100),
+            "monitor-2": (100, 0, 200, 100),
+            "monitor-3": (200, 0, 300, 100),
+        }
+        return {"Monitor": monitor_rects[monitor]}
 
     def get_window_long(hwnd: int, index: int) -> int:
         """
@@ -114,11 +154,46 @@ def _install_fake_win32_modules(monkeypatch: MonkeyPatch) -> dict[str, object]:
         """
         calls["set_window_pos"].append((hwnd, insert_after, x, y, width, height, flags))  # type: ignore[attr-defined]
 
+    def show_window(hwnd: int, command: int) -> None:
+        """
+        记录窗口显示状态设置。
+        :param hwnd: 窗口句柄
+        :param command: 显示命令
+        :return: None
+        """
+        calls["show_window"].append((hwnd, command))  # type: ignore[attr-defined]
+
+    def move_window(
+        hwnd: int,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        repaint: bool,
+    ) -> None:
+        """
+        记录窗口移动调用。
+        :param hwnd: 窗口句柄
+        :param x: X 坐标
+        :param y: Y 坐标
+        :param width: 宽度
+        :param height: 高度
+        :param repaint: 是否重绘
+        :return: None
+        """
+        calls["move_window"].append((hwnd, x, y, width, height, repaint))  # type: ignore[attr-defined]
+
+    fake_win32api.MonitorFromWindow = monitor_from_window
+    fake_win32api.EnumDisplayMonitors = enum_display_monitors
+    fake_win32api.GetMonitorInfo = get_monitor_info
     fake_win32gui.GetWindowRect = get_window_rect
     fake_win32gui.GetWindowLong = get_window_long
     fake_win32gui.SetWindowLong = set_window_long
     fake_win32gui.SetParent = set_parent
     fake_win32gui.SetWindowPos = set_window_pos
+    fake_win32gui.ShowWindow = show_window
+    fake_win32gui.MoveWindow = move_window
+    monkeypatch.setitem(sys.modules, "win32api", fake_win32api)
     monkeypatch.setitem(sys.modules, "win32con", fake_win32con)
     monkeypatch.setitem(sys.modules, "win32gui", fake_win32gui)
     return calls
@@ -132,7 +207,9 @@ def test_present_external_slideshow_window_uses_anchor_rect(monkeypatch: MonkeyP
 
     assert size == (1280, 720)
     assert calls["set_parent"] == [(909, 0)]
+    assert calls["show_window"] == [(909, 9), (909, 9)]
     assert calls["set_window_pos"][-1][:6] == (909, -1, 100, 200, 1280, 720)
+    assert calls["move_window"] == [(909, 100, 200, 1280, 720, True)]
 
 
 def test_release_external_slideshow_window_clears_topmost(monkeypatch: MonkeyPatch) -> None:
@@ -143,3 +220,10 @@ def test_release_external_slideshow_window_clears_topmost(monkeypatch: MonkeyPat
 
     assert calls["set_parent"] == [(909, 0)]
     assert calls["set_window_pos"][-1][1] == -2
+
+
+def test_libreoffice_display_index_from_anchor_window_is_one_based(monkeypatch: MonkeyPatch) -> None:
+    """LibreOffice Display 属性应使用锚点所在显示器的 1-based 序号。"""
+    _install_fake_win32_modules(monkeypatch)
+
+    assert libreoffice_display_index_from_anchor_window(2001) == 2

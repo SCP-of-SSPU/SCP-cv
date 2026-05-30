@@ -60,12 +60,23 @@ class PlayerCommandHandlersMixin:
         is_web_source = source_type == "web"
         is_ppt_source = source_type == "ppt"
         adapter = None
+        preclosed_source_id: int | None = None
+        preclosed_source_type: str | None = None
+        should_preclose_previous = self._should_close_previous_before_open(
+            previous_adapter,
+            previous_source_type,
+            source_type,
+        )
 
         try:
             adapter_options = {"ppt_backend": ppt_backend} if source_type == "ppt" and ppt_backend else {}
             adapter = create_adapter(source_type, **adapter_options)
             window_handle = self.get_window_handle(window_id)
             if window_handle == 0:
+                try:
+                    adapter.close()
+                except Exception as close_error:
+                    logger.debug("窗口 %d 缺少句柄时关闭新适配器异常：%s", window_id, close_error)
                 self._restore_previous_adapter(
                     window_id,
                     previous_adapter,
@@ -74,6 +85,21 @@ class PlayerCommandHandlersMixin:
                 )
                 logger.warning("窗口 %d 没有可用句柄，跳过 OPEN", window_id)
                 return
+
+            if should_preclose_previous:
+                self._close_detached_adapter(
+                    window_id,
+                    previous_adapter,
+                    previous_source_type,
+                    previous_source_id,
+                    restore_window=True,
+                    reheat=False,
+                )
+                preclosed_source_id = previous_source_id
+                preclosed_source_type = previous_source_type
+                previous_adapter = None
+                previous_source_type = None
+                previous_source_id = None
 
             window = self.get_window(window_id)
             if window is not None:
@@ -107,8 +133,10 @@ class PlayerCommandHandlersMixin:
                 previous_source_type,
                 previous_source_id,
             )
-            if previous_adapter is None and is_ppt_source:
+            if previous_adapter is None and (is_ppt_source or preclosed_source_type == "ppt"):
                 self._restore_player_window_to_black(window_id)
+            if preclosed_source_id and preclosed_source_id != source_id:
+                self._reheat_source_if_enabled(int(preclosed_source_id))
             raise
         self._adapters[window_id] = adapter
         self._adapter_source_types[window_id] = source_type
@@ -135,6 +163,8 @@ class PlayerCommandHandlersMixin:
                 restore_window=False,
                 reheat=True,
             )
+        if preclosed_source_id and preclosed_source_id != source_id:
+            self._reheat_source_if_enabled(int(preclosed_source_id))
         self._cleanup_temporary_source(command_args)
 
     def _handle_play(self, window_id: int, command_args: dict[str, object]) -> None:
@@ -383,6 +413,25 @@ class PlayerCommandHandlersMixin:
         self._adapter_source_types.pop(window_id, None)
         self._adapter_source_ids.pop(window_id, None)
         self._last_reported_states.pop(window_id, None)
+
+    @staticmethod
+    def _should_close_previous_before_open(
+        previous_adapter: object | None,
+        previous_source_type: str | None,
+        next_source_type: str,
+    ) -> bool:
+        """
+        判断旧适配器是否必须在新源打开前释放。
+        :param previous_adapter: 已从当前窗口摘除的旧适配器
+        :param previous_source_type: 旧源类型
+        :param next_source_type: 即将打开的新源类型
+        :return: True 表示先关闭旧源，避免后端互相竞争或阻塞主线程
+        """
+        if previous_adapter is None or previous_source_type != "ppt":
+            return False
+        if next_source_type == "ppt":
+            return True
+        return not bool(getattr(previous_adapter, "has_external_slideshow_window", False))
 
     def _close_detached_adapter(
         self,

@@ -252,6 +252,34 @@ class _ClickCountingSlideShowView(_ClickCapableSlideShowView):
         return self.click_index
 
 
+class _ExitTrackingSlideShowView:
+    """模拟可记录退出调用的放映视图。"""
+
+    def __init__(self, current_position: int = 1) -> None:
+        """
+        初始化放映视图替身。
+        :param current_position: 当前页码
+        :return: None
+        """
+        self.current_position = current_position
+        self.exit_called = False
+
+    @property
+    def CurrentShowPosition(self) -> int:
+        """
+        返回当前页码。
+        :return: 当前页码
+        """
+        return self.current_position
+
+    def Exit(self) -> None:
+        """
+        记录退出放映调用。
+        :return: None
+        """
+        self.exit_called = True
+
+
 class _ShapeStub:
     """
     PowerPoint shape 替身；只有 media=True 时才暴露 MediaFormat。
@@ -521,6 +549,30 @@ def test_open_presentation_for_slideshow_uses_editable_untitled_copy() -> None:
     assert ppt_app.Presentations.keyword_calls == [
         {"ReadOnly": False, "Untitled": True, "WithWindow": False},
     ]
+
+
+def test_stop_exits_slideshow_when_external_window_release_fails(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """释放外部窗口失败不应阻断 PowerPoint/WPS 退出放映。"""
+    adapter = PptSourceAdapter()
+    slideshow_view = _ExitTrackingSlideShowView(current_position=3)
+    adapter._slideshow_view = slideshow_view
+    adapter._presentation = _PresentationStub()
+    adapter._ppt_hwnd = 909
+    adapter._total_slides = 5
+    monkeypatch.setattr(
+        ppt,
+        "release_external_slideshow_window",
+        lambda _hwnd: (_ for _ in ()).throw(RuntimeError("release failed")),
+    )
+
+    adapter.stop()
+
+    assert slideshow_view.exit_called is True
+    assert adapter._ppt_hwnd == 0
+    assert adapter._slideshow_view is None
+    assert adapter._last_slide_index == 3
 
 
 def test_configure_windowed_slideshow_sets_window_mode() -> None:

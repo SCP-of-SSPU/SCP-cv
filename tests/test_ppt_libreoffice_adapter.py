@@ -28,6 +28,13 @@ class _PresentationStub:
         :return: None
         """
         self.running = running
+        self.AllowAnimations = False
+        self.IsFullScreen = False
+        self.IsAlwaysOnTop = True
+        self.IsEndless = True
+        self.IsMouseVisible = True
+        self.StartWithNavigator = True
+        self.Display = 0
 
     def isRunning(self) -> bool:
         """
@@ -248,19 +255,20 @@ class _BridgeStub:
         :param _logger: 日志器
         :return: None
         """
-        self.open_calls: list[tuple[str, bool]] = []
+        self.open_calls: list[tuple[str, bool, int]] = []
         self.requests: list[tuple[str, dict[str, object] | None]] = []
         self.closed = False
         _BridgeStub.instances.append(self)
 
-    def open(self, file_path: str, autoplay: bool) -> dict[str, object]:
+    def open(self, file_path: str, autoplay: bool, display_index: int = 0) -> dict[str, object]:
         """
         模拟打开 PPT。
         :param file_path: PPT 文件路径
         :param autoplay: 是否自动播放
+        :param display_index: LibreOffice Display 序号
         :return: 状态数据
         """
-        self.open_calls.append((file_path, autoplay))
+        self.open_calls.append((file_path, autoplay, display_index))
         return {"playback_state": "playing", "current_slide": 1, "total_slides": 4, "process_id": 123}
 
     def request(self, command: str, payload: dict[str, object] | None = None) -> dict[str, object]:
@@ -279,6 +287,14 @@ class _BridgeStub:
         :return: None
         """
         self.closed = True
+
+    def close_document(self) -> dict[str, object]:
+        """
+        模拟关闭当前文档。
+        :return: 状态数据
+        """
+        self.requests.append(("close_document", None))
+        return {"playback_state": "idle", "current_slide": 0, "total_slides": 0, "process_id": 123}
 
 
 class _ShapeContainerStub:
@@ -338,6 +354,7 @@ def test_open_uses_bridge_client_and_presents_external_window(monkeypatch: Monke
         raise AssertionError("should use LibreOffice bridge")
 
     monkeypatch.setattr(ppt_libreoffice, "LibreOfficeBridgeClient", _BridgeStub)
+    monkeypatch.setattr(ppt_libreoffice, "libreoffice_display_index_from_anchor_window", lambda _hwnd: 2)
     monkeypatch.setattr(ppt_libreoffice.lo_runtime, "start_libreoffice_session", fail_start_session)
     monkeypatch.setattr(ppt_libreoffice.lo_window, "snapshot_libreoffice_hwnds", lambda *_args, **_kwargs: {1})
     monkeypatch.setattr(ppt_libreoffice.lo_window, "find_libreoffice_slideshow_hwnd", lambda *_args, **_kwargs: 99)
@@ -347,7 +364,41 @@ def test_open_uses_bridge_client_and_presents_external_window(monkeypatch: Monke
     adapter.open(str(ppt_file), window_handle=1001, autoplay=True)
 
     assert adapter.get_state().total_slides == 4
-    assert _BridgeStub.instances[0].open_calls == [(str(ppt_file), True)]
+    assert _BridgeStub.instances[0].open_calls == [(str(ppt_file), True, 2)]
+    assert calls == [(99, 1001)]
+
+
+def test_open_falls_back_to_new_window_search_when_process_filter_misses(
+    monkeypatch: MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """按 bridge 进程过滤找不到窗口时，应回退到本次新增窗口查找。"""
+    ppt_file = tmp_path / "demo.pptx"
+    ppt_file.write_text("placeholder", encoding="utf-8")
+    calls: list[object] = []
+    find_calls: list[tuple[object, object]] = []
+    _BridgeStub.instances.clear()
+
+    def find_hwnd_stub(*_args: object, **kwargs: object) -> int:
+        """
+        首次按进程过滤失败，回退到新增窗口查找成功。
+        :param _args: 位置参数
+        :param kwargs: 关键字参数
+        :return: HWND
+        """
+        find_calls.append((kwargs.get("process_id"), kwargs.get("timeout_seconds")))
+        return 0 if kwargs.get("process_id") else 99
+
+    monkeypatch.setattr(ppt_libreoffice, "LibreOfficeBridgeClient", _BridgeStub)
+    monkeypatch.setattr(ppt_libreoffice, "libreoffice_display_index_from_anchor_window", lambda _hwnd: 2)
+    monkeypatch.setattr(ppt_libreoffice.lo_window, "snapshot_libreoffice_hwnds", lambda *_args, **_kwargs: {1})
+    monkeypatch.setattr(ppt_libreoffice.lo_window, "find_libreoffice_slideshow_hwnd", find_hwnd_stub)
+    monkeypatch.setattr(ppt_libreoffice, "present_external_slideshow_window", lambda *args: calls.append(args) or (800, 600))
+
+    adapter = LibreOfficePptSourceAdapter()
+    adapter.open(str(ppt_file), window_handle=1001, autoplay=True)
+
+    assert find_calls == [(123, 1.5), (None, 12.0)]
     assert calls == [(99, 1001)]
 
 
@@ -371,6 +422,25 @@ def test_start_slideshow_does_not_block_on_libreoffice_start(monkeypatch: Monkey
     assert calls == [(99, 1001)]
 
 
+def test_configure_presentation_uses_fullscreen_slideshow_window(monkeypatch: MonkeyPatch) -> None:
+    """LibreOffice 应使用全屏放映路径创建真实外部窗口。"""
+    presentation = _PresentationStub()
+    adapter = LibreOfficePptSourceAdapter()
+    adapter._presentation = presentation
+    adapter._window_handle = 1001
+    monkeypatch.setattr(ppt_libreoffice, "libreoffice_display_index_from_anchor_window", lambda _hwnd: 2)
+
+    adapter._configure_presentation()
+
+    assert presentation.AllowAnimations is True
+    assert presentation.IsFullScreen is True
+    assert presentation.IsAlwaysOnTop is False
+    assert presentation.IsEndless is False
+    assert presentation.IsMouseVisible is False
+    assert presentation.StartWithNavigator is False
+    assert presentation.Display == 2
+
+
 def test_start_slideshow_reports_async_start_error(monkeypatch: MonkeyPatch) -> None:
     """播放器内 LibreOffice 异步启动失败时应快速抛出明确错误。"""
     adapter = LibreOfficePptSourceAdapter()
@@ -386,6 +456,48 @@ def test_start_slideshow_reports_async_start_error(monkeypatch: MonkeyPatch) -> 
         assert "start failed" in str(start_error)
     else:
         raise AssertionError("expected LibreOfficeError")
+
+
+def test_close_drops_preheated_bridge_when_close_document_fails() -> None:
+    """预热 bridge 关闭文档失败时不应把坏实例放回池。"""
+
+    class FailingBridge(_BridgeStub):
+        """关闭文档失败的 bridge 替身。"""
+
+        def close_document(self) -> dict[str, object]:
+            """
+            模拟 LibreOffice 全屏关闭文档超时失败。
+            :return: 不返回
+            :raises RuntimeError: 模拟关闭失败
+            """
+            raise RuntimeError("close timeout")
+
+    class PoolStub:
+        """预热池替身。"""
+
+        def __init__(self) -> None:
+            """初始化返回记录。"""
+            self.returned: list[object] = []
+
+        def return_libreoffice_bridge(self, bridge: object) -> None:
+            """
+            记录被放回的 bridge。
+            :param bridge: bridge 实例
+            :return: None
+            """
+            self.returned.append(bridge)
+
+    bridge = FailingBridge(None)
+    pool = PoolStub()
+    adapter = LibreOfficePptSourceAdapter()
+    adapter._bridge = bridge
+    adapter._using_preheated_bridge = True
+    adapter._preheat_pool = pool
+
+    adapter.close()
+
+    assert bridge.closed is True
+    assert pool.returned == []
 
 
 def test_prev_item_uses_previous_effect_to_preserve_animations() -> None:

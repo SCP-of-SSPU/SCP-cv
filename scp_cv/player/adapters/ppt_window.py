@@ -18,6 +18,43 @@ from typing import Optional
 from scp_cv.player.adapters.ppt_constants import PP_SLIDE_SHOW_WINDOW
 
 SLIDESHOW_CLASS_NAMES = frozenset({"screenClass", "paneClassDC", "PPTFrameClass"})
+_SLIDESHOW_TITLE_PREFIXES = (
+    "powerpoint slide show -",
+    "powerpoint slide show:",
+    "powerpoint slide show：",
+    "powerpoint 幻灯片放映 -",
+    "powerpoint 幻灯片放映:",
+    "powerpoint 幻灯片放映：",
+    "powerpoint 幻灯片放映—",
+    "powerpoint 幻灯片放映–",
+    "powerpoint幻灯片放映 -",
+    "powerpoint幻灯片放映:",
+    "powerpoint幻灯片放映：",
+    "powerpoint幻灯片放映—",
+    "powerpoint幻灯片放映–",
+    "slide show -",
+    "slide show:",
+    "slide show：",
+    "slideshow -",
+    "slideshow:",
+    "slideshow：",
+    "幻灯片放映 -",
+    "幻灯片放映:",
+    "幻灯片放映：",
+    "wps 演示 幻灯片放映 -",
+    "wps 演示 幻灯片放映:",
+    "wps 演示 幻灯片放映：",
+    "wps演示 幻灯片放映 -",
+    "wps演示 幻灯片放映:",
+    "wps演示 幻灯片放映：",
+)
+_EDITOR_TITLE_KEYWORDS = (
+    "powerpoint",
+    "wps 演示",
+    "wps演示",
+    "wps presentation",
+    "kingsoft presentation",
+)
 
 
 def configure_windowed_slideshow(
@@ -59,10 +96,13 @@ def snapshot_slideshow_hwnds(
     selected_class_names = _selected_slideshow_class_names(class_names)
 
     def enum_callback(hwnd: int, _extra: object) -> bool:
-        if win32gui.IsWindowVisible(hwnd):
-            class_name = win32gui.GetClassName(hwnd)
-            if class_name in selected_class_names and _window_belongs_to_process(hwnd, process_id):
-                slideshow_hwnds.add(int(hwnd))
+        if _is_candidate_slideshow_window(
+            win32gui,
+            hwnd,
+            selected_class_names,
+            process_id,
+        ):
+            slideshow_hwnds.add(int(hwnd))
         return True
 
     try:
@@ -221,14 +261,13 @@ def _find_matching_slideshow_hwnds(
     selected_class_names = _selected_slideshow_class_names(class_names)
 
     def enum_callback(hwnd: int, _extra: object) -> bool:
-        if win32gui.IsWindowVisible(hwnd):
-            class_name = win32gui.GetClassName(hwnd)
-            if (
-                class_name in selected_class_names
-                and int(hwnd) not in excluded_hwnds
-                and _window_belongs_to_process(hwnd, process_id)
-            ):
-                matched_hwnds.append(int(hwnd))
+        if int(hwnd) not in excluded_hwnds and _is_candidate_slideshow_window(
+            win32gui,
+            hwnd,
+            selected_class_names,
+            process_id,
+        ):
+            matched_hwnds.append(int(hwnd))
         return True
 
     try:
@@ -249,6 +288,60 @@ def _selected_slideshow_class_names(
     if class_names is None:
         return SLIDESHOW_CLASS_NAMES
     return frozenset(class_names)
+
+
+def _is_candidate_slideshow_window(
+    win32gui: object,
+    hwnd: int,
+    selected_class_names: frozenset[str],
+    process_id: Optional[int],
+) -> bool:
+    """
+    判断 Win32 窗口是否可作为 PowerPoint/WPS 放映窗口候选。
+    :param win32gui: win32gui 模块或测试替身
+    :param hwnd: 窗口句柄
+    :param selected_class_names: 可接受的窗口 class name 集合
+    :param process_id: 可选进程 ID
+    :return: True 表示可作为放映窗口候选
+    """
+    if not win32gui.IsWindowVisible(hwnd):
+        return False
+    class_name = win32gui.GetClassName(hwnd)
+    if class_name not in selected_class_names:
+        return False
+    if _is_presentation_editor_window(win32gui, hwnd):
+        return False
+    return _window_belongs_to_process(hwnd, process_id)
+
+
+def _is_presentation_editor_window(win32gui: object, hwnd: int) -> bool:
+    """
+    通过窗口标题排除 PowerPoint/WPS 编辑主窗口。
+    :param win32gui: win32gui 模块或测试替身
+    :param hwnd: 窗口句柄
+    :return: True 表示该窗口更像编辑器而非放映窗口
+    """
+    try:
+        title = str(win32gui.GetWindowText(hwnd))  # type: ignore[attr-defined]
+    except Exception:
+        return False
+    normalized_title = title.casefold().strip()
+    if not normalized_title:
+        return False
+    if _looks_like_slideshow_title(normalized_title):
+        return False
+    return any(keyword in normalized_title for keyword in _EDITOR_TITLE_KEYWORDS)
+
+
+def _looks_like_slideshow_title(normalized_title: str) -> bool:
+    """
+    判断窗口标题是否使用明确的放映窗口标题格式。
+    :param normalized_title: 已 casefold 和 strip 的窗口标题
+    :return: True 表示标题明显属于放映窗口
+    """
+    return any(
+        normalized_title.startswith(prefix) for prefix in _SLIDESHOW_TITLE_PREFIXES
+    )
 
 
 def _window_belongs_to_process(hwnd: int, process_id: Optional[int]) -> bool:

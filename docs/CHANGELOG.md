@@ -2,6 +2,13 @@
 
 ## 2026-05-29
 
+### 修复 PPT 外部放映窗口识别与切换恢复
+
+- 播放器：LibreOffice 放映改为使用真实全屏放映窗口并通过目标播放器窗口所在显示器设置 `Presentation.Display`，避免误把 Impress 编辑窗口铺满输出画面。
+- 播放器：PowerPoint / WPS / LibreOffice 的 HWND 回退查找过滤编辑窗口标题，避免文件名包含“放映”或 `slide show` 时把编辑主窗口误判为放映窗口。
+- 播放器：PPT 切换到其它源或 PPT 切 PPT 时，只有在新适配器创建且目标窗口句柄有效后才预关闭旧 PPT；新源打开失败时恢复旧内容或黑屏兜底并按需重建预热。
+- LibreOffice：bridge worker 清理项目 Python 虚拟环境变量，关闭命令使用独立短超时，UNO 启动失败时递归终止 `soffice` / `soffice.bin` 进程树，避免现场残留 LibreOffice 子进程。
+
 ### 修复 SSH headless 启动无法访问物理显示器
 
 - 管理命令：`runall --headless` 在 Windows 非活动控制台会话中会提前报错，提示当前 Session 与活动控制台 Session，避免先启动服务再因 PySide 只能看到服务虚拟屏而退出。
