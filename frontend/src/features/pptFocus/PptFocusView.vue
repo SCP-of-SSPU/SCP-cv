@@ -26,6 +26,24 @@ import { sanitizeSpeakerNotes } from './speakerNotes';
 
 type KnownMediaType = 'audio' | 'video' | 'image';
 const KNOWN_MEDIA_TYPES = new Set<KnownMediaType>(['audio', 'video', 'image']);
+const PRESENTATION_KEY_ACTIONS: Record<string, 'prev' | 'next'> = {
+  ArrowLeft: 'prev',
+  ArrowRight: 'next',
+  PageUp: 'prev',
+  PageDown: 'next',
+};
+const KEYBOARD_NAVIGATION_SKIP_SELECTOR = [
+  'input',
+  'textarea',
+  'select',
+  '[contenteditable="true"]',
+  '[role="textbox"]',
+  '[role="combobox"]',
+  '[role="listbox"]',
+  '[role="option"]',
+  '.n-base-selection',
+  '.n-base-select-menu',
+].join(',');
 
 interface PptSlideRailItem {
   pageIndex: number;
@@ -161,9 +179,25 @@ function syncFullscreen(): void {
   isFullscreen.value = !!document.fullscreenElement;
 }
 
+function shouldSkipKeyboardNavigation(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  if (target instanceof HTMLElement && target.isContentEditable) return true;
+  return !!target.closest(KEYBOARD_NAVIGATION_SKIP_SELECTOR);
+}
+
+function handlePresentationKeydown(event: KeyboardEvent): void {
+  const action = PRESENTATION_KEY_ACTIONS[event.key];
+  if (!action || event.defaultPrevented || event.repeat || event.altKey || event.ctrlKey || event.metaKey) return;
+  if (session.value?.source_type !== 'ppt' || !session.value.source_id) return;
+  if (shouldSkipKeyboardNavigation(event.target)) return;
+  event.preventDefault();
+  void nav(action);
+}
+
 onMounted(() => {
   pushOverride('dark');
   document.addEventListener('fullscreenchange', syncFullscreen);
+  document.addEventListener('keydown', handlePresentationKeydown);
   void sessionStore.refresh();
   if (!runtimeStore.runtime) {
     void runtimeStore.refresh().catch(() => undefined);
@@ -173,6 +207,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   popOverride();
   document.removeEventListener('fullscreenchange', syncFullscreen);
+  document.removeEventListener('keydown', handlePresentationKeydown);
 });
 
 function mediaSelectionValue(media: PptMediaItem): string {
