@@ -1,0 +1,16 @@
+get:
+  tags:
+    - auth
+  summary: 获取当前登录用户
+  description: 前端首屏用该接口判断当前浏览器会话是否已登录。
+  operationId: getCurrentUser
+  security: []
+  responses:
+    '200':
+      description: 已登录用户
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/AuthUserResponse.yaml
+    '401':
+      $ref: ../components/responses/ErrorResponse.yaml

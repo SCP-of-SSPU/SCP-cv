@@ -1,0 +1,19 @@
+parameters:
+  - $ref: ../components/parameters/DeviceType.yaml
+  - $ref: ../components/parameters/PowerAction.yaml
+post:
+  tags:
+    - devices
+  summary: 设置设备开机或关机
+  operationId: powerDevice
+  responses:
+    '200':
+      description: 操作成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/DeviceResponse.yaml
+    '400':
+      $ref: ../components/responses/ErrorResponse.yaml
+    '404':
+      $ref: ../components/responses/ErrorResponse.yaml

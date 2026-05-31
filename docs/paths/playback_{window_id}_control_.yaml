@@ -1,0 +1,22 @@
+parameters:
+  - $ref: ../components/parameters/WindowId.yaml
+post:
+  tags:
+    - playback
+  summary: 播放控制
+  operationId: controlPlayback
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: ../components/schemas/PlaybackControlRequest.yaml
+  responses:
+    '200':
+      description: 操作成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/SessionsResponse.yaml
+    '400':
+      $ref: ../components/responses/ErrorResponse.yaml

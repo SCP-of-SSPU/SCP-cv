@@ -47,10 +47,10 @@ def test_sources_api_lists_media_sources(media_source_ppt: MediaSource) -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["success"] is True
-    assert payload["sources"][0]["id"] == media_source_ppt.pk
-    assert payload["sources"][0]["ppt_backend"] == "libreoffice"
-    assert "preview_url" in payload["sources"][0]
-    assert "thumbnail_url" in payload["sources"][0]
+    source_payload = next(source for source in payload["sources"] if source["id"] == media_source_ppt.pk)
+    assert source_payload["ppt_backend"] == "libreoffice"
+    assert "preview_url" in source_payload
+    assert "thumbnail_url" in source_payload
 
 
 @pytest.mark.django_db

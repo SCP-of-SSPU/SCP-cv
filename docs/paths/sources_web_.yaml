@@ -1,0 +1,20 @@
+post:
+  tags:
+    - sources
+  summary: 通过网页 URL 创建媒体源
+  operationId: addWebSource
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: ../components/schemas/WebSourceCreateRequest.yaml
+  responses:
+    '201':
+      description: 创建成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/SourceResponse.yaml
+    '400':
+      $ref: ../components/responses/ErrorResponse.yaml

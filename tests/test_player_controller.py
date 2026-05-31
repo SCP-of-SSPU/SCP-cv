@@ -16,7 +16,7 @@ import pytest
 from scp_cv.apps.playback.models import MediaSource, PlaybackState, SourceType
 from scp_cv.player.adapters.base import AdapterState
 from scp_cv.player.controller import PlayerController
-from scp_cv.services.playback import RESET_ALL_WINDOWS_ARG, get_session_snapshot, open_source
+from scp_cv.services.playback import RESET_ALL_WINDOWS_ARG, get_or_create_session, get_session_snapshot, open_source
 
 
 class _StateAdapter:
@@ -39,6 +39,106 @@ class _StateAdapter:
         """
         self.read_count += 1
         return self.adapter_state
+
+
+class _OpenAdapter:
+    """记录打开流程的 adapter 替身。"""
+
+    has_external_slideshow_window = True
+
+    def __init__(self) -> None:
+        """
+        初始化调用记录。
+        :return: None
+        """
+        self.opened = False
+
+    def open(self, uri: str, window_handle: int, autoplay: bool = True) -> None:
+        """
+        标记媒体源已打开。
+        :param uri: 媒体 URI
+        :param window_handle: 播放窗口句柄
+        :param autoplay: 是否自动播放
+        :return: None
+        """
+        self.opened = bool(uri and window_handle and autoplay)
+
+    def goto_item(self, index: int) -> None:
+        """
+        测试中无需执行翻页。
+        :param index: 目标页码
+        :return: None
+        """
+        return
+
+    def set_volume(self, volume: int) -> None:
+        """
+        测试中无需设置音量。
+        :param volume: 音量
+        :return: None
+        """
+        return
+
+    def set_mute(self, muted: bool) -> None:
+        """
+        测试中无需设置静音。
+        :param muted: 是否静音
+        :return: None
+        """
+        return
+
+    def close(self) -> None:
+        """
+        测试中无需释放资源。
+        :return: None
+        """
+        return
+
+
+class _WindowStub:
+    """播放器窗口替身。"""
+
+    def show_black_screen(self) -> None:
+        """
+        测试中无需渲染黑屏。
+        :return: None
+        """
+        return
+
+    def show(self) -> None:
+        """
+        测试中无需显示窗口。
+        :return: None
+        """
+        return
+
+    def raise_(self) -> None:
+        """
+        测试中无需置顶窗口。
+        :return: None
+        """
+        return
+
+    def hide_window(self) -> None:
+        """
+        测试中无需隐藏窗口。
+        :return: None
+        """
+        return
+
+    def show_video_container(self) -> None:
+        """
+        测试中无需切换视频容器。
+        :return: None
+        """
+        return
+
+    def show_web_container(self) -> None:
+        """
+        测试中无需切换网页容器。
+        :return: None
+        """
+        return
 
 
 class _SingleLoopController(PlayerController):
@@ -129,6 +229,35 @@ def test_report_persists_adapter_error_message(media_source_video: MediaSource) 
     assert session.playback_state == PlaybackState.ERROR
     assert session.error_message == "libVLC 播放 SRT 流失败"
     assert snapshot["error_message"] == "libVLC 播放 SRT 流失败"
+
+
+@pytest.mark.django_db
+def test_open_confirms_session_source_after_stale_close_cleared_it(
+    media_source_ppt: MediaSource,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """OPEN 成功后应修复慢速 CLOSE 延迟清空的会话源关系。"""
+    adapter = _OpenAdapter()
+    controller = PlayerController()
+    monkeypatch.setattr("scp_cv.player.controller_handlers.create_adapter", lambda _source_type, **_options: adapter)
+    monkeypatch.setattr(controller, "get_window_handle", lambda _window_id: 2001)
+    monkeypatch.setattr(controller, "get_window", lambda _window_id: _WindowStub())
+    get_or_create_session(1)
+
+    controller._handle_open(1, {
+        "source_id": media_source_ppt.pk,
+        "source_type": SourceType.PPT,
+        "uri": media_source_ppt.uri,
+        "autoplay": True,
+        "ppt_backend": "libreoffice",
+        "target_slide": 1,
+    })
+
+    snapshot = get_session_snapshot(1)
+    assert adapter.opened is True
+    assert snapshot["source_id"] == media_source_ppt.pk
+    assert snapshot["source_type"] == SourceType.PPT
+    assert snapshot["playback_state"] == PlaybackState.PLAYING
 
 
 @pytest.mark.django_db
@@ -357,6 +486,7 @@ def test_reset_all_windows_command_rebuilds_player_runtime(
     assert controller.registered_window_ids == [1, 2]
     assert controller._adapter_source_types == {}
     assert controller._adapter_source_ids == {}
+    assert controller._adapter_ppt_backends == {}
     assert controller._last_reported_states == {}
     assert layout_applied == [True]
     assert preheated == [True]

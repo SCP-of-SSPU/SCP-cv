@@ -11,9 +11,12 @@ from __future__ import annotations
 
 import logging
 
+from PySide6.QtCore import QTimer
+
 from scp_cv.player.adapters import create_adapter
 
 logger = logging.getLogger(__name__)
+_PPT_REHEAT_DELAY_MS = 1500
 
 
 def _is_stream_source(source_type: str) -> bool:
@@ -55,6 +58,7 @@ class PlayerCommandHandlersMixin:
         previous_adapter = self._adapters.pop(window_id, None)
         previous_source_type = self._adapter_source_types.pop(window_id, None)
         previous_source_id = self._adapter_source_ids.pop(window_id, None)
+        previous_ppt_backend = self._adapter_ppt_backends.pop(window_id, None)
         self._last_reported_states.pop(window_id, None)
 
         is_web_source = source_type == "web"
@@ -82,6 +86,7 @@ class PlayerCommandHandlersMixin:
                     previous_adapter,
                     previous_source_type,
                     previous_source_id,
+                    previous_ppt_backend,
                 )
                 logger.warning("窗口 %d 没有可用句柄，跳过 OPEN", window_id)
                 return
@@ -132,6 +137,7 @@ class PlayerCommandHandlersMixin:
                 previous_adapter,
                 previous_source_type,
                 previous_source_id,
+                previous_ppt_backend,
             )
             if previous_adapter is None and (is_ppt_source or preclosed_source_type == "ppt"):
                 self._restore_player_window_to_black(window_id)
@@ -142,6 +148,8 @@ class PlayerCommandHandlersMixin:
         self._adapter_source_types[window_id] = source_type
         if source_id > 0:
             self._adapter_source_ids[window_id] = source_id
+        if source_type == "ppt" and ppt_backend:
+            self._adapter_ppt_backends[window_id] = ppt_backend
 
         if window is not None:
             if is_web_source:
@@ -212,6 +220,13 @@ class PlayerCommandHandlersMixin:
         from scp_cv.apps.playback.models import PlaybackState, PlaybackSession, PptPlaybackBackend
         session = PlaybackSession.objects.filter(window_id=window_id).first()
         if session is not None:
+            if session.playback_state != PlaybackState.IDLE:
+                logger.debug(
+                    "窗口 %d CLOSE 已被更新的播放状态 %s 覆盖，跳过清空会话源",
+                    window_id,
+                    session.playback_state,
+                )
+                return
             session.media_source = None
             session.playback_state = PlaybackState.IDLE
             session.error_message = ""
@@ -231,6 +246,7 @@ class PlayerCommandHandlersMixin:
             self._close_adapter(adapter_window_id, reheat=False)
         self._adapter_source_types.clear()
         self._adapter_source_ids.clear()
+        self._adapter_ppt_backends.clear()
         self._last_reported_states.clear()
 
         if self._preheat_pool is not None:
@@ -412,6 +428,7 @@ class PlayerCommandHandlersMixin:
         self._close_detached_adapter(window_id, adapter, source_type, source_id, restore_window, reheat)
         self._adapter_source_types.pop(window_id, None)
         self._adapter_source_ids.pop(window_id, None)
+        self._adapter_ppt_backends.pop(window_id, None)
         self._last_reported_states.pop(window_id, None)
 
     @staticmethod
@@ -459,8 +476,37 @@ class PlayerCommandHandlersMixin:
                 logger.warning("关闭窗口 %d 适配器异常：%s", window_id, close_error)
         if restore_window and source_type == "ppt":
             self._restore_player_window_to_black(window_id)
-        if reheat and source_id:
-            self._reheat_source_if_enabled(int(source_id))
+        if reheat and source_id and self._should_reheat_closed_source(window_id, int(source_id)):
+            if source_type == "ppt":
+                self._schedule_reheat_source_if_enabled(window_id, int(source_id))
+            else:
+                self._reheat_source_if_enabled(int(source_id))
+
+    @staticmethod
+    def _should_reheat_closed_source(window_id: int, source_id: int) -> bool:
+        """
+        判断关闭某源后是否应立即重建后台预热。
+        :param window_id: 窗口编号
+        :param source_id: 刚关闭的媒体源 ID
+        :return: True 表示可以重建预热
+        """
+        from scp_cv.apps.playback.models import PlaybackSession, PlaybackState
+
+        session = PlaybackSession.objects.filter(window_id=window_id).only(
+            "media_source_id",
+            "playback_state",
+        ).first()
+        if session is None:
+            return True
+        if session.media_source_id == source_id and session.playback_state != PlaybackState.IDLE:
+            logger.debug(
+                "窗口 %d 源 %d 当前仍处于 %s，跳过关闭后的即时预热",
+                window_id,
+                source_id,
+                session.playback_state,
+            )
+            return False
+        return True
 
     def _restore_previous_adapter(
         self,
@@ -468,6 +514,7 @@ class PlayerCommandHandlersMixin:
         adapter: object | None,
         source_type: str | None,
         source_id: int | None,
+        ppt_backend: str | None = None,
     ) -> None:
         """
         新源打开失败时恢复旧适配器映射和窗口可见性。
@@ -475,6 +522,7 @@ class PlayerCommandHandlersMixin:
         :param adapter: 旧适配器
         :param source_type: 旧源类型
         :param source_id: 旧源 ID
+        :param ppt_backend: 旧 PPT 后端
         :return: None
         """
         if adapter is None or source_type is None:
@@ -483,6 +531,8 @@ class PlayerCommandHandlersMixin:
         self._adapter_source_types[window_id] = source_type
         if source_id is not None:
             self._adapter_source_ids[window_id] = source_id
+        if source_type == "ppt" and ppt_backend:
+            self._adapter_ppt_backends[window_id] = ppt_backend
         window = self.get_window(window_id)
         if window is None:
             return
@@ -496,6 +546,25 @@ class PlayerCommandHandlersMixin:
             window.show()
             window.raise_()
             window.show_video_container()
+
+    def _schedule_reheat_source_if_enabled(self, window_id: int, source_id: int) -> None:
+        """
+        延迟重建 PPT 预热，避免 CLOSE 后立即重开时抢占主线程和 LibreOffice 资源。
+        :param window_id: 窗口编号
+        :param source_id: 刚关闭的媒体源 ID
+        :return: None
+        """
+        QTimer.singleShot(_PPT_REHEAT_DELAY_MS, lambda: self._reheat_source_if_still_idle(window_id, source_id))
+
+    def _reheat_source_if_still_idle(self, window_id: int, source_id: int) -> None:
+        """
+        延迟回调执行前再次检查会话，确认没有同源前台打开后再预热。
+        :param window_id: 窗口编号
+        :param source_id: 待预热媒体源 ID
+        :return: None
+        """
+        if self._should_reheat_closed_source(window_id, source_id):
+            self._reheat_source_if_enabled(source_id)
 
     def _prepare_adapter_preheat_context(
         self,
@@ -602,9 +671,18 @@ class PlayerCommandHandlersMixin:
         from scp_cv.apps.playback.models import PlaybackSession
         session = PlaybackSession.objects.filter(window_id=window_id).first()
         if session is not None:
+            update_fields = ["playback_state", "error_message", "last_updated_at"]
+            source_id = self._adapter_source_ids.get(window_id)
+            if source_id is not None and session.media_source_id != source_id:
+                session.media_source_id = source_id
+                update_fields.append("media_source")
+            ppt_backend = self._adapter_ppt_backends.get(window_id)
+            if ppt_backend and session.ppt_backend != ppt_backend:
+                session.ppt_backend = ppt_backend
+                update_fields.append("ppt_backend")
             session.playback_state = playback_state
             session.error_message = ""
-            session.save(update_fields=["playback_state", "error_message", "last_updated_at"])
+            session.save(update_fields=update_fields)
 
     def _update_session_error(self, window_id: int, error_message: str) -> None:
         """

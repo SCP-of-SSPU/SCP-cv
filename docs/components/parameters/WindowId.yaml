@@ -1,0 +1,8 @@
+in: path
+name: window_id
+required: true
+description: 窗口编号，当前有效范围为 1-4
+schema:
+  type: integer
+  minimum: 1
+  maximum: 4

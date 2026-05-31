@@ -1,0 +1,22 @@
+parameters:
+  - $ref: ../components/parameters/WindowId.yaml
+post:
+  tags:
+    - playback
+  summary: 控制 PPT 当前页媒体对象
+  operationId: controlPptMedia
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: ../components/schemas/PptMediaControlRequest.yaml
+  responses:
+    '200':
+      description: 操作成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/SessionsResponse.yaml
+    '400':
+      $ref: ../components/responses/ErrorResponse.yaml

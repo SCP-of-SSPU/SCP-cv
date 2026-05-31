@@ -1,0 +1,19 @@
+type: object
+required:
+  - url
+properties:
+  url:
+    type: string
+  name:
+    type: string
+  folder_id:
+    type: integer
+    nullable: true
+  preheat_enabled:
+    type: boolean
+    default: true
+    description: 是否在播放器启动时预热该网页源
+  keep_alive:
+    type: boolean
+    deprecated: true
+    description: 旧字段兼容别名；建议改用 preheat_enabled

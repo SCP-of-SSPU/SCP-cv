@@ -1,0 +1,8 @@
+in: path
+name: action
+required: true
+schema:
+  type: string
+  enum:
+    - 'on'
+    - 'off'

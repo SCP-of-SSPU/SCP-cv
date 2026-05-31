@@ -1,0 +1,23 @@
+type: object
+required:
+  - path
+properties:
+  path:
+    type: string
+  name:
+    type: string
+  source_type:
+    $ref: ./SourceType.yaml
+  folder_id:
+    type: integer
+    nullable: true
+  ppt_backend:
+    $ref: ./PptBackend.yaml
+  preheat_enabled:
+    type: boolean
+    default: true
+    description: 是否在播放器启动时预热该媒体源
+  keep_alive:
+    type: boolean
+    deprecated: true
+    description: 旧字段兼容别名；建议改用 preheat_enabled

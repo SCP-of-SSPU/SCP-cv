@@ -1,0 +1,14 @@
+post:
+  tags:
+    - playback
+  summary: 让所有窗口显示编号覆盖层
+  operationId: showWindowIds
+  responses:
+    '200':
+      description: 操作成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/SessionsResponse.yaml
+    '401':
+      $ref: ../components/responses/ErrorResponse.yaml

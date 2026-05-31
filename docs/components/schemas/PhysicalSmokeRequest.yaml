@@ -1,0 +1,43 @@
+type: object
+properties:
+  windows:
+    type: array
+    description: 要测试的窗口编号，默认 1-4 全部窗口
+    items:
+      type: integer
+      minimum: 1
+      maximum: 4
+  source_ids:
+    type: object
+    description: '按媒体源类型显式指定测试源 ID，例如 `{ "audio": 15, "ppt": 16 }`'
+    additionalProperties:
+      type: integer
+  settle_seconds:
+    type: number
+    format: float
+    default: 2
+    description: 每个源进入播放态后保持播放的秒数
+  timeout_seconds:
+    type: number
+    format: float
+    default: 30
+    description: 图片、视频、音频和网页等待播放超时
+  ppt_timeout_seconds:
+    type: number
+    format: float
+    default: 120
+    description: PPT 等待播放超时
+  stream_timeout_seconds:
+    type: number
+    format: float
+    default: 45
+    description: SRT、RTSP 和自定义流等待播放超时
+  total_timeout_seconds:
+    type: number
+    format: float
+    default: 540
+    description: 播放阶段全局总超时，后端会限制在 1-540 秒内，超时后不再打开后续源
+  reset_after:
+    type: boolean
+    default: true
+    description: 测试结束后是否执行 reset-all

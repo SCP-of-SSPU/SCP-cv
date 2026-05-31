@@ -1,0 +1,6 @@
+type: object
+properties:
+  folder_id:
+    type: integer
+    nullable: true
+    description: 为空时移动到根目录

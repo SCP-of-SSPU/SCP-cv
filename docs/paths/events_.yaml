@@ -1,0 +1,26 @@
+get:
+  tags:
+    - events
+  summary: 订阅播放状态 SSE 事件流
+  operationId: streamEvents
+  parameters:
+    - in: query
+      name: last_id
+      required: false
+      description: 上次收到的事件序列号，非法值会按 0 处理
+      schema:
+        type: integer
+        minimum: 0
+  responses:
+    '200':
+      description: SSE 数据流
+      content:
+        text/event-stream:
+          schema:
+            type: string
+            example: |
+              id: 12
+              event: playback_state
+              data: {"sessions": []}
+    '401':
+      $ref: ../components/responses/ErrorResponse.yaml

@@ -1,0 +1,63 @@
+type: object
+required:
+  - id
+  - name
+  - description
+  - sort_order
+  - big_screen_mode_state
+  - big_screen_mode
+  - big_screen_mode_label
+  - volume_state
+  - volume_level
+  - targets
+  - created_at
+  - updated_at
+properties:
+  id:
+    type: integer
+  name:
+    type: string
+  description:
+    type: string
+  sort_order:
+    type: integer
+  big_screen_mode_state:
+    $ref: ./SourceState.yaml
+  big_screen_mode:
+    $ref: ./BigScreenMode.yaml
+  big_screen_mode_label:
+    type: string
+  volume_state:
+    $ref: ./SourceState.yaml
+  volume_level:
+    type: integer
+    minimum: 0
+    maximum: 100
+  targets:
+    type: array
+    items:
+      $ref: ./ScenarioTarget.yaml
+  window1_source_id:
+    type: integer
+    nullable: true
+  window1_source_name:
+    type: string
+  window1_autoplay:
+    type: boolean
+  window1_resume:
+    type: boolean
+  window2_source_id:
+    type: integer
+    nullable: true
+  window2_source_name:
+    type: string
+  window2_autoplay:
+    type: boolean
+  window2_resume:
+    type: boolean
+  created_at:
+    type: string
+    format: date-time
+  updated_at:
+    type: string
+    format: date-time

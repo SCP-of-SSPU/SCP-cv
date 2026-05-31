@@ -1,0 +1,17 @@
+type: object
+required:
+  - id
+  - username
+  - is_staff
+  - is_superuser
+properties:
+  id:
+    type: integer
+    example: 1
+  username:
+    type: string
+    example: admin
+  is_staff:
+    type: boolean
+  is_superuser:
+    type: boolean

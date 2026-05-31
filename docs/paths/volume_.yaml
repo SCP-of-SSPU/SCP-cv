@@ -1,0 +1,34 @@
+get:
+  tags:
+    - runtime
+  summary: 获取系统音量状态
+  operationId: getSystemVolume
+  responses:
+    '200':
+      description: 成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/SystemVolumeResponse.yaml
+    '401':
+      $ref: ../components/responses/ErrorResponse.yaml
+patch:
+  tags:
+    - runtime
+  summary: 设置系统音量或静音
+  operationId: updateSystemVolume
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: ../components/schemas/SystemVolumeUpdateRequest.yaml
+  responses:
+    '200':
+      description: 更新成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/SystemVolumeResponse.yaml
+    '400':
+      $ref: ../components/responses/ErrorResponse.yaml

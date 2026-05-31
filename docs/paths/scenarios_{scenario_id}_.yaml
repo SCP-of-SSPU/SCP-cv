@@ -1,0 +1,50 @@
+parameters:
+  - $ref: ../components/parameters/ScenarioId.yaml
+get:
+  tags:
+    - scenarios
+  summary: 获取预案详情
+  operationId: getScenario
+  responses:
+    '200':
+      description: 成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ScenarioResponse.yaml
+    '404':
+      $ref: ../components/responses/ErrorResponse.yaml
+patch:
+  tags:
+    - scenarios
+  summary: 更新预案
+  operationId: updateScenario
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: ../components/schemas/ScenarioUpdateRequest.yaml
+  responses:
+    '200':
+      description: 更新成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ScenarioResponse.yaml
+    '400':
+      $ref: ../components/responses/ErrorResponse.yaml
+delete:
+  tags:
+    - scenarios
+  summary: 删除预案
+  operationId: deleteScenario
+  responses:
+    '200':
+      description: 删除成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/SuccessResponse.yaml
+    '404':
+      $ref: ../components/responses/ErrorResponse.yaml

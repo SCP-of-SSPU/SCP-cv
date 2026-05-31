@@ -1,0 +1,17 @@
+parameters:
+  - $ref: ../components/parameters/SourceId.yaml
+get:
+  tags:
+    - sources
+  summary: 获取图片或视频源 inline 预览
+  operationId: previewSource
+  responses:
+    '200':
+      description: 图片或视频文件流
+      content:
+        application/octet-stream:
+          schema:
+            type: string
+            format: binary
+    '404':
+      $ref: ../components/responses/ErrorResponse.yaml

@@ -1,0 +1,34 @@
+get:
+  tags:
+    - runtime
+  summary: 获取全局运行状态
+  operationId: getRuntimeState
+  responses:
+    '200':
+      description: 成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/RuntimeResponse.yaml
+    '401':
+      $ref: ../components/responses/ErrorResponse.yaml
+patch:
+  tags:
+    - runtime
+  summary: 设置大屏模式
+  operationId: updateRuntimeState
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: ../components/schemas/RuntimeUpdateRequest.yaml
+  responses:
+    '200':
+      description: 更新成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/RuntimeWithSessionsResponse.yaml
+    '400':
+      $ref: ../components/responses/ErrorResponse.yaml

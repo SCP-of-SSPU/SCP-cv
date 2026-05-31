@@ -1,0 +1,10 @@
+allOf:
+  - $ref: ./SuccessResponse.yaml
+  - type: object
+    required:
+      - scenarios
+    properties:
+      scenarios:
+        type: array
+        items:
+          $ref: ./Scenario.yaml

@@ -1,0 +1,17 @@
+parameters:
+  - $ref: ../components/parameters/SourceId.yaml
+get:
+  tags:
+    - sources
+  summary: 下载文件型媒体源
+  operationId: downloadSource
+  responses:
+    '200':
+      description: 文件流
+      content:
+        application/octet-stream:
+          schema:
+            type: string
+            format: binary
+    '404':
+      $ref: ../components/responses/ErrorResponse.yaml

@@ -1,0 +1,8 @@
+type: string
+enum:
+  - idle
+  - loading
+  - playing
+  - paused
+  - stopped
+  - error

@@ -1,0 +1,24 @@
+type: object
+required:
+  - index
+  - name
+  - width
+  - height
+  - x
+  - 'y'
+  - is_primary
+properties:
+  index:
+    type: integer
+  name:
+    type: string
+  width:
+    type: integer
+  height:
+    type: integer
+  x:
+    type: integer
+  'y':
+    type: integer
+  is_primary:
+    type: boolean

@@ -1,0 +1,10 @@
+type: string
+enum:
+  - ppt
+  - video
+  - audio
+  - image
+  - web
+  - custom_stream
+  - rtsp_stream
+  - srt_stream

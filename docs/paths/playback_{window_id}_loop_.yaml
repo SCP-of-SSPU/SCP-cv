@@ -1,0 +1,22 @@
+parameters:
+  - $ref: ../components/parameters/WindowId.yaml
+patch:
+  tags:
+    - playback
+  summary: 设置循环播放状态
+  operationId: toggleLoopPlayback
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: ../components/schemas/ToggleLoopRequest.yaml
+  responses:
+    '200':
+      description: 操作成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/SessionsResponse.yaml
+    '400':
+      $ref: ../components/responses/ErrorResponse.yaml

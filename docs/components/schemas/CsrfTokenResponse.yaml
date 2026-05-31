@@ -1,0 +1,8 @@
+type: object
+required:
+  - csrfToken
+properties:
+  csrfToken:
+    type: string
+    description: Django CSRF token，同时响应会通过 Set-Cookie 写入 `csrftoken`。
+    example: x9I3kV7sExampleToken

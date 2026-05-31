@@ -1,0 +1,20 @@
+post:
+  tags:
+    - sources
+  summary: 通过本地路径创建媒体源
+  operationId: addLocalSource
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: ../components/schemas/LocalSourceCreateRequest.yaml
+  responses:
+    '201':
+      description: 创建成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/SourceResponse.yaml
+    '400':
+      $ref: ../components/responses/ErrorResponse.yaml

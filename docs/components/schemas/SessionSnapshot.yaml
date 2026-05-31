@@ -1,0 +1,85 @@
+type: object
+required:
+  - window_id
+  - session_id
+  - source_name
+  - source_type
+  - source_type_label
+  - source_uri
+  - playback_state
+  - playback_state_label
+  - error_message
+  - display_mode
+  - display_mode_label
+  - target_display_label
+  - spliced_display_label
+  - is_spliced
+  - current_slide
+  - total_slides
+  - ppt_backend
+  - ppt_backend_label
+  - position_ms
+  - duration_ms
+  - pending_command
+  - last_updated_at
+  - volume
+  - is_muted
+  - loop_enabled
+properties:
+  window_id:
+    type: integer
+  session_id:
+    type: integer
+  source_id:
+    type: integer
+    nullable: true
+  source_name:
+    type: string
+  source_type:
+    type: string
+  source_type_label:
+    type: string
+  source_uri:
+    type: string
+  playback_state:
+    $ref: ./PlaybackState.yaml
+  playback_state_label:
+    type: string
+  error_message:
+    type: string
+  display_mode:
+    $ref: ./DisplayMode.yaml
+  display_mode_label:
+    type: string
+  target_display_label:
+    type: string
+  spliced_display_label:
+    type: string
+  is_spliced:
+    type: boolean
+  current_slide:
+    type: integer
+  total_slides:
+    type: integer
+  ppt_backend:
+    $ref: ./PptBackend.yaml
+  ppt_backend_label:
+    type: string
+  position_ms:
+    type: integer
+  duration_ms:
+    type: integer
+  pending_command:
+    type: string
+    nullable: true
+  last_updated_at:
+    type: string
+    format: date-time
+  volume:
+    type: integer
+    minimum: 0
+    maximum: 100
+  is_muted:
+    type: boolean
+  loop_enabled:
+    type: boolean

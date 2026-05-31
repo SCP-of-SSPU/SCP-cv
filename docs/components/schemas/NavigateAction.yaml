@@ -1,0 +1,6 @@
+type: string
+enum:
+  - next
+  - prev
+  - goto
+  - seek

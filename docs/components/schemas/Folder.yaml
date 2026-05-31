@@ -1,0 +1,20 @@
+type: object
+required:
+  - id
+  - name
+properties:
+  id:
+    type: integer
+  name:
+    type: string
+  parent_id:
+    type: integer
+    nullable: true
+  created_at:
+    type: string
+    format: date-time
+    nullable: true
+  updated_at:
+    type: string
+    format: date-time
+    nullable: true

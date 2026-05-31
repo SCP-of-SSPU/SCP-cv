@@ -1,0 +1,22 @@
+parameters:
+  - $ref: ../components/parameters/WindowId.yaml
+post:
+  tags:
+    - playback
+  summary: 临时切换当前 PPT 放映后端
+  operationId: switchPptBackend
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: ../components/schemas/SwitchPptBackendRequest.yaml
+  responses:
+    '200':
+      description: 操作成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/SessionsResponse.yaml
+    '400':
+      $ref: ../components/responses/ErrorResponse.yaml

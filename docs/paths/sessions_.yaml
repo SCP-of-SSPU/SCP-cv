@@ -1,0 +1,14 @@
+get:
+  tags:
+    - sessions
+  summary: 获取全部窗口会话快照
+  operationId: listSessions
+  responses:
+    '200':
+      description: 成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/SessionsResponse.yaml
+    '401':
+      $ref: ../components/responses/ErrorResponse.yaml

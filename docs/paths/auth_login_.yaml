@@ -1,0 +1,30 @@
+post:
+  tags:
+    - auth
+  summary: 登录并建立 Django session
+  description: |
+    使用用户名和密码登录。登录成功后响应会设置 `sessionid` 与 `csrftoken` cookie，后续业务接口使用该会话访问。
+  operationId: login
+  security: []
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: ../components/schemas/LoginRequest.yaml
+  responses:
+    '200':
+      description: 登录成功
+      headers:
+        Set-Cookie:
+          description: '`sessionid` 与 `csrftoken` cookie'
+          schema:
+            type: string
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/AuthUserResponse.yaml
+    '400':
+      $ref: ../components/responses/ErrorResponse.yaml
+    '401':
+      $ref: ../components/responses/ErrorResponse.yaml

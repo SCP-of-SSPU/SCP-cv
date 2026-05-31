@@ -1,0 +1,36 @@
+get:
+  tags:
+    - scenarios
+  summary: 获取预案列表
+  operationId: listScenarios
+  responses:
+    '200':
+      description: 成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ScenariosResponse.yaml
+    '401':
+      $ref: ../components/responses/ErrorResponse.yaml
+post:
+  tags:
+    - scenarios
+  summary: 创建预案
+  operationId: createScenario
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: ../components/schemas/ScenarioCreateRequest.yaml
+  responses:
+    '201':
+      description: 创建成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ScenarioResponse.yaml
+    '400':
+      $ref: ../components/responses/ErrorResponse.yaml
+    '401':
+      $ref: ../components/responses/ErrorResponse.yaml

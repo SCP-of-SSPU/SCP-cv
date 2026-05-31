@@ -79,10 +79,10 @@ def _export_ppt_slide_previews_with_worker(file_path: Path, source_id: int, back
     :param backend: 已规范化的 PPT 后端
     :return: 按页码排序的媒体 URL 列表；worker 失败时返回空列表
     """
+    worker_script = Path(__file__).with_name("ppt_preview_worker.py")
     command = [
         sys.executable,
-        "-m",
-        "scp_cv.services.ppt_preview_worker",
+        str(worker_script),
         str(file_path),
         str(source_id),
         backend,

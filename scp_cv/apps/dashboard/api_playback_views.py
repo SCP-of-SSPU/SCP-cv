@@ -20,6 +20,9 @@ from scp_cv.apps.dashboard.api_utils import (
     body_or_error,
     bool_value,
     error_response,
+    float_value,
+    int_list_value,
+    int_mapping_value,
     int_value,
     json_response,
     mutate_playback,
@@ -27,6 +30,11 @@ from scp_cv.apps.dashboard.api_utils import (
 )
 from scp_cv.apps.playback.models import PlaybackCommand
 from scp_cv.services.display import build_left_right_splice_target, list_display_targets
+from scp_cv.services.physical_smoke import (
+    DEFAULT_TOTAL_TIMEOUT_SECONDS,
+    PhysicalSmokeError,
+    run_physical_smoke_test,
+)
 from scp_cv.services.playback import (
     VALID_WINDOW_IDS,
     PlaybackError,
@@ -361,6 +369,35 @@ def reset_ppt_playback_api(request: HttpRequest) -> JsonResponse:
     :return: 重置后的会话状态
     """
     return mutate_playback(reset_ppt_playback)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def physical_smoke_api(request: HttpRequest) -> JsonResponse:
+    """
+    运行本机四屏物理冒烟测试，真实播放所有媒体源类型并最终 reset-all。
+    :param request: HTTP 请求
+    :return: 冒烟测试结果
+    """
+    body, error = body_or_error(request)
+    if error is not None:
+        return error
+    try:
+        result = run_physical_smoke_test(
+            windows=int_list_value(body, "windows"),
+            source_ids=int_mapping_value(body, "source_ids"),
+            settle_seconds=float_value(body, "settle_seconds", 2.0),
+            timeout_seconds=float_value(body, "timeout_seconds", 30.0),
+            ppt_timeout_seconds=float_value(body, "ppt_timeout_seconds", 120.0),
+            stream_timeout_seconds=float_value(body, "stream_timeout_seconds", 45.0),
+            total_timeout_seconds=float_value(body, "total_timeout_seconds", DEFAULT_TOTAL_TIMEOUT_SECONDS),
+            reset_after=bool_value(body, "reset_after", True),
+        )
+    except ValueError as value_error:
+        return error_response(str(value_error), code="invalid_physical_smoke_request")
+    except PhysicalSmokeError as smoke_error:
+        return error_response(str(smoke_error), code="physical_smoke_error")
+    return json_response(result)
 
 
 @csrf_exempt

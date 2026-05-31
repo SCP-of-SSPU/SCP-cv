@@ -1,0 +1,10 @@
+sessionAuth:
+  type: apiKey
+  in: cookie
+  name: sessionid
+  description: Django session cookie。除 auth 白名单外，业务接口需要已登录会话。
+csrfToken:
+  type: apiKey
+  in: header
+  name: X-CSRFToken
+  description: Django CSRF token。POST/PATCH/PUT/DELETE 请求由前端从 `csrftoken` cookie 读取后写入该请求头。

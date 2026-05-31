@@ -1,0 +1,9 @@
+in: path
+name: device_type
+required: true
+schema:
+  type: string
+  enum:
+    - splice_screen
+    - tv_left
+    - tv_right

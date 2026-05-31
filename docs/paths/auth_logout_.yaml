@@ -1,0 +1,16 @@
+post:
+  tags:
+    - auth
+  summary: 登出并清除当前 session
+  description: '该接口幂等；无论是否已有登录态都会返回 `detail: ok`。'
+  operationId: logout
+  security: []
+  responses:
+    '200':
+      description: 登出成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/DetailResponse.yaml
+    '400':
+      $ref: ../components/responses/ErrorResponse.yaml

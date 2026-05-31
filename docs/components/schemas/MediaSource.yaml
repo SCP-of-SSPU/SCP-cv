@@ -1,0 +1,79 @@
+type: object
+required:
+  - id
+  - source_type
+  - name
+  - uri
+  - is_available
+  - is_temporary
+  - metadata
+  - keep_alive
+  - preheat_enabled
+  - ppt_backend
+  - ppt_backend_label
+  - preview_url
+  - thumbnail_url
+  - preview_kind
+  - preview_label
+  - created_at
+properties:
+  id:
+    type: integer
+  source_type:
+    $ref: ./SourceType.yaml
+  name:
+    type: string
+  uri:
+    type: string
+  is_available:
+    type: boolean
+  stream_identifier:
+    type: string
+    nullable: true
+  folder_id:
+    type: integer
+    nullable: true
+  original_filename:
+    type: string
+  file_size:
+    type: integer
+  mime_type:
+    type: string
+  is_temporary:
+    type: boolean
+  expires_at:
+    type: string
+    format: date-time
+    nullable: true
+  metadata:
+    type: object
+    additionalProperties: true
+  keep_alive:
+    type: boolean
+    deprecated: true
+    description: 旧版保持活跃字段，当前与 preheat_enabled 同步
+  preheat_enabled:
+    type: boolean
+    description: 媒体源预热开关；播放器启动时按源类型提前准备后台资源
+  ppt_backend:
+    $ref: ./PptBackend.yaml
+  ppt_backend_label:
+    type: string
+    description: PPT 后端展示名称
+  preview_url:
+    type: string
+    description: 可嵌入前端缩略位的预览 URL；无真实预览时为空字符串
+  thumbnail_url:
+    type: string
+    description: 缩略图 URL，当前与 preview_url 保持一致
+  preview_kind:
+    type: string
+    enum:
+      - image
+      - video
+      - icon
+  preview_label:
+    type: string
+  created_at:
+    type: string
+    format: date-time

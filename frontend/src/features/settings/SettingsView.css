@@ -187,6 +187,73 @@
   word-break: break-all;
 }
 
+.settings-view__smoke-card {
+  grid-column: 1 / -1;
+}
+
+.settings-view__smoke-actions {
+  margin-top: var(--spacing-m);
+}
+
+.settings-view__smoke-result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-m);
+  margin-top: var(--spacing-l);
+}
+
+.settings-view__smoke-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--spacing-m);
+}
+
+.settings-view__smoke-summary > div {
+  padding: var(--spacing-m);
+  border: 1px solid var(--colorNeutralStroke2);
+  border-radius: var(--borderRadiusLarge);
+  background: var(--colorNeutralBackground2);
+}
+
+.settings-view__smoke-label {
+  display: block;
+  color: var(--colorNeutralForeground3);
+  font-size: var(--fontSizeBase100);
+}
+
+.settings-view__smoke-failures {
+  padding: var(--spacing-m);
+  border: 1px solid color-mix(in srgb, var(--colorStatusDangerForeground1) 28%, var(--colorNeutralStroke2));
+  border-radius: var(--borderRadiusLarge);
+  background: color-mix(in srgb, var(--colorStatusDangerForeground1) 8%, var(--colorNeutralBackground1));
+}
+
+.settings-view__smoke-failures h4 {
+  margin: 0 0 var(--spacing-s);
+}
+
+.settings-view__smoke-table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow: hidden;
+  border-radius: var(--borderRadiusLarge);
+  background: var(--color-background-card);
+}
+
+.settings-view__smoke-table th,
+.settings-view__smoke-table td {
+  padding: var(--spacing-s) var(--spacing-m);
+  border-bottom: 1px solid var(--colorNeutralStroke2);
+  text-align: left;
+  font-size: var(--fontSizeBase200);
+}
+
+.settings-view__smoke-table th {
+  color: var(--colorNeutralForeground3);
+  font-weight: 600;
+  background: var(--colorNeutralBackground2);
+}
+
 @media (max-width: 767px) {
   .settings-view__app-header {
     padding: var(--spacing-l);

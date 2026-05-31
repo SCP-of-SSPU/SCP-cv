@@ -1,0 +1,10 @@
+allOf:
+  - $ref: ./SuccessResponse.yaml
+  - type: object
+    required:
+      - sessions
+    properties:
+      sessions:
+        type: array
+        items:
+          $ref: ./SessionSnapshot.yaml

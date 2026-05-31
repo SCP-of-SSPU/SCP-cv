@@ -1,0 +1,17 @@
+type: object
+required:
+  - status
+  - elapsed
+  - error_message
+properties:
+  status:
+    type: string
+    enum:
+      - ok
+      - failed
+      - skipped
+  elapsed:
+    type: number
+    format: float
+  error_message:
+    type: string

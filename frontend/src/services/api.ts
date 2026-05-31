@@ -153,6 +153,44 @@ export interface ApiStatePayload {
   sessions: SessionSnapshot[];
 }
 
+export interface PhysicalSmokeRequest {
+  windows?: number[];
+  source_ids?: Record<string, number>;
+  settle_seconds?: number;
+  timeout_seconds?: number;
+  ppt_timeout_seconds?: number;
+  stream_timeout_seconds?: number;
+  total_timeout_seconds?: number;
+  reset_after?: boolean;
+}
+
+export interface PhysicalSmokeStepResult {
+  window_id: number;
+  source_type: string;
+  source_id: number;
+  source_name: string;
+  status: 'ok' | 'failed';
+  open_elapsed: number;
+  close_elapsed: number;
+  error_message: string;
+  open_error: string;
+  close_error: string;
+}
+
+export interface PhysicalSmokeResult {
+  success: boolean;
+  started_at: string;
+  finished_at: string;
+  elapsed_seconds: number;
+  total_timeout_seconds: number;
+  windows: number[];
+  source_ids: Record<string, number>;
+  summary: { total: number; passed: number; failed: number };
+  results: PhysicalSmokeStepResult[];
+  reset: { status: 'ok' | 'failed' | 'skipped'; elapsed: number; error_message: string };
+  sessions: SessionSnapshot[];
+}
+
 export interface UploadOptions {
   onProgress?: (percent: number) => void;
 }
@@ -178,6 +216,8 @@ interface ApiDetailPayload {
 }
 
 const REQUEST_TIMEOUT_MS = 10000;
+export const PHYSICAL_SMOKE_TOTAL_TIMEOUT_SECONDS = 9 * 60;
+const PHYSICAL_SMOKE_TIMEOUT_MS = (PHYSICAL_SMOKE_TOTAL_TIMEOUT_SECONDS + 60) * 1000;
 const DEFAULT_BACKEND_PORT = '8000';
 
 function resolveBackendBase(): string {
@@ -255,9 +295,9 @@ function readCookie(name: string): string {
 
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
-async function fetchWithTimeout(url: string, init: RequestInit = {}): Promise<Response> {
+async function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs = REQUEST_TIMEOUT_MS): Promise<Response> {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fetch(url, { ...init, signal: controller.signal });
   } finally {
@@ -265,7 +305,7 @@ async function fetchWithTimeout(url: string, init: RequestInit = {}): Promise<Re
   }
 }
 
-async function requestJson<T>(url: string, init: RequestInit = {}): Promise<T> {
+async function requestJson<T>(url: string, init: RequestInit = {}, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> {
   const absoluteUrl = buildBackendUrl(url);
   const method = (init.method || 'GET').toUpperCase();
   const csrfHeader: Record<string, string> = {};
@@ -283,7 +323,7 @@ async function requestJson<T>(url: string, init: RequestInit = {}): Promise<T> {
       ...csrfHeader,
       ...(init.headers || {}),
     },
-  });
+  }, timeoutMs);
   const responseText = await response.text();
   const payload = parseJsonText<T>(responseText, response.status, response.headers.get('Content-Type') || '');
   if (response.status === 401) {
@@ -383,6 +423,13 @@ export const api = {
   closeSource: (windowId: number) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/close/`, { method: 'POST' }),
   resetAllSessions: () => requestJson<ApiStatePayload>('/api/playback/reset-all/', { method: 'POST' }),
   resetPptPlayback: () => requestJson<ApiStatePayload>('/api/playback/reset-ppt/', { method: 'POST' }),
+  runPhysicalSmoke: (payload: PhysicalSmokeRequest = {}) => requestJson<PhysicalSmokeResult>('/api/playback/physical-smoke/', {
+    method: 'POST',
+    body: JSON.stringify({
+      ...payload,
+      total_timeout_seconds: payload.total_timeout_seconds ?? PHYSICAL_SMOKE_TOTAL_TIMEOUT_SECONDS,
+    }),
+  }, PHYSICAL_SMOKE_TIMEOUT_MS),
   shutdownSystem: () => requestJson<ApiStatePayload & { detail?: string }>('/api/system/shutdown/', { method: 'POST' }),
   setLoop: (windowId: number, enabled: boolean) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/loop/`, { method: 'PATCH', body: JSON.stringify({ enabled }) }),
   setWindowVolume: (windowId: number, volume: number) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/volume/`, { method: 'PATCH', body: JSON.stringify({ volume }) }),

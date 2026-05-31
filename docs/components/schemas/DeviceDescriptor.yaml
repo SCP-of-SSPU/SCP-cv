@@ -1,0 +1,28 @@
+type: object
+required:
+  - name
+  - device_type
+  - device_type_label
+  - host
+  - port
+  - action
+  - detail
+properties:
+  name:
+    type: string
+  device_type:
+    type: string
+    enum:
+      - splice_screen
+      - tv_left
+      - tv_right
+  device_type_label:
+    type: string
+  host:
+    type: string
+  port:
+    type: integer
+  action:
+    type: string
+  detail:
+    type: string

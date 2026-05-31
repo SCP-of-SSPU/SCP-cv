@@ -1,0 +1,22 @@
+parameters:
+  - $ref: ../components/parameters/WindowId.yaml
+post:
+  tags:
+    - playback
+  summary: 内容导航
+  operationId: navigateContent
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: ../components/schemas/NavigateContentRequest.yaml
+  responses:
+    '200':
+      description: 操作成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/SessionsResponse.yaml
+    '400':
+      $ref: ../components/responses/ErrorResponse.yaml

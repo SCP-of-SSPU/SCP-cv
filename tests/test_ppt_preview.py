@@ -210,10 +210,10 @@ def test_preview_dispatches_worker_with_selected_backend(monkeypatch: MonkeyPatc
     previews = ppt_preview.export_ppt_slide_previews(ppt_file, 11)
 
     assert previews == ["/media/ppt_previews/11/slide-1.png"]
+    worker_script = Path(ppt_preview.__file__).with_name("ppt_preview_worker.py")
     assert captured["command"] == [
         ppt_preview.sys.executable,
-        "-m",
-        "scp_cv.services.ppt_preview_worker",
+        str(worker_script),
         str(ppt_file),
         "11",
         "wps",

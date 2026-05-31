@@ -1,0 +1,15 @@
+allOf:
+  - $ref: ./SuccessResponse.yaml
+  - type: object
+    required:
+      - sources
+      - sync_result
+    properties:
+      sources:
+        type: array
+        items:
+          $ref: ./MediaSource.yaml
+      sync_result:
+        type: object
+        additionalProperties:
+          type: integer

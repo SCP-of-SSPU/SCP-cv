@@ -1,0 +1,15 @@
+post:
+  tags:
+    - playback
+  summary: 重置 PPT 放映后端并恢复页码
+  description: 关闭当前 PPT 放映窗口与文档，重启所有正在放映的 PPT，并回到重置前页码；已预热的后端应用会尽量保留。
+  operationId: resetPptPlayback
+  responses:
+    '200':
+      description: 操作成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/SessionsResponse.yaml
+    '401':
+      $ref: ../components/responses/ErrorResponse.yaml

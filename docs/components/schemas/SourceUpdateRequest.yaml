@@ -1,0 +1,16 @@
+type: object
+properties:
+  name:
+    type: string
+  uri:
+    type: string
+    description: 仅网页源允许通过本接口修改 URL
+  preheat_enabled:
+    type: boolean
+    description: 是否在播放器启动时预热该媒体源
+  keep_alive:
+    type: boolean
+    deprecated: true
+    description: 旧字段兼容别名；建议改用 preheat_enabled
+  ppt_backend:
+    $ref: ./PptBackend.yaml

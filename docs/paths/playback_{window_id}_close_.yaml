@@ -1,0 +1,16 @@
+parameters:
+  - $ref: ../components/parameters/WindowId.yaml
+post:
+  tags:
+    - playback
+  summary: 关闭指定窗口当前媒体源
+  operationId: closeWindowSource
+  responses:
+    '200':
+      description: 操作成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/SessionsResponse.yaml
+    '400':
+      $ref: ../components/responses/ErrorResponse.yaml

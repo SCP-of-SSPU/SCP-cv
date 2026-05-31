@@ -1,0 +1,16 @@
+type: object
+properties:
+  id:
+    type: string
+  media_index:
+    type: integer
+  media_type:
+    type: string
+  type:
+    type: string
+  name:
+    type: string
+  target:
+    type: string
+  shape_id:
+    type: string

@@ -1,0 +1,47 @@
+allOf:
+  - $ref: ./SuccessResponse.yaml
+  - type: object
+    required:
+      - started_at
+      - finished_at
+      - elapsed_seconds
+      - total_timeout_seconds
+      - windows
+      - source_ids
+      - summary
+      - results
+      - reset
+      - sessions
+    properties:
+      started_at:
+        type: string
+        format: date-time
+      finished_at:
+        type: string
+        format: date-time
+      elapsed_seconds:
+        type: number
+        format: float
+      total_timeout_seconds:
+        type: number
+        format: float
+      windows:
+        type: array
+        items:
+          type: integer
+      source_ids:
+        type: object
+        additionalProperties:
+          type: integer
+      summary:
+        $ref: ./PhysicalSmokeSummary.yaml
+      results:
+        type: array
+        items:
+          $ref: ./PhysicalSmokeStepResult.yaml
+      reset:
+        $ref: ./PhysicalSmokeResetResult.yaml
+      sessions:
+        type: array
+        items:
+          $ref: ./SessionSnapshot.yaml

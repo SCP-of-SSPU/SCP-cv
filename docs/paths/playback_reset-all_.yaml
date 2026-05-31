@@ -1,0 +1,15 @@
+post:
+  tags:
+    - playback
+  summary: 重置全部窗口并重建播放器窗口
+  description: 清空全部播放会话，通知运行中的 PySide 播放器关闭并重建窗口，同时重建媒体预热池。
+  operationId: resetAllSessions
+  responses:
+    '200':
+      description: 操作成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/SessionsResponse.yaml
+    '401':
+      $ref: ../components/responses/ErrorResponse.yaml

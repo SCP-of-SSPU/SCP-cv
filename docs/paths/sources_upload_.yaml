@@ -1,0 +1,41 @@
+post:
+  tags:
+    - sources
+  summary: 上传文件并创建媒体源
+  operationId: uploadSource
+  requestBody:
+    required: true
+    content:
+      multipart/form-data:
+        schema:
+          type: object
+          required:
+            - file
+          properties:
+            file:
+              type: string
+              format: binary
+            name:
+              type: string
+            source_type:
+              $ref: ../components/schemas/SourceType.yaml
+            folder_id:
+              type: integer
+              nullable: true
+            is_temporary:
+              type: boolean
+            preheat_enabled:
+              type: boolean
+              default: true
+              description: 是否在播放器启动时预热该媒体源
+            ppt_backend:
+              $ref: ../components/schemas/PptBackend.yaml
+  responses:
+    '201':
+      description: 创建成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/SourceResponse.yaml
+    '400':
+      $ref: ../components/responses/ErrorResponse.yaml

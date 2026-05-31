@@ -1,0 +1,11 @@
+type: object
+required:
+  - detail
+  - code
+properties:
+  detail:
+    type: string
+    example: 请求体必须是合法 JSON
+  code:
+    type: string
+    example: invalid_json

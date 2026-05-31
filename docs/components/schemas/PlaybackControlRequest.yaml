@@ -1,0 +1,6 @@
+type: object
+required:
+  - action
+properties:
+  action:
+    $ref: ./PlaybackAction.yaml

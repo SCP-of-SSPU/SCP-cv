@@ -1,0 +1,16 @@
+parameters:
+  - $ref: ../components/parameters/ScenarioId.yaml
+post:
+  tags:
+    - scenarios
+  summary: 切换预案置顶状态
+  operationId: pinScenario
+  responses:
+    '200':
+      description: 操作成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ScenarioResponse.yaml
+    '404':
+      $ref: ../components/responses/ErrorResponse.yaml

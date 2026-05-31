@@ -1,0 +1,34 @@
+get:
+  tags:
+    - folders
+  summary: 获取媒体文件夹列表
+  operationId: listFolders
+  responses:
+    '200':
+      description: 成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/FoldersResponse.yaml
+    '401':
+      $ref: ../components/responses/ErrorResponse.yaml
+post:
+  tags:
+    - folders
+  summary: 创建媒体文件夹
+  operationId: createFolder
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: ../components/schemas/FolderCreateRequest.yaml
+  responses:
+    '201':
+      description: 创建成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/FolderResponse.yaml
+    '400':
+      $ref: ../components/responses/ErrorResponse.yaml

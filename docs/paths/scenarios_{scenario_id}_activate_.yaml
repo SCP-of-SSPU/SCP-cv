@@ -1,0 +1,16 @@
+parameters:
+  - $ref: ../components/parameters/ScenarioId.yaml
+post:
+  tags:
+    - scenarios
+  summary: 激活预案
+  operationId: activateScenario
+  responses:
+    '200':
+      description: 激活成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/SessionsResponse.yaml
+    '400':
+      $ref: ../components/responses/ErrorResponse.yaml

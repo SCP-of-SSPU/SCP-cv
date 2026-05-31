@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from pathlib import Path
 
 from PySide6.QtCore import QUrl
@@ -24,6 +25,7 @@ from scp_cv.player.web_preheat import WebPreheatPool
 from scp_cv.ppt_backend import PPT_BACKEND_LIBREOFFICE, PPT_BACKEND_POWERPOINT, PPT_BACKEND_WPS
 
 logger = logging.getLogger(__name__)
+_LIBREOFFICE_BRIDGE_TTL_SECONDS = 60.0
 
 
 class PlayerPreheatPool:
@@ -40,6 +42,7 @@ class PlayerPreheatPool:
         self._streams: dict[int, StreamPreheatHandle] = {}
         self._ppt_apps = PptApplicationPreheater()
         self._libreoffice_bridge: object | None = None
+        self._libreoffice_bridge_ready_at = 0.0
 
     def preheat_source(
         self,
@@ -152,7 +155,14 @@ class PlayerPreheatPool:
         :return: LibreOfficeBridgeClient 或 None
         """
         bridge = self._libreoffice_bridge
+        if bridge is not None and self._libreoffice_bridge_is_stale():
+            self._close_bridge(bridge)
+            self._libreoffice_bridge = None
+            self._libreoffice_bridge_ready_at = 0.0
+            logger.info("LibreOffice bridge 预热已过期，丢弃后改为前台冷启动")
+            return None
         self._libreoffice_bridge = None
+        self._libreoffice_bridge_ready_at = 0.0
         return bridge
 
     def return_libreoffice_bridge(self, bridge: object) -> None:
@@ -164,6 +174,7 @@ class PlayerPreheatPool:
         if self._libreoffice_bridge is not None and self._libreoffice_bridge is not bridge:
             self._close_bridge(self._libreoffice_bridge)
         self._libreoffice_bridge = bridge
+        self._libreoffice_bridge_ready_at = time.monotonic()
 
     def stop_stream_preheat(self, source_id: int) -> None:
         """
@@ -192,6 +203,7 @@ class PlayerPreheatPool:
         if self._libreoffice_bridge is not None:
             self._close_bridge(self._libreoffice_bridge)
             self._libreoffice_bridge = None
+            self._libreoffice_bridge_ready_at = 0.0
 
     def _preheat_image(self, source_id: int, uri: str, force: bool) -> None:
         """
@@ -260,7 +272,17 @@ class PlayerPreheatPool:
         bridge = LibreOfficeBridgeClient(logger)
         bridge.preheat()
         self._libreoffice_bridge = bridge
+        self._libreoffice_bridge_ready_at = time.monotonic()
         logger.info("LibreOffice bridge 已预热")
+
+    def _libreoffice_bridge_is_stale(self) -> bool:
+        """
+        判断预热 LibreOffice bridge 是否已陈旧。
+        :return: True 表示应丢弃并由前台冷启动
+        """
+        if self._libreoffice_bridge_ready_at <= 0:
+            return False
+        return time.monotonic() - self._libreoffice_bridge_ready_at > _LIBREOFFICE_BRIDGE_TTL_SECONDS
 
     @staticmethod
     def _dispose_video(video: PreheatedVideoSource) -> None:

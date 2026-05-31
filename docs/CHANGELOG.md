@@ -1,5 +1,26 @@
 # CHANGELOG
 
+## 2026-05-30
+
+### 修复 LibreOffice PPT 预热与快速重开竞态
+
+- 播放器：OPEN 成功后会再次确认会话源与 PPT 后端，避免慢速 CLOSE 覆盖新 OPEN 后出现“无源播放中”。
+- 播放器：PPT 关闭后的预热改为延迟并在执行前复查会话，避免 close 后同源快速重开时后台 LibreOffice 预热抢占主线程和 UNO pipe。
+- LibreOffice：前台放映使用过的 bridge 不再归还预热池复用；启动阶段预热的 bridge 超过 TTL 会被丢弃并改为前台冷启动，避免陈旧 bridge 导致 90 秒打开超时。
+- 预览导出：PPT 预览 worker 改用脚本路径启动，避免 Django 应用加载阶段通过 `-m` 启动 worker 时触发 `Apps aren't loaded yet`。
+
+### 新增本机四屏物理冒烟测试
+
+- 后端/API：新增 `POST /api/playback/physical-smoke/`，可真实下发四个窗口逐类播放图片、视频、音频、网页、PPT、SRT、RTSP 和自定义流，并在结束后执行 reset-all。
+- 后端/API：物理冒烟测试增加 9 分钟全局播放时限，并严格拒绝空窗口、非法窗口和非法源 ID 输入，避免危险接口扩大执行范围。
+- 前端：设置中心“开发”页新增物理 4 屏冒烟测试入口，包含危险操作确认、长超时请求、汇总结果和失败项展示。
+- 测试：新增物理冒烟服务编排和 REST API 合约 pytest，默认测试不启动真实播放器或物理屏幕。
+
+### 完善 OpenAPI 文档结构
+
+- 文档：`docs/openapi.yaml` 改为多文件入口，按示例拆分 `docs/paths/` 与 `docs/components/`，并生成可分发的 `docs/_bundled.yaml`。
+- 文档：补齐 auth 登录态接口、Django session/CSRF 安全方案、许可证信息和缺失的 4xx 响应说明，Redocly CLI 校验无错误无警告。
+
 ## 2026-05-29
 
 ### 修复 PPT 外部放映窗口识别与切换恢复

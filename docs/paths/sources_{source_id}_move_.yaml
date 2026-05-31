@@ -1,0 +1,24 @@
+parameters:
+  - $ref: ../components/parameters/SourceId.yaml
+patch:
+  tags:
+    - sources
+  summary: 移动媒体源到指定文件夹
+  operationId: moveSource
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: ../components/schemas/MoveSourceRequest.yaml
+  responses:
+    '200':
+      description: 更新成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/SourceResponse.yaml
+    '400':
+      $ref: ../components/responses/ErrorResponse.yaml
+    '404':
+      $ref: ../components/responses/ErrorResponse.yaml

@@ -1,0 +1,20 @@
+post:
+  tags:
+    - scenarios
+  summary: 从当前状态捕获预案
+  operationId: captureScenario
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: ../components/schemas/ScenarioCaptureRequest.yaml
+  responses:
+    '200':
+      description: 捕获成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ScenarioResponse.yaml
+    '400':
+      $ref: ../components/responses/ErrorResponse.yaml

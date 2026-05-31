@@ -1,0 +1,5 @@
+in: path
+name: source_id
+required: true
+schema:
+  type: integer

@@ -1,0 +1,14 @@
+get:
+  tags:
+    - displays
+  summary: 获取显示器列表与拼接标签
+  operationId: listDisplays
+  responses:
+    '200':
+      description: 成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/DisplaysResponse.yaml
+    '401':
+      $ref: ../components/responses/ErrorResponse.yaml

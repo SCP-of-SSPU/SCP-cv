@@ -1,0 +1,16 @@
+type: object
+required:
+  - big_screen_mode
+  - volume_level
+  - muted_windows
+properties:
+  big_screen_mode:
+    $ref: ./BigScreenMode.yaml
+  volume_level:
+    type: integer
+    minimum: 0
+    maximum: 100
+  muted_windows:
+    type: array
+    items:
+      type: integer

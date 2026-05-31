@@ -502,22 +502,8 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
         """
         if self._bridge is not None:
             self._detach_bridge_hwnd()
-            if self._using_preheated_bridge and self._preheat_pool is not None:
-                try:
-                    self._bridge.close_document()
-                except Exception:
-                    try:
-                        self._bridge.close()
-                    except Exception:
-                        pass
-                else:
-                    return_bridge = getattr(self._preheat_pool, "return_libreoffice_bridge", None)
-                    if callable(return_bridge):
-                        return_bridge(self._bridge)
-                    else:
-                        self._bridge.close()
-            else:
-                self._bridge.close()
+            # 用于前台放映后的 LibreOffice bridge 可能残留全屏窗口资源，关闭后由预热池重建干净实例。
+            self._bridge.close()
             self._bridge = None
             self._bridge_process_id = 0
             self._using_preheated_bridge = False

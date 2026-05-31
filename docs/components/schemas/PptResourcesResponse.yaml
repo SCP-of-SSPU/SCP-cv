@@ -1,0 +1,10 @@
+allOf:
+  - $ref: ./SuccessResponse.yaml
+  - type: object
+    required:
+      - resources
+    properties:
+      resources:
+        type: array
+        items:
+          $ref: ./PptResource.yaml

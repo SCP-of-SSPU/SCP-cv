@@ -1,0 +1,27 @@
+get:
+  tags:
+    - sources
+  summary: 获取媒体源列表
+  operationId: listSources
+  parameters:
+    - in: query
+      name: source_type
+      schema:
+        $ref: ../components/schemas/SourceType.yaml
+      required: false
+      description: 按媒体类型筛选
+    - in: query
+      name: folder_id
+      schema:
+        type: integer
+      required: false
+      description: 按文件夹筛选，`-1` 表示根目录
+  responses:
+    '200':
+      description: 成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/SourcesResponse.yaml
+    '401':
+      $ref: ../components/responses/ErrorResponse.yaml

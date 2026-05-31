@@ -1,0 +1,14 @@
+post:
+  tags:
+    - runtime
+  summary: 请求主控进程关闭系统
+  operationId: shutdownSystem
+  responses:
+    '200':
+      description: 请求已发送
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ShutdownResponse.yaml
+    '401':
+      $ref: ../components/responses/ErrorResponse.yaml

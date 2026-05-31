@@ -1,0 +1,20 @@
+type: object
+required:
+  - source_id
+properties:
+  source_id:
+    type: integer
+    minimum: 1
+  media_source_id:
+    type: integer
+    minimum: 1
+    description: 兼容旧字段名
+  autoplay:
+    type: boolean
+    default: true
+  ppt_backend:
+    $ref: ./PptBackend.yaml
+  target_slide:
+    type: integer
+    minimum: 1
+    description: PPT 打开后自动跳转的页码；非 PPT 源忽略

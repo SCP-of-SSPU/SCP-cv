@@ -1,0 +1,15 @@
+type: object
+required:
+  - page_index
+properties:
+  page_index:
+    type: integer
+    minimum: 1
+  slide_image:
+    type: string
+  speaker_notes:
+    type: string
+  media_items:
+    type: array
+    items:
+      $ref: ./MediaItem.yaml

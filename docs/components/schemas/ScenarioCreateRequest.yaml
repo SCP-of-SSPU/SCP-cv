@@ -1,0 +1,23 @@
+type: object
+required:
+  - name
+properties:
+  name:
+    type: string
+  description:
+    type: string
+  big_screen_mode_state:
+    $ref: ./SourceState.yaml
+  big_screen_mode:
+    $ref: ./BigScreenMode.yaml
+  volume_state:
+    $ref: ./SourceState.yaml
+  volume_level:
+    type: integer
+    minimum: 0
+    maximum: 100
+    default: 100
+  targets:
+    type: array
+    items:
+      $ref: ./ScenarioTargetInput.yaml

@@ -1,0 +1,6 @@
+type: object
+required:
+  - big_screen_mode
+properties:
+  big_screen_mode:
+    $ref: ./BigScreenMode.yaml

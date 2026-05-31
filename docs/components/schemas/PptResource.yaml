@@ -1,0 +1,33 @@
+type: object
+required:
+  - id
+  - source_id
+  - page_index
+  - slide_image
+  - next_slide_image
+  - speaker_notes
+  - has_media
+  - media_items
+  - created_at
+properties:
+  id:
+    type: integer
+  source_id:
+    type: integer
+  page_index:
+    type: integer
+  slide_image:
+    type: string
+  next_slide_image:
+    type: string
+  speaker_notes:
+    type: string
+  has_media:
+    type: boolean
+  media_items:
+    type: array
+    items:
+      $ref: ./MediaItem.yaml
+  created_at:
+    type: string
+    format: date-time

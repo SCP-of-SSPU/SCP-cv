@@ -1,0 +1,18 @@
+type: object
+required:
+  - level
+  - muted
+  - system_synced
+  - backend
+properties:
+  level:
+    type: integer
+    minimum: 0
+    maximum: 100
+  muted:
+    type: boolean
+  system_synced:
+    type: boolean
+  backend:
+    type: string
+    example: windows_core_audio

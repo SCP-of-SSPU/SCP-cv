@@ -85,6 +85,65 @@ def int_value(body: dict[str, Any], field_name: str, default: int = 0) -> int:
         return default
 
 
+def float_value(body: dict[str, Any], field_name: str, default: float = 0.0) -> float:
+    """
+    从请求体提取浮点数。
+    :param body: JSON 请求体
+    :param field_name: 字段名
+    :param default: 缺省值
+    :return: 浮点数
+    """
+    if field_name not in body:
+        return default
+    raw_value = body[field_name]
+    try:
+        return float(raw_value)
+    except (TypeError, ValueError) as parse_error:
+        raise ValueError(f"{field_name} 必须是数字") from parse_error
+
+
+def int_list_value(body: dict[str, Any], field_name: str) -> list[int] | None:
+    """
+    从请求体提取整数列表。
+    :param body: JSON 请求体
+    :param field_name: 字段名
+    :return: 整数列表或 None
+    """
+    if field_name not in body:
+        return None
+    raw_value = body[field_name]
+    if not isinstance(raw_value, list):
+        raise ValueError(f"{field_name} 必须是整数列表")
+    parsed: list[int] = []
+    for item in raw_value:
+        try:
+            parsed.append(int(item))
+        except (TypeError, ValueError) as parse_error:
+            raise ValueError(f"{field_name} 包含非法整数：{item}") from parse_error
+    return parsed
+
+
+def int_mapping_value(body: dict[str, Any], field_name: str) -> dict[str, int]:
+    """
+    从请求体提取字符串到整数的映射。
+    :param body: JSON 请求体
+    :param field_name: 字段名
+    :return: 解析后的映射
+    """
+    if field_name not in body:
+        return {}
+    raw_value = body[field_name]
+    if not isinstance(raw_value, dict):
+        raise ValueError(f"{field_name} 必须是对象")
+    parsed: dict[str, int] = {}
+    for key, value in raw_value.items():
+        try:
+            parsed[str(key)] = int(value)
+        except (TypeError, ValueError) as parse_error:
+            raise ValueError(f"{field_name}.{key} 必须是整数") from parse_error
+    return parsed
+
+
 def bool_value(body: dict[str, Any], field_name: str, default: bool = False) -> bool:
     """
     从请求体提取布尔值，兼容字符串表单值。

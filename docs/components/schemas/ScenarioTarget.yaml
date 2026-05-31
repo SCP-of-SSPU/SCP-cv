@@ -1,0 +1,22 @@
+type: object
+required:
+  - window_id
+  - source_state
+  - autoplay
+  - resume
+properties:
+  window_id:
+    type: integer
+    minimum: 1
+    maximum: 4
+  source_state:
+    $ref: ./SourceState.yaml
+  source_id:
+    type: integer
+    nullable: true
+  source_name:
+    type: string
+  autoplay:
+    type: boolean
+  resume:
+    type: boolean

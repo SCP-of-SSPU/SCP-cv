@@ -1,0 +1,36 @@
+parameters:
+  - $ref: ../components/parameters/SourceId.yaml
+get:
+  tags:
+    - sources
+  summary: 获取 PPT 页资源
+  operationId: listPptResources
+  responses:
+    '200':
+      description: 成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/PptResourcesResponse.yaml
+    '400':
+      $ref: ../components/responses/ErrorResponse.yaml
+put:
+  tags:
+    - sources
+  summary: 覆盖保存 PPT 页资源
+  operationId: replacePptResources
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: ../components/schemas/PptResourcesReplaceRequest.yaml
+  responses:
+    '200':
+      description: 保存成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/PptResourcesResponse.yaml
+    '400':
+      $ref: ../components/responses/ErrorResponse.yaml

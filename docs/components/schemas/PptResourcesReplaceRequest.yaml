@@ -1,0 +1,8 @@
+type: object
+required:
+  - resources
+properties:
+  resources:
+    type: array
+    items:
+      $ref: ./PptResourceInput.yaml

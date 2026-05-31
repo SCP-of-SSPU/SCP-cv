@@ -1,0 +1,8 @@
+type: object
+properties:
+  level:
+    type: integer
+    minimum: 0
+    maximum: 100
+  muted:
+    type: boolean

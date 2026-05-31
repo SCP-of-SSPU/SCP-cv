@@ -1,0 +1,38 @@
+type: object
+required:
+  - window_id
+  - source_type
+  - source_id
+  - source_name
+  - status
+  - open_elapsed
+  - close_elapsed
+  - error_message
+  - open_error
+  - close_error
+properties:
+  window_id:
+    type: integer
+  source_type:
+    $ref: ./SourceType.yaml
+  source_id:
+    type: integer
+  source_name:
+    type: string
+  status:
+    type: string
+    enum:
+      - ok
+      - failed
+  open_elapsed:
+    type: number
+    format: float
+  close_elapsed:
+    type: number
+    format: float
+  error_message:
+    type: string
+  open_error:
+    type: string
+  close_error:
+    type: string

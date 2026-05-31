@@ -1,0 +1,8 @@
+allOf:
+  - $ref: ./SuccessResponse.yaml
+  - type: object
+    required:
+      - source
+    properties:
+      source:
+        $ref: ./MediaSource.yaml

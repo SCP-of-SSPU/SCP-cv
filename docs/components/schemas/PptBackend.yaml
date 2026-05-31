@@ -1,0 +1,6 @@
+type: string
+enum:
+  - libreoffice
+  - powerpoint
+  - wps
+description: PPT 放映后端。WPS 演示为显式选择，不会从其他后端失败后隐式兜底。

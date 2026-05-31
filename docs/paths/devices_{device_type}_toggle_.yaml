@@ -1,0 +1,16 @@
+parameters:
+  - $ref: ../components/parameters/DeviceType.yaml
+post:
+  tags:
+    - devices
+  summary: 切换设备电源状态
+  operationId: toggleDevice
+  responses:
+    '200':
+      description: 操作成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/DeviceResponse.yaml
+    '404':
+      $ref: ../components/responses/ErrorResponse.yaml

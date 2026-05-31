@@ -1,0 +1,14 @@
+get:
+  tags:
+    - devices
+  summary: 获取可控设备定义
+  operationId: listDevices
+  responses:
+    '200':
+      description: 成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/DevicesResponse.yaml
+    '401':
+      $ref: ../components/responses/ErrorResponse.yaml

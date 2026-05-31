@@ -1,0 +1,12 @@
+type: object
+required:
+  - total
+  - passed
+  - failed
+properties:
+  total:
+    type: integer
+  passed:
+    type: integer
+  failed:
+    type: integer

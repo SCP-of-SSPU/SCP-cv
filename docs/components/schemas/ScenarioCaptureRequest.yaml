@@ -1,0 +1,12 @@
+type: object
+required:
+  - name
+properties:
+  name:
+    type: string
+  description:
+    type: string
+  scenario_id:
+    type: integer
+    nullable: true
+    description: 传入时覆盖已有预案

@@ -1,0 +1,13 @@
+allOf:
+  - $ref: ./SuccessResponse.yaml
+  - type: object
+    required:
+      - runtime
+      - sessions
+    properties:
+      runtime:
+        $ref: ./RuntimeSnapshot.yaml
+      sessions:
+        type: array
+        items:
+          $ref: ./SessionSnapshot.yaml

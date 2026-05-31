@@ -1,0 +1,36 @@
+parameters:
+  - $ref: ../components/parameters/FolderId.yaml
+patch:
+  tags:
+    - folders
+  summary: 更新媒体文件夹
+  operationId: updateFolder
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: ../components/schemas/FolderUpdateRequest.yaml
+  responses:
+    '200':
+      description: 更新成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/FolderResponse.yaml
+    '400':
+      $ref: ../components/responses/ErrorResponse.yaml
+delete:
+  tags:
+    - folders
+  summary: 删除媒体文件夹
+  operationId: deleteFolder
+  responses:
+    '200':
+      description: 删除成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/SuccessResponse.yaml
+    '404':
+      $ref: ../components/responses/ErrorResponse.yaml
