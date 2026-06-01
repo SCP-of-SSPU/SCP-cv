@@ -22,9 +22,15 @@ class MediaError(Exception):
 # 源类型与文件扩展名映射集中放置，避免上传、本地注册和测试各自维护一份判断逻辑。
 _EXTENSION_SOURCE_TYPE_MAP: dict[str, str] = {
     ".pptx": SourceType.PPT,
+    ".pptm": SourceType.PPT,
     ".ppt": SourceType.PPT,
+    ".potx": SourceType.PPT,
+    ".potm": SourceType.PPT,
+    ".pot": SourceType.PPT,
     ".ppsx": SourceType.PPT,
+    ".ppsm": SourceType.PPT,
     ".pps": SourceType.PPT,
+    ".odp": SourceType.PPT,
     ".mp4": SourceType.VIDEO,
     ".mkv": SourceType.VIDEO,
     ".avi": SourceType.VIDEO,

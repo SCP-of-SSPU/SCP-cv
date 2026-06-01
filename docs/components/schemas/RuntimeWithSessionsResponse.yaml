@@ -4,6 +4,7 @@ allOf:
     required:
       - runtime
       - sessions
+      - background_audio
     properties:
       runtime:
         $ref: ./RuntimeSnapshot.yaml
@@ -11,3 +12,5 @@ allOf:
         type: array
         items:
           $ref: ./SessionSnapshot.yaml
+      background_audio:
+        $ref: ./BackgroundAudioSnapshot.yaml

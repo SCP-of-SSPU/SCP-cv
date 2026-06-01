@@ -25,8 +25,11 @@ import os
 import time
 from pathlib import Path
 
+from django.conf import settings
+
 from scp_cv.player.adapters.base import AdapterState, SourceAdapter
 from scp_cv.player.gpu_detector import get_vlc_gpu_options
+from scp_cv.player.preheat_types import PreheatedStreamSource
 
 logger = logging.getLogger(__name__)
 
@@ -101,14 +104,16 @@ def _build_vlc_instance_args() -> list[str]:
     instance_args = [
         "--no-video-title-show",
         "--no-snapshot-preview",
-        "--network-caching=50",
-        "--live-caching=50",
-        "--file-caching=0",
-        "--clock-jitter=0",
-        "--clock-synchro=0",
-        "--drop-late-frames",
-        "--skip-frames",
+        f"--network-caching={int(getattr(settings, 'STREAM_VLC_NETWORK_CACHING_MS', 50))}",
+        f"--live-caching={int(getattr(settings, 'STREAM_VLC_LIVE_CACHING_MS', 50))}",
+        f"--file-caching={int(getattr(settings, 'STREAM_VLC_FILE_CACHING_MS', 0))}",
+        f"--clock-jitter={int(getattr(settings, 'STREAM_VLC_CLOCK_JITTER', 0))}",
+        f"--clock-synchro={int(getattr(settings, 'STREAM_VLC_CLOCK_SYNCHRO', 0))}",
     ]
+    if bool(getattr(settings, "STREAM_VLC_DROP_LATE_FRAMES", True)):
+        instance_args.append("--drop-late-frames")
+    if bool(getattr(settings, "STREAM_VLC_SKIP_FRAMES", True)):
+        instance_args.append("--skip-frames")
 
     instance_args.extend(get_vlc_gpu_options())
     return instance_args
@@ -119,14 +124,29 @@ def _build_srt_media_options() -> list[str]:
     生成 SRT 直播源媒体级参数。
     :return: 可传给 media.add_option() 的参数列表
     """
-    return [
-        ":network-caching=50",
-        ":live-caching=50",
-        ":clock-jitter=0",
-        ":clock-synchro=0",
-        ":drop-late-frames",
-        ":skip-frames",
+    media_options = [
+        f":network-caching={int(getattr(settings, 'STREAM_VLC_NETWORK_CACHING_MS', 50))}",
+        f":live-caching={int(getattr(settings, 'STREAM_VLC_LIVE_CACHING_MS', 50))}",
+        f":clock-jitter={int(getattr(settings, 'STREAM_VLC_CLOCK_JITTER', 0))}",
+        f":clock-synchro={int(getattr(settings, 'STREAM_VLC_CLOCK_SYNCHRO', 0))}",
+        *([":drop-late-frames"] if bool(getattr(settings, "STREAM_VLC_DROP_LATE_FRAMES", True)) else []),
+        *([":skip-frames"] if bool(getattr(settings, "STREAM_VLC_SKIP_FRAMES", True)) else []),
     ]
+    media_options.extend(_rtsp_transport_options())
+    return media_options
+
+
+def _rtsp_transport_options() -> list[str]:
+    """
+    根据配置生成 RTSP 传输方式参数。
+    :return: libVLC media options
+    """
+    transport = str(getattr(settings, "MEDIAMTX_RTSP_READ_TRANSPORT", "tcp") or "").strip().lower()
+    if transport == "tcp":
+        return [":rtsp-tcp"]
+    if transport == "udp":
+        return [":rtsp-udp"]
+    return []
 
 
 class SrtStreamAdapter(SourceAdapter):
@@ -155,6 +175,26 @@ class SrtStreamAdapter(SourceAdapter):
         self._error_message: str = ""
         self._opened_at_monotonic: float = 0.0
         self._last_error_at_monotonic: float = 0.0
+        self._source_id = 0
+        self._preheat_enabled = False
+        self._preheat_pool: object | None = None
+
+    def set_preheat_context(
+        self,
+        source_id: int,
+        preheat_enabled: bool,
+        preheat_pool: object | None,
+    ) -> None:
+        """
+        注入直播 URI 级预热上下文。
+        :param source_id: 媒体源 ID
+        :param preheat_enabled: 是否启用预热
+        :param preheat_pool: 统一预热池
+        :return: None
+        """
+        self._source_id = source_id
+        self._preheat_enabled = preheat_enabled
+        self._preheat_pool = preheat_pool
 
     def open(self, uri: str, window_handle: int, autoplay: bool = True) -> None:
         """
@@ -176,14 +216,20 @@ class SrtStreamAdapter(SourceAdapter):
         self._opened_at_monotonic = time.monotonic()
         self._last_error_at_monotonic = 0.0
 
-        vlc_args = _build_vlc_instance_args()
-        self._instance = vlc.Instance(vlc_args)
-        if self._instance is None:
-            raise RuntimeError("libVLC 实例创建失败")
+        if not self._take_preheated_stream(uri):
+            vlc_args = _build_vlc_instance_args()
+            self._instance = vlc.Instance(vlc_args)
+            if self._instance is None:
+                raise RuntimeError("libVLC 实例创建失败")
 
-        self._player = self._instance.media_player_new()
-        if self._player is None:
-            raise RuntimeError("libVLC 播放器创建失败")
+            self._player = self._instance.media_player_new()
+            if self._player is None:
+                raise RuntimeError("libVLC 播放器创建失败")
+
+            self._media = self._instance.media_new(uri)
+            for media_option in _build_srt_media_options():
+                self._media.add_option(media_option)
+            self._player.set_media(self._media)
 
         # Windows 下将 libVLC 渲染输出嵌入 Qt QWidget 对应的 HWND。
         set_hwnd = getattr(self._player, "set_hwnd", None)
@@ -191,11 +237,10 @@ class SrtStreamAdapter(SourceAdapter):
             set_hwnd(window_handle)
         else:
             self._logger.warning("当前 libVLC 绑定不支持 set_hwnd，无法嵌入窗口")
+        audio_set_mute = getattr(self._player, "audio_set_mute", None)
+        if callable(audio_set_mute):
+            audio_set_mute(False)
 
-        self._media = self._instance.media_new(uri)
-        for media_option in _build_srt_media_options():
-            self._media.add_option(media_option)
-        self._player.set_media(self._media)
         self._register_player_events()
 
         self._mark_open()
@@ -204,6 +249,26 @@ class SrtStreamAdapter(SourceAdapter):
         if autoplay:
             self.play()
             self._logger.info("SRT 流正在连接播放")
+
+    def _take_preheated_stream(self, uri: str) -> bool:
+        """
+        认领统一预热池中的直播资源。
+        :param uri: 直播 URI
+        :return: True 表示已复用预热资源
+        """
+        if not self._preheat_enabled or self._preheat_pool is None or self._source_id <= 0:
+            return False
+        take_stream = getattr(self._preheat_pool, "take_stream", None)
+        if not callable(take_stream):
+            return False
+        preheated = take_stream(self._source_id, uri)
+        if not isinstance(preheated, PreheatedStreamSource):
+            return False
+        self._instance = preheated.instance
+        self._player = preheated.player
+        self._media = preheated.media
+        self._logger.info("SRT/RTSP 流复用预热连接：source_id=%d", self._source_id)
+        return True
 
     def _register_player_events(self) -> None:
         """注册 libVLC 播放状态事件，用于同步连接与错误状态。"""

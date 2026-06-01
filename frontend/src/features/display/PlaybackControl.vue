@@ -2,7 +2,7 @@
 /**
  * 单窗口播放控制条：按 source_type 渲染不同分支
  *  - PPT：上一页 / 下一页 / 跳页 / PPT 进度条 / 当前页媒体子表
- *  - video：播放暂停停止 / 循环 / Seek（旧 audio 会话亦回退到本分支）
+ *  - video：播放暂停停止 / 循环 / Seek
  *  - image / web：仅展示 URI + 关闭按钮
  *  - *_stream：直播状态 Tag + URI（无 Seek）
  *
@@ -62,7 +62,7 @@ const stateType = computed<NTagType>(() => {
 });
 
 const jumpInput = ref<string>('');
-const selectedPptBackend = ref<PptBackend>('libreoffice');
+const selectedPptBackend = ref<PptBackend>('powerpoint');
 
 watch(
   () => props.session.current_slide,
@@ -77,14 +77,14 @@ watch(
 watch(
   () => props.session.ppt_backend,
   (backend) => {
-    selectedPptBackend.value = backend || 'libreoffice';
+    selectedPptBackend.value = backend || 'powerpoint';
   },
   { immediate: true },
 );
 
 const pptBackendOptions = computed(() => [
-  { label: t('sources.pptBackend.libreoffice'), value: 'libreoffice' },
   { label: t('sources.pptBackend.powerpoint'), value: 'powerpoint' },
+  { label: t('sources.pptBackend.libreoffice'), value: 'libreoffice' },
   { label: t('sources.pptBackend.wps'), value: 'wps' },
 ]);
 
@@ -154,7 +154,7 @@ function onClose(): void {
 }
 
 async function onPptBackendChange(nextBackend: PptBackend): Promise<void> {
-  const previousBackend = props.session.ppt_backend || 'libreoffice';
+  const previousBackend = props.session.ppt_backend || 'powerpoint';
   if (nextBackend === previousBackend) return;
   const backendLabel = pptBackendLabel(nextBackend);
   const confirmed = await dialog.confirm({
@@ -394,7 +394,7 @@ const errorBarDescription = computed(() => {
           :min="0"
           :max="100"
           :aria-label="t('playback.windowVolumeAria')"
-          :disabled="category === 'image' || category === 'web'"
+          :disabled="category === 'audio' || category === 'image' || category === 'web'"
           class="playback-control__seek"
           @update:value="windowVolume.handleInput"
           @dragend="windowVolume.handleChange(windowVolume.value.value)"
@@ -405,7 +405,7 @@ const errorBarDescription = computed(() => {
           <span>{{ t('playback.windowMute') }}</span>
           <n-switch
             :value="session.is_muted"
-            :disabled="category === 'image' || category === 'web'"
+            :disabled="category === 'audio' || category === 'image' || category === 'web'"
             @update:value="onMuteToggle"
           />
         </div>

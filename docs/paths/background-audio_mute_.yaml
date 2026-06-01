@@ -1,0 +1,20 @@
+patch:
+  tags:
+    - background-audio
+  summary: 设置背景音乐静音
+  operationId: setBackgroundAudioMute
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: ../components/schemas/BackgroundAudioMuteRequest.yaml
+  responses:
+    '200':
+      description: 静音状态已更新
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/BackgroundAudioResponse.yaml
+    '400':
+      $ref: ../components/responses/ErrorResponse.yaml

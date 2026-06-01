@@ -1,0 +1,17 @@
+type: object
+required:
+  - action
+properties:
+  action:
+    type: string
+    enum:
+      - play
+      - pause
+      - stop
+      - next
+      - prev
+      - seek
+  position_ms:
+    type: integer
+    minimum: 0
+    description: action=seek 时使用的目标位置毫秒

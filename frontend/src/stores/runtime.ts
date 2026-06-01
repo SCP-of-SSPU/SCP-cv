@@ -6,8 +6,9 @@
  */
 import { defineStore } from 'pinia';
 
-import { api, type RuntimeSnapshot, type SessionSnapshot, buildBackendUrl } from '@/services/api';
+import { api, type BackgroundAudioSnapshot, type RuntimeSnapshot, type SessionSnapshot, buildBackendUrl } from '@/services/api';
 import { t } from '@/locales';
+import { useBackgroundAudioStore } from './backgroundAudio';
 import { useSessionStore } from './sessions';
 
 interface SystemVolumeState {
@@ -77,6 +78,9 @@ export const useRuntimeStore = defineStore('runtime', {
       const payload = await api.setRuntimeMode(mode);
       this.runtime = payload.runtime;
       useSessionStore().applyRemoteSessions(payload.sessions);
+      if (payload.background_audio) {
+        useBackgroundAudioStore().applyRemoteSnapshot(payload.background_audio);
+      }
     },
     /** 设置系统音量；后端可能返回未同步标记（无 Windows Core Audio 时）。 */
     async setSystemVolume(level: number, muted?: boolean): Promise<void> {
@@ -107,6 +111,7 @@ export const useRuntimeStore = defineStore('runtime', {
         this.sseStatus = 'reconnecting';
         // 服务器异常时按 fallback 抓一次 sessions，避免页面状态长时间漂移。
         void useSessionStore().refresh().catch(() => undefined);
+        void useBackgroundAudioStore().refresh().catch(() => undefined);
         if (source.readyState === EventSource.CLOSED && this._reconnectTimer === null) {
           this._reconnectTimer = window.setTimeout(() => {
             this._reconnectTimer = null;
@@ -117,9 +122,15 @@ export const useRuntimeStore = defineStore('runtime', {
 
       source.addEventListener('playback_state', (event: MessageEvent): void => {
         try {
-          const payload = JSON.parse(event.data) as { sessions?: SessionSnapshot[] };
+          const payload = JSON.parse(event.data) as {
+            sessions?: SessionSnapshot[];
+            background_audio?: BackgroundAudioSnapshot;
+          };
           if (Array.isArray(payload.sessions)) {
             useSessionStore().applyRemoteSessions(payload.sessions);
+          }
+          if (payload.background_audio) {
+            useBackgroundAudioStore().applyRemoteSnapshot(payload.background_audio);
           }
           this.sseLastUpdate = Date.now();
         } catch {

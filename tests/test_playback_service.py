@@ -10,6 +10,7 @@
 '''
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -38,6 +39,7 @@ from scp_cv.services.playback import (
     switch_ppt_backend,
     update_playback_progress,
 )
+from scp_cv.services.ppt_playback_cache import PPT_PLAYBACK_METADATA_KEY
 from scp_cv.services.video_wall import VideoWallError
 
 
@@ -140,8 +142,30 @@ class TestOpenSource:
         assert session.command_args["source_id"] == media_source_ppt.pk
         assert session.command_args["source_type"] == "ppt"
         assert session.command_args["uri"] == media_source_ppt.uri
+        assert session.command_args["original_uri"] == media_source_ppt.uri
         assert session.command_args["autoplay"] is True
-        assert session.command_args["ppt_backend"] == "libreoffice"
+        assert session.command_args["ppt_backend"] == "powerpoint"
+
+    def test_open_ppt_uses_ready_playback_cache(
+        self,
+        media_source_ppt: MediaSource,
+        tmp_path: Path,
+    ) -> None:
+        """已有放映缓存时打开 PPT 应优先下发缓存 URI，并保留 original_uri。"""
+        cached_file = tmp_path / "cached.ppsx"
+        cached_file.write_bytes(b"cached-show")
+        media_source_ppt.metadata = {
+            PPT_PLAYBACK_METADATA_KEY: {
+                "status": "ready",
+                "path": str(cached_file),
+            },
+        }
+        media_source_ppt.save(update_fields=["metadata"])
+
+        session = open_source(1, media_source_ppt.pk)
+
+        assert session.command_args["uri"] == str(cached_file)
+        assert session.command_args["original_uri"] == media_source_ppt.uri
 
     def test_open_ppt_with_selected_powerpoint(self, media_source_ppt: MediaSource) -> None:
         """打开 PPT 时可临时选择 PowerPoint 后端。"""
@@ -169,6 +193,11 @@ class TestOpenSource:
         """打开不存在的源 id 应抛出 PlaybackError。"""
         with pytest.raises(PlaybackError, match="不存在"):
             open_source(1, 99999)
+
+    def test_open_audio_source_raises(self, media_source_audio: MediaSource) -> None:
+        """音频源不允许打开到 1-4 号窗口。"""
+        with pytest.raises(PlaybackError, match="背景音乐"):
+            open_source(1, media_source_audio.pk)
 
     def test_open_resets_previous_state(
         self, media_source_ppt: MediaSource, media_source_video: MediaSource,
@@ -419,6 +448,32 @@ class TestPptBackendOperations:
         assert restart_sessions[0]["source_id"] == media_source_ppt.pk
         assert restart_sessions[0]["ppt_backend"] == "wps"
         assert restart_sessions[0]["target_slide"] == 5
+
+    def test_reset_ppt_playback_uses_ready_playback_cache(
+        self,
+        media_source_ppt: MediaSource,
+        tmp_path: Path,
+    ) -> None:
+        """重置 PPT 放映时重启参数应继续使用放映缓存 URI。"""
+        cached_file = tmp_path / "cached.ppsx"
+        cached_file.write_bytes(b"cached-show")
+        media_source_ppt.metadata = {
+            PPT_PLAYBACK_METADATA_KEY: {
+                "status": "ready",
+                "path": str(cached_file),
+            },
+        }
+        media_source_ppt.save(update_fields=["metadata"])
+        open_source(1, media_source_ppt.pk)
+        update_playback_progress(1, current_slide=2, total_slides=5)
+        clear_pending_command(1)
+
+        reset_ppt_playback()
+        session = get_or_create_session(1)
+        restart_args = session.command_args["restart_sessions"][0]
+
+        assert restart_args["uri"] == str(cached_file)
+        assert restart_args["original_uri"] == media_source_ppt.uri
 
 
 # ══════════════════════════════════════════════════════════════

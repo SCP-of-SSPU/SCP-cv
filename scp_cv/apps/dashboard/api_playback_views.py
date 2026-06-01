@@ -35,6 +35,7 @@ from scp_cv.services.physical_smoke import (
     PhysicalSmokeError,
     run_physical_smoke_test,
 )
+from scp_cv.services.background_audio_payloads import get_background_audio_snapshot
 from scp_cv.services.playback import (
     VALID_WINDOW_IDS,
     PlaybackError,
@@ -303,7 +304,12 @@ def runtime_state_api(request: HttpRequest) -> JsonResponse:
     except PlaybackError as playback_error:
         return error_response(str(playback_error), code="playback_error")
     sessions = get_all_sessions_snapshot()
-    return json_response({"success": True, "runtime": runtime, "sessions": sessions})
+    return json_response({
+        "success": True,
+        "runtime": runtime,
+        "sessions": sessions,
+        "background_audio": get_background_audio_snapshot(),
+    })
 
 
 @csrf_exempt

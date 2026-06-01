@@ -3,8 +3,8 @@ post:
     - playback
   summary: 运行本机四屏物理冒烟测试
   description: >-
-    真实下发 1-4 号窗口播放、关闭与 reset-all 指令，逐个验证图片、视频、音频、网页、PPT、SRT、RTSP
-    和自定义流。该接口会占用现场输出窗口并可能播放音频。
+    真实下发 1-4 号窗口播放、关闭与 reset-all 指令，逐个验证图片、视频、网页、PPT、SRT、RTSP
+    和自定义流；audio 源通过背景音乐通道单独验证。该接口会占用现场输出窗口并可能播放音频。
   operationId: runPhysicalSmoke
   requestBody:
     required: false

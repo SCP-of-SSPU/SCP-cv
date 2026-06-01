@@ -1,0 +1,21 @@
+parameters:
+  - in: path
+    name: item_id
+    required: true
+    schema:
+      type: integer
+      minimum: 1
+post:
+  tags:
+    - background-audio
+  summary: 播放背景音乐列表项
+  operationId: playBackgroundAudioItem
+  responses:
+    '200':
+      description: 已下发打开并播放指令
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/BackgroundAudioResponse.yaml
+    '404':
+      $ref: ../components/responses/ErrorResponse.yaml

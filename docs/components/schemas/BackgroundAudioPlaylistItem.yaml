@@ -1,0 +1,22 @@
+type: object
+required:
+  - id
+  - source_id
+  - source_name
+  - sort_order
+  - created_at
+  - source
+properties:
+  id:
+    type: integer
+  source_id:
+    type: integer
+  source_name:
+    type: string
+  sort_order:
+    type: integer
+  created_at:
+    type: string
+    format: date-time
+  source:
+    $ref: ./MediaSource.yaml

@@ -450,19 +450,18 @@ def test_handle_open_stops_stream_preheat_when_reuse_disabled(monkeypatch: pytes
     adapter = _OpenAdapter()
     window = _WindowStub()
     states: list[tuple[int, str]] = []
-    before_open_calls: list[tuple[int, str]] = []
+    stop_stream_calls: list[int] = []
 
     class _FakePreheatPool:
-        """记录 before_open 调用的预热池替身。"""
+        """记录直播预热停止调用的预热池替身。"""
 
-        def before_open(self, source_id: int, source_type: str) -> None:
+        def stop_stream_preheat(self, source_id: int) -> None:
             """
             记录前台打开前释放竞争资源。
             :param source_id: 媒体源 ID
-            :param source_type: 媒体源类型
             :return: None
             """
-            before_open_calls.append((source_id, source_type))
+            stop_stream_calls.append(source_id)
 
     monkeypatch.setattr("scp_cv.player.controller_handlers.create_adapter", lambda *_args, **_kwargs: adapter)
     monkeypatch.setattr(controller, "get_window_handle", lambda _window_id: 2001)
@@ -478,7 +477,7 @@ def test_handle_open_stops_stream_preheat_when_reuse_disabled(monkeypatch: pytes
         "preheat_enabled": False,
     })
 
-    assert before_open_calls == [(9, "srt_stream")]
+    assert stop_stream_calls == [9]
     assert states == [(1, "loading")]
     assert window.calls == ["black", "show", "raise", "video"]
 

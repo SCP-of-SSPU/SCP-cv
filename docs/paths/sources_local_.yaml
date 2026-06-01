@@ -2,6 +2,7 @@ post:
   tags:
     - sources
   summary: 通过本地路径创建媒体源
+  description: 本地 PPT/PPS/POT/ODP 文件会默认使用 PowerPoint，并尝试生成播放专用 `.ppsx`/`.pps` 缓存；生成失败不阻断媒体源创建，播放时回退原始文件。
   operationId: addLocalSource
   requestBody:
     required: true

@@ -5,27 +5,24 @@
  *   - 不再支持「文件夹」概念；
  *   - 直播源聚合 srt_stream / rtsp_stream / custom_stream 三种 source_type；
  *   - UI 只暴露「上传文件 / 网页」两种添加入口；
- *   - 不再向 UI 展示「音频源」。后端 SourceType 仍保留 audio 作为兼容枚举，
- *     但 store 在写入前会把 audio 源过滤掉，使其不出现在列表 / 选择器 / 预案下拉中；
- *     已存在的 audio 会话回退用「视频」分支控制条，避免 UI 崩坏。
+ *   - audio 源作为背景音乐入口展示，不再复用窗口播放控制。
  */
 import { defineStore } from 'pinia';
 
 import { api, type MediaSourceItem, type MediaSourceUpdate, type PptBackend, type UploadOptions } from '@/services/api';
 
 /** UI 可视的源大类；与后端 source_type 不一一映射，直播由前端聚合。 */
-export type SourceCategory = 'all' | 'ppt' | 'video' | 'image' | 'web' | 'stream';
+export type SourceCategory = 'all' | 'ppt' | 'video' | 'audio' | 'image' | 'web' | 'stream';
 
 /**
  * 后端真实 source_type 字段映射到前端大类的策略。
- * 注意：`audio` 没有独立 UI 大类，统一并入 `video` 分支以确保已存在的 audio 会话
- *      仍能套用「视频/音频控制」UI；列表层面会在 sources getter 之外把 audio 源过滤掉。
+ * 注意：`audio` 有独立背景音乐大类，不再出现在窗口打开动作里。
  */
 const SOURCE_TYPE_TO_CATEGORY: Record<string, SourceCategory> = {
   ppt: 'ppt',
   video: 'video',
   image: 'image',
-  audio: 'video',
+  audio: 'audio',
   web: 'web',
   srt_stream: 'stream',
   rtsp_stream: 'stream',
@@ -34,12 +31,11 @@ const SOURCE_TYPE_TO_CATEGORY: Record<string, SourceCategory> = {
 
 /**
  * 判断后端返回的源是否对 UI 可见。
- * 设计稿要求不再展示音频源；audio source_type 直接被过滤掉。
  * @param source 后端返回的媒体源
  * @return 是否纳入 store 展示列表
  */
 function isVisibleSource(source: MediaSourceItem): boolean {
-  return source.source_type !== 'audio';
+  return Boolean(source.source_type);
 }
 
 interface SourceState {
@@ -63,6 +59,7 @@ export const useSourceStore = defineStore('sources', {
         all: state.sources.length,
         ppt: 0,
         video: 0,
+        audio: 0,
         image: 0,
         web: 0,
         stream: 0,
@@ -110,7 +107,7 @@ export const useSourceStore = defineStore('sources', {
     },
     async refresh(): Promise<void> {
       const payload = await api.listSources('', null);
-      // 设计稿外延：UI 不再展示音频源；后端如返回 audio 类型源也一并过滤。
+      // 背景音乐功能启用后，audio 源保留在列表中并进入独立大类。
       this.sources = payload.sources.filter(isVisibleSource);
     },
     /** 上传源；支持「上传但不保存（is_temporary）」/「上传并保存」两种语义。 */
@@ -124,7 +121,6 @@ export const useSourceStore = defineStore('sources', {
       const uploadOptions: UploadOptions = options.onProgress ? { onProgress: options.onProgress } : {};
       const payload = await api.uploadSource(formData, uploadOptions);
       // 仅持久源加入列表；临时源不入列表（避免出现在管理页）。
-      // 同时过滤 audio：即便用户上传了 .mp3，UI 也不展示。
       if (!options.isTemporary && isVisibleSource(payload.source)) {
         this.sources = [payload.source, ...this.sources];
       }

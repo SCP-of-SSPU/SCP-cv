@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 from .enums import (
+    BackgroundAudioCommand,
     BigScreenMode,
     DeviceType,
     PlaybackCommand,
@@ -19,12 +20,16 @@ from .enums import (
     SourceState,
     SourceType,
 )
+from .background_audio import BackgroundAudioPlaylistItem, BackgroundAudioState
 from .media import MediaFolder, MediaSource, PptResource
 from .session import PlaybackSession
 from .scenario_models import Scenario
 from .runtime import RuntimeState
 
 __all__ = [
+    "BackgroundAudioCommand",
+    "BackgroundAudioPlaylistItem",
+    "BackgroundAudioState",
     "BigScreenMode",
     "DeviceType",
     "MediaFolder",

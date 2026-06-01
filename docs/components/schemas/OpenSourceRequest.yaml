@@ -5,6 +5,7 @@ properties:
   source_id:
     type: integer
     minimum: 1
+    description: 目标媒体源 ID；audio 类型源会被拒绝，请使用背景音乐接口播放
   media_source_id:
     type: integer
     minimum: 1
@@ -13,7 +14,9 @@ properties:
     type: boolean
     default: true
   ppt_backend:
-    $ref: ./PptBackend.yaml
+    allOf:
+      - $ref: ./PptBackend.yaml
+    description: 本次打开临时使用的 PPT 后端；不传时使用媒体源默认值，当前新建 PPT 源默认 PowerPoint。
   target_slide:
     type: integer
     minimum: 1

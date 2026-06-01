@@ -1,0 +1,20 @@
+patch:
+  tags:
+    - background-audio
+  summary: 设置背景音乐音量
+  operationId: setBackgroundAudioVolume
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: ../components/schemas/BackgroundAudioVolumeRequest.yaml
+  responses:
+    '200':
+      description: 音量已更新
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/BackgroundAudioResponse.yaml
+    '400':
+      $ref: ../components/responses/ErrorResponse.yaml

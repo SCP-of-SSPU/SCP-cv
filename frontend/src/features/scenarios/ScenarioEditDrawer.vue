@@ -83,6 +83,7 @@ watch(
 const sourceOptionsByCategory = computed<(SelectOption | SelectGroupOption)[]>(() => {
   const groups = new Map<string, MediaSourceItem[]>();
   for (const source of sourceStore.sources) {
+    if (source.source_type === 'audio') continue;
     const cat = sourceStore.resolveCategory(source.source_type);
     const groupLabel = cat === 'ppt' ? t('sources.typeLabel.ppt')
       : cat === 'video' ? t('sources.typeLabel.video')

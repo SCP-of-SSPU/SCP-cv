@@ -13,6 +13,7 @@ required:
 properties:
   window_id:
     type: integer
+    description: 1-4 表示物理播放窗口；0 表示背景音乐通道
   source_type:
     $ref: ./SourceType.yaml
   source_id:

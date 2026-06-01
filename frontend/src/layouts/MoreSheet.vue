@@ -98,6 +98,10 @@ void dialog;
       </n-card>
 
       <n-card size="small" :title="t('more.settings')" class="more-sheet__card">
+        <n-button quaternary block @click="navigate('/background-audio')">
+          <template #icon><FIcon name="music_note_2_24_regular" /></template>
+          {{ t('more.openBackgroundAudio') }}
+        </n-button>
         <n-button quaternary block @click="navigate('/settings')">
           <template #icon><FIcon name="settings_24_regular" /></template>
           {{ t('more.openSettings') }}

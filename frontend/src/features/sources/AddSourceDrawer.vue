@@ -40,7 +40,7 @@ const activeTab = ref<TabId>('file');
 
 const fileToUpload = ref<File | null>(null);
 const fileDisplayName = ref('');
-const filePptBackend = ref<PptBackend>('libreoffice');
+const filePptBackend = ref<PptBackend>('powerpoint');
 const filePreheatEnabled = ref(true);
 const webUrl = ref('');
 const webName = ref('');
@@ -50,10 +50,10 @@ const uploading = ref(false);
 const errorMessage = ref('');
 
 const fileLabel = computed(() => fileToUpload.value?.name ?? t('sources.add.noFile'));
-const isPptFile = computed(() => /\.(pptx?|ppsx?)$/i.test(fileToUpload.value?.name ?? ''));
+const isPptFile = computed(() => /\.(pptx?|pptm|ppsx?|ppsm|potx?|potm|odp)$/i.test(fileToUpload.value?.name ?? ''));
 const pptBackendOptions = computed(() => [
-  { label: t('sources.pptBackend.libreoffice'), value: 'libreoffice' },
   { label: t('sources.pptBackend.powerpoint'), value: 'powerpoint' },
+  { label: t('sources.pptBackend.libreoffice'), value: 'libreoffice' },
   { label: t('sources.pptBackend.wps'), value: 'wps' },
 ]);
 const fileSize = computed(() => {
@@ -81,7 +81,7 @@ function close(): void {
 function reset(): void {
   fileToUpload.value = null;
   fileDisplayName.value = '';
-  filePptBackend.value = 'libreoffice';
+  filePptBackend.value = 'powerpoint';
   filePreheatEnabled.value = true;
   webUrl.value = '';
   webName.value = '';

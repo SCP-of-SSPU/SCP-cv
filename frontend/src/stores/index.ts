@@ -7,6 +7,7 @@ import { t } from '@/locales';
 
 import { useDeviceStore } from './devices';
 import { useDisplayStore } from './displays';
+import { useBackgroundAudioStore } from './backgroundAudio';
 import { useRuntimeStore } from './runtime';
 import { useScenarioStore } from './scenarios';
 import { useSessionStore } from './sessions';
@@ -14,6 +15,7 @@ import { useSourceStore } from './sources';
 
 export {
   useRuntimeStore,
+  useBackgroundAudioStore,
   useSessionStore,
   useSourceStore,
   useScenarioStore,
@@ -31,6 +33,7 @@ export {
  */
 export async function bootstrapStores(): Promise<void> {
   const runtime = useRuntimeStore();
+  const backgroundAudio = useBackgroundAudioStore();
   const session = useSessionStore();
   const source = useSourceStore();
   const scenario = useScenarioStore();
@@ -41,6 +44,7 @@ export async function bootstrapStores(): Promise<void> {
   const tasks = await Promise.allSettled([
     runtime.refresh(),
     runtime.refreshSystemVolume(),
+    backgroundAudio.refresh(),
     session.refresh(),
     source.refresh(),
     scenario.refresh(),

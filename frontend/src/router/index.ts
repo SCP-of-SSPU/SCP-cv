@@ -4,6 +4,7 @@
  *   - / → /dashboard 重定向；
  *   - /display/:target → DisplayControlView；
  *   - /ppt-focus/:windowId → PptFocusView，meta.focus 让 App.vue 替换 Shell；
+ *   - /background-audio → 背景音乐；
  *   - /sources / /scenarios / /settings；
  *   - /about → /settings 重定向；
  *   - 全局守卫：除 meta.public=true 外，未登录一律跳 /login？redirect=...。
@@ -13,6 +14,7 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { t } from '@/locales';
 
 import DashboardView from '@/features/dashboard/DashboardView.vue';
+import BackgroundAudioView from '@/features/backgroundAudio/BackgroundAudioView.vue';
 import DisplayControlView from '@/features/display/DisplayControlView.vue';
 import LoginView from '@/features/auth/LoginView.vue';
 import PptFocusView from '@/features/pptFocus/PptFocusView.vue';
@@ -40,6 +42,7 @@ const routes: RouteRecordRaw[] = [
     meta: { focus: true, titleKey: 'pptFocus.routeTitle' },
   },
   { path: '/sources', component: SourcesView, meta: { titleKey: 'nav.sources' } },
+  { path: '/background-audio', component: BackgroundAudioView, meta: { titleKey: 'backgroundAudio.routeTitle' } },
   { path: '/scenarios', component: ScenariosView, meta: { titleKey: 'nav.scenarios' } },
   { path: '/settings', component: SettingsView, meta: { titleKey: 'nav.settings' } },
   // 兼容旧链接：原 about 内容已并入 settings。

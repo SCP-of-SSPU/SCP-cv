@@ -46,6 +46,20 @@ def media_source_video(db) -> MediaSource:
 
 
 @pytest.fixture
+def media_source_audio(db) -> MediaSource:
+    """
+    创建一个 AUDIO 类型的 MediaSource 测试对象。
+    :return: 已持久化的音频媒体源
+    """
+    return MediaSource.objects.create(
+        source_type=SourceType.AUDIO,
+        name="测试音频",
+        uri="C:/测试/音频.mp3",
+        is_available=True,
+    )
+
+
+@pytest.fixture
 def media_source_unavailable(db) -> MediaSource:
     """
     创建一个不可用的 MediaSource 测试对象。

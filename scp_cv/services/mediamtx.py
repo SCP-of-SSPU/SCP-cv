@@ -33,10 +33,6 @@ _RTSP_PORT = int(getattr(settings, "MEDIAMTX_RTSP_PORT", 8554))
 # SRT 服务端口（与 mediamtx.yml 中 srtAddress 一致）
 _SRT_PORT = int(getattr(settings, "MEDIAMTX_SRT_PORT", 8890))
 
-# OBS/FFmpeg 推流端沿用既有 30000 配置；libVLC 读端按毫秒解释 latency。
-_SRT_PUBLISH_LATENCY = 30000
-_SRT_READ_LATENCY_MS = 50
-
 # MediaMTX 进程引用
 _mediamtx_process: Optional[subprocess.Popen[bytes]] = None
 
@@ -76,7 +72,8 @@ def get_srt_publish_url(stream_identifier: str) -> str:
     :return: SRT 推流 URL
     """
     public_host = _detect_lan_host()
-    return f"srt://{public_host}:{_SRT_PORT}?streamid=publish:{stream_identifier}&latency={_SRT_PUBLISH_LATENCY}"
+    latency_us = int(getattr(settings, "MEDIAMTX_SRT_PUBLISH_LATENCY_US", 30000))
+    return f"srt://{public_host}:{_SRT_PORT}?streamid=publish:{stream_identifier}&latency={latency_us}"
 
 
 def get_srt_read_url(stream_identifier: str) -> str:
@@ -88,13 +85,14 @@ def get_srt_read_url(stream_identifier: str) -> str:
     :return: SRT 拉流 URL
     """
     read_host = _detect_read_host()
-    return f"srt://{read_host}:{_SRT_PORT}?streamid=read:{stream_identifier}&latency={_SRT_READ_LATENCY_MS}"
+    latency_ms = int(getattr(settings, "MEDIAMTX_SRT_READ_LATENCY_MS", 50))
+    return f"srt://{read_host}:{_SRT_PORT}?streamid=read:{stream_identifier}&latency={latency_ms}"
 
 
 def get_rtsp_read_url(stream_identifier: str) -> str:
     """
     获取 RTSP 拉流地址（供播放器通过 RTSP 读取使用）。
-    MediaMTX 自动将 SRT 入流转为 RTSP 供 QMediaPlayer 消费。
+    MediaMTX 自动将 SRT 入流暴露为 RTSP，播放器通过 libVLC 消费。
     :param stream_identifier: 流标识符（路径名）
     :return: RTSP 拉流 URL
     """

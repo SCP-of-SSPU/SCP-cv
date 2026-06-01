@@ -85,7 +85,7 @@ class PlaybackSession(models.Model):
     ppt_backend = models.CharField(
         max_length=24,
         choices=PptPlaybackBackend.choices,
-        default=PptPlaybackBackend.LIBREOFFICE,
+        default=PptPlaybackBackend.POWERPOINT,
         verbose_name="当前 PPT 播放器",
         help_text="记录当前窗口本次 PPT 放映实际使用的播放器。",
     )

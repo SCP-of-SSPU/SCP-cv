@@ -30,6 +30,8 @@ tags:
     description: 播放会话查询
   - name: playback
     description: 窗口播放、切换、重置和物理冒烟测试
+  - name: background-audio
+    description: 背景音乐播放列表、播放控制与状态查询
   - name: runtime
     description: 全局运行态、系统音量与系统关闭请求
   - name: displays
@@ -234,6 +236,7 @@ paths:
       tags:
         - sources
       summary: 上传文件并创建媒体源
+      description: 支持 PPT/PPS/POT/ODP、视频、音频和图片等文件。PPT 源默认使用 PowerPoint，并在导入后尝试生成播放专用 `.ppsx`/`.pps` 缓存；宏格式默认导出为非宏 `.ppsx`。
       operationId: uploadSource
       requestBody:
         required: true
@@ -276,6 +279,7 @@ paths:
       tags:
         - sources
       summary: 通过本地路径创建媒体源
+      description: 本地 PPT/PPS/POT/ODP 文件会默认使用 PowerPoint，并尝试生成播放专用 `.ppsx`/`.pps` 缓存；生成失败不阻断媒体源创建，播放时回退原始文件。
       operationId: addLocalSource
       requestBody:
         required: true
@@ -550,6 +554,206 @@ paths:
                 $ref: '#/components/schemas/SystemVolumeResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse'
+  /background-audio/:
+    get:
+      tags:
+        - background-audio
+      summary: 获取背景音乐状态
+      operationId: getBackgroundAudio
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackgroundAudioResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+  /background-audio/playlist/:
+    post:
+      tags:
+        - background-audio
+      summary: 添加音频源到背景音乐列表
+      operationId: addBackgroundAudioSource
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BackgroundAudioSourceRequest'
+      responses:
+        '200':
+          description: 添加成功或已在列表中
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackgroundAudioResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+    delete:
+      tags:
+        - background-audio
+      summary: 清空背景音乐列表
+      operationId: clearBackgroundAudioPlaylist
+      responses:
+        '200':
+          description: 清空成功，并停止当前背景音乐
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackgroundAudioResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+  /background-audio/playlist/{item_id}/:
+    parameters:
+      - in: path
+        name: item_id
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+    delete:
+      tags:
+        - background-audio
+      summary: 删除背景音乐列表项
+      description: 删除当前正在播放的列表项时，后端会自动停止并清空当前背景音乐。
+      operationId: removeBackgroundAudioItem
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackgroundAudioResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+  /background-audio/playlist/{item_id}/play/:
+    parameters:
+      - in: path
+        name: item_id
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+    post:
+      tags:
+        - background-audio
+      summary: 播放背景音乐列表项
+      operationId: playBackgroundAudioItem
+      responses:
+        '200':
+          description: 已下发打开并播放指令
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackgroundAudioResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+  /background-audio/play-source/:
+    post:
+      tags:
+        - background-audio
+      summary: 加入并立即播放音频源
+      operationId: playBackgroundAudioSource
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BackgroundAudioSourceRequest'
+      responses:
+        '200':
+          description: 已加入列表并下发播放指令
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackgroundAudioResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+  /background-audio/control/:
+    post:
+      tags:
+        - background-audio
+      summary: 控制背景音乐播放
+      operationId: controlBackgroundAudio
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BackgroundAudioControlRequest'
+      responses:
+        '200':
+          description: 控制指令已写入后台播放器状态
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackgroundAudioResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+  /background-audio/volume/:
+    patch:
+      tags:
+        - background-audio
+      summary: 设置背景音乐音量
+      operationId: setBackgroundAudioVolume
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BackgroundAudioVolumeRequest'
+      responses:
+        '200':
+          description: 音量已更新
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackgroundAudioResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+  /background-audio/mute/:
+    patch:
+      tags:
+        - background-audio
+      summary: 设置背景音乐静音
+      operationId: setBackgroundAudioMute
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BackgroundAudioMuteRequest'
+      responses:
+        '200':
+          description: 静音状态已更新
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackgroundAudioResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+  /background-audio/loop/:
+    patch:
+      tags:
+        - background-audio
+      summary: 设置背景音乐列表循环
+      operationId: setBackgroundAudioLoop
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BackgroundAudioLoopRequest'
+      responses:
+        '200':
+          description: 循环状态已更新
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackgroundAudioResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
   /playback/{window_id}/open/:
     parameters:
       - $ref: '#/components/parameters/WindowId'
@@ -570,7 +774,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SessionsResponse'
+                $ref: '#/components/schemas/PlaybackStateResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse'
   /playback/{window_id}/control/:
@@ -593,7 +797,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SessionsResponse'
+                $ref: '#/components/schemas/PlaybackStateResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse'
   /playback/{window_id}/navigate/:
@@ -616,7 +820,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SessionsResponse'
+                $ref: '#/components/schemas/PlaybackStateResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse'
   /playback/{window_id}/ppt-media/:
@@ -639,7 +843,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SessionsResponse'
+                $ref: '#/components/schemas/PlaybackStateResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse'
   /playback/{window_id}/ppt-backend/:
@@ -662,7 +866,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SessionsResponse'
+                $ref: '#/components/schemas/PlaybackStateResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse'
   /playback/{window_id}/close/:
@@ -679,7 +883,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SessionsResponse'
+                $ref: '#/components/schemas/PlaybackStateResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse'
   /playback/{window_id}/loop/:
@@ -702,7 +906,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SessionsResponse'
+                $ref: '#/components/schemas/PlaybackStateResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse'
   /playback/{window_id}/volume/:
@@ -725,7 +929,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SessionsResponse'
+                $ref: '#/components/schemas/PlaybackStateResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse'
   /playback/{window_id}/mute/:
@@ -748,7 +952,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SessionsResponse'
+                $ref: '#/components/schemas/PlaybackStateResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse'
   /playback/show-ids/:
@@ -763,7 +967,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SessionsResponse'
+                $ref: '#/components/schemas/PlaybackStateResponse'
         '401':
           $ref: '#/components/responses/ErrorResponse'
   /playback/reset-all/:
@@ -779,7 +983,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SessionsResponse'
+                $ref: '#/components/schemas/PlaybackStateResponse'
         '401':
           $ref: '#/components/responses/ErrorResponse'
   /playback/reset-ppt/:
@@ -795,7 +999,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SessionsResponse'
+                $ref: '#/components/schemas/PlaybackStateResponse'
         '401':
           $ref: '#/components/responses/ErrorResponse'
   /playback/physical-smoke/:
@@ -803,7 +1007,7 @@ paths:
       tags:
         - playback
       summary: 运行本机四屏物理冒烟测试
-      description: 真实下发 1-4 号窗口播放、关闭与 reset-all 指令，逐个验证图片、视频、音频、网页、PPT、SRT、RTSP 和自定义流。该接口会占用现场输出窗口并可能播放音频。
+      description: 真实下发 1-4 号窗口播放、关闭与 reset-all 指令，逐个验证图片、视频、网页、PPT、SRT、RTSP 和自定义流；audio 源通过背景音乐通道单独验证。该接口会占用现场输出窗口并可能播放音频。
       operationId: runPhysicalSmoke
       requestBody:
         required: false
@@ -868,7 +1072,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SessionsResponse'
+                $ref: '#/components/schemas/PlaybackStateResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse'
   /devices/:
@@ -1084,7 +1288,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SessionsResponse'
+                $ref: '#/components/schemas/PlaybackStateResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse'
   /events/:
@@ -1111,7 +1315,7 @@ paths:
                 example: |
                   id: 12
                   event: playback_state
-                  data: {"sessions": []}
+                  data: {"sessions": [], "background_audio": {"state": {"playback_state": "idle"}, "playlist": []}}
         '401':
           $ref: '#/components/responses/ErrorResponse'
 components:
@@ -1275,7 +1479,8 @@ components:
         - libreoffice
         - powerpoint
         - wps
-      description: PPT 放映后端。WPS 演示为显式选择，不会从其他后端失败后隐式兜底。
+      default: powerpoint
+      description: PPT 放映后端。默认使用 Microsoft PowerPoint；LibreOffice 和 WPS 演示为显式选择，不会从其他后端失败后隐式兜底。
     MediaSource:
       type: object
       required:
@@ -1327,13 +1532,17 @@ components:
         metadata:
           type: object
           additionalProperties: true
+          description: |
+            媒体源扩展元数据。PPT 源可能包含 `ppt_playback` 字段，记录播放专用 `.ppsx`/`.pps`
+            缓存的生成状态、后端、原始扩展名、缓存路径和错误信息；播放时仅在 `status=ready`
+            且缓存文件存在时使用该缓存 URI，否则回退原始 `uri`。
         keep_alive:
           type: boolean
           deprecated: true
           description: 旧版保持活跃字段，当前与 preheat_enabled 同步
         preheat_enabled:
           type: boolean
-          description: 媒体源预热开关；播放器启动时按源类型提前准备后台资源
+          description: 媒体源预热开关；播放器启动时按源类型提前准备后台资源，PPT 源会按播放 URI 进行源文件级预热
         ppt_backend:
           $ref: '#/components/schemas/PptBackend'
         ppt_backend_label:
@@ -1694,6 +1903,117 @@ components:
       properties:
         big_screen_mode:
           $ref: '#/components/schemas/BigScreenMode'
+    BackgroundAudioStateSnapshot:
+      type: object
+      required:
+        - id
+        - source_id
+        - source_name
+        - source_uri
+        - source
+        - current_item_id
+        - playback_state
+        - playback_state_label
+        - error_message
+        - position_ms
+        - duration_ms
+        - volume
+        - is_muted
+        - loop_enabled
+        - pending_command
+        - updated_at
+      properties:
+        id:
+          type: integer
+        source_id:
+          type: integer
+          nullable: true
+          description: 当前背景音频源 ID；待机或清空时为 null
+        source_name:
+          type: string
+        source_uri:
+          type: string
+        source:
+          type: object
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/MediaSource'
+        current_item_id:
+          type: integer
+          nullable: true
+          description: 当前音频源对应的播放列表项 ID
+        playback_state:
+          $ref: '#/components/schemas/PlaybackState'
+        playback_state_label:
+          type: string
+        error_message:
+          type: string
+        position_ms:
+          type: integer
+          format: int64
+        duration_ms:
+          type: integer
+          format: int64
+        volume:
+          type: integer
+          minimum: 0
+          maximum: 100
+        is_muted:
+          type: boolean
+        loop_enabled:
+          type: boolean
+          description: 是否在自然播放到列表末尾后回到首项
+        pending_command:
+          type: string
+          description: 播放器进程尚未消费的后台指令；空字符串表示无指令
+          enum:
+            - ''
+            - open
+            - play
+            - pause
+            - stop
+            - seek
+            - set_loop
+            - set_volume
+            - set_mute
+        updated_at:
+          type: string
+          format: date-time
+    BackgroundAudioPlaylistItem:
+      type: object
+      required:
+        - id
+        - source_id
+        - source_name
+        - sort_order
+        - created_at
+        - source
+      properties:
+        id:
+          type: integer
+        source_id:
+          type: integer
+        source_name:
+          type: string
+        sort_order:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        source:
+          $ref: '#/components/schemas/MediaSource'
+    BackgroundAudioSnapshot:
+      type: object
+      required:
+        - state
+        - playlist
+      properties:
+        state:
+          $ref: '#/components/schemas/BackgroundAudioStateSnapshot'
+        playlist:
+          type: array
+          items:
+            $ref: '#/components/schemas/BackgroundAudioPlaylistItem'
     RuntimeWithSessionsResponse:
       allOf:
         - $ref: '#/components/schemas/SuccessResponse'
@@ -1701,6 +2021,7 @@ components:
           required:
             - runtime
             - sessions
+            - background_audio
           properties:
             runtime:
               $ref: '#/components/schemas/RuntimeSnapshot'
@@ -1708,6 +2029,8 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/SessionSnapshot'
+            background_audio:
+              $ref: '#/components/schemas/BackgroundAudioSnapshot'
     SystemVolumeStatus:
       type: object
       required:
@@ -1745,6 +2068,62 @@ components:
           maximum: 100
         muted:
           type: boolean
+    BackgroundAudioResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          required:
+            - background_audio
+          properties:
+            background_audio:
+              $ref: '#/components/schemas/BackgroundAudioSnapshot'
+    BackgroundAudioSourceRequest:
+      type: object
+      required:
+        - source_id
+      properties:
+        source_id:
+          type: integer
+          minimum: 1
+          description: 必须是 audio 类型媒体源 ID
+    BackgroundAudioControlRequest:
+      type: object
+      required:
+        - action
+      properties:
+        action:
+          type: string
+          enum:
+            - play
+            - pause
+            - stop
+            - next
+            - prev
+            - seek
+        position_ms:
+          type: integer
+          minimum: 0
+          description: action=seek 时使用的目标位置毫秒
+    BackgroundAudioVolumeRequest:
+      type: object
+      properties:
+        volume:
+          type: integer
+          minimum: 0
+          maximum: 100
+          default: 70
+    BackgroundAudioMuteRequest:
+      type: object
+      properties:
+        muted:
+          type: boolean
+          default: false
+    BackgroundAudioLoopRequest:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          default: true
     OpenSourceRequest:
       type: object
       required:
@@ -1753,6 +2132,7 @@ components:
         source_id:
           type: integer
           minimum: 1
+          description: 目标媒体源 ID；audio 类型源会被拒绝，请使用背景音乐接口播放
         media_source_id:
           type: integer
           minimum: 1
@@ -1761,11 +2141,27 @@ components:
           type: boolean
           default: true
         ppt_backend:
-          $ref: '#/components/schemas/PptBackend'
+          allOf:
+            - $ref: '#/components/schemas/PptBackend'
+          description: 本次打开临时使用的 PPT 后端；不传时使用媒体源默认值，当前新建 PPT 源默认 PowerPoint。
         target_slide:
           type: integer
           minimum: 1
           description: PPT 打开后自动跳转的页码；非 PPT 源忽略
+    PlaybackStateResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          required:
+            - sessions
+            - background_audio
+          properties:
+            sessions:
+              type: array
+              items:
+                $ref: '#/components/schemas/SessionSnapshot'
+            background_audio:
+              $ref: '#/components/schemas/BackgroundAudioSnapshot'
     PlaybackAction:
       type: string
       enum:
@@ -1849,7 +2245,7 @@ components:
             maximum: 4
         source_ids:
           type: object
-          description: '按媒体源类型显式指定测试源 ID，例如 `{ "audio": 15, "ppt": 16 }`'
+          description: '按媒体源类型显式指定测试源 ID，例如 `{ "audio": 15, "ppt": 16 }`；audio 通过背景音乐通道测试，不打开到窗口'
           additionalProperties:
             type: integer
         settle_seconds:
@@ -1861,7 +2257,7 @@ components:
           type: number
           format: float
           default: 30
-          description: 图片、视频、音频和网页等待播放超时
+          description: 图片、视频、网页和背景音乐等待播放超时
         ppt_timeout_seconds:
           type: number
           format: float
@@ -1910,6 +2306,7 @@ components:
       properties:
         window_id:
           type: integer
+          description: 1-4 表示物理播放窗口；0 表示背景音乐通道
         source_type:
           $ref: '#/components/schemas/SourceType'
         source_id:

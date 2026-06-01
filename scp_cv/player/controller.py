@@ -29,12 +29,13 @@ from typing import Callable, Optional
 from PySide6.QtCore import QObject, QRect, Signal, Slot
 
 from scp_cv.player.adapters import SourceAdapter
+from scp_cv.player.background_audio_handlers import BackgroundAudioHandlersMixin
 from scp_cv.player.controller_handlers import PlayerCommandHandlersMixin
 
 logger = logging.getLogger(__name__)
 
 
-class PlayerController(PlayerCommandHandlersMixin, QObject):
+class PlayerController(PlayerCommandHandlersMixin, BackgroundAudioHandlersMixin, QObject):
     """
     多窗口播放器控制器。
 
@@ -58,6 +59,7 @@ class PlayerController(PlayerCommandHandlersMixin, QObject):
 
     # 轮询线程 → Qt 主线程：分发指令执行（携带 window_id）
     sig_dispatch_command = Signal(int, str, dict)  # (window_id, command, command_args)
+    sig_dispatch_background_audio_command = Signal(str, dict)  # (command, command_args)
     sig_report_states = Signal()                   # 轮询线程 → Qt 主线程：读取适配器状态
 
     def __init__(self, parent: Optional[QObject] = None) -> None:
@@ -78,6 +80,10 @@ class PlayerController(PlayerCommandHandlersMixin, QObject):
         self._preheat_pool: object | None = None
         # 非 dev 模式下由 run_player 注入关闭回调，窗口重建后仍需保持相同行为。
         self._window_closed_callback: Callable[[], None] | None = None
+        # 背景音频单实例适配器，不占用任何 PlayerWindow。
+        self._background_audio_adapter: object | None = None
+        self._background_audio_source_id = 0
+        self._last_reported_background_audio_state: tuple[str, str, int, int] | None = None
 
         # 轮询线程
         self._poll_thread: Optional[threading.Thread] = None
@@ -90,6 +96,7 @@ class PlayerController(PlayerCommandHandlersMixin, QObject):
 
         # 连接指令分发信号到主线程处理槽
         self.sig_dispatch_command.connect(self._execute_command_on_main_thread)
+        self.sig_dispatch_background_audio_command.connect(self._execute_background_audio_command_on_main_thread)
         self.sig_report_states.connect(self._report_all_adapter_states)
 
     def set_window_closed_callback(self, callback: Callable[[], None] | None) -> None:
@@ -173,6 +180,7 @@ class PlayerController(PlayerCommandHandlersMixin, QObject):
         if self._preheat_pool is not None:
             self._preheat_pool.close_all()
             self._preheat_pool = None
+        self._close_background_audio_adapter()
         logger.info("控制器轮询已停止")
 
     def _ensure_preheat_pool(self) -> object:
@@ -192,16 +200,20 @@ class PlayerController(PlayerCommandHandlersMixin, QObject):
         :return: None
         """
         from scp_cv.apps.playback.models import MediaSource
+        from scp_cv.apps.playback.models import SourceType
+        from scp_cv.services.ppt_playback_cache import resolve_ppt_playback_uri
 
         preheat_pool = self._ensure_preheat_pool()
         for source in MediaSource.objects.filter(
             is_available=True,
             keep_alive=True,
-        ).only("id", "source_type", "uri", "ppt_backend"):
+            is_temporary=False,
+        ).only("id", "source_type", "uri", "ppt_backend", "metadata"):
+            preheat_uri = resolve_ppt_playback_uri(source) if source.source_type == SourceType.PPT else source.uri
             preheat_pool.preheat_source(
                 source.pk,
                 source.source_type,
-                source.uri,
+                preheat_uri,
                 getattr(source, "ppt_backend", ""),
             )
 
@@ -342,6 +354,7 @@ class PlayerController(PlayerCommandHandlersMixin, QObject):
                 # 轮询所有已注册窗口的指令
                 for window_id in self.registered_window_ids:
                     self._check_and_dispatch_command(window_id)
+                self._check_and_dispatch_background_audio_command()
                 # COM 和 Qt 状态读取必须回到适配器创建时所在的 Qt 主线程。
                 self._request_adapter_state_report()
             except Exception as poll_error:
@@ -468,6 +481,7 @@ class PlayerController(PlayerCommandHandlersMixin, QObject):
                     duration_ms=adapter_state.duration_ms,
                 )
                 self._last_reported_states[window_id] = state_signature
+            self._report_background_audio_state()
         finally:
             with self._state_report_lock:
                 self._state_report_pending = False

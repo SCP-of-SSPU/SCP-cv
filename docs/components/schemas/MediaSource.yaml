@@ -48,13 +48,17 @@ properties:
   metadata:
     type: object
     additionalProperties: true
+    description: |
+      媒体源扩展元数据。PPT 源可能包含 `ppt_playback` 字段，记录播放专用 `.ppsx`/`.pps`
+      缓存的生成状态、后端、原始扩展名、缓存路径和错误信息；播放时仅在 `status=ready`
+      且缓存文件存在时使用该缓存 URI，否则回退原始 `uri`。
   keep_alive:
     type: boolean
     deprecated: true
     description: 旧版保持活跃字段，当前与 preheat_enabled 同步
   preheat_enabled:
     type: boolean
-    description: 媒体源预热开关；播放器启动时按源类型提前准备后台资源
+    description: 媒体源预热开关；播放器启动时按源类型提前准备后台资源，PPT 源会按播放 URI 进行源文件级预热
   ppt_backend:
     $ref: ./PptBackend.yaml
   ppt_backend_label:

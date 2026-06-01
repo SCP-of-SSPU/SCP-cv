@@ -77,6 +77,44 @@ export interface SessionSnapshot {
   loop_enabled: boolean;
 }
 
+export interface BackgroundAudioStateSnapshot {
+  id: number;
+  source_id: number | null;
+  source_name: string;
+  source_uri: string;
+  source: MediaSourceItem | null;
+  current_item_id: number | null;
+  playback_state: string;
+  playback_state_label: string;
+  error_message: string;
+  position_ms: number;
+  duration_ms: number;
+  volume: number;
+  is_muted: boolean;
+  loop_enabled: boolean;
+  pending_command: string;
+  updated_at: string;
+}
+
+export interface BackgroundAudioPlaylistItem {
+  id: number;
+  source_id: number;
+  source_name: string;
+  sort_order: number;
+  created_at: string;
+  source: MediaSourceItem;
+}
+
+export interface BackgroundAudioSnapshot {
+  state: BackgroundAudioStateSnapshot;
+  playlist: BackgroundAudioPlaylistItem[];
+}
+
+export interface BackgroundAudioPayload {
+  success: boolean;
+  background_audio: BackgroundAudioSnapshot;
+}
+
 export interface RuntimeSnapshot {
   big_screen_mode: 'single' | 'double';
   volume_level: number;
@@ -151,6 +189,7 @@ export interface PptResourceItem {
 export interface ApiStatePayload {
   success: boolean;
   sessions: SessionSnapshot[];
+  background_audio?: BackgroundAudioSnapshot;
 }
 
 export interface PhysicalSmokeRequest {
@@ -414,6 +453,16 @@ export const api = {
   setRuntimeMode: (bigScreenMode: 'single' | 'double') => requestJson<ApiStatePayload & { runtime: RuntimeSnapshot }>('/api/runtime/', { method: 'PATCH', body: JSON.stringify({ big_screen_mode: bigScreenMode }) }),
   getSystemVolume: () => requestJson<{ success: boolean; volume: { level: number; muted: boolean; system_synced: boolean; backend: string } }>('/api/volume/'),
   setSystemVolume: (level: number, muted?: boolean) => requestJson<{ success: boolean; volume: { level: number; muted: boolean; system_synced: boolean; backend: string } }>('/api/volume/', { method: 'PATCH', body: JSON.stringify({ level, ...(muted === undefined ? {} : { muted }) }) }),
+  getBackgroundAudio: () => requestJson<BackgroundAudioPayload>('/api/background-audio/'),
+  addBackgroundAudioSource: (sourceId: number) => requestJson<BackgroundAudioPayload>('/api/background-audio/playlist/', { method: 'POST', body: JSON.stringify({ source_id: sourceId }) }),
+  removeBackgroundAudioItem: (itemId: number) => requestJson<BackgroundAudioPayload>(`/api/background-audio/playlist/${itemId}/`, { method: 'DELETE' }),
+  clearBackgroundAudioPlaylist: () => requestJson<BackgroundAudioPayload>('/api/background-audio/playlist/', { method: 'DELETE' }),
+  playBackgroundAudioSource: (sourceId: number) => requestJson<BackgroundAudioPayload>('/api/background-audio/play-source/', { method: 'POST', body: JSON.stringify({ source_id: sourceId }) }),
+  playBackgroundAudioItem: (itemId: number) => requestJson<BackgroundAudioPayload>(`/api/background-audio/playlist/${itemId}/play/`, { method: 'POST' }),
+  controlBackgroundAudio: (action: 'play' | 'pause' | 'stop' | 'next' | 'prev' | 'seek', positionMs = 0) => requestJson<BackgroundAudioPayload>('/api/background-audio/control/', { method: 'POST', body: JSON.stringify({ action, position_ms: positionMs }) }),
+  setBackgroundAudioVolume: (volume: number) => requestJson<BackgroundAudioPayload>('/api/background-audio/volume/', { method: 'PATCH', body: JSON.stringify({ volume }) }),
+  setBackgroundAudioMute: (muted: boolean) => requestJson<BackgroundAudioPayload>('/api/background-audio/mute/', { method: 'PATCH', body: JSON.stringify({ muted }) }),
+  setBackgroundAudioLoop: (enabled: boolean) => requestJson<BackgroundAudioPayload>('/api/background-audio/loop/', { method: 'PATCH', body: JSON.stringify({ enabled }) }),
   openSource: (windowId: number, sourceId: number, autoplay = true) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/open/`, { method: 'POST', body: JSON.stringify({ source_id: sourceId, autoplay }) }),
   openSourceWithOptions: (windowId: number, payload: { source_id: number; autoplay?: boolean; ppt_backend?: PptBackend; target_slide?: number }) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/open/`, { method: 'POST', body: JSON.stringify(payload) }),
   controlPlayback: (windowId: number, action: string) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/control/`, { method: 'POST', body: JSON.stringify({ action }) }),

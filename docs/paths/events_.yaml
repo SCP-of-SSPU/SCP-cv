@@ -21,6 +21,6 @@ get:
             example: |
               id: 12
               event: playback_state
-              data: {"sessions": []}
+              data: {"sessions": [], "background_audio": {"state": {"playback_state": "idle"}, "playlist": []}}
     '401':
       $ref: ../components/responses/ErrorResponse.yaml

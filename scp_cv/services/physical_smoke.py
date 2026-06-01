@@ -15,7 +15,18 @@ from math import isfinite
 
 from django.utils import timezone
 
-from scp_cv.apps.playback.models import MediaSource, PlaybackCommand, PlaybackSession, PlaybackState, SourceType
+from scp_cv.apps.playback.models import (
+    BackgroundAudioCommand,
+    BackgroundAudioState,
+    MediaSource,
+    PlaybackCommand,
+    PlaybackSession,
+    PlaybackState,
+    SourceType,
+)
+from scp_cv.ppt_backend import DEFAULT_PPT_BACKEND
+from scp_cv.services.background_audio import play_source as play_background_audio_source
+from scp_cv.services.background_audio import stop_background_audio
 from scp_cv.services.playback import (
     VALID_WINDOW_IDS,
     close_source,
@@ -25,6 +36,15 @@ from scp_cv.services.playback import (
     reset_all_sessions_to_idle,
 )
 
+WINDOW_SOURCE_TYPE_SEQUENCE: tuple[str, ...] = (
+    SourceType.IMAGE,
+    SourceType.VIDEO,
+    SourceType.WEB,
+    SourceType.PPT,
+    SourceType.SRT_STREAM,
+    SourceType.CUSTOM_STREAM,
+    SourceType.RTSP_STREAM,
+)
 SOURCE_TYPE_SEQUENCE: tuple[str, ...] = (
     SourceType.IMAGE,
     SourceType.VIDEO,
@@ -83,13 +103,24 @@ def run_physical_smoke_test(
     results: list[dict[str, object]] = []
 
     for window_id in selected_windows:
-        for source_type in SOURCE_TYPE_SEQUENCE:
+        for source_type in WINDOW_SOURCE_TYPE_SEQUENCE:
             source = selected_sources[source_type]
             if time.monotonic() >= play_deadline:
                 results.append(_deadline_failed_result(window_id, source))
                 continue
             timeout = _timeout_for_source(source_type, timeout_seconds, ppt_timeout_seconds, stream_timeout_seconds)
             results.append(_run_single_source(window_id, source, normalized_settle, timeout, play_deadline))
+
+    audio_source = selected_sources[SourceType.AUDIO]
+    if time.monotonic() >= play_deadline:
+        results.append(_deadline_failed_result(0, audio_source))
+    else:
+        results.append(_run_background_audio_source(
+            audio_source,
+            normalized_settle,
+            timeout_seconds,
+            play_deadline,
+        ))
 
     reset_result = _reset_after_smoke(reset_after, DEFAULT_RESET_TIMEOUT_SECONDS)
     finished_at = timezone.now()
@@ -138,7 +169,7 @@ def _run_single_source(
             window_id,
             source.pk,
             autoplay=True,
-            ppt_backend="libreoffice" if source.source_type == SourceType.PPT else None,
+            ppt_backend=DEFAULT_PPT_BACKEND if source.source_type == SourceType.PPT else None,
             target_slide=1 if source.source_type == SourceType.PPT else 0,
         )
         open_ok, open_error = _wait_for_open(window_id, source, _remaining_timeout(play_deadline, timeout_seconds))
@@ -161,6 +192,60 @@ def _run_single_source(
     error_message = open_error or close_error
     return {
         "window_id": window_id,
+        "source_type": source.source_type,
+        "source_id": source.pk,
+        "source_name": source.name,
+        "status": "ok" if open_ok and close_ok else "failed",
+        "open_elapsed": round(open_elapsed, 3),
+        "close_elapsed": round(close_elapsed, 3),
+        "error_message": error_message,
+        "open_error": open_error,
+        "close_error": close_error,
+    }
+
+
+def _run_background_audio_source(
+    source: MediaSource,
+    settle_seconds: float,
+    timeout_seconds: float,
+    play_deadline: float,
+) -> dict[str, object]:
+    """
+    真实播放并停止背景音频源。
+    :param source: 音频媒体源
+    :param settle_seconds: 成功播放后保持播放的秒数
+    :param timeout_seconds: 等待播放和停止的超时秒数
+    :param play_deadline: 播放阶段全局截止时间
+    :return: 单项测试结果，window_id=0 表示背景音乐通道
+    """
+    open_started = time.monotonic()
+    open_ok = False
+    open_error = ""
+    try:
+        play_background_audio_source(source.pk)
+        open_ok, open_error = _wait_for_background_audio_open(
+            source,
+            _remaining_timeout(play_deadline, timeout_seconds),
+        )
+        if open_ok and settle_seconds > 0:
+            time.sleep(_remaining_timeout(play_deadline, settle_seconds))
+    except Exception as open_exception:
+        open_error = str(open_exception)
+    open_elapsed = time.monotonic() - open_started
+
+    close_started = time.monotonic()
+    close_ok = False
+    close_error = ""
+    try:
+        stop_background_audio(clear_source=True)
+        close_ok, close_error = _wait_for_background_audio_idle(_remaining_timeout(play_deadline, timeout_seconds))
+    except Exception as close_exception:
+        close_error = str(close_exception)
+    close_elapsed = time.monotonic() - close_started
+
+    error_message = open_error or close_error
+    return {
+        "window_id": 0,
         "source_type": source.source_type,
         "source_id": source.pk,
         "source_name": source.name,
@@ -242,6 +327,45 @@ def _wait_for_idle(window_id: int, timeout_seconds: float) -> tuple[bool, str]:
     return False, f"等待窗口 {window_id} 关闭超时，当前状态={session.playback_state}"
 
 
+def _wait_for_background_audio_open(source: MediaSource, timeout_seconds: float) -> tuple[bool, str]:
+    """
+    等待背景音频进入播放态。
+    :param source: 目标音频源
+    :param timeout_seconds: 超时秒数
+    :return: (是否成功, 错误信息)
+    """
+    deadline = time.monotonic() + max(0.1, float(timeout_seconds))
+    while time.monotonic() <= deadline:
+        state = BackgroundAudioState.get_instance()
+        if state.current_source_id == source.pk and state.playback_state == PlaybackState.ERROR:
+            return False, state.error_message or "背景音乐播放器上报错误"
+        if (
+            state.current_source_id == source.pk
+            and state.pending_command in {"", BackgroundAudioCommand.NONE}
+            and state.playback_state == PlaybackState.PLAYING
+        ):
+            return True, ""
+        time.sleep(POLL_INTERVAL_SECONDS)
+    state = BackgroundAudioState.get_instance()
+    return False, f"等待背景音乐进入播放态超时，当前状态={state.playback_state}"
+
+
+def _wait_for_background_audio_idle(timeout_seconds: float) -> tuple[bool, str]:
+    """
+    等待背景音频停止并清空当前源。
+    :param timeout_seconds: 超时秒数
+    :return: (是否成功, 错误信息)
+    """
+    deadline = time.monotonic() + max(0.1, float(timeout_seconds))
+    while time.monotonic() <= deadline:
+        state = BackgroundAudioState.get_instance()
+        if _background_audio_is_idle(state):
+            return True, ""
+        time.sleep(POLL_INTERVAL_SECONDS)
+    state = BackgroundAudioState.get_instance()
+    return False, f"等待背景音乐停止超时，当前状态={state.playback_state}"
+
+
 def _wait_for_all_idle(windows: Sequence[int], timeout_seconds: float) -> tuple[bool, str]:
     """
     等待全部测试窗口完成 reset-all 并回到空闲态。
@@ -271,6 +395,10 @@ def _reset_after_smoke(reset_after: bool, timeout_seconds: float) -> dict[str, o
     try:
         reset_all_sessions_to_idle()
         ok, error = _wait_for_all_idle(tuple(VALID_WINDOW_IDS), timeout_seconds)
+        stop_background_audio(clear_source=True)
+        audio_ok, audio_error = _wait_for_background_audio_idle(timeout_seconds)
+        ok = ok and audio_ok
+        error = error or audio_error
     except Exception as reset_exception:
         ok = False
         error = str(reset_exception)
@@ -309,6 +437,19 @@ def _session_is_idle(session: PlaybackSession) -> bool:
         session.media_source_id is None
         and session.playback_state == PlaybackState.IDLE
         and session.pending_command in {"", PlaybackCommand.NONE}
+    )
+
+
+def _background_audio_is_idle(state: BackgroundAudioState) -> bool:
+    """
+    判断背景音频是否已停止且没有待处理指令。
+    :param state: 背景音频状态
+    :return: True 表示可视为已停止
+    """
+    return (
+        state.current_source_id is None
+        and state.playback_state in {PlaybackState.IDLE, PlaybackState.STOPPED}
+        and state.pending_command in {"", BackgroundAudioCommand.NONE}
     )
 
 

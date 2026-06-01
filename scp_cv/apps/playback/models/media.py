@@ -140,7 +140,7 @@ class MediaSource(models.Model):
     ppt_backend = models.CharField(
         max_length=24,
         choices=PptPlaybackBackend.choices,
-        default=PptPlaybackBackend.LIBREOFFICE,
+        default=PptPlaybackBackend.POWERPOINT,
         verbose_name="PPT 播放器",
         help_text="仅 PPT 源使用；打开放映时可被单次临时选择覆盖。",
     )

@@ -8,6 +8,8 @@
 
 import core from './zh-CN/core';
 
+import backgroundAudio from './zh-CN/backgroundAudio';
+
 import display from './zh-CN/display';
 
 import dashboard from './zh-CN/dashboard';
@@ -25,6 +27,8 @@ import designSystem from './zh-CN/design-system';
 export default {
 
   ...core,
+
+  ...backgroundAudio,
 
   ...display,
 

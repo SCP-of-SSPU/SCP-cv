@@ -15,7 +15,15 @@ from pathlib import Path
 import pytest
 from django.test import Client
 
-from scp_cv.apps.playback.models import MediaSource, PlaybackCommand, PlaybackState, SourceType
+from scp_cv.apps.playback.models import (
+    BackgroundAudioCommand,
+    BackgroundAudioState,
+    MediaSource,
+    PlaybackCommand,
+    PlaybackState,
+    SourceType,
+)
+from scp_cv.ppt_backend import DEFAULT_PPT_BACKEND
 from scp_cv.services import physical_smoke
 from scp_cv.services.playback import get_or_create_session
 
@@ -28,6 +36,8 @@ def test_physical_smoke_runs_all_windows_and_source_types(
     """物理冒烟编排应覆盖四窗口、所有媒体源类型与最终 reset-all。"""
     sources = _create_smoke_sources(tmp_path)
     opened: list[dict[str, object]] = []
+    background_opened: list[int] = []
+    background_stopped: list[bool] = []
     closed_windows: list[int] = []
     reset_calls: list[bool] = []
 
@@ -55,6 +65,17 @@ def test_physical_smoke_runs_all_windows_and_source_types(
         session.save()
         return session
 
+    def fake_play_background_audio_source(media_source_id: int) -> BackgroundAudioState:
+        source = MediaSource.objects.get(pk=media_source_id)
+        background_opened.append(media_source_id)
+        state = BackgroundAudioState.get_instance()
+        state.current_source = source
+        state.playback_state = PlaybackState.PLAYING
+        state.pending_command = BackgroundAudioCommand.NONE
+        state.command_args = {}
+        state.save()
+        return state
+
     def fake_close_source(window_id: int) -> object:
         closed_windows.append(window_id)
         session = get_or_create_session(window_id)
@@ -65,6 +86,19 @@ def test_physical_smoke_runs_all_windows_and_source_types(
         session.save()
         return session
 
+    def fake_stop_background_audio(clear_source: bool = False) -> BackgroundAudioState:
+        background_stopped.append(clear_source)
+        state = BackgroundAudioState.get_instance()
+        if clear_source:
+            state.current_source = None
+            state.playback_state = PlaybackState.IDLE
+        else:
+            state.playback_state = PlaybackState.STOPPED
+        state.pending_command = BackgroundAudioCommand.NONE
+        state.command_args = {}
+        state.save()
+        return state
+
     def fake_reset_all_sessions_to_idle() -> list[object]:
         reset_calls.append(True)
         for window_id in (1, 2, 3, 4):
@@ -72,7 +106,9 @@ def test_physical_smoke_runs_all_windows_and_source_types(
         return []
 
     monkeypatch.setattr(physical_smoke, "open_source", fake_open_source)
+    monkeypatch.setattr(physical_smoke, "play_background_audio_source", fake_play_background_audio_source)
     monkeypatch.setattr(physical_smoke, "close_source", fake_close_source)
+    monkeypatch.setattr(physical_smoke, "stop_background_audio", fake_stop_background_audio)
     monkeypatch.setattr(physical_smoke, "reset_all_sessions_to_idle", fake_reset_all_sessions_to_idle)
     monkeypatch.setattr(physical_smoke.time, "sleep", lambda _seconds: None)
 
@@ -80,16 +116,18 @@ def test_physical_smoke_runs_all_windows_and_source_types(
 
     assert result["success"] is True
     assert result["total_timeout_seconds"] == 540.0
-    assert result["summary"] == {"total": 32, "passed": 32, "failed": 0}
+    assert result["summary"] == {"total": 29, "passed": 29, "failed": 0}
     assert reset_calls == [True]
-    assert len(opened) == 32
-    assert len(closed_windows) >= 32
+    assert len(opened) == 28
+    assert len(closed_windows) >= 28
+    assert background_opened == [sources[SourceType.AUDIO].pk]
+    assert any(background_stopped)
     assert {item["window_id"] for item in opened} == {1, 2, 3, 4}
-    assert {item["source_type"] for item in opened} == set(physical_smoke.SOURCE_TYPE_SEQUENCE)
-    assert any(item["source_type"] == SourceType.AUDIO for item in opened)
+    assert {item["source_type"] for item in opened} == set(physical_smoke.WINDOW_SOURCE_TYPE_SEQUENCE)
+    assert any(item["window_id"] == 0 and item["source_type"] == SourceType.AUDIO for item in result["results"])
     assert any(
         item["source_type"] == SourceType.PPT
-        and item["ppt_backend"] == "libreoffice"
+        and item["ppt_backend"] == DEFAULT_PPT_BACKEND
         and item["target_slide"] == 1
         for item in opened
     )

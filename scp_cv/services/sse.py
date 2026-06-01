@@ -143,19 +143,22 @@ def _build_polled_state_message(current_signature: str) -> tuple[str, str]:
     :return: (SSE 消息或空字符串, 最新签名)
     """
     try:
+        from scp_cv.services.background_audio_payloads import get_background_audio_snapshot
         from scp_cv.services.playback import get_all_sessions_snapshot
+        background_audio = get_background_audio_snapshot()
         sessions = get_all_sessions_snapshot()
     except Exception as snapshot_error:
         logger.debug("轮询播放状态失败：%s", snapshot_error)
         return "", current_signature
 
-    next_signature = json.dumps(sessions, ensure_ascii=False, sort_keys=True, default=str)
+    payload = {"sessions": sessions, "background_audio": background_audio}
+    next_signature = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
     if next_signature == current_signature:
         return "", current_signature
     event_record = {
         "sequence": "",
         "type": "playback_state",
-        "data": {"sessions": sessions},
+        "data": payload,
     }
     return _format_sse_message(event_record), next_signature
 

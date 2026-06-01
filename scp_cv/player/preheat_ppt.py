@@ -58,12 +58,54 @@ class PptApplicationPreheater:
                 last_error = dispatch_error
         logger.warning("PPT 后端预热失败：backend=%s, error=%s", backend, last_error)
 
-    def take(self, backend: str) -> PreheatedPptApplication | None:
+    def preheat_source(self, backend: str, source_id: int, uri: str) -> None:
+        """
+        文件级预热指定 PPT 源：启动 COM 应用并预打开 Presentation。
+        :param backend: powerpoint 或 wps
+        :param source_id: 媒体源 ID
+        :param uri: PPT 文件路径
+        :return: None
+        """
+        if source_id <= 0 or not uri:
+            return
+        self.preheat(backend)
+        item = self._items.pop(backend, None)
+        if item is None:
+            return
+        try:
+            presentation = _open_presentation(item.app, uri)
+            _mark_presentation_clean(presentation)
+        except Exception as open_error:
+            logger.warning("PPT 文件级预热失败：backend=%s, source_id=%d, error=%s", backend, source_id, open_error)
+            self._items[backend] = item
+            return
+        existing = self._items.pop(_source_key(backend, source_id, uri), None)
+        if existing is not None and existing.presentation is not presentation:
+            _close_presentation(existing.presentation)
+            if existing.app is not item.app:
+                quit_ppt_app(existing.app)
+        self._items[_source_key(backend, source_id, uri)] = PreheatedPptApplication(
+            backend,
+            item.app,
+            item.prog_id,
+            source_id=source_id,
+            uri=uri,
+            presentation=presentation,
+        )
+        logger.info("PPT 文件已预热：backend=%s, source_id=%d", backend, source_id)
+
+    def take(self, backend: str, source_id: int = 0, uri: str = "") -> PreheatedPptApplication | None:
         """
         取出指定后端预热应用。
         :param backend: PPT 后端
+        :param source_id: 可选媒体源 ID，用于取出文件级预热项
+        :param uri: 可选文件路径，用于取出文件级预热项
         :return: 预热应用或 None
         """
+        if source_id > 0 and uri:
+            item = self._items.pop(_source_key(backend, source_id, uri), None)
+            if item is not None:
+                return item
         return self._items.pop(backend, None)
 
     def return_item(self, item: PreheatedPptApplication) -> None:
@@ -72,9 +114,13 @@ class PptApplicationPreheater:
         :param item: 预热应用
         :return: None
         """
+        _close_presentation(item.presentation)
+        item.source_id = 0
+        item.uri = ""
+        item.presentation = None
         existing = self._items.pop(item.backend, None)
-        if existing is not None and existing.app is not item.app:
-            quit_ppt_app(existing.app)
+        if existing is not None:
+            _dispose_item(existing, quit_app=existing.app is not item.app)
         self._items[item.backend] = item
 
     def close_all(self) -> None:
@@ -83,7 +129,7 @@ class PptApplicationPreheater:
         :return: None
         """
         for item in list(self._items.values()):
-            quit_ppt_app(item.app)
+            _dispose_item(item, quit_app=True)
         self._items.clear()
         self._uninitialize_com()
 
@@ -147,6 +193,77 @@ def _minimize_app_window(app: object) -> None:
         app.WindowState = 2
     except Exception:
         pass
+
+
+def _open_presentation(app: object, uri: str) -> object:
+    """
+    以无编辑窗口方式预打开演示文稿。
+    :param app: COM Application 对象
+    :param uri: PPT 文件路径
+    :return: Presentation COM 对象
+    """
+    presentations = app.Presentations
+    try:
+        return presentations.Open(uri, ReadOnly=False, Untitled=True, WithWindow=False)
+    except Exception as keyword_error:
+        try:
+            return presentations.Open(uri, False, True, False)
+        except Exception:
+            raise keyword_error
+
+
+def _mark_presentation_clean(presentation: object | None) -> None:
+    """
+    标记演示文稿无需保存，避免关闭确认。
+    :param presentation: Presentation COM 对象
+    :return: None
+    """
+    if presentation is None:
+        return
+    try:
+        presentation.Saved = True
+    except Exception:
+        pass
+
+
+def _close_presentation(presentation: object | None) -> None:
+    """
+    关闭预热演示文稿。
+    :param presentation: Presentation COM 对象
+    :return: None
+    """
+    if presentation is None:
+        return
+    _mark_presentation_clean(presentation)
+    try:
+        presentation.Close(False)
+    except TypeError:
+        presentation.Close()
+    except Exception:
+        pass
+
+
+def _dispose_item(item: PreheatedPptApplication, quit_app: bool) -> None:
+    """
+    释放预热项持有的演示文稿和应用。
+    :param item: 预热项
+    :param quit_app: 是否退出 COM 应用
+    :return: None
+    """
+    _close_presentation(item.presentation)
+    if quit_app:
+        quit_ppt_app(item.app)
+
+
+def _source_key(backend: str, source_id: int, uri: str) -> str:
+    """
+    构造文件级预热项键。
+    :param backend: PPT 后端
+    :param source_id: 媒体源 ID
+    :param uri: 文件路径
+    :return: 字典键
+    """
+    return f"{backend}:{source_id}:{uri}"
 
 
 __all__ = [

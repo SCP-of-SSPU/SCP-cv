@@ -26,6 +26,7 @@ from scp_cv.libreoffice_worker_runtime import (
     _load_document,
     _recoverable_open_attempts,
     _recoverable_open_retry_delay,
+    _start_show_session,
     _start_session,
     _terminate_process,
     _timeout_seconds,
@@ -44,6 +45,8 @@ class LibreOfficeBridge:
         self.document: Optional[object] = None
         self.presentation: Optional[object] = None
         self.controller: Optional[object] = None
+        self.file_path: Optional[Path] = None
+        self.display_index = 0
         self.total_slides = 0
         self.last_slide_index = 1
         self.is_paused = False
@@ -56,6 +59,8 @@ class LibreOfficeBridge:
         :param display_index: LibreOffice Presentation.Display 的 1-based 显示器序号
         :return: 状态响应
         """
+        if self.document is not None and self.file_path == file_path and not autoplay:
+            return self.state_payload()
         self.close_document()
         last_error: Optional[Exception] = None
         for attempt in range(_recoverable_open_attempts()):
@@ -78,15 +83,24 @@ class LibreOfficeBridge:
         :param display_index: LibreOffice Presentation.Display 的 1-based 显示器序号
         :return: 状态响应
         """
-        if self.session is None:
+        self.file_path = file_path
+        self.display_index = display_index
+        if autoplay:
+            self._close_session_for_show()
+            self.file_path = file_path
+            self.session, self.document = _start_show_session(file_path)
+        elif self.session is None:
             self.session = _start_session(headless=False)
-        self.document = self._load_document_with_retry(file_path, hidden=False, readonly=True)
+            self.document = self._load_document_with_retry(file_path, hidden=True, readonly=True)
+        else:
+            self.document = self._load_document_with_retry(file_path, hidden=True, readonly=True)
         self.presentation = self.document.getPresentation()  # type: ignore[attr-defined]
         self._configure_presentation(display_index)
         self.total_slides = self._read_slide_count()
         self.last_slide_index = 1 if self.total_slides else 0
         if autoplay:
-            self._start_slideshow(self.last_slide_index or 1)
+            self.controller = self._wait_for_controller([])
+            self.is_paused = False
         return self.state_payload()
 
     def _restart_session(self, delay_seconds: float = 0.0) -> None:
@@ -103,6 +117,8 @@ class LibreOfficeBridge:
         self.document = None
         self.presentation = None
         self.controller = None
+        self.file_path = None
+        self.display_index = 0
         self.total_slides = 0
         self.last_slide_index = 0
         self.is_paused = False
@@ -116,6 +132,16 @@ class LibreOfficeBridge:
             self.session = _start_session(headless=False)
         return self.state_payload()
 
+    def _close_session_for_show(self) -> None:
+        """
+        关闭当前 UNO 会话，改用 LibreOffice 原生 --show 启动稳定放映。
+        :return: None
+        """
+        self.close_document()
+        if self.session is not None:
+            self.session.close()
+            self.session = None
+
     def close_document(self) -> dict[str, object]:
         """
         关闭当前文档但保留 LibreOffice 会话。
@@ -127,6 +153,8 @@ class LibreOfficeBridge:
             self.document = None
         self.presentation = None
         self.controller = None
+        self.file_path = None
+        self.display_index = 0
         self.total_slides = 0
         self.last_slide_index = 0
         self.is_paused = False
@@ -167,6 +195,10 @@ class LibreOfficeBridge:
         :return: 状态响应
         """
         if self.controller is None and self.presentation is not None:
+            file_path = self.file_path
+            if file_path is not None:
+                self.open(file_path, autoplay=True, display_index=self.display_index)
+                return self.state_payload()
             self._start_slideshow(self.last_slide_index or 1)
         elif self.controller is not None and self.is_paused:
             self.controller.resume()  # type: ignore[attr-defined]

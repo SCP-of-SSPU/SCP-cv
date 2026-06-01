@@ -42,15 +42,15 @@ const toast = useToast();
 const draftName = ref('');
 const draftUri = ref('');
 const draftPreheatEnabled = ref(true);
-const draftPptBackend = ref<PptBackend>('libreoffice');
+const draftPptBackend = ref<PptBackend>('powerpoint');
 const saving = ref(false);
 const errorMessage = ref('');
 
 const isWebSource = computed(() => props.source?.source_type === 'web');
 const isPptSource = computed(() => props.source?.source_type === 'ppt');
 const pptBackendOptions = computed(() => [
-  { label: t('sources.pptBackend.libreoffice'), value: 'libreoffice' },
   { label: t('sources.pptBackend.powerpoint'), value: 'powerpoint' },
+  { label: t('sources.pptBackend.libreoffice'), value: 'libreoffice' },
   { label: t('sources.pptBackend.wps'), value: 'wps' },
 ]);
 
@@ -67,7 +67,7 @@ watch(
     draftName.value = source.name ?? '';
     draftUri.value = source.uri ?? '';
     draftPreheatEnabled.value = source.preheat_enabled ?? source.keep_alive ?? true;
-    draftPptBackend.value = source.ppt_backend ?? 'libreoffice';
+    draftPptBackend.value = source.ppt_backend ?? 'powerpoint';
     errorMessage.value = '';
   },
   { immediate: true },

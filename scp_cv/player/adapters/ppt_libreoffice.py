@@ -46,6 +46,7 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
         self._controller: Optional[object] = None
         self._total_slides: int = 0
         self._file_path: str = ""
+        self._source_id: int = 0
         self._window_handle: int = 0
         self._lo_hwnd: int = 0
         self._bridge: Optional[LibreOfficeBridgeClient] = None
@@ -73,6 +74,7 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
         :param preheat_pool: 统一预热池
         :return: None
         """
+        self._source_id = source_id
         self._preheat_enabled = preheat_enabled
         self._preheat_pool = preheat_pool
 
@@ -111,7 +113,7 @@ class LibreOfficePptSourceAdapter(SourceAdapter):
         take_bridge = getattr(self._preheat_pool, "take_libreoffice_bridge", None)
         if not callable(take_bridge):
             return None
-        bridge = take_bridge()
+        bridge = take_bridge(self._source_id, self._file_path)
         if isinstance(bridge, LibreOfficeBridgeClient):
             self._using_preheated_bridge = True
             return bridge

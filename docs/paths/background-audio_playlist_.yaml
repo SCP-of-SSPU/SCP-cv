@@ -1,0 +1,34 @@
+post:
+  tags:
+    - background-audio
+  summary: 添加音频源到背景音乐列表
+  operationId: addBackgroundAudioSource
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: ../components/schemas/BackgroundAudioSourceRequest.yaml
+  responses:
+    '200':
+      description: 添加成功或已在列表中
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/BackgroundAudioResponse.yaml
+    '400':
+      $ref: ../components/responses/ErrorResponse.yaml
+delete:
+  tags:
+    - background-audio
+  summary: 清空背景音乐列表
+  operationId: clearBackgroundAudioPlaylist
+  responses:
+    '200':
+      description: 清空成功，并停止当前背景音乐
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/BackgroundAudioResponse.yaml
+    '400':
+      $ref: ../components/responses/ErrorResponse.yaml

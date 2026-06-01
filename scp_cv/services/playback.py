@@ -45,6 +45,7 @@ from scp_cv.services.playback_window_controls import (
     toggle_loop_playback as toggle_loop_playback,
 )
 from scp_cv.ppt_backend import DEFAULT_PPT_BACKEND, normalize_ppt_backend
+from scp_cv.services.ppt_playback_cache import resolve_ppt_playback_uri
 from scp_cv.services.video_wall import VideoWallError, apply_big_screen_mode as apply_video_wall_mode
 
 logger = logging.getLogger(__name__)
@@ -164,6 +165,8 @@ def open_source(
         source = MediaSource.objects.get(pk=media_source_id)
     except MediaSource.DoesNotExist as not_found:
         raise PlaybackError(f"媒体源 id={media_source_id} 不存在") from not_found
+    if source.source_type == SourceType.AUDIO:
+        raise PlaybackError("音频源只能通过背景音乐模块播放")
 
     session = get_or_create_session(window_id)
     previous_source_id = session.media_source_id
@@ -173,6 +176,7 @@ def open_source(
         and previous_source_id != source.pk
     )
     resolved_ppt_backend = _resolve_ppt_backend(source, ppt_backend)
+    playback_uri = resolve_ppt_playback_uri(source) if source.source_type == SourceType.PPT else source.uri
     # 先关闭当前内容
     _reset_playback_fields(session)
 
@@ -184,13 +188,14 @@ def open_source(
     session.command_args = {
         "source_id": source.pk,
         "source_type": source.source_type,
-        "uri": source.uri,
+        "uri": playback_uri,
         "autoplay": autoplay,
         "volume": session.volume,
         "muted": session.is_muted,
         "preheat_enabled": bool(getattr(source, "keep_alive", True)),
     }
     if source.source_type == SourceType.PPT:
+        session.command_args["original_uri"] = source.uri
         session.command_args["ppt_backend"] = resolved_ppt_backend
         if target_slide > 0:
             session.command_args["target_slide"] = int(target_slide)
@@ -401,11 +406,13 @@ def _ppt_restart_args(session: PlaybackSession) -> dict[str, object]:
     source = session.media_source
     if source is None:
         return {}
+    playback_uri = resolve_ppt_playback_uri(source) if source.source_type == SourceType.PPT else source.uri
     return {
         "window_id": session.window_id,
         "source_id": source.pk,
         "source_type": source.source_type,
-        "uri": source.uri,
+        "uri": playback_uri,
+        "original_uri": source.uri,
         "autoplay": True,
         "volume": session.volume,
         "muted": session.is_muted,

@@ -260,6 +260,20 @@ def test_worker_bridge_command_timeout_is_separate_from_connect_timeout(
     assert libreoffice_worker._bridge_command_timeout_seconds() == 45.0
 
 
+def test_prepare_show_file_copy_uses_isolated_profile_copy(tmp_path: Path) -> None:
+    """LibreOffice --show 应打开隔离副本，避免原文件锁提示干扰放映。"""
+    source_file = tmp_path / "demo.pptx"
+    source_file.write_bytes(b"ppt-data")
+    profile_dir = tmp_path / "profile"
+    profile_dir.mkdir()
+
+    show_file = libreoffice_worker_runtime._prepare_show_file_copy(source_file, profile_dir)
+
+    assert show_file == profile_dir / "show" / "demo.pptx"
+    assert show_file.read_bytes() == b"ppt-data"
+    assert source_file.read_bytes() == b"ppt-data"
+
+
 def test_worker_start_session_terminates_process_when_uno_connect_fails(
     monkeypatch: MonkeyPatch,
     tmp_path: Path,
@@ -347,8 +361,8 @@ def test_worker_slideshow_start_does_not_block_on_libreoffice_start() -> None:
     assert presentation.start_called is True
 
 
-def test_worker_open_loads_document_visible_for_slideshow(monkeypatch: MonkeyPatch) -> None:
-    """bridge 打开 PPT 时不能隐藏文档，否则 LibreOffice 无法创建放映 controller。"""
+def test_worker_open_preloads_document_hidden_when_not_autoplay(monkeypatch: MonkeyPatch) -> None:
+    """bridge 预加载 PPT 时应隐藏编辑窗口，避免未放映前暴露 Impress。"""
     bridge = libreoffice_worker.LibreOfficeBridge()
     session = _WorkerSessionStub("open")
     document = _RuntimeDocumentStub(slide_count=3)
@@ -376,7 +390,7 @@ def test_worker_open_loads_document_visible_for_slideshow(monkeypatch: MonkeyPat
 
     payload = bridge.open(Path("demo.pptx"), autoplay=False, display_index=2)
 
-    assert load_calls == [(session, Path("demo.pptx"), False, True)]
+    assert load_calls == [(session, Path("demo.pptx"), True, True)]
     assert payload["playback_state"] == "stopped"
     assert payload["total_slides"] == 3
     assert document.presentation.AllowAnimations is True
@@ -386,6 +400,32 @@ def test_worker_open_loads_document_visible_for_slideshow(monkeypatch: MonkeyPat
     assert document.presentation.IsMouseVisible is False
     assert document.presentation.StartWithNavigator is False
     assert document.presentation.Display == 2
+
+
+def test_worker_open_autoplay_uses_show_session(monkeypatch: MonkeyPatch) -> None:
+    """bridge 自动播放应走 LibreOffice 原生 --show 会话，避免 UNO 手动 start 超时。"""
+    bridge = libreoffice_worker.LibreOfficeBridge()
+    session = _WorkerSessionStub("show")
+    document = _RuntimeDocumentStub(slide_count=3)
+    show_calls: list[Path] = []
+    load_calls: list[object] = []
+
+    def fake_start_show_session(file_path: Path) -> tuple[_WorkerSessionStub, _RuntimeDocumentStub]:
+        show_calls.append(file_path)
+        document.presentation.start_called = True
+        return session, document
+
+    monkeypatch.setattr(libreoffice_worker, "_start_show_session", fake_start_show_session)
+    monkeypatch.setattr(libreoffice_worker, "_load_document", lambda *args: load_calls.append(args))
+
+    payload = bridge.open(Path("demo.pptx"), autoplay=True, display_index=2)
+
+    assert show_calls == [Path("demo.pptx")]
+    assert load_calls == []
+    assert payload["playback_state"] == "playing"
+    assert payload["total_slides"] == 3
+    assert bridge.session is session
+    assert bridge.document is document
 
 
 def test_worker_open_retries_recoverable_bridge_dispose_after_load(monkeypatch: MonkeyPatch) -> None:
@@ -436,8 +476,8 @@ def test_worker_open_retries_recoverable_bridge_dispose_after_load(monkeypatch: 
     assert bridge.session is second_session
     assert first_session.closed is True
     assert load_calls == [
-        ("first", Path("demo.pptx"), False, True),
-        ("second", Path("demo.pptx"), False, True),
+        ("first", Path("demo.pptx"), True, True),
+        ("second", Path("demo.pptx"), True, True),
     ]
 
 
@@ -482,7 +522,7 @@ def test_worker_load_document_retries_recoverable_bridge_dispose(
     monkeypatch.setattr(libreoffice_worker, "_load_document", fake_load_document)
     monkeypatch.setattr(libreoffice_worker, "_start_session", lambda headless: second_session)
 
-    loaded_document = bridge._load_document_with_retry(Path("demo.pptx"), hidden=False, readonly=True)
+    loaded_document = bridge._load_document_with_retry(Path("demo.pptx"), hidden=True, readonly=True)
 
     assert loaded_document is document
     assert first_session.closed is True

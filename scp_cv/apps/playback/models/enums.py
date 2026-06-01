@@ -29,7 +29,7 @@ class PptPlaybackBackend(models.TextChoices):
     """PPT 放映后端枚举，由媒体源或本次打开请求显式选择。"""
 
     LIBREOFFICE = "libreoffice", "LibreOffice（稳定）"
-    POWERPOINT = "powerpoint", "Microsoft PowerPoint"
+    POWERPOINT = "powerpoint", "Microsoft PowerPoint（默认）"
     WPS = "wps", "WPS 演示"
 
 
@@ -77,6 +77,20 @@ class PlaybackCommand(models.TextChoices):
     PPT_MEDIA = "ppt_media", "控制 PPT 当前页媒体"
     RESET_PPT = "reset_ppt", "重置 PPT 放映"
     SHOW_ID = "show_id", "显示窗口 ID"
+
+
+class BackgroundAudioCommand(models.TextChoices):
+    """背景音频播放器控制指令枚举，由 Django 写入、播放器轮询消费。"""
+
+    NONE = "", "无"
+    OPEN = "open", "打开音频源"
+    PLAY = "play", "播放"
+    PAUSE = "pause", "暂停"
+    STOP = "stop", "停止"
+    SEEK = "seek", "跳转"
+    SET_LOOP = "set_loop", "设置循环播放"
+    SET_VOLUME = "set_volume", "设置音量"
+    SET_MUTE = "set_mute", "设置静音"
 
 
 class SourceState(models.TextChoices):

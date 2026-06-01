@@ -1,0 +1,8 @@
+allOf:
+  - $ref: ./SuccessResponse.yaml
+  - type: object
+    required:
+      - background_audio
+    properties:
+      background_audio:
+        $ref: ./BackgroundAudioSnapshot.yaml

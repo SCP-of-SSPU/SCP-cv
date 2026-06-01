@@ -1,0 +1,20 @@
+patch:
+  tags:
+    - background-audio
+  summary: 设置背景音乐列表循环
+  operationId: setBackgroundAudioLoop
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: ../components/schemas/BackgroundAudioLoopRequest.yaml
+  responses:
+    '200':
+      description: 循环状态已更新
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/BackgroundAudioResponse.yaml
+    '400':
+      $ref: ../components/responses/ErrorResponse.yaml

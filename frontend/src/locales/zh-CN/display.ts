@@ -94,7 +94,7 @@ export default {
     offline: '离线',
     uploadAndOpen: '上传并打开',
     file: '文件',
-    fileHint: '支持 PPT / 视频 / 图片',
+    fileHint: '支持 pptx / ppt / pps / ppsx / pptm / ppsm / pot / odp 等演示文件，以及视频 / 音频 / 图片',
     noFile: '尚未选择文件',
     chooseFile: '选择',
     displayName: '显示名称',

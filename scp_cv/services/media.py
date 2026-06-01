@@ -24,6 +24,7 @@ from scp_cv.apps.playback.models import (
     MediaSource,
     SourceType,
 )
+from scp_cv.services import ppt_playback_cache as _ppt_playback_cache
 from scp_cv.services import ppt_resources as _ppt_resources
 from scp_cv.services.media_folders import (
     create_folder as create_folder,
@@ -108,6 +109,7 @@ def add_uploaded_file(
     media_source.uri = media_source.uploaded_file.path
     media_source.save()
     _prepare_ppt_source_resources(media_source)
+    _prepare_ppt_playback_cache(media_source)
 
     logger.info("通过上传添加媒体源「%s」（%s）→ %s", display_name, source_type, media_source.uri)
     return media_source
@@ -163,6 +165,7 @@ def add_local_path(
         keep_alive=bool(preheat_enabled),
     )
     _prepare_ppt_source_resources(media_source)
+    _prepare_ppt_playback_cache(media_source)
 
     logger.info("通过本地路径添加媒体源「%s」（%s）→ %s", display_name, source_type, resolved_path)
     return media_source
@@ -226,6 +229,10 @@ def delete_media_source(media_source_id: int) -> None:
     except MediaSource.DoesNotExist as not_found:
         raise MediaError(f"媒体源 id={media_source_id} 不存在") from not_found
 
+    from scp_cv.services.background_audio import handle_media_source_deleted
+    handle_media_source_deleted(source.pk)
+    _ppt_playback_cache.cleanup_ppt_playback_cache(source.pk)
+
     # 删除关联的上传文件
     if source.uploaded_file:
         file_path = source.uploaded_file.path
@@ -268,6 +275,15 @@ def _prepare_ppt_source_resources(source: MediaSource) -> None:
     :return: None
     """
     _ppt_resources.prepare_ppt_source_resources(source, preview_exporter=_export_ppt_slide_previews)
+
+
+def _prepare_ppt_playback_cache(source: MediaSource) -> None:
+    """
+    为 PPT 建立播放专用 .ppsx/.pps 副本缓存。
+    :param source: 已保存的媒体源
+    :return: None
+    """
+    _ppt_playback_cache.prepare_ppt_playback_cache(source)
 
 
 def _ppt_backend_for_source_type(source_type: str, raw_backend: Optional[str]) -> str:
@@ -351,12 +367,12 @@ def cleanup_expired_temporary_sources() -> int:
 def sync_streams_to_media_sources() -> dict[str, int]:
     """
     将 StreamSource 中在线的流同步为 MediaSource 记录。
-    已存在的更新可用状态，新发现的自动创建。
+    已存在的更新可用状态，新发现的自动创建为 RTSP 拉流源。
     同时删除离线超过 1 小时的直播源。
     :return: 同步计数 {created, updated, removed}
     """
     from scp_cv.apps.streams.models import StreamSource
-    from scp_cv.services.mediamtx import get_srt_read_url
+    from scp_cv.services.mediamtx import get_rtsp_read_url
 
     counts: dict[str, int] = {"created": 0, "updated": 0, "removed": 0}
     active_identifiers: set[str] = set()
@@ -365,34 +381,27 @@ def sync_streams_to_media_sources() -> dict[str, int]:
     for stream in StreamSource.objects.filter(is_online=True):
         active_identifiers.add(stream.stream_identifier)
         existing = MediaSource.objects.filter(
-            source_type=SourceType.SRT_STREAM,
+            source_type__in=[SourceType.RTSP_STREAM, SourceType.SRT_STREAM],
             stream_identifier=stream.stream_identifier,
-        ).first()
+        ).order_by("source_type", "id").first()
 
-        # 向后兼容：同时查找旧的 RTSP_STREAM 类型记录
-        if existing is None:
-            existing = MediaSource.objects.filter(
-                source_type=SourceType.RTSP_STREAM,
-                stream_identifier=stream.stream_identifier,
-            ).first()
-
-        srt_url = get_srt_read_url(stream.stream_identifier)
+        rtsp_url = get_rtsp_read_url(stream.stream_identifier)
 
         if existing is None:
             MediaSource.objects.create(
-                source_type=SourceType.SRT_STREAM,
+                source_type=SourceType.RTSP_STREAM,
                 name=stream.name,
-                uri=srt_url,
+                uri=rtsp_url,
                 stream_identifier=stream.stream_identifier,
                 is_available=True,
             )
             counts["created"] += 1
         else:
-            if not existing.is_available or existing.uri != srt_url:
+            if not existing.is_available or existing.uri != rtsp_url or existing.source_type != SourceType.RTSP_STREAM:
                 existing.is_available = True
-                existing.uri = srt_url
+                existing.uri = rtsp_url
                 existing.name = stream.name
-                existing.source_type = SourceType.SRT_STREAM
+                existing.source_type = SourceType.RTSP_STREAM
                 existing.save()
                 counts["updated"] += 1
 

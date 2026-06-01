@@ -30,6 +30,7 @@ import { sourceCategoryLabel, sourceCategoryTone } from './sourcePresentation';
 import { useBreakpoint } from '@/composables/useBreakpoint';
 import { useDialog } from '@/composables/useDialog';
 import { useToast } from '@/composables/useToast';
+import { useBackgroundAudioStore } from '@/stores/backgroundAudio';
 import { useSessionStore } from '@/stores/sessions';
 import { useSourceStore, type SourceCategory } from '@/stores/sources';
 import { api, type MediaSourceItem } from '@/services/api';
@@ -37,6 +38,7 @@ import { formatBytes, formatRelativeTime } from '@/design-system/utils';
 
 const { t } = useI18n();
 const sourceStore = useSourceStore();
+const backgroundAudioStore = useBackgroundAudioStore();
 const sessionStore = useSessionStore();
 const dialog = useDialog();
 const toast = useToast();
@@ -63,6 +65,7 @@ const CATEGORY_DEFS = computed<CategoryDef[]>(() => [
   { value: 'all', label: t('sources.cat.allLabel'), emptyTitle: t('sources.cat.allEmptyTitle'), emptyHint: t('sources.cat.allEmptyHint') },
   { value: 'ppt', label: t('sources.cat.pptLabel'), emptyTitle: t('sources.cat.pptEmptyTitle'), emptyHint: t('sources.cat.pptEmptyHint') },
   { value: 'video', label: t('sources.cat.videoLabel'), emptyTitle: t('sources.cat.videoEmptyTitle'), emptyHint: t('sources.cat.videoEmptyHint') },
+  { value: 'audio', label: t('sources.cat.audioLabel'), emptyTitle: t('sources.cat.audioEmptyTitle'), emptyHint: t('sources.cat.audioEmptyHint') },
   { value: 'image', label: t('sources.cat.imageLabel'), emptyTitle: t('sources.cat.imageEmptyTitle'), emptyHint: t('sources.cat.imageEmptyHint') },
   { value: 'web', label: t('sources.cat.webLabel'), emptyTitle: t('sources.cat.webEmptyTitle'), emptyHint: t('sources.cat.webEmptyHint') },
   { value: 'stream', label: t('sources.cat.streamLabel'), emptyTitle: t('sources.cat.streamEmptyTitle'), emptyHint: t('sources.cat.streamEmptyHint') },
@@ -92,6 +95,24 @@ async function openToWindow(source: MediaSourceItem, windowId: number): Promise<
   }
 }
 
+async function playAsBackgroundAudio(source: MediaSourceItem): Promise<void> {
+  try {
+    await backgroundAudioStore.playSource(source.id);
+    toast.success(t('sources.backgroundAudioPlayOk', { name: source.name }));
+  } catch (error) {
+    toast.error(t('sources.backgroundAudioFail'), error instanceof Error ? error.message : t('common.retry'));
+  }
+}
+
+async function addToBackgroundAudio(source: MediaSourceItem): Promise<void> {
+  try {
+    await backgroundAudioStore.addSource(source.id);
+    toast.success(t('sources.backgroundAudioAddOk'));
+  } catch (error) {
+    toast.error(t('sources.backgroundAudioFail'), error instanceof Error ? error.message : t('common.retry'));
+  }
+}
+
 function downloadSource(source: MediaSourceItem): void {
   const url = api.downloadSourceUrl(source.id);
   window.open(url, '_blank');
@@ -118,18 +139,36 @@ function renderIcon(name: string) {
 
 function buildRowMenu(source: MediaSourceItem): DropdownOption[] {
   const isFileBased = !!source.file_size && source.file_size > 0;
+  const openOptions: DropdownOption[] = source.source_type === 'audio'
+    ? [
+      {
+        label: t('sources.playAsBackgroundAudio'),
+        key: 'play-background-audio',
+        icon: renderIcon('play_24_regular'),
+        props: { onClick: () => playAsBackgroundAudio(source) },
+      },
+      {
+        label: t('sources.addToBackgroundAudio'),
+        key: 'add-background-audio',
+        icon: renderIcon('music_note_2_24_regular'),
+        props: { onClick: () => addToBackgroundAudio(source) },
+      },
+    ]
+    : [
+      {
+        type: 'group',
+        label: t('sources.openToWindow'),
+        key: 'open-group',
+        children: [1, 2, 3, 4].map((windowId) => ({
+          label: t('sources.window', { id: windowId }),
+          key: `open-${windowId}`,
+          icon: renderIcon('open_24_regular'),
+          props: { onClick: () => openToWindow(source, windowId) },
+        })),
+      },
+    ];
   return [
-    {
-      type: 'group',
-      label: t('sources.openToWindow'),
-      key: 'open-group',
-      children: [1, 2, 3, 4].map((windowId) => ({
-        label: t('sources.window', { id: windowId }),
-        key: `open-${windowId}`,
-        icon: renderIcon('open_24_regular'),
-        props: { onClick: () => openToWindow(source, windowId) },
-      })),
-    },
+    ...openOptions,
     { type: 'divider', key: 'divider-1' },
     {
       label: t('common.edit'),

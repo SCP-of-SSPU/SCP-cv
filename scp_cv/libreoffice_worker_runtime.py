@@ -121,6 +121,70 @@ def _start_session(headless: bool) -> LibreOfficeSession:
     return LibreOfficeSession(process, profile_dir, context, desktop, uno)
 
 
+def _start_show_session(file_path: Path) -> tuple[LibreOfficeSession, object]:
+    """
+    通过 LibreOffice 原生 --show 入口启动放映并建立 UNO 连接。
+    Windows 下实测该路径比先 loadComponentFromURL 再 start 更稳定，可避免
+    `Binary URP bridge disposed during call` 导致的 bridge 命令超时。
+    :param file_path: 待放映的 PPT/PPS 文件路径
+    :return: LibreOffice 会话和当前文档对象
+    """
+    if not file_path.is_file():
+        raise WorkerError(f"PPT 文件不存在：{file_path}")
+    uno = _import_uno()
+    executable = _resolve_soffice_show_executable()
+    pipe_name = f"scp_cv_{os.getpid()}_{uuid.uuid4().hex}"
+    profile_dir = Path(tempfile.mkdtemp(prefix="scp-cv-lo-"))
+    show_file_path = _prepare_show_file_copy(file_path, profile_dir)
+    profile_url = uno.systemPathToFileUrl(str(profile_dir.resolve()))
+    accept_arg = f"--accept=pipe,name={pipe_name};urp;StarOffice.ComponentContext"
+    args = [
+        str(executable),
+        "--norestore",
+        "--nodefault",
+        "--nolockcheck",
+        "--nofirststartwizard",
+        "--nologo",
+        f"-env:UserInstallation={profile_url}",
+        accept_arg,
+        "--show",
+        str(show_file_path),
+    ]
+    try:
+        process = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError as start_error:
+        shutil.rmtree(profile_dir, ignore_errors=True)
+        raise WorkerError(f"LibreOffice 放映启动失败：{start_error}") from start_error
+    try:
+        context, desktop = _connect_uno_pipe(uno, pipe_name, process)
+        session = LibreOfficeSession(process, profile_dir, context, desktop, uno)
+        document = _wait_for_current_component(session)
+    except Exception:
+        _terminate_process(process)
+        shutil.rmtree(profile_dir, ignore_errors=True)
+        raise
+    return session, document
+
+
+def _prepare_show_file_copy(file_path: Path, profile_dir: Path) -> Path:
+    """
+    为 LibreOffice 原生 --show 准备隔离播放副本。
+    避免原文件旁的 Office 锁文件或被占用状态触发“文档正在被使用”提示。
+    :param file_path: 原始 PPT/PPS 文件路径
+    :param profile_dir: 本次 LibreOffice 隔离 profile 目录
+    :return: 隔离播放副本路径
+    :raises WorkerError: 文件复制失败时
+    """
+    show_dir = profile_dir / "show"
+    show_dir.mkdir(parents=True, exist_ok=True)
+    show_file_path = show_dir / file_path.name
+    try:
+        shutil.copy2(file_path, show_file_path)
+    except OSError as copy_error:
+        raise WorkerError(f"复制 LibreOffice 放映副本失败：{copy_error}") from copy_error
+    return show_file_path
+
+
 def _load_document(
     session: LibreOfficeSession,
     file_path: Path,
@@ -192,6 +256,41 @@ def _resolve_soffice_executable() -> Path:
         if candidate.is_file():
             return candidate
     raise WorkerError(f"未找到 LibreOffice soffice：{program_dir}")
+
+
+def _resolve_soffice_show_executable() -> Path:
+    """
+    解析适合 GUI 放映的 soffice 可执行文件。
+    Windows 上 `soffice.exe --show` 在本机验证中比 `soffice.com` 更稳定。
+    :return: soffice 可执行文件路径
+    """
+    executable = _resolve_soffice_executable()
+    if os.name == "nt":
+        gui_executable = executable.parent / "soffice.exe"
+        if gui_executable.is_file():
+            return gui_executable
+    return executable
+
+
+def _wait_for_current_component(session: LibreOfficeSession) -> object:
+    """
+    等待 --show 启动后的当前文档对象可用。
+    :param session: LibreOffice 会话
+    :return: 当前 UNO 文档对象
+    """
+    deadline = time.monotonic() + _timeout_seconds()
+    last_error: Exception | None = None
+    while time.monotonic() < deadline:
+        if session.process.poll() is not None:
+            raise WorkerError(f"LibreOffice 进程提前退出，退出码={session.process.returncode}")
+        try:
+            document = session.desktop.getCurrentComponent()  # type: ignore[attr-defined]
+            if document is not None:
+                return document
+        except Exception as component_error:
+            last_error = component_error
+        time.sleep(0.2)
+    raise WorkerError(f"获取 LibreOffice 当前文档超时：{last_error}")
 
 
 def _connect_uno_pipe(

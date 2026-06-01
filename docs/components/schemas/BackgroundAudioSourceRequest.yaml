@@ -1,0 +1,8 @@
+type: object
+required:
+  - source_id
+properties:
+  source_id:
+    type: integer
+    minimum: 1
+    description: 必须是 audio 类型媒体源 ID

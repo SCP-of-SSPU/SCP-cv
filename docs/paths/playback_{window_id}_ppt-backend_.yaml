@@ -17,6 +17,6 @@ post:
       content:
         application/json:
           schema:
-            $ref: ../components/schemas/SessionsResponse.yaml
+            $ref: ../components/schemas/PlaybackStateResponse.yaml
     '400':
       $ref: ../components/responses/ErrorResponse.yaml

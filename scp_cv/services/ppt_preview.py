@@ -442,9 +442,9 @@ def _is_ppt_export_candidate(file_path: Path) -> bool:
     :return: True 表示可尝试导出预览
     """
     suffix = file_path.suffix.lower()
-    if suffix in {".ppt", ".pps"}:
+    if suffix in {".ppt", ".pps", ".pot", ".odp"}:
         return True
-    if suffix not in {".pptx", ".ppsx"}:
+    if suffix not in {".pptx", ".pptm", ".ppsx", ".ppsm", ".potx", ".potm"}:
         return False
     try:
         with zipfile.ZipFile(file_path) as archive:

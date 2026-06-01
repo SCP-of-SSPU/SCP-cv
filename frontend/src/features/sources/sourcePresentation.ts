@@ -17,6 +17,8 @@ export function sourceCategoryLabel(source: MediaSourceItem): string {
       return t('sources.typeLabel.ppt');
     case 'video':
       return t('sources.typeLabel.video');
+    case 'audio':
+      return t('sources.typeLabel.audio');
     case 'image':
       return t('sources.typeLabel.image');
     case 'web':
@@ -35,6 +37,8 @@ export function sourceCategoryIcon(source: MediaSourceItem): string {
       return 'document_24_regular';
     case 'video':
       return 'video_24_regular';
+    case 'audio':
+      return 'music_note_2_24_regular';
     case 'image':
       return 'image_24_regular';
     case 'web':
@@ -53,6 +57,8 @@ export function sourceCategoryTone(source: MediaSourceItem): SourceTagType {
       return 'info';
     case 'video':
       return 'success';
+    case 'audio':
+      return 'info';
     case 'image':
     case 'web':
       return 'default';

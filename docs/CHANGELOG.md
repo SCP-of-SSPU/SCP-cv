@@ -1,5 +1,40 @@
 # CHANGELOG
 
+## 2026-05-31
+
+### 升级背景音频与直播预热
+
+- 后端：MediaMTX 在线流自动同步时默认创建/更新为 `rtsp_stream`，URI 使用 `get_rtsp_read_url()`；旧自动发现的 `srt_stream` 在线后会升级为 RTSP 拉流源，手动 SRT 源仍可继续使用。
+- 播放器：新增 `PreheatedAudioSource`，背景音乐通道会按 `source_id + uri` 认领已设置本地文件源的 `QMediaPlayer + QAudioOutput`，避免背景音频冷开时重复初始化 Qt Multimedia。
+- 播放器：直播预热从“只预连接”升级为 URI 级可认领资源；`StreamPreheatHandle` 保留 libVLC `instance/player/media`，前台 `SrtStreamAdapter` 命中相同 `source_id + uri` 时直接复用并重新绑定目标 HWND。
+- 配置：新增 `MEDIAMTX_SRT_READ_LATENCY_MS`、`MEDIAMTX_SRT_PUBLISH_LATENCY_US`、`MEDIAMTX_RTSP_READ_TRANSPORT`、`STREAM_VLC_*` 和 `STREAM_PREHEAT_*`，将直播低延迟缓存、丢帧和预热 TTL 参数外置到 `.env`。
+- 测试：补充背景音频文件级预热、直播 URI 级认领、libVLC 参数外置和 SRT latency 配置覆盖。
+
+### 默认改用 PowerPoint 并新增 PPT 放映缓存
+
+- 后端：PPT 默认播放器从 LibreOffice 改为 `Microsoft PowerPoint（默认）`，新建媒体源和播放会话默认使用 `powerpoint`；现有已选择后端的媒体源不做强制覆盖。
+- 格式：PPT 类型识别扩展到 `.pptx/.ppt/.pps/.ppsx/.pptm/.ppsm/.pot/.potx/.potm/.odp`，宏格式默认导出为非宏 `.ppsx` 播放副本。
+- 缓存：导入或注册 PPT 后会尝试生成播放专用 `.ppsx`/`.pps` 缓存并写入 `metadata.ppt_playback`；播放、PPT 重置和文件级预热优先使用缓存 URI，缓存缺失或生成失败时回退原始文件。
+- 配置：新增 `PPT_PLAYBACK_EXPORT_TIMEOUT_SECONDS` 控制播放缓存导出超时，导出失败不阻断媒体源创建。
+- 前端：导入和上传 PPT 的默认后端改为 PowerPoint，后端选择顺序调整为 PowerPoint、LibreOffice、WPS，并同步扩展 PPT 文件识别。
+- 文档/测试：OpenAPI、README、使用文档同步 PowerPoint 默认值、支持格式和缓存语义，补充播放缓存、播放 URI 回退和默认后端测试。
+
+### 修复 LibreOffice bridge 超时并升级 PPT 文件级预热
+
+- LibreOffice：自动放映改为原生 `soffice.exe --show` + UNO pipe 路径，避开 Windows 下先 `loadComponentFromURL` 再手动 `startWithArguments` 可能触发的 `Binary URP bridge disposed` 和 bridge 命令超时。
+- LibreOffice：`--show` 启动时使用隔离 profile 下的播放副本，避免原文件旁残留锁文件或被占用状态弹出“文档正在被使用”等非放映提示。
+- 预热：PPT 预热从后端应用级升级为源文件级；PowerPoint / WPS 预热会提前无窗口打开目标 `Presentation`，LibreOffice bridge 预热会隐藏加载目标文档，并按 `source_id + uri` 精确认领。
+- 播放器：拆出 PowerPoint/WPS 预热复用 mixin，适配器命中文件级预热时直接复用已打开的 `Presentation`，关闭后降级为应用级暖实例，避免误复用已消费的文件级对象。
+- 测试：补充文件级 PPT 预热、LibreOffice bridge 源精确匹配、`--show` 隔离副本和本机 bridge 打开验证覆盖。
+
+### 新增背景音乐播放通道
+
+- 后端/API：新增 `BackgroundAudioState`、`BackgroundAudioPlaylistItem`、`/api/background-audio/` 系列接口和 SSE `background_audio` 快照，音频源保留 `audio` 语义但不再打开到 1-4 号播放窗口。
+- 播放器：新增基于 `QMediaPlayer + QAudioOutput` 的后台音频适配器，独立轮询背景音乐指令，支持播放列表、立即播放、暂停、停止、上一首、下一首、Seek、循环、音量和静音。
+- 前端：新增“背景音乐”控制页，媒体源页展示音频分类并提供“立即播放背景音乐”和“加入背景音乐列表”，显控窗口和预案配置不再选择音频源。
+- 冒烟测试：本机物理冒烟测试改为窗口源逐屏验证，音频源通过背景音乐通道单独验证；删除当前播放列表项或清空列表会自动停止背景音乐。
+- 文档：OpenAPI 补齐背景音乐路径、schema 和统一播放状态响应，使用文档补充背景音乐操作流程。
+
 ## 2026-05-30
 
 ### 修复 LibreOffice PPT 预热与快速重开竞态

@@ -1,0 +1,14 @@
+get:
+  tags:
+    - background-audio
+  summary: 获取背景音乐状态
+  operationId: getBackgroundAudio
+  responses:
+    '200':
+      description: 成功
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/BackgroundAudioResponse.yaml
+    '401':
+      $ref: ../components/responses/ErrorResponse.yaml

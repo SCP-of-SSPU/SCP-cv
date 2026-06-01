@@ -183,7 +183,9 @@ def mutate_playback(operation: Callable[[], Any]) -> JsonResponse:
     :return: 包含全量会话快照的 JSON 响应
     """
     operation()
+    from scp_cv.services.background_audio_payloads import get_background_audio_snapshot
+
     sessions = get_all_sessions_snapshot()
-    payload = {"sessions": sessions}
+    payload = {"sessions": sessions, "background_audio": get_background_audio_snapshot()}
     publish_event("playback_state", payload)
     return json_response({"success": True, **payload})

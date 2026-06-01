@@ -151,6 +151,7 @@ class _SingleLoopController(PlayerController):
         """
         super().__init__()
         self.checked_windows: list[int] = []
+        self.checked_background_audio = False
         self.report_requested = False
 
     @property
@@ -165,6 +166,10 @@ class _SingleLoopController(PlayerController):
         :return: None
         """
         self.checked_windows.append(window_id)
+
+    def _check_and_dispatch_background_audio_command(self) -> None:
+        """记录背景音频轮询，避免该线程边界测试访问数据库。"""
+        self.checked_background_audio = True
 
     def _request_adapter_state_report(self) -> None:
         """记录状态上报请求，并结束轮询。"""
@@ -185,6 +190,7 @@ def test_poll_loop_requests_state_report_instead_of_reading_adapter_directly() -
         controller._poll_loop(interval_seconds=0)
 
     assert controller.checked_windows == [1]
+    assert controller.checked_background_audio is True
     assert controller.report_requested is True
 
 

@@ -1,0 +1,11 @@
+type: object
+required:
+  - state
+  - playlist
+properties:
+  state:
+    $ref: ./BackgroundAudioStateSnapshot.yaml
+  playlist:
+    type: array
+    items:
+      $ref: ./BackgroundAudioPlaylistItem.yaml

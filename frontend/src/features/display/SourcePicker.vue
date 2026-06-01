@@ -23,6 +23,7 @@ import {
 import FIcon from '@/design-system/FIcon.vue';
 import { useDialog } from '@/composables/useDialog';
 import { useToast } from '@/composables/useToast';
+import { useBackgroundAudioStore } from '@/stores/backgroundAudio';
 import { useSessionStore } from '@/stores/sessions';
 import { useSourceStore, type SourceCategory } from '@/stores/sources';
 import type { MediaSourceItem, PptBackend } from '@/services/api';
@@ -33,6 +34,7 @@ const props = defineProps<{ windowId: number }>();
 
 const { t } = useI18n();
 const sourceStore = useSourceStore();
+const backgroundAudioStore = useBackgroundAudioStore();
 const sessionStore = useSessionStore();
 const toast = useToast();
 const dialog = useDialog();
@@ -42,7 +44,7 @@ const searchKeyword = ref('');
 const expanded = ref(false);
 const fileToUpload = ref<File | null>(null);
 const fileDisplayName = ref('');
-const filePptBackend = ref<PptBackend>('libreoffice');
+const filePptBackend = ref<PptBackend>('powerpoint');
 const pptOpenBackend = ref<PptBackend | 'source-default'>('source-default');
 const uploadProgress = ref(0);
 const uploading = ref(false);
@@ -52,6 +54,7 @@ const fileInputRef = ref<HTMLInputElement | null>(null);
 const filteredSources = computed<MediaSourceItem[]>(() => {
   const keyword = searchKeyword.value.trim().toLowerCase();
   return sourceStore.sources.filter((source) => {
+    if (source.source_type === 'audio') return false;
     if (filterValue.value !== 'all' && sourceStore.resolveCategory(source.source_type) !== filterValue.value) {
       return false;
     }
@@ -60,17 +63,17 @@ const filteredSources = computed<MediaSourceItem[]>(() => {
     return hay.includes(keyword);
   });
 });
-const isPptUpload = computed(() => /\.(pptx?|ppsx?)$/i.test(fileToUpload.value?.name ?? ''));
+const isPptUpload = computed(() => /\.(pptx?|pptm|ppsx?|ppsm|potx?|potm|odp)$/i.test(fileToUpload.value?.name ?? ''));
 const hasPptSources = computed(() => sourceStore.sources.some((source) => source.source_type === 'ppt'));
 const pptBackendOptions = computed(() => [
   { label: t('sourcePicker.pptBackendDefault'), value: 'source-default' },
-  { label: t('sources.pptBackend.libreoffice'), value: 'libreoffice' },
   { label: t('sources.pptBackend.powerpoint'), value: 'powerpoint' },
+  { label: t('sources.pptBackend.libreoffice'), value: 'libreoffice' },
   { label: t('sources.pptBackend.wps'), value: 'wps' },
 ]);
 const pptBackendStrictOptions = computed(() => [
-  { label: t('sources.pptBackend.libreoffice'), value: 'libreoffice' },
   { label: t('sources.pptBackend.powerpoint'), value: 'powerpoint' },
+  { label: t('sources.pptBackend.libreoffice'), value: 'libreoffice' },
   { label: t('sources.pptBackend.wps'), value: 'wps' },
 ]);
 
@@ -121,11 +124,16 @@ async function uploadAndOpen(persist: boolean): Promise<void> {
         uploadProgress.value = percent;
       },
     });
-    await sessionStore.openSource(props.windowId, result.id, true, result.source_type === 'ppt' ? result.ppt_backend : undefined);
-    toast.success(persist ? t('sourcePicker.uploadedOpenedSave') : t('sourcePicker.uploadedOpenedNoSave'), t('sourcePicker.sourceNameDetail', { name: result.name }));
+    if (result.source_type === 'audio') {
+      await backgroundAudioStore.playSource(result.id);
+      toast.success(t('backgroundAudio.playingOk', { name: result.name }));
+    } else {
+      await sessionStore.openSource(props.windowId, result.id, true, result.source_type === 'ppt' ? result.ppt_backend : undefined);
+      toast.success(persist ? t('sourcePicker.uploadedOpenedSave') : t('sourcePicker.uploadedOpenedNoSave'), t('sourcePicker.sourceNameDetail', { name: result.name }));
+    }
     fileToUpload.value = null;
     fileDisplayName.value = '';
-    filePptBackend.value = 'libreoffice';
+    filePptBackend.value = 'powerpoint';
     if (fileInputRef.value) fileInputRef.value.value = '';
   } catch (error) {
     uploadError.value = error instanceof Error ? error.message : t('sourcePicker.uploadFail');

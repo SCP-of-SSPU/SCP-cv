@@ -31,6 +31,8 @@ tags:
     description: 播放会话查询
   - name: playback
     description: 窗口播放、切换、重置和物理冒烟测试
+  - name: background-audio
+    description: 背景音乐播放列表、播放控制与状态查询
   - name: runtime
     description: 全局运行态、系统音量与系统关闭请求
   - name: displays
@@ -84,6 +86,24 @@ paths:
     $ref: './paths/runtime_.yaml'
   /volume/:
     $ref: './paths/volume_.yaml'
+  /background-audio/:
+    $ref: './paths/background-audio_.yaml'
+  /background-audio/playlist/:
+    $ref: './paths/background-audio_playlist_.yaml'
+  /background-audio/playlist/{item_id}/:
+    $ref: './paths/background-audio_playlist_{item_id}_.yaml'
+  /background-audio/playlist/{item_id}/play/:
+    $ref: './paths/background-audio_playlist_{item_id}_play_.yaml'
+  /background-audio/play-source/:
+    $ref: './paths/background-audio_play-source_.yaml'
+  /background-audio/control/:
+    $ref: './paths/background-audio_control_.yaml'
+  /background-audio/volume/:
+    $ref: './paths/background-audio_volume_.yaml'
+  /background-audio/mute/:
+    $ref: './paths/background-audio_mute_.yaml'
+  /background-audio/loop/:
+    $ref: './paths/background-audio_loop_.yaml'
   /playback/{window_id}/open/:
     $ref: './paths/playback_{window_id}_open_.yaml'
   /playback/{window_id}/control/:

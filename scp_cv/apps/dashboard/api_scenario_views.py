@@ -31,6 +31,7 @@ from scp_cv.services.scenario import (
     pin_scenario,
     update_scenario,
 )
+from scp_cv.services.background_audio_payloads import get_background_audio_snapshot
 from scp_cv.services.sse import publish_event
 
 
@@ -187,7 +188,7 @@ def activate_scenario_api(request: HttpRequest, scenario_id: int) -> JsonRespons
     """
     try:
         sessions = activate_scenario(int(scenario_id))
-        payload = {"sessions": sessions}
+        payload = {"sessions": sessions, "background_audio": get_background_audio_snapshot()}
         publish_event("playback_state", payload)
         return json_response({"success": True, **payload})
     except ScenarioError as scenario_error:

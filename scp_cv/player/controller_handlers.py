@@ -217,7 +217,8 @@ class PlayerCommandHandlersMixin:
             window.raise_()
             window.show_black_screen()
 
-        from scp_cv.apps.playback.models import PlaybackState, PlaybackSession, PptPlaybackBackend
+        from scp_cv.apps.playback.models import PlaybackState, PlaybackSession
+        from scp_cv.ppt_backend import DEFAULT_PPT_BACKEND
         session = PlaybackSession.objects.filter(window_id=window_id).first()
         if session is not None:
             if session.playback_state != PlaybackState.IDLE:
@@ -232,7 +233,7 @@ class PlayerCommandHandlersMixin:
             session.error_message = ""
             session.current_slide = 0
             session.total_slides = 0
-            session.ppt_backend = PptPlaybackBackend.LIBREOFFICE
+            session.ppt_backend = DEFAULT_PPT_BACKEND
             session.position_ms = 0
             session.duration_ms = 0
             session.save()
@@ -267,7 +268,8 @@ class PlayerCommandHandlersMixin:
         :param window_id: 窗口编号
         :return: None
         """
-        from scp_cv.apps.playback.models import PlaybackState, PlaybackSession, PptPlaybackBackend
+        from scp_cv.apps.playback.models import PlaybackState, PlaybackSession
+        from scp_cv.ppt_backend import DEFAULT_PPT_BACKEND
 
         session = PlaybackSession.objects.filter(window_id=window_id).first()
         if session is None:
@@ -277,7 +279,7 @@ class PlayerCommandHandlersMixin:
         session.error_message = ""
         session.current_slide = 0
         session.total_slides = 0
-        session.ppt_backend = PptPlaybackBackend.LIBREOFFICE
+        session.ppt_backend = DEFAULT_PPT_BACKEND
         session.position_ms = 0
         session.duration_ms = 0
         session.save(update_fields=[
@@ -589,7 +591,10 @@ class PlayerCommandHandlersMixin:
         """
         preheat_pool = self._ensure_preheat_pool() if preheat_enabled else self._preheat_pool
         if preheat_pool is not None:
-            preheat_pool.before_open(source_id, source_type)
+            if not preheat_enabled and source_type.endswith("_stream"):
+                preheat_pool.stop_stream_preheat(source_id)
+            else:
+                preheat_pool.before_open(source_id, source_type)
         adapter_preheat_pool = preheat_pool if preheat_enabled else None
         if source_type == "web" and window is not None:
             from scp_cv.player.adapters.web import WebSourceAdapter
@@ -624,13 +629,18 @@ class PlayerCommandHandlersMixin:
             "source_type",
             "uri",
             "ppt_backend",
+            "metadata",
         ).first()
         if source is None:
             return
+        preheat_uri = source.uri
+        if source.source_type == "ppt":
+            from scp_cv.services.ppt_playback_cache import resolve_ppt_playback_uri
+            preheat_uri = resolve_ppt_playback_uri(source)
         self._ensure_preheat_pool().preheat_source(
             source.pk,
             source.source_type,
-            source.uri,
+            preheat_uri,
             getattr(source, "ppt_backend", ""),
             force=source.source_type != "web",
         )

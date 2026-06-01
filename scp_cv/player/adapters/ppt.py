@@ -38,13 +38,14 @@ from scp_cv.player.adapters.ppt_process import (
     read_ppt_app_process_id,
     snapshot_candidate_process_ids,
 )
+from scp_cv.player.adapters.ppt_preheat import PptPreheatMixin
 from scp_cv.player.preheat_types import PreheatedPptApplication
 from scp_cv.ppt_com import POWERPOINT_COM_PROG_IDS
 
 _SLIDESHOW_HWND_TIMEOUT_SECONDS = 12.0
 
 
-class PptSourceAdapter(SourceAdapter):
+class PptSourceAdapter(PptPreheatMixin, SourceAdapter):
     """
     本机 PPT COM 放映适配器。
 
@@ -79,6 +80,7 @@ class PptSourceAdapter(SourceAdapter):
         self._window_handle: int = 0
         self._ppt_hwnd: int = 0
         self._ppt_process_id: int = 0
+        self._source_id: int = 0
         self._is_paused: bool = False
         self._last_slide_index: int = 1
         self._owns_ppt_app: bool = False
@@ -104,6 +106,7 @@ class PptSourceAdapter(SourceAdapter):
         :param preheat_pool: 统一预热池
         :return: None
         """
+        self._source_id = source_id
         self._preheat_enabled = preheat_enabled
         self._preheat_pool = preheat_pool
 
@@ -161,7 +164,9 @@ class PptSourceAdapter(SourceAdapter):
         except Exception as minimize_error:
             self._logger.debug("%s 编辑窗口最小化失败：%s", self._app_label, minimize_error)
 
-        self._presentation = self._open_presentation_for_slideshow(file_path)
+        self._presentation = self._take_preheated_presentation(file_path)
+        if self._presentation is None:
+            self._presentation = self._open_presentation_for_slideshow(file_path)
         self._mark_presentation_clean()
         self._total_slides = self._presentation.Slides.Count
 
@@ -336,32 +341,6 @@ class PptSourceAdapter(SourceAdapter):
 
         self._total_slides = 0
         self._is_paused = False
-
-    def _take_preheated_application(self) -> PreheatedPptApplication | None:
-        """
-        从统一预热池取出已启动的 PowerPoint/WPS 应用。
-        :return: 预热应用或 None
-        """
-        if not self._preheat_enabled or self._preheat_pool is None:
-            return None
-        take_application = getattr(self._preheat_pool, "take_ppt_application", None)
-        if not callable(take_application):
-            return None
-        backend = "wps" if self._adapter_name == "ppt-wps" else "powerpoint"
-        return take_application(backend)
-
-    def _return_preheated_application(self) -> bool:
-        """
-        将借出的 PowerPoint/WPS 应用归还预热池。
-        :return: True 表示已归还
-        """
-        if self._preheated_app is None or self._preheat_pool is None:
-            return False
-        return_application = getattr(self._preheat_pool, "return_ppt_application", None)
-        if not callable(return_application):
-            return False
-        return_application(self._preheated_app)
-        return True
 
     def _set_powerpoint_alerts(self, alert_level: int) -> None:
         """

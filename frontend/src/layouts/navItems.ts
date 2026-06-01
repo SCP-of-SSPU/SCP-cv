@@ -1,6 +1,6 @@
 /*
  * 应用 Shell 导航条目集合：与设计稿 §3.2 严格对齐。
- *  - 仪表盘 / 大屏控制 / 电视左 / 电视右 / 媒体源 / 预案 / 设置
+ *  - 仪表盘 / 大屏控制 / 电视左 / 电视右 / 媒体源 / 背景音乐 / 预案 / 设置
  *  - 单屏模式仅显示「大屏」一项；双屏模式自动展开为大屏左 / 大屏右
  *  - 移动端底部 TabBar 5 项：首页 / 显控 / 媒体源 / 预案 / 更多
  */
@@ -16,6 +16,7 @@ export const DESKTOP_PRIMARY_NAV: NavItemDef[] = [
   { path: '/display/tv-left', label: t('nav.tvLeft'), icon: 'desktop_mac_24_regular' },
   { path: '/display/tv-right', label: t('nav.tvRight'), icon: 'desktop_mac_24_regular' },
   { path: '/sources', label: t('nav.sources'), icon: 'library_24_regular', iconSelected: 'library_24_filled' },
+  { path: '/background-audio', label: t('nav.backgroundAudio'), icon: 'music_note_2_24_regular' },
   { path: '/scenarios', label: t('nav.scenarios'), icon: 'layer_24_regular', iconSelected: 'layer_24_filled' },
 ];
 

@@ -1,0 +1,20 @@
+post:
+  tags:
+    - background-audio
+  summary: 控制背景音乐播放
+  operationId: controlBackgroundAudio
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: ../components/schemas/BackgroundAudioControlRequest.yaml
+  responses:
+    '200':
+      description: 控制指令已写入后台播放器状态
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/BackgroundAudioResponse.yaml
+    '400':
+      $ref: ../components/responses/ErrorResponse.yaml

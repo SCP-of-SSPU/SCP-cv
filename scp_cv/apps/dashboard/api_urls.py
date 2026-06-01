@@ -10,7 +10,7 @@
 '''
 from django.urls import path
 
-from . import api_auth_views, api_playback_views, api_scenario_views, api_views
+from . import api_auth_views, api_background_audio_views, api_playback_views, api_scenario_views, api_views
 
 app_name = "dashboard_api"
 
@@ -34,6 +34,15 @@ urlpatterns = [
     path("sessions/<int:window_id>/", api_playback_views.session_detail_api, name="session_detail"),
     path("runtime/", api_playback_views.runtime_state_api, name="runtime_state"),
     path("volume/", api_playback_views.system_volume_api, name="system_volume"),
+    path("background-audio/", api_background_audio_views.background_audio_api, name="background_audio"),
+    path("background-audio/playlist/", api_background_audio_views.background_audio_playlist_api, name="background_audio_playlist"),
+    path("background-audio/playlist/<int:item_id>/", api_background_audio_views.background_audio_playlist_item_api, name="background_audio_playlist_item"),
+    path("background-audio/playlist/<int:item_id>/play/", api_background_audio_views.background_audio_play_item_api, name="background_audio_play_item"),
+    path("background-audio/play-source/", api_background_audio_views.background_audio_play_source_api, name="background_audio_play_source"),
+    path("background-audio/control/", api_background_audio_views.background_audio_control_api, name="background_audio_control"),
+    path("background-audio/volume/", api_background_audio_views.background_audio_volume_api, name="background_audio_volume"),
+    path("background-audio/mute/", api_background_audio_views.background_audio_mute_api, name="background_audio_mute"),
+    path("background-audio/loop/", api_background_audio_views.background_audio_loop_api, name="background_audio_loop"),
     path("playback/<int:window_id>/open/", api_playback_views.open_source_api, name="open_source"),
     path("playback/<int:window_id>/control/", api_playback_views.playback_control_api, name="playback_control"),
     path("playback/<int:window_id>/navigate/", api_playback_views.navigate_content_api, name="navigate_content"),

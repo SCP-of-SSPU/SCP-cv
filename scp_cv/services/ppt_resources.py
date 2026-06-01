@@ -194,8 +194,8 @@ def _extract_pptx_resources(file_path: Path) -> list[dict[str, object]]:
     :return: PPT 页资源列表
     :raises MediaError: 文件不是可解析的 zip PPT 时
     """
-    if file_path.suffix.lower() not in {".pptx", ".ppsx"}:
-        raise MediaError("仅 pptx/ppsx 支持自动解析资源")
+    if file_path.suffix.lower() not in {".pptx", ".pptm", ".ppsx", ".ppsm", ".potx", ".potm"}:
+        raise MediaError("仅 OOXML PPT/PPS/POT 支持自动解析资源")
     try:
         with zipfile.ZipFile(file_path) as archive:
             slide_names = sorted(
