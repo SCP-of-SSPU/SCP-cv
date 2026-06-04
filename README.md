@@ -218,6 +218,7 @@ uv run manage.py clearall
 
 - [使用文档](docs/使用文档.md)：现场部署、环境变量、启动、播控流程和常见问题。
 - [维护文档](docs/维护文档.md)：目录职责、运行时资产、依赖升级、备份、故障定位和发布维护流程。
+- [设计文档](docs/design/README.md)：面向迁移合并到 Django + Fluent + Vue 项目的系统架构、数据模型、接口、前端、播放器、运维和迁移指南。
 - [OpenAPI YAML](docs/openapi.yaml)：REST API 机器可读接口合同。
 - [贡献指南](CONTRIBUTING.md)：开发流程、提交规范和验证要求。
 - [代码风格](STYLE.md)：Python、TypeScript、Vue、CSS 和文档风格约定。

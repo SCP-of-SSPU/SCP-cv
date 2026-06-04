@@ -1,0 +1,256 @@
+# 播放器与媒体运行时设计
+
+本文说明 PySide6 播放器、媒体 adapter、PPT 后端、预热、状态回写和四窗口运行时。该部分是迁移中最不适合并入 Django Web Worker 的模块。
+
+最后更新：2026-06-04。
+
+## 运行时定位
+
+播放器是独立 Windows 桌面进程，负责把后端会话表中的命令转成真实窗口、Office、LibreOffice、QMediaPlayer、QWebEngine 和 libVLC 操作。
+
+```text
+Django 服务层
+  -> PlaybackSession.pending_command / command_args
+  -> PySide6 PlayerController 轮询
+  -> Qt 主线程执行 adapter 命令
+  -> AdapterState 写回 PlaybackSession
+  -> SSE 轮询 DB 推送到 Vue
+```
+
+迁移时必须保持以下边界：
+
+| 边界 | 原因 |
+| --- | --- |
+| 播放器独立进程 | Qt GUI、QWebEngine、libVLC HWND、Office COM 需要活动桌面 |
+| 命令从 DB 或等价总线读取 | Django 和播放器是不同进程 |
+| adapter 在 Qt 主线程执行 | Qt 对象、COM 和窗口句柄不能随意跨线程调用 |
+| 状态由播放器写回 | 前端看到的播放状态应来自真实播放器，不是 REST 乐观值 |
+
+## 启动入口
+
+| 文件 | 责任 |
+| --- | --- |
+| `scp_cv/apps/dashboard/management/commands/run_player.py` | 播放器独立启动命令 |
+| `scp_cv/apps/dashboard/management/commands/runall.py` | 全栈编排并启动播放器子进程 |
+| `scp_cv/player/launcher_gui.py` | GUI 启动器，选择窗口和显示器 |
+| `scp_cv/player/headless_launcher.py` | 无 GUI/headless 窗口映射 |
+| `scp_cv/player/gpu.py` | GPU 选择辅助 |
+
+`run_player` 的关键流程：
+
+| 步骤 | 行为 |
+| --- | --- |
+| 1 | 创建 `QApplication` |
+| 2 | GUI 模式打开 launcher，headless 模式从 `--window1` 到 `--window4` 构造映射 |
+| 3 | 创建 `PlayerController` |
+| 4 | 为每个映射创建 `PlayerWindow` |
+| 5 | 写入 `PlaybackSession.target_display_label` |
+| 6 | `position_on_display()` 定位窗口 |
+| 7 | `controller.apply_current_layout()` 应用布局 |
+| 8 | `controller.preheat_sources()` 预热 |
+| 9 | `controller.start_polling()` 开始轮询 |
+
+通过 SSH、Windows 服务或非控制台会话启动时，播放器无法可靠访问物理显示器。此时应使用 `runall --headless --service`，让真实运行发生在当前登录用户的交互桌面中。
+
+## PlayerController
+
+主文件：`scp_cv/player/controller.py`。
+
+| 成员 | 说明 |
+| --- | --- |
+| `_windows` | `window_id -> PlayerWindow` |
+| `_adapters` | `window_id -> SourceAdapter` |
+| `_adapter_source_ids` | 防止旧 adapter 状态覆盖新 source |
+| `_preheat_pool` | 统一预热池 |
+| `_background_audio_adapter` | 全局背景音频 adapter |
+| `_last_reported_states` | 状态签名去重 |
+| `sig_dispatch_command` | 后台轮询线程到 Qt 主线程的命令信号 |
+
+轮询线程约 0.2 秒一轮，读取 `PlaybackSession.pending_command`。发现命令后会发射 Qt signal，并立即清空 pending command。执行失败不会恢复 pending command，而是通过 `playback_state=error` 和 `error_message` 写回。
+
+状态回写由 `_report_all_adapter_states()` 统一执行。它会检查 adapter 是否仍对应当前 session 的 `media_source_id`，并只在状态签名变化时调用 `update_playback_progress()`。
+
+## 指令处理
+
+命令处理位于 `scp_cv/player/controller_handlers.py`。
+
+| 命令 | 处理器 | 说明 |
+| --- | --- | --- |
+| `open` | `_handle_open` | 创建 adapter，打开媒体，设置音量/静音，必要时清理临时源 |
+| `play` | `_handle_play` | 调用 adapter `play()` |
+| `pause` | `_handle_pause` | 调用 adapter `pause()` |
+| `stop` | `_handle_stop` | 调用 adapter `stop()` |
+| `close` | `_handle_close` | 普通关闭或全局 reset |
+| `next` | `_handle_next` | PPT 翻页或动画推进 |
+| `prev` | `_handle_prev` | PPT 回退 |
+| `goto` | `_handle_goto` | PPT 跳页 |
+| `seek` | `_handle_seek` | 视频/音频 seek |
+| `set_loop` | `_handle_set_loop` | 循环开关 |
+| `set_volume` | `_handle_set_volume` | 窗口音量 |
+| `set_mute` | `_handle_set_mute` | 窗口静音 |
+| `ppt_media` | `_handle_ppt_media` | 当前 PPT 页媒体播放/暂停/停止 |
+| `reset_ppt` | `_handle_reset_ppt` | 关闭并重开 PPT 会话 |
+| `show_id` | `_handle_show_id` | 显示窗口 ID 覆盖层 |
+
+`open` 的关键参数包括 `source_id`、`source_type`、`uri`、`autoplay`、`volume`、`muted`、`preheat_enabled`、`ppt_backend`、`target_slide`。
+
+打开新源时，播放器会尽量在新内容可见后再关闭旧 adapter，减少黑屏。但是 PPT 切 PPT 或旧 PPT 没有外部窗口时会先关闭旧 PPT，以避免 Office/WPS/LibreOffice 资源冲突。
+
+## PlayerWindow
+
+文件：`scp_cv/player/window.py`。
+
+`PlayerWindow` 是每个物理输出窗口的容器。正常模式下无边框并置顶，debug 模式下可移动和调整。
+
+| 结构 | 用途 |
+| --- | --- |
+| 黑屏 label | 空闲、关闭、切换时的背景 |
+| video viewport/container | 图片、本地视频、libVLC、PPT anchor |
+| web viewport/container | QWebEngineView 页面 |
+| ID overlay | `show-id` 时显示窗口编号 |
+
+`position_on_display()` 通过 Qt screen geometry 和 overlap 匹配屏幕。它能处理部分 DPI/坐标差异，但前提是 Windows 能正确枚举物理显示器。
+
+已知限制：`PlayerController.sig_reposition` 存在但没有接线；REST 修改显示目标后不会让运行中的窗口立即移动。`left_right_splice` 在数据层存在，但播放器当前仍按单个显示器定位。
+
+## Adapter 工厂
+
+工厂位于 `scp_cv/player/adapters/__init__.py`。
+
+| source_type | Adapter | 技术栈 |
+| --- | --- | --- |
+| `ppt` | `PptSourceAdapter` router | PowerPoint/WPS COM 或 LibreOffice UNO bridge |
+| `video` | `VideoSourceAdapter` | Qt Multimedia `QMediaPlayer` |
+| `audio` | `VideoSourceAdapter` | 兼容路径，业务上音频主要走背景音乐 |
+| `image` | `ImageSourceAdapter` | `QPixmap` + `QLabel` |
+| `web` | `WebSourceAdapter` | `QWebEngineView` |
+| `srt_stream` | `SrtStreamAdapter` | libVLC |
+| `rtsp_stream` | `SrtStreamAdapter` | libVLC |
+| `custom_stream` | `SrtStreamAdapter` | libVLC |
+| `webrtc_stream` | `SrtStreamAdapter` | 兼容遗留命名 |
+
+基础接口在 `scp_cv/player/adapters/base.py`，包括 `SourceAdapter` 和 `AdapterState`。
+
+## 本地视频和图片
+
+| 文件 | 说明 |
+| --- | --- |
+| `scp_cv/player/adapters/video.py` | 本地视频使用 `QMediaPlayer + QVideoWidget`，支持 seek、loop、volume、mute |
+| `scp_cv/player/adapters/image.py` | 图片使用 `QPixmap` 加载，按窗口大小保持比例显示 |
+
+本地视频没有走 libVLC。迁移或调优时不要把直播流和本地视频的播放器实现混淆。
+
+## 直播流
+
+文件：`scp_cv/player/adapters/srt_stream.py`。
+
+直播流使用 `python-vlc/libVLC`，在 Windows 下通过 `set_hwnd()` 嵌入 `PlayerWindow.video_window_handle`。
+
+| 能力 | 说明 |
+| --- | --- |
+| VLC runtime 查找 | 项目内 `tools/third_party/vlc/runtime/` 优先，系统 VLC 兜底 |
+| 低延迟参数 | 网络缓存、live 缓存、clock jitter、丢帧追实时 |
+| RTSP 传输 | 根据配置转换为 `:rtsp-tcp` 或 `:rtsp-udp` |
+| 瞬时错误宽限 | 首帧前 5 秒内不立即上报 error |
+| 预热认领 | 可复用 `StreamPreheatHandle` 的 libVLC instance/player/media |
+
+MediaMTX 地址由 `scp_cv/services/mediamtx.py` 生成。SRT publish URL 中 latency 是微秒，read URL 中 latency 是毫秒，迁移时不能互换单位。
+
+## Web 页面
+
+文件：`scp_cv/player/adapters/web.py`。
+
+Web 播放使用 `QWebEngineView`，开启 JavaScript、本地存储、剪贴板和滚动。预热时可后台加载网页，打开时把已有 view 改父节点到当前窗口。
+
+迁移时需要注意：Web 源不是在浏览器前端 iframe 中播放，而是在播放器进程的 Qt WebEngine 中播放到物理输出窗口。
+
+## PPT 后端
+
+PPT 路由文件：`scp_cv/player/adapters/ppt_router.py`。
+
+| backend | 文件 | 技术 |
+| --- | --- | --- |
+| `powerpoint` | `scp_cv/player/adapters/ppt.py` | Microsoft PowerPoint COM |
+| `wps` | `scp_cv/player/adapters/ppt_wps.py` | WPS COM |
+| `libreoffice` | `scp_cv/player/adapters/ppt_libreoffice.py` | LibreOffice UNO bridge |
+
+PPT 外部窗口定位：`scp_cv/player/adapters/ppt_external_window.py`。
+
+| 后端 | 媒体控制 |
+| --- | --- |
+| PowerPoint/WPS | `scp_cv/player/adapters/ppt_media.py` 控制当前页 shape |
+| LibreOffice | `scp_cv/player/adapters/ppt_libreoffice_media.py` 尝试控制当前活动 shape |
+
+PPT 全局 volume/mute 大多不可控。窗口音量 UI 对 PPT 不应承诺等价于视频音量。
+
+LibreOffice bridge 位于 `scp_cv/player/adapters/ppt_libreoffice_bridge.py`，会调用 LibreOffice 自带 Python 执行 `scp_cv.libreoffice_worker bridge`，并清理 Python 虚拟环境变量，避免 pyuno 与项目 Python 冲突。
+
+## PPT 资源、预览和播放缓存
+
+PPT 后端不仅有播放 adapter，还有导入阶段的资源解析和缓存。
+
+| 文件 | 责任 |
+| --- | --- |
+| `scp_cv/services/ppt_resources.py` | 解析 OOXML、生成 `PptResource`、提取媒体列表和 speaker notes |
+| `scp_cv/services/ppt_preview.py` | 通过 worker 导出 slide PNG 预览 |
+| `scp_cv/services/ppt_preview_worker.py` | 预览导出子进程入口 |
+| `scp_cv/services/ppt_playback_cache.py` | 生成和解析 `.ppsx/.pps` 播放缓存 |
+| `scp_cv/services/ppt_playback_export.py` | 用 PowerPoint/WPS/LibreOffice 导出 show-format 文件 |
+
+缓存规则：现代格式导出 `.ppsx`，旧格式导出 `.pps`。导出失败不阻断媒体源创建，播放时回退原始文件。
+
+## 预热池
+
+核心文件：`scp_cv/player/preheat_pool.py`。
+
+预热触发来自 `PlayerController.preheat_sources()`，查询 `MediaSource.keep_alive=True`、`is_available=True`、`is_temporary=False` 的源。
+
+| 类型 | 预热行为 |
+| --- | --- |
+| image | 预加载 `QPixmap` |
+| video | 预建 `QMediaPlayer` 并设置 source |
+| audio | 预建后台音频播放器资源 |
+| stream | 隐藏 1x1 QWidget + libVLC 连接 |
+| web | 隐藏 `QWebEngineView` |
+| PowerPoint/WPS | 预启动 COM 应用，必要时预打开文件 |
+| LibreOffice | 预启动 bridge，TTL 约 60 秒 |
+
+预热不是缓存业务状态，而是缓存播放器资源。迁移时不要把 `keep_alive` 简化为普通后端缓存字段。
+
+## 背景音频
+
+服务层：`scp_cv/services/background_audio.py`。
+
+| 文件 | 责任 |
+| --- | --- |
+| `scp_cv/player/background_audio_handlers.py` | 读取并执行背景音频命令 |
+| `scp_cv/player/adapters/background_audio.py` | `QMediaPlayer + QAudioOutput` 播放器 |
+
+背景音频有独立的 `BackgroundAudioState` 和播放列表，不占用 `window_id` 1-4。音频源不能直接打开到显示窗口。
+
+自然播放结束后，播放器通知服务层推进下一首。循环开启时会回到第一首。
+
+## Reset 和 Show ID
+
+| 功能 | 服务层 | 播放器侧 |
+| --- | --- | --- |
+| 全局 reset | `reset_all_sessions_to_idle()` | `_handle_reset_all_windows()` |
+| PPT reset | `reset_ppt_playback()` | `_handle_reset_ppt()` |
+| 显示窗口 ID | `show_window_ids_api()` | `_handle_show_id()` |
+
+全局 reset 会通过一个协调窗口写入 `CLOSE` + `{reset_all_windows: true}`。播放器消费后关闭 adapter、关闭预热池、重建已注册窗口、重新预热。
+
+## 迁移验收标准
+
+| 项 | 标准 |
+| --- | --- |
+| 进程边界 | 播放器仍独立运行在活动 Windows 桌面 |
+| 命令消费 | REST 写入命令后播放器能在 1 秒内消费 |
+| 状态回写 | 前端看到的状态来自真实 adapter |
+| 四窗口 | 1-4 语义保持不变 |
+| PPT | 三个 backend 可按源或会话选择 |
+| 直播 | MediaMTX 自动源和手动 SRT/RTSP 源均可播放 |
+| 预热 | `keep_alive` 源能预热并可被前台认领 |
+| 背景音频 | 播放列表、自然下一首、循环、音量、静音可用 |
+| Reset | reset-all 后窗口重建且会话回 idle |
+| 异常 | adapter 错误能写入 `error_message` 并经 SSE 展示 |
