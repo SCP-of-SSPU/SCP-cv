@@ -1,7 +1,7 @@
 #!/user/bin/env python
 # -*- coding: UTF-8 -*-
 '''
-PowerPoint/WPS 文件级预热复用 mixin。
+PowerPoint 文件级预热复用 mixin。
 @Project : SCP-cv
 @File : ppt_preheat.py
 @Author : Qintsg
@@ -15,11 +15,11 @@ from scp_cv.player.preheat_types import PreheatedPptApplication
 
 
 class PptPreheatMixin:
-    """为 PowerPoint/WPS 适配器提供预热应用和预打开 Presentation 复用能力。"""
+    """为 PowerPoint 适配器提供预热应用和预打开 Presentation 复用能力。"""
 
     def _take_preheated_application(self) -> PreheatedPptApplication | None:
         """
-        从统一预热池取出已启动的 PowerPoint/WPS 应用。
+        从统一预热池取出已启动的 PowerPoint 应用。
         :return: 预热应用或 None
         """
         if not self._preheat_enabled or self._preheat_pool is None:
@@ -27,8 +27,7 @@ class PptPreheatMixin:
         take_application = getattr(self._preheat_pool, "take_ppt_application", None)
         if not callable(take_application):
             return None
-        backend = "wps" if self._adapter_name == "ppt-wps" else "powerpoint"
-        return take_application(backend, self._source_id, self._file_path)
+        return take_application(self._source_id, self._file_path)
 
     def _take_preheated_presentation(self, file_path: str) -> object | None:
         """
@@ -48,7 +47,7 @@ class PptPreheatMixin:
 
     def _return_preheated_application(self) -> bool:
         """
-        将借出的 PowerPoint/WPS 应用归还预热池。
+        将借出的 PowerPoint 应用归还预热池。
         :return: True 表示已归还
         """
         if self._preheated_app is None or self._preheat_pool is None:

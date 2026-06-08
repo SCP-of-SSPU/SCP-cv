@@ -15,29 +15,25 @@ import { RouterLink } from 'vue-router';
 import {
   NAlert,
   NButton,
-  NFormItem,
   NInput,
   NProgress,
-  NSelect,
   NSlider,
   NSwitch,
   NTag,
 } from 'naive-ui';
 
 import FIcon from '@/design-system/FIcon.vue';
-import { useDialog } from '@/composables/useDialog';
 import { useToast } from '@/composables/useToast';
 import { useThrottledSlider } from '@/composables/useThrottledSlider';
 import { useSessionStore } from '@/stores/sessions';
 import { useSourceStore } from '@/stores/sources';
 import { formatDuration } from '@/design-system/utils';
-import { api, type PptBackend, type PptResourceItem, type SessionSnapshot } from '@/services/api';
+import { api, type PptResourceItem, type SessionSnapshot } from '@/services/api';
 import { usePlaybackErrorGate } from './usePlaybackErrorGate';
 
 const props = defineProps<{ session: SessionSnapshot }>();
 
 const { t } = useI18n();
-const dialog = useDialog();
 const toast = useToast();
 const sessionStore = useSessionStore();
 const sourceStore = useSourceStore();
@@ -62,7 +58,6 @@ const stateType = computed<NTagType>(() => {
 });
 
 const jumpInput = ref<string>('');
-const selectedPptBackend = ref<PptBackend>('powerpoint');
 
 watch(
   () => props.session.current_slide,
@@ -73,24 +68,6 @@ watch(
   },
   { immediate: true },
 );
-
-watch(
-  () => props.session.ppt_backend,
-  (backend) => {
-    selectedPptBackend.value = backend || 'powerpoint';
-  },
-  { immediate: true },
-);
-
-const pptBackendOptions = computed(() => [
-  { label: t('sources.pptBackend.powerpoint'), value: 'powerpoint' },
-  { label: t('sources.pptBackend.libreoffice'), value: 'libreoffice' },
-  { label: t('sources.pptBackend.wps'), value: 'wps' },
-]);
-
-function pptBackendLabel(backend: PptBackend): string {
-  return t(`sources.pptBackend.${backend}`);
-}
 
 async function call(action: () => Promise<void>, errorTitle: string): Promise<void> {
   try {
@@ -151,23 +128,6 @@ function onSeek(positionMs: number): void {
 
 function onClose(): void {
   void call(() => sessionStore.closeSource(props.session.window_id), t('playback.closeFail'));
-}
-
-async function onPptBackendChange(nextBackend: PptBackend): Promise<void> {
-  const previousBackend = props.session.ppt_backend || 'powerpoint';
-  if (nextBackend === previousBackend) return;
-  const backendLabel = pptBackendLabel(nextBackend);
-  const confirmed = await dialog.confirm({
-    title: t('playback.switchPptBackendTitle'),
-    description: t('playback.switchPptBackendDesc', { backend: backendLabel }),
-    confirmLabel: t('playback.switchPptBackendConfirm'),
-    cancelLabel: t('common.cancel'),
-  });
-  if (!confirmed) {
-    selectedPptBackend.value = previousBackend;
-    return;
-  }
-  await call(() => sessionStore.switchPptBackend(props.session.window_id, nextBackend), t('playback.switchPptBackendFail'));
 }
 
 const pptResources = ref<PptResourceItem[]>([]);
@@ -280,9 +240,6 @@ const errorBarDescription = computed(() => {
     </n-alert>
 
     <section v-if="category === 'ppt'" class="playback-control__section">
-      <n-form-item :label="t('playback.pptBackend')" :feedback="t('playback.pptBackendHint')">
-        <n-select v-model:value="selectedPptBackend" :options="pptBackendOptions" @update:value="onPptBackendChange" />
-      </n-form-item>
       <div class="playback-control__row playback-control__row--ppt">
         <n-button @click="onPrev">
           <template #icon><FIcon name="previous_24_regular" /></template>

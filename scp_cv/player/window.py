@@ -162,6 +162,14 @@ class PlayerWindow(QWidget):
         return int(self._video_container.winId())
 
     @property
+    def top_level_window_handle(self) -> int:
+        """
+        播放器顶层窗口原生句柄。
+        :return: 顶层窗口 HWND
+        """
+        return int(self.winId())
+
+    @property
     def is_showing_video(self) -> bool:
         """当前是否正在显示视频。"""
         return self._is_showing_video
@@ -318,6 +326,65 @@ class PlayerWindow(QWidget):
     def hide_window(self) -> None:
         """隐藏窗口但不销毁。"""
         self.hide()
+
+    @Slot(bool)
+    def set_always_on_top(self, enabled: bool) -> None:
+        """
+        调整播放器窗口置顶状态。
+        :param enabled: True 表示置顶，False 表示取消置顶
+        :return: None
+        """
+        if not self._apply_win32_topmost(enabled):
+            self._apply_qt_topmost(enabled)
+
+    def _apply_win32_topmost(self, enabled: bool) -> bool:
+        """
+        通过 Win32 SetWindowPos 调整置顶，避免 Qt flag 变更导致窗口闪烁。
+        :param enabled: 是否置顶
+        :return: True 表示已通过 Win32 应用
+        """
+        try:
+            import win32con
+            import win32gui
+        except Exception:
+            return False
+        try:
+            hwnd = self.top_level_window_handle
+            insert_after = win32con.HWND_TOPMOST if enabled else win32con.HWND_NOTOPMOST
+            win32gui.SetWindowPos(
+                hwnd,
+                insert_after,
+                0,
+                0,
+                0,
+                0,
+                win32con.SWP_NOMOVE
+                | win32con.SWP_NOSIZE
+                | win32con.SWP_NOACTIVATE
+                | win32con.SWP_SHOWWINDOW,
+            )
+            return True
+        except Exception as topmost_error:
+            logger.debug("窗口 [%d] Win32 置顶调整失败：%s", self._window_id, topmost_error)
+            return False
+
+    def _apply_qt_topmost(self, enabled: bool) -> None:
+        """
+        Win32 不可用时回退到 Qt window flags 调整。
+        :param enabled: 是否置顶
+        :return: None
+        """
+        if self._debug_mode:
+            return
+        was_visible = self.isVisible()
+        flags = self.windowFlags()
+        if enabled:
+            flags |= Qt.WindowType.WindowStaysOnTopHint
+        else:
+            flags &= ~Qt.WindowType.WindowStaysOnTopHint
+        self.setWindowFlags(flags)
+        if was_visible:
+            self.show()
 
     def close_for_rebuild(self) -> None:
         """

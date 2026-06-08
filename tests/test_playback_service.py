@@ -36,7 +36,6 @@ from scp_cv.services.playback import (
     reset_ppt_playback,
     set_big_screen_mode,
     stop_current_content,
-    switch_ppt_backend,
     update_playback_progress,
 )
 from scp_cv.services.ppt_playback_cache import PPT_PLAYBACK_METADATA_KEY
@@ -118,7 +117,7 @@ class TestGetSessionSnapshot:
             "display_mode", "display_mode_label",
             "target_display_label", "spliced_display_label", "is_spliced",
             "error_message",
-            "current_slide", "total_slides", "ppt_backend", "ppt_backend_label", "position_ms", "duration_ms",
+            "current_slide", "total_slides", "position_ms", "duration_ms",
             "pending_command", "last_updated_at", "volume", "is_muted", "loop_enabled",
         }
         assert set(snapshot.keys()) == required_keys
@@ -144,7 +143,6 @@ class TestOpenSource:
         assert session.command_args["uri"] == media_source_ppt.uri
         assert session.command_args["original_uri"] == media_source_ppt.uri
         assert session.command_args["autoplay"] is True
-        assert session.command_args["ppt_backend"] == "powerpoint"
 
     def test_open_ppt_uses_ready_playback_cache(
         self,
@@ -167,20 +165,10 @@ class TestOpenSource:
         assert session.command_args["uri"] == str(cached_file)
         assert session.command_args["original_uri"] == media_source_ppt.uri
 
-    def test_open_ppt_with_selected_powerpoint(self, media_source_ppt: MediaSource) -> None:
-        """打开 PPT 时可临时选择 PowerPoint 后端。"""
-        session = open_source(1, media_source_ppt.pk, ppt_backend="powerpoint", target_slide=3)
+    def test_open_ppt_with_target_slide(self, media_source_ppt: MediaSource) -> None:
+        """打开 PPT 时应保留目标页码。"""
+        session = open_source(1, media_source_ppt.pk, target_slide=4)
 
-        assert session.ppt_backend == "powerpoint"
-        assert session.command_args["ppt_backend"] == "powerpoint"
-        assert session.command_args["target_slide"] == 3
-
-    def test_open_ppt_with_selected_wps(self, media_source_ppt: MediaSource) -> None:
-        """打开 PPT 时可临时选择 WPS 演示后端。"""
-        session = open_source(1, media_source_ppt.pk, ppt_backend="wps", target_slide=4)
-
-        assert session.ppt_backend == "wps"
-        assert session.command_args["ppt_backend"] == "wps"
         assert session.command_args["target_slide"] == 4
 
     def test_open_with_autoplay_false(self, media_source_video: MediaSource) -> None:
@@ -327,7 +315,7 @@ class TestNavigateContent:
         self,
         media_source_ppt: MediaSource,
     ) -> None:
-        """最后一页仍应下发 next，让 LibreOffice 可推进末页动画。"""
+        """最后一页仍应下发 next，让 PowerPoint 可推进末页动画。"""
         open_source(1, media_source_ppt.pk)
         update_playback_progress(1, current_slide=3, total_slides=3)
         clear_pending_command(1)
@@ -391,12 +379,12 @@ class TestControlPptMedia:
         assert session.command_args["media_id"] == "m1"
         assert session.command_args["media_index"] == 2
 
-    def test_selected_backend_allows_ppt_media_command(
+    def test_ppt_media_command_after_powerpoint_open(
         self,
         media_source_ppt: MediaSource,
     ) -> None:
-        """显式 LibreOffice 后端也应下发 PPT 媒体控制指令。"""
-        open_source(1, media_source_ppt.pk, ppt_backend="libreoffice")
+        """PowerPoint-only PPT 源应下发 PPT 媒体控制指令。"""
+        open_source(1, media_source_ppt.pk)
 
         session = control_ppt_media(1, PlaybackCommand.PLAY, media_id="m1", media_index=1)
 
@@ -412,31 +400,12 @@ class TestControlPptMedia:
 
 
 @pytest.mark.django_db
-class TestPptBackendOperations:
-    """测试 PPT 播放器临时切换和重置。"""
-
-    def test_switch_ppt_backend_reopens_same_source_at_current_slide(self, media_source_ppt: MediaSource) -> None:
-        """切换播放器应下发 OPEN 指令并保留当前页码。"""
-        open_source(1, media_source_ppt.pk)
-        update_playback_progress(1, current_slide=4, total_slides=8)
-        session = get_or_create_session(1)
-        session.volume = 66
-        session.is_muted = True
-        session.save(update_fields=["volume", "is_muted"])
-
-        switched = switch_ppt_backend(1, "wps")
-
-        assert switched.media_source_id == media_source_ppt.pk
-        assert switched.pending_command == PlaybackCommand.OPEN
-        assert switched.ppt_backend == "wps"
-        assert switched.command_args["ppt_backend"] == "wps"
-        assert switched.command_args["target_slide"] == 4
-        assert switched.command_args["volume"] == 66
-        assert switched.command_args["muted"] is True
+class TestPptResetOperations:
+    """测试 PowerPoint-only PPT 重置。"""
 
     def test_reset_ppt_playback_keeps_current_slide(self, media_source_ppt: MediaSource) -> None:
         """重置 PPT 放映应收集当前 PPT 窗口并保留页码。"""
-        open_source(1, media_source_ppt.pk, ppt_backend="wps")
+        open_source(1, media_source_ppt.pk)
         update_playback_progress(1, current_slide=5, total_slides=10)
         clear_pending_command(1)
 
@@ -446,7 +415,6 @@ class TestPptBackendOperations:
         assert session.pending_command == PlaybackCommand.RESET_PPT
         restart_sessions = session.command_args["restart_sessions"]
         assert restart_sessions[0]["source_id"] == media_source_ppt.pk
-        assert restart_sessions[0]["ppt_backend"] == "wps"
         assert restart_sessions[0]["target_slide"] == 5
 
     def test_reset_ppt_playback_uses_ready_playback_cache(

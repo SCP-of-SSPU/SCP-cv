@@ -19,12 +19,12 @@ from pathlib import Path
 def main(argv: list[str] | None = None) -> int:
     """
     执行 PPT 预览导出并把结果以单行 JSON 写到标准输出。
-    :param argv: 命令行参数，依次为文件路径、媒体源 ID、PPT 后端
+    :param argv: 命令行参数，依次为文件路径、媒体源 ID；第三个旧后端参数会被兼容忽略
     :return: 进程退出码
     """
     args = list(sys.argv[1:] if argv is None else argv)
-    if len(args) != 3:
-        _write_result(False, [], "usage: ppt_preview_worker <file_path> <source_id> <backend>")
+    if len(args) not in {2, 3}:
+        _write_result(False, [], "usage: ppt_preview_worker <file_path> <source_id>")
         return 2
 
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "scp_cv.settings")
@@ -36,7 +36,7 @@ def main(argv: list[str] | None = None) -> int:
 
         file_path = Path(args[0])
         source_id = int(args[1])
-        previews = export_ppt_slide_previews_in_process(file_path, source_id, args[2])
+        previews = export_ppt_slide_previews_in_process(file_path, source_id)
     except Exception as worker_error:
         logging.getLogger(__name__).exception("PPT 预览 worker 执行失败")
         _write_result(False, [], str(worker_error))

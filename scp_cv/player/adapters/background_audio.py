@@ -35,6 +35,17 @@ class BackgroundAudioAdapter(SourceAdapter):
         self._error_message = ""
         self._finished_callback = finished_callback
         self._finished_notified = False
+        self._uri = ""
+        self._volume = 70
+        self._muted = False
+
+    @property
+    def current_uri(self) -> str:
+        """
+        当前打开的背景音频 URI。
+        :return: URI；未打开时返回空字符串
+        """
+        return self._uri
 
     def open(
         self,
@@ -60,6 +71,7 @@ class BackgroundAudioAdapter(SourceAdapter):
         self._error_message = ""
         self._duration_ms = 0
         self._finished_notified = False
+        self._uri = uri
 
         if preheated_audio is not None:
             self._audio_output = preheated_audio.audio_output
@@ -93,6 +105,7 @@ class BackgroundAudioAdapter(SourceAdapter):
         self._has_error = False
         self._error_message = ""
         self._finished_notified = False
+        self._uri = ""
         self._mark_closed()
 
     def play(self) -> None:
@@ -100,6 +113,23 @@ class BackgroundAudioAdapter(SourceAdapter):
         if self._media_player is not None:
             self._finished_notified = False
             self._media_player.play()
+
+    def restart_current_source(self, autoplay: bool = True) -> None:
+        """
+        原地重启当前音频源，避免循环同源时销毁重建 QMediaPlayer 后无声。
+        :param autoplay: 是否立即播放
+        :return: None
+        """
+        if self._media_player is None:
+            return
+        self._finished_notified = False
+        self._media_player.setPosition(0)
+        self.set_volume(self._volume)
+        self.set_mute(self._muted)
+        if autoplay:
+            self._media_player.play()
+        else:
+            self._media_player.pause()
 
     def pause(self) -> None:
         """暂停播放。"""
@@ -131,7 +161,8 @@ class BackgroundAudioAdapter(SourceAdapter):
         :return: None
         """
         if self._audio_output is not None:
-            self._audio_output.setVolume(max(0, min(100, int(volume))) / 100)
+            self._volume = max(0, min(100, int(volume)))
+            self._audio_output.setVolume(self._volume / 100)
 
     def set_mute(self, muted: bool) -> None:
         """
@@ -141,7 +172,8 @@ class BackgroundAudioAdapter(SourceAdapter):
         :return: None
         """
         if self._audio_output is not None:
-            self._audio_output.setMuted(bool(muted))
+            self._muted = bool(muted)
+            self._audio_output.setMuted(self._muted)
 
     def get_state(self) -> AdapterState:
         """

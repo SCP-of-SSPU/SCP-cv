@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 2026-06-08
+
+### 统一 PPT 为 PowerPoint-only
+
+- 后端：删除媒体源和播放会话的 `ppt_backend` 字段、公开 API 枚举和 `/playback/{window_id}/ppt-backend/`，历史后端选择不再保留。
+- 播放器：PPT 工厂直接使用 Microsoft PowerPoint，移除其它 PPT 适配器与预热分支，并补强冷启动重试、窗口置顶顺序和残留窗口最小化。
+- 前端：删除导入、编辑、打开和显控页的 PPT 播放器选择项，PPT 专注页在预览缺失时短轮询刷新页面资源。
+- 背景音乐：同一音频源循环或重复打开时原地重启当前播放器并恢复音量/静音，避免重建后无声。
+- 文档：README、使用/维护文档、OpenAPI 和设计文档同步为 PowerPoint-only。
+
 ## 2026-05-31
 
 ### 升级背景音频与直播预热

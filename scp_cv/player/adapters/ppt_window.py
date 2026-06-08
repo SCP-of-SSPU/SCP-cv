@@ -41,19 +41,9 @@ _SLIDESHOW_TITLE_PREFIXES = (
     "幻灯片放映 -",
     "幻灯片放映:",
     "幻灯片放映：",
-    "wps 演示 幻灯片放映 -",
-    "wps 演示 幻灯片放映:",
-    "wps 演示 幻灯片放映：",
-    "wps演示 幻灯片放映 -",
-    "wps演示 幻灯片放映:",
-    "wps演示 幻灯片放映：",
 )
 _EDITOR_TITLE_KEYWORDS = (
     "powerpoint",
-    "wps 演示",
-    "wps演示",
-    "wps presentation",
-    "kingsoft presentation",
 )
 
 
@@ -82,7 +72,7 @@ def snapshot_slideshow_hwnds(
     获取当前系统中可见的 PPT 放映窗口句柄快照。
     :param logger: 可选日志器；导入 Win32 失败时记录调试信息
     :param class_names: 可识别为放映窗口的 Win32 class name 集合
-    :param process_id: 可选进程 ID；传入时只记录当前 PPT/WPS 实例窗口
+    :param process_id: 可选进程 ID；传入时只记录当前 PowerPoint 实例窗口
     :return: 可见放映窗口 HWND 集合
     """
     try:
@@ -131,7 +121,7 @@ def find_slideshow_hwnd(
     :param class_names: 可识别为放映窗口的 Win32 class name 集合
     :param timeout_seconds: 等待异步创建窗口的最长秒数；0 表示只查一次
     :param poll_interval_seconds: 重试间隔秒数
-    :param process_id: 可选进程 ID；用于确认候选窗口属于当前 PPT/WPS 实例
+    :param process_id: 可选进程 ID；用于确认候选窗口属于当前 PowerPoint 实例
     :param allow_existing_when_unique: 进程可确认时，允许使用启动前已存在的唯一候选窗口
     :return: 本次放映窗口句柄，无法唯一确定时返回 0
     """
@@ -253,7 +243,7 @@ def _find_matching_slideshow_hwnds(
     :param logger: 日志器
     :param existing_hwnds: 启动前已存在的 HWND
     :param class_names: 放映窗口 class name 候选集合
-    :param process_id: 可选进程 ID；传入时只匹配当前 PPT/WPS 实例窗口
+    :param process_id: 可选进程 ID；传入时只匹配当前 PowerPoint 实例窗口
     :return: 候选 HWND 列表
     """
     excluded_hwnds = existing_hwnds or set()
@@ -297,7 +287,7 @@ def _is_candidate_slideshow_window(
     process_id: Optional[int],
 ) -> bool:
     """
-    判断 Win32 窗口是否可作为 PowerPoint/WPS 放映窗口候选。
+    判断 Win32 窗口是否可作为 PowerPoint 放映窗口候选。
     :param win32gui: win32gui 模块或测试替身
     :param hwnd: 窗口句柄
     :param selected_class_names: 可接受的窗口 class name 集合
@@ -316,7 +306,7 @@ def _is_candidate_slideshow_window(
 
 def _is_presentation_editor_window(win32gui: object, hwnd: int) -> bool:
     """
-    通过窗口标题排除 PowerPoint/WPS 编辑主窗口。
+    通过窗口标题排除 PowerPoint 编辑主窗口。
     :param win32gui: win32gui 模块或测试替身
     :param hwnd: 窗口句柄
     :return: True 表示该窗口更像编辑器而非放映窗口

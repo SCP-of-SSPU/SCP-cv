@@ -12,7 +12,6 @@ from __future__ import annotations
 import logging
 
 from scp_cv.apps.playback.models import PlaybackSession, PlaybackState
-from scp_cv.ppt_backend import DEFAULT_PPT_BACKEND, ppt_backend_label
 
 logger = logging.getLogger(__name__)
 
@@ -95,8 +94,6 @@ def get_session_snapshot(window_id: int) -> dict[str, object]:
         "is_spliced": session.is_spliced,
         "current_slide": session.current_slide,
         "total_slides": session.total_slides,
-        "ppt_backend": getattr(session, "ppt_backend", DEFAULT_PPT_BACKEND),
-        "ppt_backend_label": ppt_backend_label(getattr(session, "ppt_backend", DEFAULT_PPT_BACKEND)),
         "position_ms": session.position_ms,
         "duration_ms": session.duration_ms,
         "pending_command": session.pending_command,

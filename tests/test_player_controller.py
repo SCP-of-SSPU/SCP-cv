@@ -255,7 +255,6 @@ def test_open_confirms_session_source_after_stale_close_cleared_it(
         "source_type": SourceType.PPT,
         "uri": media_source_ppt.uri,
         "autoplay": True,
-        "ppt_backend": "libreoffice",
         "target_slide": 1,
     })
 
@@ -283,13 +282,12 @@ def test_reheat_skips_temporary_source() -> None:
     class _FakePreheatPool:
         """记录预热请求的预热池替身。"""
 
-        def preheat_source(self, source_id: int, source_type: str, uri: str, ppt_backend: str = "", force: bool = False) -> None:
+        def preheat_source(self, source_id: int, source_type: str, uri: str, force: bool = False) -> None:
             """
             记录预热请求。
             :param source_id: 媒体源 ID
             :param source_type: 媒体源类型
             :param uri: 媒体 URI
-            :param ppt_backend: PPT 后端
             :param force: 是否强制重建
             :return: None
             """
@@ -318,13 +316,12 @@ def test_reheat_web_source_keeps_returned_preheated_view() -> None:
     class _FakePreheatPool:
         """记录预热请求的预热池替身。"""
 
-        def preheat_source(self, source_id: int, source_type: str, uri: str, ppt_backend: str = "", force: bool = False) -> None:
+        def preheat_source(self, source_id: int, source_type: str, uri: str, force: bool = False) -> None:
             """
             记录预热请求。
             :param source_id: 媒体源 ID
             :param source_type: 媒体源类型
             :param uri: 媒体 URI
-            :param ppt_backend: PPT 后端
             :param force: 是否强制重建
             :return: None
             """
@@ -492,7 +489,6 @@ def test_reset_all_windows_command_rebuilds_player_runtime(
     assert controller.registered_window_ids == [1, 2]
     assert controller._adapter_source_types == {}
     assert controller._adapter_source_ids == {}
-    assert controller._adapter_ppt_backends == {}
     assert controller._last_reported_states == {}
     assert layout_applied == [True]
     assert preheated == [True]

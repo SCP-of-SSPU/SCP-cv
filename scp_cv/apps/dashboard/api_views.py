@@ -238,7 +238,6 @@ def upload_source_api(request: HttpRequest) -> JsonResponse:
             source_type=request.POST.get("source_type", "").strip() or None,
             folder_id=_optional_int(request.POST.get("folder_id")),
             is_temporary=_bool_value(request.POST.get("is_temporary")),
-            ppt_backend=request.POST.get("ppt_backend", "").strip() or None,
             preheat_enabled=_bool_value(request.POST.get("preheat_enabled"), default=True),
         )
     except MediaError as media_error:
@@ -268,7 +267,6 @@ def add_local_source_api(request: HttpRequest) -> JsonResponse:
             display_name=str(body.get("name", "")).strip() or None,
             source_type=str(body.get("source_type", "")).strip() or None,
             folder_id=_optional_int(body.get("folder_id")),
-            ppt_backend=str(body.get("ppt_backend", "")).strip() or None,
             preheat_enabled=_bool_value(body.get("preheat_enabled", body.get("keep_alive", True)), default=True),
         )
     except MediaError as media_error:
@@ -323,7 +321,6 @@ def update_source_api(request: HttpRequest, source_id: int) -> JsonResponse:
 
     raw_name = body.get("name") if "name" in body else None
     raw_uri = body.get("uri") if "uri" in body else None
-    raw_ppt_backend = body.get("ppt_backend") if "ppt_backend" in body else None
     raw_preheat = body.get("preheat_enabled") if "preheat_enabled" in body else body.get("keep_alive")
     preheat_value: object | None
     if raw_preheat is None:
@@ -336,7 +333,6 @@ def update_source_api(request: HttpRequest, source_id: int) -> JsonResponse:
             source_id=int(source_id),
             name=str(raw_name) if isinstance(raw_name, str) else None,
             uri=str(raw_uri) if isinstance(raw_uri, str) else None,
-            ppt_backend=str(raw_ppt_backend) if raw_ppt_backend is not None else None,
             preheat_enabled=bool(preheat_value) if preheat_value is not None else None,
         )
     except MediaError as media_error:

@@ -85,8 +85,10 @@ class BackgroundAudioHandlersMixin:
         uri = str(command_args.get("uri", ""))
         if not uri:
             raise ValueError("背景音频 OPEN 指令缺少 uri")
-        self._close_background_audio_adapter()
         source_id = int(command_args.get("source_id") or 0)
+        if self._restart_background_audio_if_same_source(source_id, uri, command_args):
+            return
+        self._close_background_audio_adapter()
         preheated_audio = None
         if self._preheat_pool is not None and source_id > 0:
             take_audio = getattr(self._preheat_pool, "take_audio", None)
@@ -106,6 +108,45 @@ class BackgroundAudioHandlersMixin:
 
         from scp_cv.services.background_audio import update_background_audio_progress
         update_background_audio_progress(playback_state="playing" if bool(command_args.get("autoplay", True)) else "paused")
+
+    def _restart_background_audio_if_same_source(
+        self,
+        source_id: int,
+        uri: str,
+        command_args: dict[str, object],
+    ) -> bool:
+        """
+        同一音频源重复 OPEN 时原地重启播放器。
+        :param source_id: 待打开源 ID
+        :param uri: 待打开 URI
+        :param command_args: OPEN 指令参数
+        :return: True 表示已处理
+        """
+        adapter = self._background_audio_adapter
+        if adapter is None:
+            return False
+        current_uri = str(getattr(adapter, "current_uri", ""))
+        if self._background_audio_source_id != source_id or current_uri != uri:
+            return False
+        set_volume = getattr(adapter, "set_volume", None)
+        if callable(set_volume):
+            set_volume(int(command_args.get("volume", 70)))
+        set_mute = getattr(adapter, "set_mute", None)
+        if callable(set_mute):
+            set_mute(bool(command_args.get("muted", False)))
+        restart = getattr(adapter, "restart_current_source", None)
+        if not callable(restart):
+            return False
+        restart(autoplay=bool(command_args.get("autoplay", True)))
+        self._last_reported_background_audio_state = None
+
+        from scp_cv.services.background_audio import update_background_audio_progress
+        update_background_audio_progress(
+            playback_state="playing" if bool(command_args.get("autoplay", True)) else "paused",
+            position_ms=0,
+        )
+        logger.info("背景音频同源 OPEN 已原地重启：source_id=%d", source_id)
+        return True
 
     def _handle_background_audio_play(self, command_args: dict[str, object]) -> None:
         """恢复背景音频播放。"""

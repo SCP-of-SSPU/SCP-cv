@@ -89,6 +89,8 @@ class _WindowStub:
         """
         self.calls: list[str] = []
         self.web_container = object()
+        self.topmost: list[bool] = []
+        self.top_level_window_handle = 5001
 
     def show_black_screen(self) -> None:
         """
@@ -118,6 +120,14 @@ class _WindowStub:
         """
         self.calls.append("raise")
 
+    def set_always_on_top(self, enabled: bool) -> None:
+        """
+        记录置顶状态切换。
+        :param enabled: 是否置顶
+        :return: None
+        """
+        self.topmost.append(enabled)
+
     def show_web_container(self) -> None:
         """
         记录网页容器显示。
@@ -133,8 +143,8 @@ class _WindowStub:
         self.calls.append("video")
 
 
-def test_handle_open_passes_wps_backend_to_adapter(monkeypatch: pytest.MonkeyPatch) -> None:
-    """播放器处理 OPEN 指令时应把 WPS 后端透传给适配器工厂。"""
+def test_handle_open_ignores_legacy_ppt_backend_option(monkeypatch: pytest.MonkeyPatch) -> None:
+    """播放器处理 OPEN 指令时应忽略旧 ppt_backend 字段。"""
     controller = PlayerController()
     adapter = _OpenAdapter()
     window = _WindowStub()
@@ -158,11 +168,12 @@ def test_handle_open_passes_wps_backend_to_adapter(monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr(controller, "_close_adapter", lambda _window_id: None)
     monkeypatch.setattr(controller, "_cleanup_temporary_source", lambda _command_args: None)
     monkeypatch.setattr(controller, "_update_session_state", lambda window_id, state: states.append((window_id, state)))
+    monkeypatch.setattr(controller, "_minimize_unprotected_windows_for_ppt", lambda _adapter: None)
 
     controller._handle_open(1, {
         "source_id": 7,
         "source_type": "ppt",
-        "uri": "C:/demo/wps.pptx",
+        "uri": "C:/demo/demo.pptx",
         "autoplay": True,
         "ppt_backend": "wps",
         "target_slide": 4,
@@ -170,15 +181,16 @@ def test_handle_open_passes_wps_backend_to_adapter(monkeypatch: pytest.MonkeyPat
         "muted": True,
     })
 
-    assert created_options == {"source_type": "ppt", "ppt_backend": "wps"}
-    assert adapter.open_args == {"uri": "C:/demo/wps.pptx", "window_handle": 2001, "autoplay": True}
+    assert created_options == {"source_type": "ppt"}
+    assert adapter.open_args == {"uri": "C:/demo/demo.pptx", "window_handle": 2001, "autoplay": True}
     assert adapter.goto_items == [4]
     assert adapter.volumes == [88]
     assert adapter.mutes == [True]
     assert controller._adapters[1] is adapter
     assert controller._adapter_source_ids[1] == 7
     assert states == [(1, "playing")]
-    assert window.calls == ["black", "show", "raise", "hide"]
+    assert window.calls == ["black", "show", "raise", "black", "show"]
+    assert window.topmost == [True, False]
 
 
 def test_handle_open_keeps_black_window_when_ppt_has_no_slideshow(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -203,7 +215,7 @@ def test_handle_open_keeps_black_window_when_ppt_has_no_slideshow(monkeypatch: p
         "autoplay": False,
     })
 
-    assert window.calls == ["black", "show", "raise", "show", "raise", "black"]
+    assert window.calls == ["black", "show", "raise", "black", "show", "raise"]
     assert states == [(1, "loading")]
 
 
@@ -230,7 +242,7 @@ def test_handle_open_restores_window_when_ppt_open_fails(monkeypatch: pytest.Mon
 
     assert adapter.closed is True
     assert controller._adapters == {}
-    assert window.calls == ["black", "show", "raise", "show", "raise", "black"]
+    assert window.calls == ["black", "show", "raise", "black", "show", "raise"]
 
 
 def test_handle_stop_restores_black_window_for_ppt(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -255,7 +267,7 @@ def test_handle_stop_restores_black_window_for_ppt(monkeypatch: pytest.MonkeyPat
     controller._handle_stop(1, {})
 
     assert stop_calls == [True]
-    assert window.calls == ["show", "raise", "black"]
+    assert window.calls == ["black", "show", "raise"]
     assert states == [(1, "stopped")]
 
 
@@ -363,12 +375,13 @@ def test_handle_open_closes_stale_ppt_before_new_source(monkeypatch: pytest.Monk
     assert previous_adapter.closed is True
     assert controller._adapters[1] is new_adapter
     assert controller._adapter_source_types[1] == "video"
-    assert window.calls == ["show", "raise", "black", "black", "show", "raise", "video"]
+    assert window.calls == ["black", "show", "raise", "black", "show", "raise", "video"]
+    assert window.topmost == [True, True]
     assert states == [(1, "playing")]
 
 
 def test_handle_open_closes_previous_ppt_before_reopening_ppt(monkeypatch: pytest.MonkeyPatch) -> None:
-    """PPT 切 PPT 应先释放旧放映后端，避免两个 Office/LibreOffice 打开流程竞争。"""
+    """PPT 切 PPT 应先恢复 PySide 黑屏置顶并释放旧 PowerPoint 放映。"""
     controller = PlayerController()
     previous_adapter = _OpenAdapter()
     previous_adapter.has_external_slideshow_window = True
@@ -418,7 +431,8 @@ def test_handle_open_closes_previous_ppt_before_reopening_ppt(monkeypatch: pytes
     assert calls == ["previous_close", "new_open", "reheat:77"]
     assert previous_adapter.closed is True
     assert controller._adapters[1] is new_adapter
-    assert window.calls == ["show", "raise", "black", "black", "show", "raise", "hide"]
+    assert window.calls == ["black", "show", "raise", "black", "show", "raise", "black", "show"]
+    assert window.topmost == [True, True, False]
 
 
 def test_stop_polling_closes_adapters_without_reheat(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -509,7 +523,7 @@ def test_handle_open_keeps_previous_ppt_when_factory_fails(monkeypatch: pytest.M
     assert controller._adapters[1] is previous_adapter
     assert controller._adapter_source_types[1] == "ppt"
     assert controller._adapter_source_ids[1] == 77
-    assert window.calls == ["hide"]
+    assert window.calls == ["black", "show"]
 
 
 def test_handle_open_keeps_previous_ppt_when_window_handle_missing(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -538,7 +552,7 @@ def test_handle_open_keeps_previous_ppt_when_window_handle_missing(monkeypatch: 
     assert controller._adapters[1] is previous_adapter
     assert controller._adapter_source_types[1] == "ppt"
     assert controller._adapter_source_ids[1] == 77
-    assert window.calls == ["hide"]
+    assert window.calls == ["black", "show"]
 
 
 def test_handle_open_restores_black_after_preclosed_ppt_open_fails(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -582,13 +596,14 @@ def test_handle_open_restores_black_after_preclosed_ppt_open_fails(monkeypatch: 
     assert new_adapter.closed is True
     assert controller._adapters == {}
     assert window.calls == [
-        "show",
-        "raise",
-        "black",
         "black",
         "show",
         "raise",
+        "black",
         "show",
         "raise",
         "black",
+        "show",
+        "raise",
     ]
+    assert window.topmost == [True, True, True]

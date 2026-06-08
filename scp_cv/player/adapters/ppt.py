@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import os
 import threading
+import time
+from collections.abc import Callable
 from collections.abc import Iterable
 from typing import Optional
 
@@ -43,13 +45,15 @@ from scp_cv.player.preheat_types import PreheatedPptApplication
 from scp_cv.ppt_com import POWERPOINT_COM_PROG_IDS
 
 _SLIDESHOW_HWND_TIMEOUT_SECONDS = 12.0
+_POWERPOINT_OPERATION_RETRIES = 3
+_POWERPOINT_RETRY_DELAY_SECONDS = 0.8
 
 
 class PptSourceAdapter(PptPreheatMixin, SourceAdapter):
     """
     本机 PPT COM 放映适配器。
 
-    通过 win32com 操控 PowerPoint/WPS 演示应用程序，在指定屏幕上进行幻灯片放映。
+    通过 win32com 操控 PowerPoint 应用程序，在指定屏幕上进行幻灯片放映。
     PPT 窗口定位到 PySide 播放器窗口所在的屏幕区域。
 
     线程安全说明：
@@ -97,6 +101,14 @@ class PptSourceAdapter(PptPreheatMixin, SourceAdapter):
         :return: True 表示外部放映窗口正在承担显示输出
         """
         return self._ppt_hwnd != 0
+
+    @property
+    def external_slideshow_hwnd(self) -> int:
+        """
+        当前外部 PowerPoint 放映窗口 HWND。
+        :return: HWND；未打开时返回 0
+        """
+        return self._ppt_hwnd
 
     def set_preheat_context(self, source_id: int, preheat_enabled: bool, preheat_pool: object | None) -> None:
         """
@@ -158,7 +170,7 @@ class PptSourceAdapter(PptPreheatMixin, SourceAdapter):
         )
         self._set_powerpoint_alerts(_PP_ALERTS_NONE)
 
-        # 最小化编辑窗口；WPS 部分版本可能不支持该属性，失败时不影响放映。
+        # 最小化编辑窗口；失败时不影响后续放映启动。
         try:
             self._ppt_app.WindowState = 2  # ppWindowMinimized
         except Exception as minimize_error:
@@ -183,7 +195,10 @@ class PptSourceAdapter(PptPreheatMixin, SourceAdapter):
         last_error: Optional[Exception] = None
         for prog_id in self._com_prog_ids:
             try:
-                app = win32com_client.DispatchEx(prog_id)
+                app = self._run_powerpoint_operation(
+                    f"创建 COM 应用 {prog_id}",
+                    lambda prog_id=prog_id: win32com_client.DispatchEx(prog_id),
+                )
                 self._active_com_prog_id = prog_id
                 self._logger.info("已创建 %s COM 应用：%s", self._app_label, prog_id)
                 return app
@@ -209,18 +224,25 @@ class PptSourceAdapter(PptPreheatMixin, SourceAdapter):
         if self._ppt_app is None:
             raise RuntimeError(f"{self._app_label} COM 应用尚未初始化")
         presentations = self._ppt_app.Presentations
-        try:
-            return presentations.Open(
-                file_path,
-                ReadOnly=False,
-                Untitled=True,
-                WithWindow=False,
-            )
-        except Exception as keyword_error:
+
+        def open_once() -> object:
             try:
-                return presentations.Open(file_path, False, True, False)
-            except Exception:
-                raise keyword_error
+                return presentations.Open(
+                    file_path,
+                    ReadOnly=False,
+                    Untitled=True,
+                    WithWindow=False,
+                )
+            except Exception as keyword_error:
+                try:
+                    return presentations.Open(file_path, False, True, False)
+                except Exception as positional_error:
+                    raise RuntimeError(
+                        f"{self._app_label} 打开演示文稿失败："
+                        f"keyword={keyword_error}; positional={positional_error}"
+                    ) from positional_error
+
+        return self._run_powerpoint_operation("打开演示文稿", open_once)
 
     def _start_slideshow(self, start_slide: int = 1) -> None:
         """
@@ -245,9 +267,13 @@ class PptSourceAdapter(PptPreheatMixin, SourceAdapter):
             process_id=self._ppt_process_id or None,
         )
 
-        # 启动放映
-        self._slideshow_window = settings.Run()
+        self._slideshow_window = self._run_powerpoint_operation(
+            "启动幻灯片放映",
+            settings.Run,
+        )
         self._mark_presentation_clean()
+        if self._slideshow_window is None:
+            raise RuntimeError(f"{self._app_label} SlideShowSettings.Run 未返回放映窗口")
         self._slideshow_view = self._slideshow_window.View
         self._is_paused = False
 
@@ -262,8 +288,9 @@ class PptSourceAdapter(PptPreheatMixin, SourceAdapter):
             allow_existing_when_unique=True,
         )
         if ppt_hwnd == 0:
-            self._logger.warning("未找到 %s 放映窗口句柄，无法铺满目标显示区域", self._app_label)
-            return
+            raise RuntimeError(
+                f"未找到 {self._app_label} 放映窗口句柄，无法铺满目标显示区域"
+            )
 
         container_width, container_height = present_external_slideshow_window(
             ppt_hwnd, self._window_handle
@@ -345,7 +372,7 @@ class PptSourceAdapter(PptPreheatMixin, SourceAdapter):
     def _set_powerpoint_alerts(self, alert_level: int) -> None:
         """
         设置 PPT 应用提示级别，避免关闭只读文件时弹出保存对话框。
-        :param alert_level: PowerPoint/WPS 兼容的 PpAlertLevel 常量值
+        :param alert_level: PowerPoint 的 PpAlertLevel 常量值
         :return: None
         """
         if self._ppt_app is None:
@@ -383,6 +410,40 @@ class PptSourceAdapter(PptPreheatMixin, SourceAdapter):
             return
         except TypeError:
             close_method()
+
+    def _run_powerpoint_operation(
+        self,
+        operation_name: str,
+        operation: Callable[[], object],
+    ) -> object:
+        """
+        按固定次数重试 PowerPoint COM 操作，缓解冷启动阶段的临时失败。
+        :param operation_name: 日志中的操作名
+        :param operation: 待执行的 COM 调用
+        :return: COM 调用结果
+        :raises RuntimeError: 多次重试后仍失败
+        """
+        last_error: Exception | None = None
+        for attempt in range(1, _POWERPOINT_OPERATION_RETRIES + 1):
+            try:
+                return operation()
+            except Exception as operation_error:
+                last_error = operation_error
+                if attempt >= _POWERPOINT_OPERATION_RETRIES:
+                    break
+                self._logger.warning(
+                    "%s %s 失败，将重试（%d/%d）：%s",
+                    self._app_label,
+                    operation_name,
+                    attempt,
+                    _POWERPOINT_OPERATION_RETRIES,
+                    operation_error,
+                )
+                time.sleep(_POWERPOINT_RETRY_DELAY_SECONDS)
+        raise RuntimeError(
+            f"{self._app_label} {operation_name} 失败，"
+            f"已重试 {_POWERPOINT_OPERATION_RETRIES} 次"
+        ) from last_error
 
     # ═══════════════════ 播放控制 ═══════════════════
 
@@ -558,7 +619,7 @@ class PptSourceAdapter(PptPreheatMixin, SourceAdapter):
 
     def _goto_slide(self, index: int) -> None:
         """
-        跳转到指定页，兼容 WPS/PowerPoint 可能不同的 COM 参数签名。
+        跳转到指定页，兼容 PowerPoint 不同版本的 COM 参数签名。
         :param index: 目标页码，1-based
         :return: None
         """

@@ -29,8 +29,6 @@ post:
               type: boolean
               default: true
               description: 是否在播放器启动时预热该媒体源
-            ppt_backend:
-              $ref: ../components/schemas/PptBackend.yaml
   responses:
     '201':
       description: 创建成功

@@ -1,6 +1,0 @@
-type: object
-required:
-  - ppt_backend
-properties:
-  ppt_backend:
-    $ref: ./PptBackend.yaml

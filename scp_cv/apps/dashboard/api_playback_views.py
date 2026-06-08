@@ -55,7 +55,6 @@ from scp_cv.services.playback import (
     set_big_screen_mode,
     set_window_mute,
     set_window_volume,
-    switch_ppt_backend,
     toggle_loop_playback,
 )
 from scp_cv.services.volume import VolumeError, get_system_volume, set_system_volume
@@ -109,7 +108,6 @@ def open_source_api(request: HttpRequest, window_id: int) -> JsonResponse:
             parsed_window_id,
             media_source_id,
             bool_value(body, "autoplay", True),
-            ppt_backend=str(body.get("ppt_backend", "")).strip() or None,
             target_slide=int_value(body, "target_slide"),
         ))
     except PlaybackError as playback_error:
@@ -185,27 +183,6 @@ def ppt_media_control_api(request: HttpRequest, window_id: int) -> JsonResponse:
             media_id=str(body.get("media_id", "")),
             media_index=int_value(body, "media_index"),
         ))
-    except PlaybackError as playback_error:
-        return error_response(str(playback_error), code="playback_error")
-
-
-@csrf_exempt
-@require_http_methods(["POST"])
-def switch_ppt_backend_api(request: HttpRequest, window_id: int) -> JsonResponse:
-    """
-    临时切换当前窗口 PPT 播放器，并自动回到切换前页码。
-    :param request: HTTP 请求
-    :param window_id: 窗口编号
-    :return: 操作后的会话状态
-    """
-    body, error = body_or_error(request)
-    if error is not None:
-        return error
-    ppt_backend = str(body.get("ppt_backend", "")).strip()
-    if not ppt_backend:
-        return error_response("缺少 ppt_backend 字段", code="missing_ppt_backend")
-    try:
-        return mutate_playback(lambda: switch_ppt_backend(parse_window_id(window_id), ppt_backend))
     except PlaybackError as playback_error:
         return error_response(str(playback_error), code="playback_error")
 

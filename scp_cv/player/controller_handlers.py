@@ -48,7 +48,6 @@ class PlayerCommandHandlersMixin:
         autoplay = bool(command_args.get("autoplay", True))
         source_id = int(command_args.get("source_id") or 0)
         preheat_enabled = bool(command_args.get("preheat_enabled", False))
-        ppt_backend = str(command_args.get("ppt_backend", "")).strip()
         target_slide = int(command_args.get("target_slide") or 0)
 
         if not source_type or not uri:
@@ -58,7 +57,6 @@ class PlayerCommandHandlersMixin:
         previous_adapter = self._adapters.pop(window_id, None)
         previous_source_type = self._adapter_source_types.pop(window_id, None)
         previous_source_id = self._adapter_source_ids.pop(window_id, None)
-        previous_ppt_backend = self._adapter_ppt_backends.pop(window_id, None)
         self._last_reported_states.pop(window_id, None)
 
         is_web_source = source_type == "web"
@@ -73,8 +71,7 @@ class PlayerCommandHandlersMixin:
         )
 
         try:
-            adapter_options = {"ppt_backend": ppt_backend} if source_type == "ppt" and ppt_backend else {}
-            adapter = create_adapter(source_type, **adapter_options)
+            adapter = create_adapter(source_type)
             window_handle = self.get_window_handle(window_id)
             if window_handle == 0:
                 try:
@@ -86,7 +83,6 @@ class PlayerCommandHandlersMixin:
                     previous_adapter,
                     previous_source_type,
                     previous_source_id,
-                    previous_ppt_backend,
                 )
                 logger.warning("窗口 %d 没有可用句柄，跳过 OPEN", window_id)
                 return
@@ -110,6 +106,7 @@ class PlayerCommandHandlersMixin:
             if window is not None:
                 window.show_black_screen()
                 window.show()
+                self._set_player_window_topmost(window, True)
                 window.raise_()
 
             self._prepare_adapter_preheat_context(
@@ -117,7 +114,6 @@ class PlayerCommandHandlersMixin:
                 source_id,
                 source_type,
                 preheat_enabled,
-                ppt_backend,
                 uri,
                 window,
             )
@@ -137,7 +133,6 @@ class PlayerCommandHandlersMixin:
                 previous_adapter,
                 previous_source_type,
                 previous_source_id,
-                previous_ppt_backend,
             )
             if previous_adapter is None and (is_ppt_source or preclosed_source_type == "ppt"):
                 self._restore_player_window_to_black(window_id)
@@ -148,8 +143,6 @@ class PlayerCommandHandlersMixin:
         self._adapter_source_types[window_id] = source_type
         if source_id > 0:
             self._adapter_source_ids[window_id] = source_id
-        if source_type == "ppt" and ppt_backend:
-            self._adapter_ppt_backends[window_id] = ppt_backend
 
         if window is not None:
             if is_web_source:
@@ -213,12 +206,12 @@ class PlayerCommandHandlersMixin:
 
         window = self.get_window(window_id)
         if window is not None:
-            window.show()
-            window.raise_()
             window.show_black_screen()
+            window.show()
+            self._set_player_window_topmost(window, True)
+            window.raise_()
 
         from scp_cv.apps.playback.models import PlaybackState, PlaybackSession
-        from scp_cv.ppt_backend import DEFAULT_PPT_BACKEND
         session = PlaybackSession.objects.filter(window_id=window_id).first()
         if session is not None:
             if session.playback_state != PlaybackState.IDLE:
@@ -233,7 +226,6 @@ class PlayerCommandHandlersMixin:
             session.error_message = ""
             session.current_slide = 0
             session.total_slides = 0
-            session.ppt_backend = DEFAULT_PPT_BACKEND
             session.position_ms = 0
             session.duration_ms = 0
             session.save()
@@ -247,7 +239,6 @@ class PlayerCommandHandlersMixin:
             self._close_adapter(adapter_window_id, reheat=False)
         self._adapter_source_types.clear()
         self._adapter_source_ids.clear()
-        self._adapter_ppt_backends.clear()
         self._last_reported_states.clear()
 
         if self._preheat_pool is not None:
@@ -269,7 +260,6 @@ class PlayerCommandHandlersMixin:
         :return: None
         """
         from scp_cv.apps.playback.models import PlaybackState, PlaybackSession
-        from scp_cv.ppt_backend import DEFAULT_PPT_BACKEND
 
         session = PlaybackSession.objects.filter(window_id=window_id).first()
         if session is None:
@@ -279,7 +269,6 @@ class PlayerCommandHandlersMixin:
         session.error_message = ""
         session.current_slide = 0
         session.total_slides = 0
-        session.ppt_backend = DEFAULT_PPT_BACKEND
         session.position_ms = 0
         session.duration_ms = 0
         session.save(update_fields=[
@@ -288,7 +277,6 @@ class PlayerCommandHandlersMixin:
             "error_message",
             "current_slide",
             "total_slides",
-            "ppt_backend",
             "position_ms",
             "duration_ms",
             "last_updated_at",
@@ -430,7 +418,6 @@ class PlayerCommandHandlersMixin:
         self._close_detached_adapter(window_id, adapter, source_type, source_id, restore_window, reheat)
         self._adapter_source_types.pop(window_id, None)
         self._adapter_source_ids.pop(window_id, None)
-        self._adapter_ppt_backends.pop(window_id, None)
         self._last_reported_states.pop(window_id, None)
 
     @staticmethod
@@ -448,9 +435,7 @@ class PlayerCommandHandlersMixin:
         """
         if previous_adapter is None or previous_source_type != "ppt":
             return False
-        if next_source_type == "ppt":
-            return True
-        return not bool(getattr(previous_adapter, "has_external_slideshow_window", False))
+        return True
 
     def _close_detached_adapter(
         self,
@@ -471,13 +456,13 @@ class PlayerCommandHandlersMixin:
         :param reheat: 是否按源配置重新预热
         :return: None
         """
+        if source_type == "ppt":
+            self._restore_player_window_to_black(window_id)
         if adapter is not None:
             try:
                 adapter.close()
             except Exception as close_error:
                 logger.warning("关闭窗口 %d 适配器异常：%s", window_id, close_error)
-        if restore_window and source_type == "ppt":
-            self._restore_player_window_to_black(window_id)
         if reheat and source_id and self._should_reheat_closed_source(window_id, int(source_id)):
             if source_type == "ppt":
                 self._schedule_reheat_source_if_enabled(window_id, int(source_id))
@@ -516,7 +501,6 @@ class PlayerCommandHandlersMixin:
         adapter: object | None,
         source_type: str | None,
         source_id: int | None,
-        ppt_backend: str | None = None,
     ) -> None:
         """
         新源打开失败时恢复旧适配器映射和窗口可见性。
@@ -524,7 +508,6 @@ class PlayerCommandHandlersMixin:
         :param adapter: 旧适配器
         :param source_type: 旧源类型
         :param source_id: 旧源 ID
-        :param ppt_backend: 旧 PPT 后端
         :return: None
         """
         if adapter is None or source_type is None:
@@ -533,8 +516,6 @@ class PlayerCommandHandlersMixin:
         self._adapter_source_types[window_id] = source_type
         if source_id is not None:
             self._adapter_source_ids[window_id] = source_id
-        if source_type == "ppt" and ppt_backend:
-            self._adapter_ppt_backends[window_id] = ppt_backend
         window = self.get_window(window_id)
         if window is None:
             return
@@ -551,7 +532,7 @@ class PlayerCommandHandlersMixin:
 
     def _schedule_reheat_source_if_enabled(self, window_id: int, source_id: int) -> None:
         """
-        延迟重建 PPT 预热，避免 CLOSE 后立即重开时抢占主线程和 LibreOffice 资源。
+        延迟重建 PPT 预热，避免 CLOSE 后立即重开时抢占主线程和 PowerPoint 资源。
         :param window_id: 窗口编号
         :param source_id: 刚关闭的媒体源 ID
         :return: None
@@ -574,7 +555,6 @@ class PlayerCommandHandlersMixin:
         source_id: int,
         source_type: str,
         preheat_enabled: bool,
-        ppt_backend: str,
         uri: str,
         window: object | None,
     ) -> None:
@@ -584,7 +564,6 @@ class PlayerCommandHandlersMixin:
         :param source_id: 媒体源 ID
         :param source_type: 媒体源类型
         :param preheat_enabled: 是否启用预热
-        :param ppt_backend: PPT 后端
         :param uri: 媒体 URI
         :param window: 播放窗口
         :return: None
@@ -628,7 +607,6 @@ class PlayerCommandHandlersMixin:
             "id",
             "source_type",
             "uri",
-            "ppt_backend",
             "metadata",
         ).first()
         if source is None:
@@ -641,7 +619,6 @@ class PlayerCommandHandlersMixin:
             source.pk,
             source.source_type,
             preheat_uri,
-            getattr(source, "ppt_backend", ""),
             force=source.source_type != "web",
         )
 
@@ -655,7 +632,10 @@ class PlayerCommandHandlersMixin:
         if bool(getattr(adapter, "has_external_slideshow_window", False)):
             window = self.get_window(window_id)
             if window is not None:
-                window.hide_window()
+                window.show_black_screen()
+                window.show()
+                self._set_player_window_topmost(window, False)
+            self._minimize_unprotected_windows_for_ppt(adapter)
             return
         self._restore_player_window_to_black(window_id)
 
@@ -668,9 +648,40 @@ class PlayerCommandHandlersMixin:
         window = self.get_window(window_id)
         if window is None:
             return
-        window.show()
-        window.raise_()
         window.show_black_screen()
+        window.show()
+        self._set_player_window_topmost(window, True)
+        window.raise_()
+
+    def _minimize_unprotected_windows_for_ppt(self, adapter: object) -> None:
+        """
+        PPT 放映窗口就绪后，最小化除所有 PySide 播放窗口和当前 PPT 外的其它顶层窗口。
+        :param adapter: 当前 PPT 适配器
+        :return: None
+        """
+        from scp_cv.player.window_cleanup import minimize_unprotected_top_level_windows
+
+        ppt_hwnd = int(getattr(adapter, "external_slideshow_hwnd", 0) or 0)
+        protected_hwnds = [ppt_hwnd]
+        for window in self._windows.values():
+            protected_hwns_attr = getattr(window, "top_level_window_handle", 0)
+            try:
+                protected_hwnds.append(int(protected_hwns_attr))
+            except (TypeError, ValueError):
+                continue
+        minimize_unprotected_top_level_windows(protected_hwnds)
+
+    @staticmethod
+    def _set_player_window_topmost(window: object, enabled: bool) -> None:
+        """
+        调整播放器窗口置顶状态，兼容测试替身。
+        :param window: PlayerWindow 或测试替身
+        :param enabled: 是否置顶
+        :return: None
+        """
+        set_topmost = getattr(window, "set_always_on_top", None)
+        if callable(set_topmost):
+            set_topmost(enabled)
 
     def _update_session_state(self, window_id: int, playback_state: str) -> None:
         """
@@ -686,10 +697,6 @@ class PlayerCommandHandlersMixin:
             if source_id is not None and session.media_source_id != source_id:
                 session.media_source_id = source_id
                 update_fields.append("media_source")
-            ppt_backend = self._adapter_ppt_backends.get(window_id)
-            if ppt_backend and session.ppt_backend != ppt_backend:
-                session.ppt_backend = ppt_backend
-                update_fields.append("ppt_backend")
             session.playback_state = playback_state
             session.error_message = ""
             session.save(update_fields=update_fields)

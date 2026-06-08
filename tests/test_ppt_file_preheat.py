@@ -19,8 +19,7 @@ from scp_cv.player.adapters import ppt
 from scp_cv.player.adapters.ppt import PptSourceAdapter
 from scp_cv.player.preheat_ppt import PptApplicationPreheater
 from scp_cv.player.preheat_types import PreheatedPptApplication
-from scp_cv.ppt_backend import PPT_BACKEND_POWERPOINT, PPT_BACKEND_WPS
-from scp_cv.ppt_com import POWERPOINT_COM_PROG_IDS, WPS_COM_PROG_IDS
+from scp_cv.ppt_com import POWERPOINT_COM_PROG_IDS
 
 
 class _PresentationStub:
@@ -71,7 +70,7 @@ class _PresentationsStub:
 
 
 class _PptAppStub:
-    """PowerPoint/WPS Application 替身。"""
+    """PowerPoint Application 替身。"""
 
     def __init__(self, presentation: _PresentationStub) -> None:
         """
@@ -150,18 +149,17 @@ class _PreheatPoolStub:
         :return: None
         """
         self.item = item
-        self.take_calls: list[tuple[str, int, str]] = []
+        self.take_calls: list[tuple[int, str]] = []
         self.returned_items: list[PreheatedPptApplication] = []
 
-    def take_ppt_application(self, backend: str, source_id: int = 0, uri: str = "") -> PreheatedPptApplication | None:
+    def take_ppt_application(self, source_id: int = 0, uri: str = "") -> PreheatedPptApplication | None:
         """
         记录取用参数并返回预热项。
-        :param backend: PPT 后端
         :param source_id: 媒体源 ID
         :param uri: PPT 文件路径
         :return: 预热应用项
         """
-        self.take_calls.append((backend, source_id, uri))
+        self.take_calls.append((source_id, uri))
         item = self.item
         self.item = None  # type: ignore[assignment]
         return item
@@ -194,29 +192,20 @@ def _install_com_stubs(monkeypatch: MonkeyPatch, app: _PptAppStub) -> tuple[_Pyt
     return pythoncom_stub, win32_client_stub
 
 
-@pytest.mark.parametrize(
-    ("backend", "expected_prog_id"),
-    [
-        (PPT_BACKEND_POWERPOINT, POWERPOINT_COM_PROG_IDS[0]),
-        (PPT_BACKEND_WPS, WPS_COM_PROG_IDS[0]),
-    ],
-)
 def test_preheat_source_opens_presentation_without_edit_window(
     monkeypatch: MonkeyPatch,
-    backend: str,
-    expected_prog_id: str,
 ) -> None:
-    """PowerPoint/WPS 文件级预热应打开无编辑窗口的 Presentation。"""
+    """PowerPoint 文件级预热应打开无编辑窗口的 Presentation。"""
     presentation = _PresentationStub()
     app = _PptAppStub(presentation)
     pythoncom_stub, win32_client_stub = _install_com_stubs(monkeypatch, app)
     preheater = PptApplicationPreheater()
 
-    preheater.preheat_source(backend, 42, "C:/demo/source.pptx")
-    item = preheater.take(backend, 42, "C:/demo/source.pptx")
+    preheater.preheat_source(42, "C:/demo/source.pptx")
+    item = preheater.take(42, "C:/demo/source.pptx")
 
     assert pythoncom_stub.initialized == 1
-    assert win32_client_stub.calls == [expected_prog_id]
+    assert win32_client_stub.calls == [POWERPOINT_COM_PROG_IDS[0]]
     assert item is not None
     assert item.app is app
     assert item.source_id == 42
@@ -235,7 +224,7 @@ def test_return_item_downgrades_file_preheat_to_generic_application() -> None:
     app = _PptAppStub(presentation)
     preheater = PptApplicationPreheater()
     item = PreheatedPptApplication(
-        PPT_BACKEND_POWERPOINT,
+        "powerpoint",
         app,
         POWERPOINT_COM_PROG_IDS[0],
         source_id=9,
@@ -244,7 +233,7 @@ def test_return_item_downgrades_file_preheat_to_generic_application() -> None:
     )
 
     preheater.return_item(item)
-    returned = preheater.take(PPT_BACKEND_POWERPOINT)
+    returned = preheater.take()
 
     assert presentation.close_called is True
     assert presentation.close_args == (False,)
@@ -263,7 +252,7 @@ def test_ppt_adapter_reuses_preheated_presentation(monkeypatch: MonkeyPatch) -> 
     app = _PptAppStub(presentation)
     _install_com_stubs(monkeypatch, app)
     item = PreheatedPptApplication(
-        PPT_BACKEND_POWERPOINT,
+        "powerpoint",
         app,
         POWERPOINT_COM_PROG_IDS[0],
         source_id=7,
@@ -282,7 +271,7 @@ def test_ppt_adapter_reuses_preheated_presentation(monkeypatch: MonkeyPatch) -> 
     opened_total_slides = adapter._total_slides
     adapter._close_com_resources()
 
-    assert preheat_pool.take_calls == [(PPT_BACKEND_POWERPOINT, 7, uri)]
+    assert preheat_pool.take_calls == [(7, uri)]
     assert app.Presentations.calls == []
     assert opened_total_slides == 6
     assert preheat_pool.returned_items == [item]

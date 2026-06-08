@@ -2,7 +2,7 @@
 
 本文档集用于完整说明 SCP-cv 当前实现，并作为后续迁移合并到 Django + Fluent + Vue 项目的技术依据。
 
-最后更新：2026-06-04。
+最后更新：2026-06-08。
 
 ## 阅读顺序
 
@@ -19,7 +19,7 @@
 
 ## 项目一句话定义
 
-SCP-cv 是一个 Windows-first、单主机、多进程播放控制平台，用 Django REST/SSE/gRPC 管理媒体源和会话状态，用 Vue 控制台进行播控，用 PySide6/libVLC/Office/LibreOffice 播放器进程把内容输出到四个物理窗口。
+SCP-cv 是一个 Windows-first、单主机、多进程播放控制平台，用 Django REST/SSE/gRPC 管理媒体源和会话状态，用 Vue 控制台进行播控，用 PySide6/libVLC/PowerPoint 播放器进程把内容输出到四个物理窗口。
 
 ## 当前系统边界
 
@@ -29,7 +29,7 @@ SCP-cv 是一个 Windows-first、单主机、多进程播放控制平台，用 D
 | Web 前端 | `frontend/` Vue 3 + Vite + Pinia + Naive UI + Fluent tokens | 可迁入目标 Vue/Fluent 应用，优先复用 API 类型和 stores |
 | 播放器 | `scp_cv/player/` PySide6 进程 | 不应嵌入 Django Worker，继续作为本机桌面进程 |
 | 流媒体 | `tools/third_party/mediamtx/` + `scp_cv/services/mediamtx.py` | 作为独立本机服务保留，Django 只做状态同步 |
-| PPT 后端 | PowerPoint COM、WPS COM、LibreOffice UNO/bridge | 按媒体源保留后端选择，不要简化成单后端 |
+| PPT 后端 | Microsoft PowerPoint COM | PowerPoint 是唯一支持的 PPT 播放、预览和导出组件 |
 | 实时状态 | SQLite 状态表 + SSE 轮询/事件总线 | 可以升级消息队列，但要兼容现有状态快照 |
 
 ## 迁移目标说明

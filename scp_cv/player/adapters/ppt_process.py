@@ -1,7 +1,7 @@
 #!/user/bin/env python
 # -*- coding: UTF-8 -*-
 '''
-PPT/WPS 进程识别辅助函数。
+PowerPoint 进程识别辅助函数。
 @Project : SCP-cv
 @File : ppt_process.py
 @Author : Qintsg
@@ -16,9 +16,9 @@ def read_ppt_app_process_id(
     existing_process_ids: set[int] | None = None,
 ) -> int:
     """
-    从 PPT/WPS 应用主窗口读取进程 ID。
+    从 PowerPoint 应用主窗口读取进程 ID。
 
-    :param ppt_app: PPT/WPS Application COM 对象
+    :param ppt_app: PowerPoint Application COM 对象
     :param active_com_prog_id: 当前成功连接的 COM ProgID
     :param existing_process_ids: 创建 COM 前已有的候选进程 ID
     :returns: 进程 ID；读取失败返回 0
@@ -39,7 +39,7 @@ def read_ppt_app_process_id(
 
 def snapshot_candidate_process_ids(active_com_prog_id: str) -> set[int]:
     """
-    获取当前 PPT/WPS 后端候选进程 ID。
+    获取当前 PowerPoint 后端候选进程 ID。
 
     :param active_com_prog_id: 当前 COM ProgID
     :returns: 进程 ID 集合
@@ -61,7 +61,7 @@ def snapshot_candidate_process_ids(active_com_prog_id: str) -> set[int]:
 
 def candidate_process_names(active_com_prog_id: str) -> set[str]:
     """
-    根据当前 COM ProgID 推断 PPT/WPS 进程名。
+    根据当前 COM ProgID 推断 PowerPoint 进程名。
 
     :param active_com_prog_id: 当前 COM ProgID
     :returns: 小写进程名集合
@@ -69,8 +69,6 @@ def candidate_process_names(active_com_prog_id: str) -> set[str]:
     lowered_prog_id = active_com_prog_id.lower()
     if "powerpoint" in lowered_prog_id:
         return {"powerpnt.exe"}
-    if "wpp" in lowered_prog_id or "kwpp" in lowered_prog_id:
-        return {"wpp.exe", "wps.exe"}
     return set()
 
 
@@ -78,7 +76,7 @@ def _read_app_hwnd(ppt_app: object) -> int:
     """
     读取 Office Application 主窗口 HWND。
 
-    :param ppt_app: PPT/WPS Application COM 对象
+    :param ppt_app: PowerPoint Application COM 对象
     :returns: HWND；读取失败返回 0
     """
     for attr_name in ("HWND", "Hwnd", "hwnd"):

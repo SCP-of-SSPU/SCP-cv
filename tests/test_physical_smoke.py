@@ -23,7 +23,6 @@ from scp_cv.apps.playback.models import (
     PlaybackState,
     SourceType,
 )
-from scp_cv.ppt_backend import DEFAULT_PPT_BACKEND
 from scp_cv.services import physical_smoke
 from scp_cv.services.playback import get_or_create_session
 
@@ -45,7 +44,6 @@ def test_physical_smoke_runs_all_windows_and_source_types(
         window_id: int,
         media_source_id: int,
         autoplay: bool = True,
-        ppt_backend: str | None = None,
         target_slide: int = 0,
     ) -> object:
         source = MediaSource.objects.get(pk=media_source_id)
@@ -54,7 +52,6 @@ def test_physical_smoke_runs_all_windows_and_source_types(
             "source_type": source.source_type,
             "source_id": media_source_id,
             "autoplay": autoplay,
-            "ppt_backend": ppt_backend,
             "target_slide": target_slide,
         })
         session = get_or_create_session(window_id)
@@ -127,7 +124,6 @@ def test_physical_smoke_runs_all_windows_and_source_types(
     assert any(item["window_id"] == 0 and item["source_type"] == SourceType.AUDIO for item in result["results"])
     assert any(
         item["source_type"] == SourceType.PPT
-        and item["ppt_backend"] == DEFAULT_PPT_BACKEND
         and item["target_slide"] == 1
         for item in opened
     )

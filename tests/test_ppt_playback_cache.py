@@ -45,12 +45,10 @@ def test_prepare_pptx_playback_cache_writes_ready_metadata(
         exported_source_path: Path,
         target_path: Path,
         target_extension: str,
-        preferred_backend: str,
     ) -> str:
         """模拟 Office 导出。"""
         assert exported_source_path == source_path
         assert target_extension == ".ppsx"
-        assert preferred_backend == "powerpoint"
         target_path.write_bytes(b"show-cache")
         return "powerpoint"
 
@@ -84,7 +82,6 @@ def test_prepare_legacy_ppt_playback_cache_targets_pps(
         _source_path: Path,
         target_path: Path,
         target_extension: str,
-        _preferred_backend: str,
     ) -> str:
         """模拟旧版 PPT 导出。"""
         assert target_extension == ".pps"

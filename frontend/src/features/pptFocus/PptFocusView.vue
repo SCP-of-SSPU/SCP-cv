@@ -32,6 +32,8 @@ const PRESENTATION_KEY_ACTIONS: Record<string, 'prev' | 'next'> = {
   PageUp: 'prev',
   PageDown: 'next',
 };
+const RESOURCE_POLL_INTERVAL_MS = 1000;
+const RESOURCE_POLL_MAX_ATTEMPTS = 8;
 const KEYBOARD_NAVIGATION_SKIP_SELECTOR = [
   'input',
   'textarea',
@@ -66,6 +68,8 @@ const loadError = ref('');
 const isLoading = ref(false);
 const selectedMediaKey = ref<string | null>(null);
 const _restoreTheme = ref<ThemeMode | null>(null);
+const resourcePollTimer = ref<number | null>(null);
+const resourcePollAttempts = ref(0);
 
 const windowId = computed(() => Number.parseInt(String(route.params.windowId ?? '0'), 10));
 const session = computed(() => sessionStore.byWindowId(windowId.value));
@@ -97,7 +101,9 @@ const slideImage = computed(() => {
 });
 
 const nextSlideImage = computed(() => {
-  const path = currentResource.value?.next_slide_image;
+  const path = resources.value.find(
+    (resource) => resource.page_index === (session.value?.current_slide ?? 1) + 1,
+  )?.slide_image;
   return path ? buildBackendUrl(path) : '';
 });
 
@@ -205,6 +211,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  clearResourcePoll();
   popOverride();
   document.removeEventListener('fullscreenchange', syncFullscreen);
   document.removeEventListener('keydown', handlePresentationKeydown);
@@ -215,6 +222,7 @@ function mediaSelectionValue(media: PptMediaItem): string {
 }
 
 async function loadResources(sourceId: number | null): Promise<void> {
+  clearResourcePoll();
   if (!sourceId) {
     resources.value = [];
     loadError.value = '';
@@ -227,6 +235,7 @@ async function loadResources(sourceId: number | null): Promise<void> {
     const payload = await api.listPptResources(sourceId);
     if (pptSourceId.value === sourceId) {
       resources.value = payload.resources;
+      scheduleResourcePollIfNeeded(sourceId);
     }
   } catch (error) {
     if (pptSourceId.value === sourceId) {
@@ -236,6 +245,61 @@ async function loadResources(sourceId: number | null): Promise<void> {
     if (pptSourceId.value === sourceId) {
       isLoading.value = false;
     }
+  }
+}
+
+function hasCompleteSlideResources(): boolean {
+  const totalSlides = slidesProgress.value.total;
+  if (!resources.value.length) return false;
+  const currentSlide = slidesProgress.value.current || 1;
+  const hasCurrentSlide = resources.value.some(
+    (resource) => resource.page_index === currentSlide && Boolean(resource.slide_image),
+  );
+  if (!hasCurrentSlide) return false;
+  if (totalSlides <= 0) return resources.value.every((resource) => Boolean(resource.slide_image));
+  return resources.value.length >= totalSlides && resources.value.every((resource) => Boolean(resource.slide_image));
+}
+
+function clearResourcePoll(): void {
+  if (resourcePollTimer.value !== null) {
+    window.clearTimeout(resourcePollTimer.value);
+    resourcePollTimer.value = null;
+  }
+  resourcePollAttempts.value = 0;
+}
+
+function scheduleResourcePollIfNeeded(sourceId: number): void {
+  if (resourcePollTimer.value !== null) return;
+  if (hasCompleteSlideResources() || resourcePollAttempts.value >= RESOURCE_POLL_MAX_ATTEMPTS) {
+    resourcePollTimer.value = null;
+    return;
+  }
+  resourcePollTimer.value = window.setTimeout(() => {
+    resourcePollTimer.value = null;
+    void pollResources(sourceId);
+  }, RESOURCE_POLL_INTERVAL_MS);
+}
+
+watch(
+  () => [pptSourceId.value, slidesProgress.value.current, slidesProgress.value.total] as const,
+  ([sourceId]) => {
+    if (!sourceId || !resources.value.length) return;
+    scheduleResourcePollIfNeeded(sourceId);
+  },
+);
+
+async function pollResources(sourceId: number): Promise<void> {
+  if (pptSourceId.value !== sourceId) return;
+  resourcePollAttempts.value += 1;
+  try {
+    const payload = await api.listPptResources(sourceId);
+    if (pptSourceId.value !== sourceId) return;
+    resources.value = payload.resources;
+    loadError.value = '';
+    scheduleResourcePollIfNeeded(sourceId);
+  } catch (error) {
+    if (pptSourceId.value !== sourceId) return;
+    loadError.value = error instanceof Error ? error.message : t('pptFocus.loadFailTitle');
   }
 }
 

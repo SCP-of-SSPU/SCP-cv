@@ -103,7 +103,6 @@ REST 和 gRPC 都委托同一服务层。迁移时应避免为 REST 和 gRPC 复
 | POST | `/api/playback/<window_id>/control/` | play/pause/stop |
 | POST | `/api/playback/<window_id>/navigate/` | next/prev/goto/seek |
 | POST | `/api/playback/<window_id>/ppt-media/` | 控制 PPT 页内媒体 |
-| POST | `/api/playback/<window_id>/ppt-backend/` | 临时切换当前 PPT 后端 |
 | POST | `/api/playback/<window_id>/close/` | 关闭窗口源 |
 | POST | `/api/playback/<window_id>/loop/` | 设置循环 |
 | POST | `/api/playback/<window_id>/volume/` | 窗口音量 |
@@ -159,7 +158,6 @@ REST 和 gRPC 都委托同一服务层。迁移时应避免为 REST 和 gRPC 复
 {
   "source_id": 12,
   "autoplay": true,
-  "ppt_backend": "powerpoint",
   "target_slide": 1
 }
 ```
@@ -169,7 +167,7 @@ REST 和 gRPC 都委托同一服务层。迁移时应避免为 REST 和 gRPC 复
 - 校验 `window_id` 在 1-4。
 - 校验源存在且可用。
 - 拒绝把 audio 源打开到显示窗口。
-- PPT 源解析后端并选择播放缓存 URI。
+- PPT 源选择播放缓存 URI，并统一使用 PowerPoint。
 - 设置 session 为 `loading`。
 - 写 `pending_command=open` 和完整 `command_args`。
 

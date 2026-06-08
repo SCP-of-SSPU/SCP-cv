@@ -98,13 +98,12 @@ def test_player_controller_preheats_enabled_media_sources(monkeypatch: pytest.Mo
     class FakePreheatPool:
         """记录预热调用的统一预热池替身。"""
 
-        def preheat_source(self, source_id: int, source_type: str, uri: str, ppt_backend: str = "") -> None:
+        def preheat_source(self, source_id: int, source_type: str, uri: str) -> None:
             """
             记录 source_id、类型与 URI。
             :param source_id: 媒体源 ID
             :param source_type: 媒体源类型
             :param uri: 媒体 URI
-            :param ppt_backend: PPT 后端
             :return: None
             """
             preheated_sources.append((source_id, source_type, uri))

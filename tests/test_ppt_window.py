@@ -110,25 +110,6 @@ def test_snapshot_slideshow_hwnds_collects_visible_powerpoint_windows(
     assert slideshow_hwnds == {101, 202}
 
 
-def test_snapshot_slideshow_hwnds_uses_custom_window_classes(
-    monkeypatch: MonkeyPatch,
-) -> None:
-    """调用方可指定 WPS 等后端自己的放映窗口 class name。"""
-    _install_fake_win32gui(
-        monkeypatch,
-        {
-            101: ("screenClass", True),
-            202: ("KWppShowWindow", True),
-            303: ("Chrome_WidgetWin_1", True),
-        },
-    )
-    slideshow_hwnds = snapshot_slideshow_hwnds(
-        logging.getLogger(__name__),
-        class_names={"KWppShowWindow"},
-    )
-    assert slideshow_hwnds == {202}
-
-
 def test_find_slideshow_hwnd_prefers_com_hwnd() -> None:
     """COM 直接返回 HWND 时应直接使用，避免 Win32 枚举误判。"""
     logger = logging.getLogger(__name__)
@@ -182,26 +163,6 @@ def test_find_slideshow_hwnd_returns_zero_for_ambiguous_new_windows(
     )
     hwnd = find_slideshow_hwnd(None, logging.getLogger(__name__), existing_hwnds=set())
     assert hwnd == 0
-
-
-def test_find_slideshow_hwnd_uses_custom_window_classes(
-    monkeypatch: MonkeyPatch,
-) -> None:
-    """回退枚举应支持调用方传入的后端窗口 class name。"""
-    _install_fake_win32gui(
-        monkeypatch,
-        {
-            101: ("screenClass", True),
-            202: ("KWppShowWindow", True),
-        },
-    )
-    hwnd = find_slideshow_hwnd(
-        None,
-        logging.getLogger(__name__),
-        existing_hwnds=set(),
-        class_names={"KWppShowWindow"},
-    )
-    assert hwnd == 202
 
 
 def test_find_slideshow_hwnd_matches_powerpoint_frame_class(
@@ -302,50 +263,6 @@ def test_find_slideshow_hwnd_ignores_powerpoint_editor_filename_with_keyword(
         None,
         logging.getLogger(__name__),
         existing_hwnds=set(),
-        allow_existing_when_unique=True,
-    )
-
-    assert hwnd == 0
-
-
-def test_find_slideshow_hwnd_ignores_wps_editor_frame(
-    monkeypatch: MonkeyPatch,
-) -> None:
-    """WPS 演示编辑主窗口不应被当成放映窗口。"""
-    _install_fake_win32gui(
-        monkeypatch,
-        {
-            101: ("KWppShowWindow", True, "demo.pptx - WPS 演示"),
-            202: ("KWppShowWindow", True, "幻灯片放映 - demo.pptx"),
-        },
-    )
-
-    hwnd = find_slideshow_hwnd(
-        None,
-        logging.getLogger(__name__),
-        existing_hwnds=set(),
-        class_names={"KWppShowWindow"},
-    )
-
-    assert hwnd == 202
-
-
-def test_find_slideshow_hwnd_ignores_wps_editor_filename_with_keyword(
-    monkeypatch: MonkeyPatch,
-) -> None:
-    """文件名包含英文放映关键词时，WPS 编辑窗口仍不应被误判。"""
-    _install_fake_win32gui(
-        monkeypatch,
-        {
-            101: ("KWppShowWindow", True, "slide show checklist.pptx - WPS 演示"),
-        },
-    )
-
-    hwnd = find_slideshow_hwnd(
-        None,
-        logging.getLogger(__name__),
-        existing_hwnds=set(),
-        class_names={"KWppShowWindow"},
         allow_existing_when_unique=True,
     )
 

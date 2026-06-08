@@ -47,7 +47,6 @@ urlpatterns = [
     path("playback/<int:window_id>/control/", api_playback_views.playback_control_api, name="playback_control"),
     path("playback/<int:window_id>/navigate/", api_playback_views.navigate_content_api, name="navigate_content"),
     path("playback/<int:window_id>/ppt-media/", api_playback_views.ppt_media_control_api, name="ppt_media_control"),
-    path("playback/<int:window_id>/ppt-backend/", api_playback_views.switch_ppt_backend_api, name="switch_ppt_backend"),
     path("playback/<int:window_id>/close/", api_playback_views.close_source_api, name="close_source"),
     path("playback/<int:window_id>/loop/", api_playback_views.toggle_loop_api, name="toggle_loop"),
     path("playback/<int:window_id>/volume/", api_playback_views.set_window_volume_api, name="set_window_volume"),

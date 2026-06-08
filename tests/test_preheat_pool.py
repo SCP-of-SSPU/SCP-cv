@@ -1,7 +1,7 @@
 #!/user/bin/env python
 # -*- coding: UTF-8 -*-
 '''
-播放器统一预热池测试，覆盖 LibreOffice bridge 生命周期保护。
+播放器统一预热池测试，覆盖 PowerPoint、媒体文件和直播预热复用。
 @Project : SCP-cv
 @File : test_preheat_pool.py
 @Author : Qintsg
@@ -17,88 +17,34 @@ from scp_cv.apps.playback.models import SourceType
 from scp_cv.player import preheat_pool
 from scp_cv.player.preheat_pool import PlayerPreheatPool
 from scp_cv.player.preheat_types import PreheatedStreamSource
-from scp_cv.ppt_backend import PPT_BACKEND_LIBREOFFICE, PPT_BACKEND_POWERPOINT
-
-
-class _BridgeStub:
-    """记录关闭调用的 LibreOffice bridge 替身。"""
-
-    def __init__(self) -> None:
-        """
-        初始化关闭记录。
-        :return: None
-        """
-        self.closed = False
-
-    def close(self) -> None:
-        """
-        标记 bridge 已关闭。
-        :return: None
-        """
-        self.closed = True
-
-
-class _BridgeOpenStub(_BridgeStub):
-    """记录文件级 LibreOffice bridge 预热打开参数。"""
-
-    def __init__(self, _logger: object) -> None:
-        """
-        初始化打开记录。
-        :param _logger: 日志器
-        :return: None
-        """
-        super().__init__()
-        self.open_calls: list[tuple[str, bool]] = []
-        self.preheat_called = False
-
-    def open(self, uri: str, autoplay: bool, display_index: int = 0) -> dict[str, object]:
-        """
-        记录文件级打开请求。
-        :param uri: PPT 文件路径
-        :param autoplay: 是否自动放映
-        :param display_index: 显示器序号
-        :return: 空闲状态
-        """
-        self.open_calls.append((uri, autoplay))
-        return {"playback_state": "stopped"}
-
-    def preheat(self) -> dict[str, object]:
-        """
-        记录应用级预热请求。
-        :return: 空闲状态
-        """
-        self.preheat_called = True
-        return {"playback_state": "idle"}
 
 
 class _PptAppsStub:
-    """记录 PowerPoint/WPS 预热池调用。"""
+    """记录 PowerPoint 预热池调用。"""
 
     def __init__(self) -> None:
         """
         初始化调用记录。
         :return: None
         """
-        self.preheat_calls: list[str] = []
-        self.preheat_source_calls: list[tuple[str, int, str]] = []
+        self.preheat_calls = 0
+        self.preheat_source_calls: list[tuple[int, str]] = []
 
-    def preheat(self, backend: str) -> None:
+    def preheat(self) -> None:
         """
         记录应用级预热。
-        :param backend: PPT 后端
         :return: None
         """
-        self.preheat_calls.append(backend)
+        self.preheat_calls += 1
 
-    def preheat_source(self, backend: str, source_id: int, uri: str) -> None:
+    def preheat_source(self, source_id: int, uri: str) -> None:
         """
         记录文件级预热。
-        :param backend: PPT 后端
         :param source_id: 媒体源 ID
         :param uri: PPT 文件路径
         :return: None
         """
-        self.preheat_source_calls.append((backend, source_id, uri))
+        self.preheat_source_calls.append((source_id, uri))
 
 
 class _FakePixmap:
@@ -128,9 +74,18 @@ class _FakeAudioOutput:
         self.muted = False
 
     def setMuted(self, muted: bool) -> None:
+        """
+        记录静音状态。
+        :param muted: 是否静音
+        :return: None
+        """
         self.muted = muted
 
     def deleteLater(self) -> None:
+        """
+        记录延迟删除。
+        :return: None
+        """
         self.deleted = True
 
 
@@ -145,18 +100,41 @@ class _FakeMediaPlayer:
         self.deleted = False
 
     def setAudioOutput(self, audio_output: object | None) -> None:
+        """
+        记录音频输出。
+        :param audio_output: 音频输出对象
+        :return: None
+        """
         self.audio_output = audio_output
 
     def setVideoOutput(self, video_output: object | None) -> None:
+        """
+        记录视频输出。
+        :param video_output: 视频输出对象
+        :return: None
+        """
         self.video_output = video_output
 
     def setSource(self, source: object) -> None:
+        """
+        记录媒体源。
+        :param source: QUrl 或测试替身
+        :return: None
+        """
         self.source = source
 
     def stop(self) -> None:
+        """
+        记录停止调用。
+        :return: None
+        """
         self.stopped = True
 
     def deleteLater(self) -> None:
+        """
+        记录延迟删除。
+        :return: None
+        """
         self.deleted = True
 
 
@@ -173,16 +151,34 @@ class _ClaimableStreamHandle:
         self.media = object()
 
     def is_stale(self) -> bool:
+        """
+        返回是否过期。
+        :return: False
+        """
         return False
 
     def matches(self, source_id: int, uri: str) -> bool:
+        """
+        判断源 ID 和 URI 是否匹配。
+        :param source_id: 媒体源 ID
+        :param uri: 媒体 URI
+        :return: True 表示匹配
+        """
         return self.source_id == source_id and self.uri == uri
 
     def claim(self) -> PreheatedStreamSource:
+        """
+        认领预热直播资源。
+        :return: 已预热直播资源
+        """
         self.claimed = True
         return PreheatedStreamSource(self.source_id, self.uri, self.instance, self.player, self.media, 10.0)
 
     def close(self) -> None:
+        """
+        记录关闭调用。
+        :return: None
+        """
         self.closed = True
 
 
@@ -199,124 +195,16 @@ class _FakeQUrl:
         return f"local:{uri}"
 
 
-def test_take_libreoffice_bridge_discards_expired_bridge(monkeypatch: MonkeyPatch) -> None:
-    """过期的 LibreOffice 预热 bridge 不应被前台打开复用。"""
-    bridge = _BridgeStub()
-    pool = object.__new__(PlayerPreheatPool)
-    pool._libreoffice_bridge = bridge
-    pool._libreoffice_bridge_ready_at = 20.0
-    monkeypatch.setattr(preheat_pool.time, "monotonic", lambda: 100.1)
-
-    taken = pool.take_libreoffice_bridge()
-
-    assert taken is None
-    assert bridge.closed is True
-    assert pool._libreoffice_bridge is None
-    assert pool._libreoffice_bridge_ready_at == 0.0
-
-
-def test_take_libreoffice_bridge_returns_fresh_bridge(monkeypatch: MonkeyPatch) -> None:
-    """未过期的 LibreOffice 预热 bridge 仍应被前台打开认领。"""
-    bridge = _BridgeStub()
-    pool = object.__new__(PlayerPreheatPool)
-    pool._libreoffice_bridge = bridge
-    pool._libreoffice_bridge_ready_at = 50.0
-    monkeypatch.setattr(preheat_pool.time, "monotonic", lambda: 100.0)
-
-    taken = pool.take_libreoffice_bridge()
-
-    assert taken is bridge
-    assert bridge.closed is False
-    assert pool._libreoffice_bridge is None
-    assert pool._libreoffice_bridge_ready_at == 0.0
-
-
-def test_preheat_source_uses_file_level_ppt_preheat() -> None:
-    """PPT 源预热应携带 source_id/uri，进入文件级预热路径。"""
+def test_preheat_source_uses_file_level_powerpoint_preheat() -> None:
+    """PPT 源预热应携带 source_id/uri，进入 PowerPoint 文件级预热路径。"""
     ppt_apps = _PptAppsStub()
     pool = object.__new__(PlayerPreheatPool)
     pool._ppt_apps = ppt_apps
-    pool._libreoffice_bridge = None
-    pool._libreoffice_bridge_ready_at = 0.0
-    pool._libreoffice_bridge_source_id = 0
-    pool._libreoffice_bridge_uri = ""
 
-    pool.preheat_source(12, SourceType.PPT, "C:/demo/source.pptx", PPT_BACKEND_POWERPOINT)
+    pool.preheat_source(12, SourceType.PPT, "C:/demo/source.pptx")
 
-    assert ppt_apps.preheat_source_calls == [(PPT_BACKEND_POWERPOINT, 12, "C:/demo/source.pptx")]
-    assert ppt_apps.preheat_calls == []
-
-
-def test_preheat_libreoffice_bridge_opens_source_hidden(monkeypatch: MonkeyPatch) -> None:
-    """LibreOffice 文件级预热应打开文档但不自动放映。"""
-    created: list[_BridgeOpenStub] = []
-
-    def fake_bridge_client(logger: object) -> _BridgeOpenStub:
-        """
-        创建 bridge 替身并记录。
-        :param logger: 日志器
-        :return: bridge 替身
-        """
-        bridge = _BridgeOpenStub(logger)
-        created.append(bridge)
-        return bridge
-
-    monkeypatch.setattr(
-        "scp_cv.player.adapters.ppt_libreoffice_bridge.LibreOfficeBridgeClient",
-        fake_bridge_client,
-    )
-    pool = object.__new__(PlayerPreheatPool)
-    pool._libreoffice_bridge = None
-    pool._libreoffice_bridge_ready_at = 0.0
-    pool._libreoffice_bridge_source_id = 0
-    pool._libreoffice_bridge_uri = ""
-
-    pool.preheat_ppt_backend(PPT_BACKEND_LIBREOFFICE, 33, "C:/demo/source.pptx")
-
-    assert len(created) == 1
-    assert created[0].open_calls == [("C:/demo/source.pptx", False)]
-    assert created[0].preheat_called is False
-    assert pool._libreoffice_bridge is created[0]
-    assert pool._libreoffice_bridge_source_id == 33
-    assert pool._libreoffice_bridge_uri == "C:/demo/source.pptx"
-
-
-def test_take_libreoffice_bridge_requires_matching_file(monkeypatch: MonkeyPatch) -> None:
-    """文件级 LibreOffice bridge 不应被不同源误认领。"""
-    bridge = _BridgeStub()
-    pool = object.__new__(PlayerPreheatPool)
-    pool._libreoffice_bridge = bridge
-    pool._libreoffice_bridge_ready_at = 50.0
-    pool._libreoffice_bridge_source_id = 7
-    pool._libreoffice_bridge_uri = "C:/demo/one.pptx"
-    monkeypatch.setattr(preheat_pool.time, "monotonic", lambda: 100.0)
-
-    taken = pool.take_libreoffice_bridge(8, "C:/demo/two.pptx")
-
-    assert taken is None
-    assert bridge.closed is True
-    assert pool._libreoffice_bridge is None
-    assert pool._libreoffice_bridge_source_id == 0
-    assert pool._libreoffice_bridge_uri == ""
-
-
-def test_take_libreoffice_bridge_returns_matching_file(monkeypatch: MonkeyPatch) -> None:
-    """同源同路径的 LibreOffice 文件级 bridge 应被前台认领。"""
-    bridge = _BridgeStub()
-    pool = object.__new__(PlayerPreheatPool)
-    pool._libreoffice_bridge = bridge
-    pool._libreoffice_bridge_ready_at = 50.0
-    pool._libreoffice_bridge_source_id = 7
-    pool._libreoffice_bridge_uri = "C:/demo/one.pptx"
-    monkeypatch.setattr(preheat_pool.time, "monotonic", lambda: 100.0)
-
-    taken = pool.take_libreoffice_bridge(7, "C:/demo/one.pptx")
-
-    assert taken is bridge
-    assert bridge.closed is False
-    assert pool._libreoffice_bridge is None
-    assert pool._libreoffice_bridge_source_id == 0
-    assert pool._libreoffice_bridge_uri == ""
+    assert ppt_apps.preheat_source_calls == [(12, "C:/demo/source.pptx")]
+    assert ppt_apps.preheat_calls == 0
 
 
 def test_image_preheat_is_file_level_and_requires_exact_uri(

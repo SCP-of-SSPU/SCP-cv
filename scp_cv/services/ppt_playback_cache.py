@@ -1,7 +1,7 @@
 #!/user/bin/env python
 # -*- coding: UTF-8 -*-
 '''
-PPT 放映格式缓存服务：将导入的演示文稿导出为播放专用 .ppsx/.pps 副本。
+PPT 放映格式缓存服务：用 PowerPoint 将演示文稿导出为播放专用 .ppsx/.pps 副本。
 @Project : SCP-cv
 @File : ppt_playback_cache.py
 @Author : Qintsg
@@ -19,10 +19,6 @@ from django.conf import settings
 from django.utils import timezone
 
 from scp_cv.apps.playback.models import MediaSource, SourceType
-from scp_cv.ppt_backend import (
-    DEFAULT_PPT_BACKEND,
-    normalize_ppt_backend,
-)
 from scp_cv.services.ppt_playback_export import export_show_file
 
 logger = logging.getLogger(__name__)
@@ -46,7 +42,7 @@ def prepare_ppt_playback_cache(
     为 PPT 源生成播放专用 show-format 文件。
 
     :param source: PPT 媒体源
-    :param preferred_backend: 首选导出后端；默认使用系统默认 PPT 后端
+    :param preferred_backend: 旧参数兼容；当前忽略并始终使用 PowerPoint
     :param force: 是否强制重新导出
     :return: 写入 MediaSource.metadata 的 ppt_playback 字段
     """
@@ -120,7 +116,7 @@ def _build_playback_cache_payload(
     if not target_extension:
         raise PptPlaybackCacheError(f"不支持的 PPT 放映格式导出源：{source_path.suffix}")
 
-    backend = normalize_ppt_backend(preferred_backend or DEFAULT_PPT_BACKEND)
+    backend = "powerpoint"
     existing_payload = dict((source.metadata or {}).get(PPT_PLAYBACK_METADATA_KEY) or {})
     existing_path = _cache_path_from_metadata(existing_payload)
     if (
@@ -137,7 +133,7 @@ def _build_playback_cache_payload(
     cache_dir = _cache_dir_for_source(source.pk)
     cache_dir.mkdir(parents=True, exist_ok=True)
     target_path = cache_dir / f"{source_digest[:16]}{target_extension}"
-    actual_backend = export_show_file(source_path, target_path, target_extension, backend)
+    actual_backend = export_show_file(source_path, target_path, target_extension)
     _remove_other_cache_files(cache_dir, target_path)
     return {
         "status": "ready",
@@ -169,7 +165,7 @@ def _target_extension_for_source(source_path: Path) -> str:
 
 def _is_export_candidate(source_path: Path) -> bool:
     """
-    判断文件是否适合交给 Office/LibreOffice 自动导出。
+    判断文件是否适合交给 PowerPoint 自动导出。
 
     :param source_path: 源文件路径
     :return: True 表示可尝试导出
@@ -265,7 +261,7 @@ def _failed_payload(source: MediaSource, preferred_backend: str | None, error_me
     return {
         "status": "failed",
         "source_digest": source_digest,
-        "backend": str(preferred_backend or DEFAULT_PPT_BACKEND),
+        "backend": "powerpoint",
         "format": _target_extension_for_source(source_path).lstrip("."),
         "path": "",
         "relative_path": "",

@@ -24,7 +24,6 @@ from scp_cv.apps.playback.models import (
     PlaybackState,
     SourceType,
 )
-from scp_cv.ppt_backend import DEFAULT_PPT_BACKEND
 from scp_cv.services.background_audio import play_source as play_background_audio_source
 from scp_cv.services.background_audio import stop_background_audio
 from scp_cv.services.playback import (
@@ -169,7 +168,6 @@ def _run_single_source(
             window_id,
             source.pk,
             autoplay=True,
-            ppt_backend=DEFAULT_PPT_BACKEND if source.source_type == SourceType.PPT else None,
             target_slide=1 if source.source_type == SourceType.PPT else 0,
         )
         open_ok, open_error = _wait_for_open(window_id, source, _remaining_timeout(play_deadline, timeout_seconds))

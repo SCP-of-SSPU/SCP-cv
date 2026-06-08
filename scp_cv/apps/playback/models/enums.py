@@ -25,14 +25,6 @@ class SourceType(models.TextChoices):
     SRT_STREAM = "srt_stream", "SRT 流"
 
 
-class PptPlaybackBackend(models.TextChoices):
-    """PPT 放映后端枚举，由媒体源或本次打开请求显式选择。"""
-
-    LIBREOFFICE = "libreoffice", "LibreOffice（稳定）"
-    POWERPOINT = "powerpoint", "Microsoft PowerPoint（默认）"
-    WPS = "wps", "WPS 演示"
-
-
 class PlaybackMode(models.TextChoices):
     """播放目标布局。"""
 

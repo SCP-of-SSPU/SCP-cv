@@ -12,7 +12,7 @@ SCP-cv 面向上海第二工业大学 28#108 多媒体显示系统，目标是�
 - 控制四个输出窗口：大屏左、大屏右、TV 左、TV 右。
 - 支持 single/double 大屏模式和固定静音策略。
 - 支持背景音乐独立通道。
-- 支持 PowerPoint、LibreOffice、WPS 三种 PPT 播放后端。
+- 支持 Microsoft PowerPoint 作为唯一 PPT 播放、预览和导出组件。
 - 支持 OBS/外部设备通过 MediaMTX SRT 推流，播放器通过 SRT/RTSP/libVLC 读取。
 - 通过 Vue 控制台提供现场播控，通过 gRPC 保留外部自动化兼容能力。
 
@@ -31,7 +31,7 @@ SQLite 本地数据库
   |                                v
 PySide6 播放器进程 --------------> 四个物理播放窗口
   |                                |
-  | libVLC / Qt Multimedia          | Office/LibreOffice/WPS 外部放映窗口
+  | libVLC / Qt Multimedia          | PowerPoint 外部放映窗口
   v                                v
 MediaMTX / 本机文件 / Web / PPT 后端 / 系统音频 / 物理显示器
 
@@ -109,7 +109,7 @@ gRPC 服务与 REST 共用同一 Django 服务层。
 
 | 类型 | 当前播放路径 | 备注 |
 | --- | --- | --- |
-| PPT | `PptSourceAdapter` 路由到 PowerPoint/WPS/LibreOffice | 外部原生放映窗口铺满目标显示器 |
+| PPT | `PptSourceAdapter` 使用 PowerPoint COM | 外部原生放映窗口铺满目标显示器 |
 | video | `VideoSourceAdapter` | 本地视频使用 Qt Multimedia，不是 libVLC |
 | audio | 背景音频服务和 `BackgroundAudioAdapter` | 不允许作为四窗口显示源打开 |
 | image | `ImageSourceAdapter` | QPixmap 渲染到 QLabel |
@@ -124,7 +124,7 @@ SCP-cv 当前不是分布式平台，很多设计依赖单 Windows 主机：
 
 - SQLite 文件由 Django 和播放器进程共同访问。
 - `MediaSource.uri` 可以保存本机绝对路径，播放器必须能访问同一路径。
-- PPT COM、WPS COM、LibreOffice 放映、PySide6 窗口、QWebEngine、libVLC HWND 都依赖当前 Windows 用户桌面。
+- PowerPoint COM 放映、PySide6 窗口、QWebEngine、libVLC HWND 都依赖当前 Windows 用户桌面。
 - MediaMTX 默认同机启动，播放器默认从 `127.0.0.1` 读取 SRT/RTSP。
 - 静态文件和上传媒体由 Django 本地直接 serve，未按云对象存储设计。
 
@@ -164,7 +164,7 @@ SCP-cv 当前不是分布式平台，很多设计依赖单 Windows 主机：
 | SSE | 可以 | 如目标已有实时通道，可封装为兼容 `playback_state` 事件 |
 | gRPC servicers | 视需求 | 外部中控依赖时必须保留 |
 | PySide6 player | 不应并入 Web Worker | 继续作为独立桌面进程，最多抽象启动/监控接口 |
-| Office/WPS COM | 不应服务端远程化 | 必须在目标播放主机的交互桌面运行 |
+| PowerPoint COM | 不应服务端远程化 | 必须在目标播放主机的交互桌面运行 |
 | MediaMTX | 独立进程 | 由 runall 或目标运维系统托管 |
 
 ## 当前已知架构限制

@@ -64,7 +64,7 @@ def test_close_detached_adapter_skips_reheat_when_same_source_still_active(
     media_source_ppt: MediaSource,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """同源 OPEN 已进入会话时，旧 CLOSE 不应抢先重建 LibreOffice 预热。"""
+    """同源 OPEN 已进入会话时，旧 CLOSE 不应抢先重建 PPT 预热。"""
     adapter = _ClosableAdapter()
     controller = PlayerController()
     reheated_source_ids: list[int] = []

@@ -1,7 +1,7 @@
 #!/user/bin/env python
 # -*- coding: UTF-8 -*-
 '''
-PPT 外部放映窗口 Win32 操作工具，将 Office 放映窗口铺满目标显示区域。
+PPT 外部放映窗口 Win32 操作工具，将 PowerPoint 放映窗口铺满目标显示区域。
 @Project : SCP-cv
 @File : ppt_external_window.py
 @Author : Qintsg
@@ -13,7 +13,7 @@ from __future__ import annotations
 def present_external_slideshow_window(slideshow_hwnd: int, anchor_hwnd: int) -> tuple[int, int]:
     """
     将放映窗口从 PySide 父子嵌入模式切换为外部顶层窗口并铺满目标区域。
-    :param slideshow_hwnd: Office/LibreOffice 放映窗口 HWND
+    :param slideshow_hwnd: PowerPoint 放映窗口 HWND
     :param anchor_hwnd: PySide 播放器渲染容器 HWND，用于定位目标屏幕区域
     :return: 调整后的宽高
     """
@@ -50,7 +50,7 @@ def present_external_slideshow_window(slideshow_hwnd: int, anchor_hwnd: int) -> 
 def release_external_slideshow_window(slideshow_hwnd: int) -> None:
     """
     释放外部放映窗口的置顶状态，关闭后端前尽量恢复为普通顶层窗口。
-    :param slideshow_hwnd: Office/LibreOffice 放映窗口 HWND
+    :param slideshow_hwnd: PowerPoint 放映窗口 HWND
     :return: None
     """
     if slideshow_hwnd == 0:
@@ -73,37 +73,6 @@ def release_external_slideshow_window(slideshow_hwnd: int) -> None:
         )
     except Exception:
         return
-
-
-def libreoffice_display_index_from_anchor_window(anchor_hwnd: int) -> int:
-    """
-    根据播放器锚点窗口计算 LibreOffice Presentation.Display 的 1-based 显示器序号。
-    :param anchor_hwnd: PySide 播放器容器 HWND
-    :return: LibreOffice Display 属性序号；0 表示使用 LibreOffice 默认外部屏
-    """
-    try:
-        import win32api
-        import win32con
-    except Exception:
-        return 0
-    try:
-        target_monitor = win32api.MonitorFromWindow(  # type: ignore[attr-defined]
-            anchor_hwnd,
-            getattr(win32con, "MONITOR_DEFAULTTONEAREST", 2),
-        )
-    except Exception:
-        return 0
-
-    try:
-        monitor_entries = win32api.EnumDisplayMonitors(None, None)  # type: ignore[attr-defined]
-    except Exception:
-        return 0
-    target_identity = _monitor_identity(target_monitor)
-    for index, monitor_entry in enumerate(monitor_entries, start=1):
-        monitor = monitor_entry[0] if isinstance(monitor_entry, tuple) else monitor_entry
-        if _monitor_identity(monitor) == target_identity:
-            return index
-    return 0
 
 
 def _target_rect_from_anchor(
@@ -157,18 +126,6 @@ def _target_rect_from_anchor(
     return int(left), int(top), int(right), int(bottom)
 
 
-def _monitor_identity(monitor: object) -> object:
-    """
-    归一化 pywin32 HMONITOR 句柄，兼容测试替身和真实 PyHANDLE。
-    :param monitor: 显示器句柄
-    :return: 可比较的句柄标识
-    """
-    try:
-        return int(monitor)  # type: ignore[arg-type]
-    except Exception:
-        return monitor
-
-
 def _set_external_window_styles(
     win32gui: object,
     win32con: object,
@@ -210,7 +167,7 @@ def _set_external_window_styles(
 
 def _restore_window_for_resize(win32gui: object, win32con: object, slideshow_hwnd: int) -> None:
     """
-    退出最大化/全屏状态，避免 LibreOffice 忽略后续目标区域定位。
+    退出最大化/全屏状态，确保后续目标区域定位生效。
     :param win32gui: win32gui 模块或测试替身
     :param win32con: win32con 模块或测试替身
     :param slideshow_hwnd: 放映窗口 HWND
@@ -253,7 +210,6 @@ def _move_window(
 
 
 __all__ = [
-    "libreoffice_display_index_from_anchor_window",
     "present_external_slideshow_window",
     "release_external_slideshow_window",
 ]

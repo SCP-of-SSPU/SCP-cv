@@ -9,7 +9,7 @@
  */
 import { defineStore } from 'pinia';
 
-import { api, type MediaSourceItem, type MediaSourceUpdate, type PptBackend, type UploadOptions } from '@/services/api';
+import { api, type MediaSourceItem, type MediaSourceUpdate, type UploadOptions } from '@/services/api';
 
 /** UI 可视的源大类；与后端 source_type 不一一映射，直播由前端聚合。 */
 export type SourceCategory = 'all' | 'ppt' | 'video' | 'audio' | 'image' | 'web' | 'stream';
@@ -111,12 +111,11 @@ export const useSourceStore = defineStore('sources', {
       this.sources = payload.sources.filter(isVisibleSource);
     },
     /** 上传源；支持「上传但不保存（is_temporary）」/「上传并保存」两种语义。 */
-    async upload(file: File, options: { name?: string; isTemporary?: boolean; pptBackend?: PptBackend; preheatEnabled?: boolean; onProgress?: (percent: number) => void }): Promise<MediaSourceItem> {
+    async upload(file: File, options: { name?: string; isTemporary?: boolean; preheatEnabled?: boolean; onProgress?: (percent: number) => void }): Promise<MediaSourceItem> {
       const formData = new FormData();
       formData.append('file', file);
       if (options.name) formData.append('name', options.name);
       if (options.isTemporary) formData.append('is_temporary', 'true');
-      if (options.pptBackend) formData.append('ppt_backend', options.pptBackend);
       if (options.preheatEnabled !== undefined) formData.append('preheat_enabled', String(options.preheatEnabled));
       const uploadOptions: UploadOptions = options.onProgress ? { onProgress: options.onProgress } : {};
       const payload = await api.uploadSource(formData, uploadOptions);

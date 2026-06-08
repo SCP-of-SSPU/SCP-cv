@@ -48,7 +48,7 @@ def test_sources_api_lists_media_sources(media_source_ppt: MediaSource) -> None:
     payload = response.json()
     assert payload["success"] is True
     source_payload = next(source for source in payload["sources"] if source["id"] == media_source_ppt.pk)
-    assert source_payload["ppt_backend"] == "powerpoint"
+    assert "ppt_backend" not in source_payload
     assert "preview_url" in source_payload
     assert "thumbnail_url" in source_payload
 
@@ -104,12 +104,12 @@ def test_playback_open_api_updates_session(media_source_ppt: MediaSource) -> Non
     payload = response.json()
     assert payload["success"] is True
     assert payload["sessions"][0]["source_name"] == media_source_ppt.name
-    assert payload["sessions"][0]["ppt_backend"] == "powerpoint"
+    assert "ppt_backend" not in payload["sessions"][0]
 
 
 @pytest.mark.django_db
-def test_playback_open_api_accepts_wps_backend(media_source_ppt: MediaSource) -> None:
-    """POST /api/playback/{window}/open/ 应接受 WPS 演示后端。"""
+def test_playback_open_api_ignores_unknown_ppt_backend(media_source_ppt: MediaSource) -> None:
+    """POST /api/playback/{window}/open/ 应忽略旧 ppt_backend 字段。"""
     client = Client()
 
     response = client.post(
@@ -120,8 +120,8 @@ def test_playback_open_api_accepts_wps_backend(media_source_ppt: MediaSource) ->
 
     assert response.status_code == 200
     session = PlaybackSession.objects.get(window_id=1)
-    assert session.ppt_backend == "wps"
-    assert session.command_args["ppt_backend"] == "wps"
+    assert session.media_source_id == media_source_ppt.pk
+    assert "ppt_backend" not in session.command_args
 
 
 @pytest.mark.django_db
@@ -306,8 +306,8 @@ def test_ppt_media_control_api_sets_command(media_source_ppt: MediaSource) -> No
 
 
 @pytest.mark.django_db
-def test_switch_ppt_backend_api_reopens_current_ppt(media_source_ppt: MediaSource) -> None:
-    """POST /api/playback/{window}/ppt-backend/ 应临时切换 PPT 播放器。"""
+def test_switch_ppt_backend_api_is_removed(media_source_ppt: MediaSource) -> None:
+    """PPT 后端切换 API 已移除。"""
     client = Client()
     client.post(
         "/api/playback/1/open/",
@@ -320,11 +320,7 @@ def test_switch_ppt_backend_api_reopens_current_ppt(media_source_ppt: MediaSourc
         data={"ppt_backend": "wps"},
         content_type="application/json",
     )
-    session = PlaybackSession.objects.get(window_id=1)
-
-    assert response.status_code == 200
-    assert session.pending_command == PlaybackCommand.OPEN
-    assert session.command_args["ppt_backend"] == "wps"
+    assert response.status_code == 404
 
 
 @pytest.mark.django_db
@@ -347,7 +343,7 @@ def test_reset_ppt_playback_api_requests_ppt_reset(media_source_ppt: MediaSource
     assert response.status_code == 200
     assert session.pending_command == PlaybackCommand.RESET_PPT
     assert session.command_args["restart_sessions"][0]["target_slide"] == 6
-    assert session.command_args["restart_sessions"][0]["ppt_backend"] == "wps"
+    assert "ppt_backend" not in session.command_args["restart_sessions"][0]
 
 
 @pytest.mark.django_db

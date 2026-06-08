@@ -2,7 +2,7 @@
 
 本文给出把 SCP-cv 迁移合并到目标 Django + Fluent + Vue 项目的实施策略。它不是重写建议，而是在保留现场可用性的前提下拆分、搬迁、验证和逐步替换模块。
 
-最后更新：2026-06-04。
+最后更新：2026-06-08。
 
 ## 迁移原则
 
@@ -12,7 +12,7 @@
 | 先旁路后切换 | 先让新项目旁路调用旧服务或复制服务层，再切换真实入口 |
 | 保留播放器边界 | PySide6 播放器继续独立进程，不并入 Web Worker |
 | 保留窗口语义 | `window_id` 1-4 和 single/double 模式不可随意重排 |
-| 保留 PPT 多后端 | PowerPoint、LibreOffice、WPS 选择是现场兼容能力 |
+| 保持 PowerPoint-only | PPT 导入、预览、缓存、预热和放映只走 Microsoft PowerPoint |
 | 保留状态回写 | 前端展示以播放器写回状态为准 |
 | 小步验收 | 每迁一类源或一个页面都做对应回归 |
 
@@ -32,7 +32,7 @@
 本机运行时
   PySide6 Player process
   MediaMTX process
-  Office / WPS / LibreOffice / VLC
+  PowerPoint / VLC
 ```
 
 目标项目可以吸收 Django app、REST 视图、Pinia store 和页面，但播放器进程、MediaMTX 和 Windows runtime 仍应作为本机运行时组件管理。
@@ -63,7 +63,7 @@
 | API 清单 | 以 `docs/openapi.yaml` 和 `docs/design/04-api-realtime-grpc.md` 为基础 |
 | 模型清单 | 以 `docs/design/02-data-model.md` 为基础 |
 | 播放器命令清单 | `PlaybackCommand`、`BackgroundAudioCommand`、`command_args` |
-| 现场运行清单 | 显示器、IP、端口、Office/WPS/LibreOffice/VLC/MediaMTX |
+| 现场运行清单 | 显示器、IP、端口、PowerPoint/VLC/MediaMTX |
 
 验收：旧项目所有测试通过，现场关键媒体能播放。
 
@@ -96,7 +96,7 @@
 
 | 动作 | 注意事项 |
 | --- | --- |
-| 迁移 `api.ts` 类型 | 保持命名和 source/session 快照字段 |
+| 迁移 `api.ts` 类型 | 保持命名和 source/session 快照字段，不恢复 `ppt_backend` |
 | 迁移 stores | 先不替换 UI，只让目标项目能读写状态 |
 | 接入目标认证 | 替换 `auth` store 内部实现，保留外部动作 |
 | 接入 SSE | 保留 `/api/events/` 或提供兼容路径 |
@@ -111,7 +111,7 @@
 | 建立组件适配层 | 不要让业务页同时依赖多套 UI 组件 |
 | 迁移 AppShell | 保留 compact/rail/drawer 响应式信息架构 |
 | 迁移通用表单和按钮 | 先替换低风险控件 |
-| 迁移媒体源页 | 保留上传进度和 PPT 后端选择 |
+| 迁移媒体源页 | 保留上传进度，PPT 不提供后端选择 |
 | 迁移显控页 | 最后迁移，逐源类型回归 |
 
 验收：移动端、平板、桌面下都能完成显控操作。
@@ -134,7 +134,7 @@
 
 | 模型 | 保留点 |
 | --- | --- |
-| `MediaSource` | `source_type`、`uri`、`uploaded_file`、`stream_identifier`、`keep_alive`、`ppt_backend`、`metadata`、临时源字段 |
+| `MediaSource` | `source_type`、`uri`、`uploaded_file`、`stream_identifier`、`keep_alive`、`metadata`、临时源字段 |
 | `PptResource` | `(source, page_index)` 唯一、`media_items` schema、speaker notes、slide image |
 | `PlaybackSession` | `window_id` 唯一、pending command、command args、状态和错误写回 |
 | `RuntimeState` | `pk=1` 单例、大屏模式、系统音量 |
@@ -186,7 +186,7 @@
 | 轮询窗口 1-4 | 与 UI、场景、设备、音频策略绑定 |
 | Qt 主线程执行命令 | Qt/COM/libVLC 安全边界 |
 | `AdapterState` 写回 | 前端实时状态来源 |
-| PPT 外部窗口定位 | Office/LibreOffice 原生放映需要 |
+| PPT 外部窗口定位 | PowerPoint 原生放映需要 |
 | 直播流 5 秒错误宽限 | 避免握手期误报 error |
 | 预热认领 | 现场切换性能关键 |
 | 背景音频独立播放器 | 音频源不能占用显示窗口 |
@@ -202,7 +202,7 @@
 | 路由信息架构 | 视觉细节 |
 | SSE 合并逻辑 | Toast/Dialog 实现 |
 | 源类型分支 | 组件样式 |
-| PPT 后端切换确认 | 弹窗组件 |
+| PPT 专注模式预览刷新 | 组件样式 |
 | 移动端显控流程 | 具体 breakpoint token |
 
 前端迁移最容易出错的是把当前 Naive UI 组件替换为 Fluent 时顺手改业务状态。建议每个页面都先做“同 store、同 API、不同组件”的替换。
@@ -218,7 +218,7 @@
 | 组件替换改变移动端流程 | 现场操作效率下降 | 先做真实设备可用性测试 |
 | 删除 gRPC | 中控系统或脚本失效 | 迁移前确认外部消费者 |
 | 忽略 MediaMTX 自动发现 | 直播源不可见 | 保留 `sync_stream_states()` 和 `sync_streams_to_media_sources()` |
-| 简化 PPT 为单后端 | 不同机器兼容性下降 | 保留源级 `ppt_backend` |
+| 恢复 PPT 多后端 | 与 PowerPoint-only 合同冲突 | 不恢复源级或会话级 `ppt_backend` |
 | 把 reset-all 当作普通 close | 窗口不重建，状态残留 | 保留 coordinator command 语义或提供等价重建命令 |
 
 ## 迁移验收矩阵
@@ -227,10 +227,10 @@
 | --- | --- |
 | 认证 | 登录、登出、过期 401、CSRF unsafe method |
 | 媒体源 | 上传、添加本机路径、添加网页、删除、临时源清理 |
-| PPT 导入 | 资源解析、预览、播放缓存、后端选择 |
+| PPT 导入 | 资源解析、PowerPoint 预览、播放缓存 |
 | 四窗口 | 1-4 打开/关闭/播放/暂停/停止 |
 | 模式 | single/double 切换和静音策略 |
-| PPT 播控 | 翻页、跳页、后端切换、重置、当前页媒体控制 |
+| PPT 播控 | 翻页、跳页、重置、当前页媒体控制、专注页预览刷新 |
 | 视频 | seek、loop、volume、mute |
 | 图片/Web | 打开、显示、关闭 |
 | 直播 | MediaMTX 自动发现、RTSP read、手动 SRT/custom source |

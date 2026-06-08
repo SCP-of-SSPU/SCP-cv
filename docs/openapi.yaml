@@ -112,8 +112,6 @@ paths:
     $ref: './paths/playback_{window_id}_navigate_.yaml'
   /playback/{window_id}/ppt-media/:
     $ref: './paths/playback_{window_id}_ppt-media_.yaml'
-  /playback/{window_id}/ppt-backend/:
-    $ref: './paths/playback_{window_id}_ppt-backend_.yaml'
   /playback/{window_id}/close/:
     $ref: './paths/playback_{window_id}_close_.yaml'
   /playback/{window_id}/loop/:

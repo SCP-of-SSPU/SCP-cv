@@ -11,8 +11,6 @@ properties:
   folder_id:
     type: integer
     nullable: true
-  ppt_backend:
-    $ref: ./PptBackend.yaml
   preheat_enabled:
     type: boolean
     default: true

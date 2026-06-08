@@ -16,8 +16,6 @@ required:
   - is_spliced
   - current_slide
   - total_slides
-  - ppt_backend
-  - ppt_backend_label
   - position_ms
   - duration_ms
   - pending_command
@@ -61,10 +59,6 @@ properties:
     type: integer
   total_slides:
     type: integer
-  ppt_backend:
-    $ref: ./PptBackend.yaml
-  ppt_backend_label:
-    type: string
   position_ms:
     type: integer
   duration_ms:

@@ -72,9 +72,9 @@ class PreheatedStreamSource:
 @dataclass
 class PreheatedPptApplication:
     """
-    已启动的 PowerPoint/WPS COM 应用。
+    已启动的 PowerPoint COM 应用。
 
-    :param backend: PPT 后端名称
+    :param backend: PPT 后端名称；当前固定为 powerpoint
     :param app: COM Application 对象
     :param prog_id: 命中的 COM ProgID
     :param source_id: 已预打开的媒体源 ID；0 表示仅预热应用

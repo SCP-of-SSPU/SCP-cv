@@ -24,7 +24,6 @@
 | 枚举 | 值 | 语义 |
 | --- | --- | --- |
 | `SourceType` | `ppt`, `video`, `audio`, `image`, `web`, `custom_stream`, `rtsp_stream`, `srt_stream` | 媒体源类型，前端筛选、服务校验和 adapter 工厂都依赖这些值 |
-| `PptPlaybackBackend` | `libreoffice`, `powerpoint`, `wps` | PPT 播放后端 |
 | `PlaybackMode` | `single`, `left_right_splice` | 会话显示模式，拼接字段当前偏数据语义 |
 | `BigScreenMode` | `single`, `double` | 大屏单/双画面运行模式 |
 | `PlaybackState` | `idle`, `loading`, `playing`, `paused`, `stopped`, `error` | 前端、服务层、播放器共同使用的播放状态 |
@@ -71,7 +70,6 @@
 | `expires_at` | 临时源过期时间 | `cleanup_expired_temporary_sources()` 使用 |
 | `metadata` | JSON 扩展信息 | PPT 解析、播放缓存、流信息都写入此字段 |
 | `keep_alive` | 是否预热 | 播放器启动后预热池读取 |
-| `ppt_backend` | 默认 PPT 后端 | 导入、预览、播放缓存、打开 PPT 时都使用 |
 | `created_at` | 创建时间 | 前端最新源、冒烟测试默认源选择依赖 |
 
 `MediaSource.uri` 当前可能是：
@@ -140,7 +138,6 @@
 | `is_spliced` | 是否拼接 | 显示选择服务 |
 | `current_slide` | PPT 当前页，1-based | 播放器回写 |
 | `total_slides` | PPT 总页数 | 播放器回写 |
-| `ppt_backend` | 当前会话 PPT 后端 | 打开 PPT 和切换后端 |
 | `position_ms` | 视频/音频/流进度 | 播放器回写 |
 | `duration_ms` | 视频/音频总时长 | 播放器回写 |
 | `volume` | 窗口音量 0-100 | REST 窗口控制 |
@@ -154,7 +151,7 @@
 
 | 命令 | 关键 `command_args` |
 | --- | --- |
-| `open` | `source_id`, `source_type`, `uri`, `autoplay`, `volume`, `muted`, `preheat_enabled`, `ppt_backend`, `target_slide`, `cleanup_source_id` |
+| `open` | `source_id`, `source_type`, `uri`, `autoplay`, `volume`, `muted`, `preheat_enabled`, `target_slide`, `cleanup_source_id` |
 | `seek` | `position_ms` |
 | `goto` | `target_index` |
 | `set_loop` | `enabled` |
@@ -284,6 +281,7 @@ tri-state 设计的价值是避免预案激活时无意清空未配置窗口。�
 | `0021_add_wps_ppt_backend.py` | 支持 WPS 演示 |
 | `0023_background_audio.py` | 引入背景音频状态和播放列表 |
 | `0024_default_powerpoint_ppt_backend.py` | 默认 PPT 后端改为 PowerPoint |
+| `0025_remove_ppt_backend_fields.py` | 删除媒体源和会话 PPT 后端字段，统一 PowerPoint-only |
 
 ## 数据迁移原则
 

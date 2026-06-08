@@ -1,7 +1,7 @@
 #!/user/bin/env python
 # -*- coding: UTF-8 -*-
 '''
-PPT 页面预览导出服务，按媒体源选择的播放器后端导出。
+PPT 页面预览导出服务，统一通过 Microsoft PowerPoint COM 导出。
 @Project : SCP-cv
 @File : ppt_preview.py
 @Author : Qintsg
@@ -9,9 +9,9 @@ PPT 页面预览导出服务，按媒体源选择的播放器后端导出。
 '''
 from __future__ import annotations
 
+import json
 import logging
 import os
-import json
 import subprocess
 import sys
 import zipfile
@@ -21,14 +21,7 @@ from typing import Optional
 
 from django.conf import settings
 
-from scp_cv import libreoffice as lo_runtime
-from scp_cv.ppt_backend import (
-    DEFAULT_PPT_BACKEND,
-    PPT_BACKEND_POWERPOINT,
-    PPT_BACKEND_WPS,
-    normalize_ppt_backend,
-)
-from scp_cv.ppt_com import POWERPOINT_COM_PROG_IDS, WPS_COM_PROG_IDS
+from scp_cv.ppt_com import POWERPOINT_COM_PROG_IDS
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +38,7 @@ def export_ppt_slide_previews(file_path: Path, source_id: int) -> list[str]:
     """
     if os.name != "nt" or not file_path.is_file() or not _is_ppt_export_candidate(file_path):
         return []
-    backend = _source_ppt_backend(source_id)
-    return _export_ppt_slide_previews_with_worker(file_path, source_id, backend)
+    return _export_ppt_slide_previews_with_worker(file_path, source_id)
 
 
 def export_ppt_slide_previews_in_process(
@@ -58,25 +50,19 @@ def export_ppt_slide_previews_in_process(
     在当前进程内导出 PPT 预览，供隔离 worker 调用。
     :param file_path: PPT 文件路径
     :param source_id: 媒体源 ID，用于隔离导出目录
-    :param backend: 显式 PPT 后端；为空时读取媒体源配置
+    :param backend: 旧 worker 参数兼容；当前忽略并始终使用 PowerPoint
     :return: 按页码排序的媒体 URL 列表；不可导出时返回空列表
     """
     if os.name != "nt" or not file_path.is_file() or not _is_ppt_export_candidate(file_path):
         return []
-    backend = normalize_ppt_backend(backend) if backend is not None else _source_ppt_backend(source_id)
-    if backend == PPT_BACKEND_POWERPOINT:
-        return export_ppt_slide_previews_with_powerpoint(file_path, source_id)
-    if backend == PPT_BACKEND_WPS:
-        return export_ppt_slide_previews_with_wps(file_path, source_id)
-    return export_ppt_slide_previews_with_libreoffice(file_path, source_id)
+    return export_ppt_slide_previews_with_powerpoint(file_path, source_id)
 
 
-def _export_ppt_slide_previews_with_worker(file_path: Path, source_id: int, backend: str) -> list[str]:
+def _export_ppt_slide_previews_with_worker(file_path: Path, source_id: int) -> list[str]:
     """
     通过独立 Python 子进程导出 PPT 预览，隔离 Office/UNO 原生库副作用。
     :param file_path: PPT 文件路径
     :param source_id: 媒体源 ID
-    :param backend: 已规范化的 PPT 后端
     :return: 按页码排序的媒体 URL 列表；worker 失败时返回空列表
     """
     worker_script = Path(__file__).with_name("ppt_preview_worker.py")
@@ -85,7 +71,6 @@ def _export_ppt_slide_previews_with_worker(file_path: Path, source_id: int, back
         str(worker_script),
         str(file_path),
         str(source_id),
-        backend,
     ]
     env = os.environ.copy()
     env.setdefault("DJANGO_SETTINGS_MODULE", "scp_cv.settings")
@@ -103,17 +88,16 @@ def _export_ppt_slide_previews_with_worker(file_path: Path, source_id: int, back
             check=False,
         )
     except subprocess.TimeoutExpired:
-        logger.info("PPT 预览 worker 超时：source_id=%d, backend=%s", source_id, backend)
+        logger.info("PowerPoint 预览 worker 超时：source_id=%d", source_id)
         return []
     except OSError as worker_error:
-        logger.info("PPT 预览 worker 启动失败：%s", worker_error)
+        logger.info("PowerPoint 预览 worker 启动失败：%s", worker_error)
         return []
 
     if completed.returncode != 0:
         logger.info(
-            "PPT 预览 worker 失败：source_id=%d, backend=%s, returncode=%s, stderr=%s",
+            "PowerPoint 预览 worker 失败：source_id=%d, returncode=%s, stderr=%s",
             source_id,
-            backend,
             completed.returncode,
             completed.stderr.strip(),
         )
@@ -177,72 +161,6 @@ def _subprocess_creation_flags() -> int:
     return getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 
-def export_ppt_slide_previews_with_libreoffice(file_path: Path, source_id: int) -> list[str]:
-    """
-    使用 LibreOffice UNO 导出 PPT PNG 预览。
-    :param file_path: PPT 文件路径
-    :param source_id: 媒体源 ID
-    :return: 按页码排序的媒体 URL 列表
-    """
-    relative_dir, preview_dir = _prepare_preview_dir(source_id)
-    try:
-        return _run_libreoffice_preview_worker(file_path, relative_dir, preview_dir)
-    except Exception as export_error:
-        logger.info("LibreOffice PPT 预览导出失败：%s", export_error)
-        _clear_preview_dir(preview_dir)
-        return []
-
-
-def _run_libreoffice_preview_worker(file_path: Path, relative_dir: Path, preview_dir: Path) -> list[str]:
-    """
-    使用 LibreOffice 自带 Python 运行 pyuno 预览导出 worker。
-    :param file_path: PPT 文件路径
-    :param relative_dir: MEDIA_ROOT 下相对预览目录
-    :param preview_dir: 预览输出目录
-    :return: 按页码排序的媒体 URL 列表
-    """
-    python_executable = lo_runtime.resolve_libreoffice_python_executable()
-    env = os.environ.copy()
-    env["LIBREOFFICE_CONNECT_TIMEOUT_SECONDS"] = str(lo_runtime.configured_libreoffice_timeout())
-    command = [
-        str(python_executable),
-        "-m",
-        "scp_cv.libreoffice_worker",
-        "preview",
-        str(file_path),
-        str(preview_dir),
-    ]
-    completed = subprocess.run(
-        command,
-        cwd=str(settings.BASE_DIR),
-        env=env,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=_preview_worker_timeout_seconds(),
-        creationflags=_subprocess_creation_flags(),
-        check=False,
-    )
-    if completed.returncode != 0:
-        raise lo_runtime.LibreOfficeError(completed.stderr.strip() or completed.stdout.strip())
-    preview_names = _parse_libreoffice_worker_output(completed.stdout)
-    return [_media_url(relative_dir / preview_name) for preview_name in preview_names]
-
-
-def _parse_libreoffice_worker_output(stdout: str) -> list[str]:
-    """
-    解析 LibreOffice Python worker 输出的预览文件名。
-    :param stdout: worker 标准输出
-    :return: 预览文件名列表
-    """
-    payload = _parse_worker_payload(stdout)
-    previews = payload.get("previews", [])
-    if not isinstance(previews, list):
-        return []
-    return [str(preview) for preview in previews if isinstance(preview, str)]
-
-
 def export_ppt_slide_previews_with_powerpoint(file_path: Path, source_id: int) -> list[str]:
     """
     使用本机 PowerPoint 将每页幻灯片导出为 PNG 预览。
@@ -255,21 +173,6 @@ def export_ppt_slide_previews_with_powerpoint(file_path: Path, source_id: int) -
         source_id,
         POWERPOINT_COM_PROG_IDS,
         "PowerPoint",
-    )
-
-
-def export_ppt_slide_previews_with_wps(file_path: Path, source_id: int) -> list[str]:
-    """
-    使用本机 WPS 演示将每页幻灯片导出为 PNG 预览。
-    :param file_path: PPT 文件路径
-    :param source_id: 媒体源 ID
-    :return: 按页码排序的媒体 URL 列表
-    """
-    return _export_ppt_slide_previews_with_com(
-        file_path,
-        source_id,
-        WPS_COM_PROG_IDS,
-        "WPS 演示",
     )
 
 
@@ -419,22 +322,6 @@ def _media_url(relative_path: Path) -> str:
     return f"{settings.MEDIA_URL.rstrip('/')}/{relative_path.as_posix()}"
 
 
-def _source_ppt_backend(source_id: int) -> str:
-    """
-    读取媒体源选择的 PPT 预览后端。
-    :param source_id: 媒体源 ID
-    :return: libreoffice、powerpoint 或 wps
-    """
-    try:
-        from scp_cv.apps.playback.models import MediaSource
-
-        source = MediaSource.objects.filter(pk=source_id).only("ppt_backend").first()
-        return normalize_ppt_backend(getattr(source, "ppt_backend", DEFAULT_PPT_BACKEND))
-    except Exception as backend_error:
-        logger.info("PPT 预览后端读取失败，使用 LibreOffice：%s", backend_error)
-        return DEFAULT_PPT_BACKEND
-
-
 def _is_ppt_export_candidate(file_path: Path) -> bool:
     """
     粗略判断文件是否适合导出，避免测试用简化 zip 触发外部程序修复弹窗。
@@ -465,7 +352,5 @@ def _is_com_export_candidate(file_path: Path) -> bool:
 __all__ = [
     "export_ppt_slide_previews",
     "export_ppt_slide_previews_in_process",
-    "export_ppt_slide_previews_with_libreoffice",
     "export_ppt_slide_previews_with_powerpoint",
-    "export_ppt_slide_previews_with_wps",
 ]

@@ -1,12 +1,12 @@
 # 播放器与媒体运行时设计
 
-本文说明 PySide6 播放器、媒体 adapter、PPT 后端、预热、状态回写和四窗口运行时。该部分是迁移中最不适合并入 Django Web Worker 的模块。
+本文说明 PySide6 播放器、媒体 adapter、PowerPoint PPT、预热、状态回写和四窗口运行时。该部分是迁移中最不适合并入 Django Web Worker 的模块。
 
-最后更新：2026-06-04。
+最后更新：2026-06-08。
 
 ## 运行时定位
 
-播放器是独立 Windows 桌面进程，负责把后端会话表中的命令转成真实窗口、Office、LibreOffice、QMediaPlayer、QWebEngine 和 libVLC 操作。
+播放器是独立 Windows 桌面进程，负责把后端会话表中的命令转成真实窗口、PowerPoint、QMediaPlayer、QWebEngine 和 libVLC 操作。
 
 ```text
 Django 服务层
@@ -92,9 +92,9 @@ Django 服务层
 | `reset_ppt` | `_handle_reset_ppt` | 关闭并重开 PPT 会话 |
 | `show_id` | `_handle_show_id` | 显示窗口 ID 覆盖层 |
 
-`open` 的关键参数包括 `source_id`、`source_type`、`uri`、`autoplay`、`volume`、`muted`、`preheat_enabled`、`ppt_backend`、`target_slide`。
+`open` 的关键参数包括 `source_id`、`source_type`、`uri`、`autoplay`、`volume`、`muted`、`preheat_enabled`、`target_slide`。
 
-打开新源时，播放器会尽量在新内容可见后再关闭旧 adapter，减少黑屏。但是 PPT 切 PPT 或旧 PPT 没有外部窗口时会先关闭旧 PPT，以避免 Office/WPS/LibreOffice 资源冲突。
+打开新源时，播放器会尽量在新内容可见后再关闭旧 adapter，减少黑屏。但是 PPT 切 PPT 或旧 PPT 没有外部窗口时会先恢复 PySide 黑屏置顶并关闭旧 PPT，以避免 PowerPoint 资源和窗口层级冲突。
 
 ## PlayerWindow
 
@@ -119,7 +119,7 @@ Django 服务层
 
 | source_type | Adapter | 技术栈 |
 | --- | --- | --- |
-| `ppt` | `PptSourceAdapter` router | PowerPoint/WPS COM 或 LibreOffice UNO bridge |
+| `ppt` | `PptSourceAdapter` | PowerPoint COM |
 | `video` | `VideoSourceAdapter` | Qt Multimedia `QMediaPlayer` |
 | `audio` | `VideoSourceAdapter` | 兼容路径，业务上音频主要走背景音乐 |
 | `image` | `ImageSourceAdapter` | `QPixmap` + `QLabel` |
@@ -164,26 +164,25 @@ Web 播放使用 `QWebEngineView`，开启 JavaScript、本地存储、剪贴板
 
 迁移时需要注意：Web 源不是在浏览器前端 iframe 中播放，而是在播放器进程的 Qt WebEngine 中播放到物理输出窗口。
 
-## PPT 后端
+## PowerPoint PPT
 
-PPT 路由文件：`scp_cv/player/adapters/ppt_router.py`。
+PPT 适配器文件：`scp_cv/player/adapters/ppt.py`。
 
-| backend | 文件 | 技术 |
-| --- | --- | --- |
-| `powerpoint` | `scp_cv/player/adapters/ppt.py` | Microsoft PowerPoint COM |
-| `wps` | `scp_cv/player/adapters/ppt_wps.py` | WPS COM |
-| `libreoffice` | `scp_cv/player/adapters/ppt_libreoffice.py` | LibreOffice UNO bridge |
+| 能力 | 文件 |
+| --- | --- |
+| PowerPoint COM 放映 | `scp_cv/player/adapters/ppt.py` |
+| 外部窗口定位和置顶 | `scp_cv/player/adapters/ppt_external_window.py`, `scp_cv/player/adapters/ppt_window.py` |
+| 顶层窗口清理 | `scp_cv/player/window_cleanup.py` |
 
 PPT 外部窗口定位：`scp_cv/player/adapters/ppt_external_window.py`。
 
 | 后端 | 媒体控制 |
 | --- | --- |
-| PowerPoint/WPS | `scp_cv/player/adapters/ppt_media.py` 控制当前页 shape |
-| LibreOffice | `scp_cv/player/adapters/ppt_libreoffice_media.py` 尝试控制当前活动 shape |
+| PowerPoint | `scp_cv/player/adapters/ppt_media.py` 控制当前页 shape |
 
 PPT 全局 volume/mute 大多不可控。窗口音量 UI 对 PPT 不应承诺等价于视频音量。
 
-LibreOffice bridge 位于 `scp_cv/player/adapters/ppt_libreoffice_bridge.py`，会调用 LibreOffice 自带 Python 执行 `scp_cv.libreoffice_worker bridge`，并清理 Python 虚拟环境变量，避免 pyuno 与项目 Python 冲突。
+PowerPoint 启动、打开文档、运行放映和 HWND 查找都带确定性重试；失败时保留 PySide 黑屏并回写明确错误，不回退到其它后端。
 
 ## PPT 资源、预览和播放缓存
 
@@ -195,7 +194,7 @@ PPT 后端不仅有播放 adapter，还有导入阶段的资源解析和缓存�
 | `scp_cv/services/ppt_preview.py` | 通过 worker 导出 slide PNG 预览 |
 | `scp_cv/services/ppt_preview_worker.py` | 预览导出子进程入口 |
 | `scp_cv/services/ppt_playback_cache.py` | 生成和解析 `.ppsx/.pps` 播放缓存 |
-| `scp_cv/services/ppt_playback_export.py` | 用 PowerPoint/WPS/LibreOffice 导出 show-format 文件 |
+| `scp_cv/services/ppt_playback_export.py` | 用 PowerPoint 导出 show-format 文件 |
 
 缓存规则：现代格式导出 `.ppsx`，旧格式导出 `.pps`。导出失败不阻断媒体源创建，播放时回退原始文件。
 
@@ -212,8 +211,7 @@ PPT 后端不仅有播放 adapter，还有导入阶段的资源解析和缓存�
 | audio | 预建后台音频播放器资源 |
 | stream | 隐藏 1x1 QWidget + libVLC 连接 |
 | web | 隐藏 `QWebEngineView` |
-| PowerPoint/WPS | 预启动 COM 应用，必要时预打开文件 |
-| LibreOffice | 预启动 bridge，TTL 约 60 秒 |
+| PowerPoint | 预启动 COM 应用，必要时预打开文件 |
 
 预热不是缓存业务状态，而是缓存播放器资源。迁移时不要把 `keep_alive` 简化为普通后端缓存字段。
 

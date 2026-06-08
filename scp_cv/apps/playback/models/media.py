@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from django.db import models
 
-from .enums import PptPlaybackBackend, SourceType
+from .enums import SourceType
 
 
 class MediaFolder(models.Model):
@@ -136,13 +136,6 @@ class MediaSource(models.Model):
             "为 True 时播放器会在启动阶段按源类型建立后台预热资源；"
             "切换到该源时优先复用已加载资源，降低现场呈现延迟。"
         ),
-    )
-    ppt_backend = models.CharField(
-        max_length=24,
-        choices=PptPlaybackBackend.choices,
-        default=PptPlaybackBackend.POWERPOINT,
-        verbose_name="PPT 播放器",
-        help_text="仅 PPT 源使用；打开放映时可被单次临时选择覆盖。",
     )
     created_at = models.DateTimeField(
         auto_now_add=True,

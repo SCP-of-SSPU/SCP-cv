@@ -18,7 +18,7 @@ SCP-cv 是用于控制 **上海第二工业大学 28#108 多媒体显示系统**
 - **统一预热**：媒体源可开启后台预热，网页、图片、视频、背景音频、直播流和 PPT 按类型提前准备；直播流使用 URI 级可认领预热，PPT 按源文件级预打开，降低现场切换等待。
 - **四窗口播控**：大屏左、大屏右、TV 左、TV 右分别独立控制，支持 single / double 大屏模式。
 - **背景音乐**：音频源通过独立后台播放器输出，支持播放列表、立即播放、循环、音量和静音控制。
-- **PPT 控制**：导入 PPT 时默认使用 Microsoft PowerPoint，可显式选择 LibreOffice 或 WPS 演示；导入后会尝试生成播放专用 `.ppsx`/`.pps` 缓存，显控页可临时切换并自动回到原页码。
+- **PPT 控制**：所有 PPT 导入、预览、播放缓存、预热和放映统一使用 Microsoft PowerPoint；导入后会尝试生成播放专用 `.ppsx`/`.pps` 缓存，显控页提供翻页、跳页和媒体控制。
 - **SRT / RTSP 直播播放**：MediaMTX 接收 OBS / 外部设备 SRT 推流，自动发现源默认通过 RTSP 地址交给 libVLC 播放；手动源仍可使用 SRT URL。
 - **REST + SSE 控制台**：Vue 前端通过 REST 下发指令，通过 SSE 同步播放状态。
 - **保留 gRPC 接口**：用于兼容中控系统和自动化脚本。
@@ -44,9 +44,7 @@ MediaMTX (SRT publish/read + RTSP read)
 - Windows 10/11
 - Python 3.12 或更高版本（推荐使用 `uv` 管理）
 - Node.js 20 或更高版本
-- Microsoft PowerPoint（默认 PPT 播放与 show-format 导出后端）
-- LibreOffice（可作为单个 PPT 源或本次放映的显式选择；UNO/pyuno 由 LibreOffice 自带 Python 隔离执行，项目 `.python-version` 可使用 3.14）
-- WPS 演示（可作为单个 PPT 源或本次放映的显式选择，需要本机 COM 注册）
+- Microsoft PowerPoint（唯一支持的 PPT 播放、预览和 show-format 导出组件）
 - VLC/libVLC Windows x64 运行时（SRT 播放必需）
 - MediaMTX Windows x64 可执行文件
 
@@ -81,8 +79,7 @@ uv run python manage.py migrate
 
 - `tools/third_party/mediamtx/mediamtx.exe`：MediaMTX 主程序，配置文件同目录放置。
 - `tools/third_party/vlc/runtime/`：项目内置 VLC/libVLC runtime；也可以使用系统安装的 `C:\Program Files\VideoLAN\VLC`。
-- LibreOffice 可使用系统安装路径或 PATH 中的 `soffice`；找不到时在 `.env` 配置 `LIBREOFFICE_BIN_PATH`。
-- WPS 演示需要安装在当前 Windows 用户可自动化调用的环境中，播放器会尝试 `KWPP.Application` / `WPP.Application` COM ProgID。
+- Microsoft PowerPoint 需要安装在当前 Windows 用户可自动化调用的环境中，播放器会尝试 PowerPoint COM ProgID。
 
 ## 环境变量
 
@@ -91,17 +88,14 @@ uv run python manage.py migrate
 - `.env`：Django、gRPC、MediaMTX、日志和后端运行配置。
 - `frontend/.env`：`VITE_FRONTEND_PORT` 与 `VITE_BACKEND_TARGET`。
 
-PPT 后端相关配置：
+PPT 相关配置：
 
-- PPT 播放器不再通过 `.env` 全局选择；导入 PPT 时默认使用 `Microsoft PowerPoint（默认）`，也可显式选择 `LibreOffice（稳定）` 或 `WPS 演示`，媒体源编辑页可修改，四个显控页可对当前放映临时切换。
+- PowerPoint 是唯一 PPT 播放器；导入、预览、播放缓存、预热和放映均不再提供后端选择。
 - 支持 `.pptx/.ppt/.pps/.ppsx/.pptm/.ppsm/.pot/.potx/.potm/.odp` 等演示文件。导入后会尝试生成播放专用 `.ppsx`/`.pps` 缓存，宏格式默认导出为非宏 `.ppsx`；生成失败不阻断媒体源创建，播放时回退原始文件。
-- PPT 媒体源启用预热时会按播放 URI 执行文件级预热：PowerPoint / WPS 提前启动 COM 应用并无窗口预打开演示文稿；LibreOffice bridge 会隐藏加载文档并按 `source_id + uri` 精确认领。
-- PPT 放映时对应 PySide 播放窗口会先切到黑屏并隐藏，Office/LibreOffice/WPS 原生放映窗口作为外部顶层窗口铺满目标显示区域；结束播放或切换到其它内容时恢复 PySide 黑屏窗口。
-- LibreOffice 自动放映走原生 `soffice.exe --show` + UNO pipe 路径，并使用隔离 profile 下的播放副本，避免原文件锁或被占用状态弹出编辑/占用提示。
-- 临时切换或右上角“重置 PPT 放映”会先关闭当前 PPT 后端进程，再重开原 PPT 并自动跳回操作前页码。
-- `LIBREOFFICE_BIN_PATH=`：可指向 `soffice.exe`、`soffice.com`、LibreOffice 安装目录或 `program` 目录；留空时从 PATH 和常见安装路径查找。
-- `LIBREOFFICE_CONNECT_TIMEOUT_SECONDS=10`：LibreOffice UNO 启动连接超时。
-- `LIBREOFFICE_BRIDGE_COMMAND_TIMEOUT_SECONDS=120`：LibreOffice 放映 worker 命令响应超时；打开大型 PPT 或现场机器冷启动较慢时可适当调大。
+- PPT 媒体源启用预热时会按播放 URI 执行文件级预热：PowerPoint COM 会提前启动并无窗口预打开演示文稿，前台打开时按 `source_id + uri` 精确认领。
+- PPT 放映时对应 PySide 播放窗口会先切到黑屏；PowerPoint 放映窗口成功后置顶，目标 PySide 窗口取消置顶；结束播放或切换到其它内容时先恢复 PySide 黑屏置顶，再关闭 PowerPoint 放映窗口。
+- PPT 生命周期中播放器会最小化同一 Windows 桌面上除所有 PySide 播放窗口和当前 PowerPoint 放映窗口外的其它顶层可见窗口，避免残留窗口遮挡。
+- 右上角“重置 PPT 放映”会关闭当前 PowerPoint 放映窗口与文档，再重启当前 PPT 放映并回到重置前页码。
 - `PPT_PREVIEW_WORKER_TIMEOUT_SECONDS=180`：上传或导入 PPT 时，预览导出 worker 的最长等待时间；Office 预览导出失败或超时只会跳过预览，不会阻断媒体源创建。
 - `PPT_PLAYBACK_EXPORT_TIMEOUT_SECONDS=180`：导入 PPT 时生成 `.ppsx`/`.pps` 播放缓存的最长等待时间；缓存生成失败只记录 metadata 并回退原始文件播放。
 

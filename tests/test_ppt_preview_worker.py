@@ -22,17 +22,16 @@ def test_worker_main_outputs_preview_json(
     capsys: CaptureFixture[str],
 ) -> None:
     """worker 成功时应输出单行 JSON 供父进程解析。"""
-    calls: list[tuple[str, int, str]] = []
+    calls: list[tuple[str, int]] = []
 
-    def fake_export(file_path: object, source_id: int, backend: str) -> list[str]:
+    def fake_export(file_path: object, source_id: int) -> list[str]:
         """
         模拟进程内 PPT 预览导出。
         :param file_path: PPT 文件路径
         :param source_id: 媒体源 ID
-        :param backend: PPT 后端
         :return: 预览 URL 列表
         """
-        calls.append((str(file_path), source_id, backend))
+        calls.append((str(file_path), source_id))
         return ["/media/ppt_previews/21/slide-1.png"]
 
     monkeypatch.setitem(
@@ -42,12 +41,12 @@ def test_worker_main_outputs_preview_json(
     )
     monkeypatch.setattr(ppt_preview, "export_ppt_slide_previews_in_process", fake_export)
 
-    exit_code = ppt_preview_worker.main(["demo.pptx", "21", "wps"])
+    exit_code = ppt_preview_worker.main(["demo.pptx", "21"])
 
     captured = capsys.readouterr()
     payload = json.loads(captured.out.strip())
     assert exit_code == 0
-    assert calls == [("demo.pptx", 21, "wps")]
+    assert calls == [("demo.pptx", 21)]
     assert payload == {
         "success": True,
         "previews": ["/media/ppt_previews/21/slide-1.png"],

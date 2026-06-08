@@ -10,7 +10,6 @@
 from __future__ import annotations
 
 import logging
-import time
 from pathlib import Path
 
 from PySide6.QtCore import QUrl
@@ -22,10 +21,8 @@ from scp_cv.player.preheat_ppt import PptApplicationPreheater
 from scp_cv.player.preheat_stream import StreamPreheatHandle
 from scp_cv.player.preheat_types import PreheatedAudioSource, PreheatedPptApplication, PreheatedStreamSource, PreheatedVideoSource
 from scp_cv.player.web_preheat import WebPreheatPool
-from scp_cv.ppt_backend import PPT_BACKEND_LIBREOFFICE, PPT_BACKEND_POWERPOINT, PPT_BACKEND_WPS
 
 logger = logging.getLogger(__name__)
-_LIBREOFFICE_BRIDGE_TTL_SECONDS = 60.0
 
 
 class PlayerPreheatPool:
@@ -42,17 +39,12 @@ class PlayerPreheatPool:
         self._audios: dict[int, PreheatedAudioSource] = {}
         self._streams: dict[int, StreamPreheatHandle] = {}
         self._ppt_apps = PptApplicationPreheater()
-        self._libreoffice_bridge: object | None = None
-        self._libreoffice_bridge_ready_at = 0.0
-        self._libreoffice_bridge_source_id = 0
-        self._libreoffice_bridge_uri = ""
 
     def preheat_source(
         self,
         source_id: int,
         source_type: str,
         uri: str,
-        ppt_backend: str = "",
         force: bool = False,
     ) -> None:
         """
@@ -60,7 +52,6 @@ class PlayerPreheatPool:
         :param source_id: 媒体源 ID
         :param source_type: 媒体源类型
         :param uri: 媒体 URI
-        :param ppt_backend: PPT 后端
         :param force: 是否强制重新预热
         :return: None
         """
@@ -78,7 +69,7 @@ class PlayerPreheatPool:
             elif str(source_type).endswith("_stream"):
                 self._preheat_stream(source_id, uri, force)
             elif source_type == SourceType.PPT:
-                self.preheat_ppt_backend(ppt_backend, source_id, uri)
+                self.preheat_ppt_source(source_id, uri)
         except Exception as preheat_error:
             logger.warning(
                 "媒体源预热失败：source_id=%d, type=%s, error=%s",
@@ -161,84 +152,34 @@ class PlayerPreheatPool:
             return None
         return claimed
 
-    def preheat_ppt_backend(self, backend: str, source_id: int = 0, uri: str = "") -> None:
+    def preheat_ppt_source(self, source_id: int = 0, uri: str = "") -> None:
         """
-        预热指定 PPT 后端应用。
-        :param backend: PPT 后端
+        预热 PowerPoint 应用或指定 PPT 文件。
         :param source_id: 可选媒体源 ID，用于文件级预热
         :param uri: 可选 PPT 文件路径，用于文件级预热
         :return: None
         """
-        if backend == PPT_BACKEND_LIBREOFFICE:
-            self._preheat_libreoffice_bridge(source_id, uri)
-        elif backend in {PPT_BACKEND_POWERPOINT, PPT_BACKEND_WPS}:
-            if source_id > 0 and uri:
-                self._ppt_apps.preheat_source(backend, source_id, uri)
-            else:
-                self._ppt_apps.preheat(backend)
+        if source_id > 0 and uri:
+            self._ppt_apps.preheat_source(source_id, uri)
+        else:
+            self._ppt_apps.preheat()
 
-    def take_ppt_application(self, backend: str, source_id: int = 0, uri: str = "") -> PreheatedPptApplication | None:
+    def take_ppt_application(self, source_id: int = 0, uri: str = "") -> PreheatedPptApplication | None:
         """
-        取出 PowerPoint/WPS 预热应用。
-        :param backend: PPT 后端
+        取出 PowerPoint 预热应用。
         :param source_id: 可选媒体源 ID，用于取文件级预热项
         :param uri: 可选 PPT 文件路径，用于取文件级预热项
         :return: 预热应用或 None
         """
-        return self._ppt_apps.take(backend, source_id, uri)
+        return self._ppt_apps.take(source_id, uri)
 
     def return_ppt_application(self, item: PreheatedPptApplication) -> None:
         """
-        归还 PowerPoint/WPS 应用到预热池。
+        归还 PowerPoint 应用到预热池。
         :param item: 预热应用
         :return: None
         """
         self._ppt_apps.return_item(item)
-
-    def take_libreoffice_bridge(self, source_id: int = 0, uri: str = "") -> object | None:
-        """
-        取出预热 LibreOffice bridge。
-        :param source_id: 可选媒体源 ID，用于取文件级预热项
-        :param uri: 可选 PPT 文件路径，用于取文件级预热项
-        :return: LibreOfficeBridgeClient 或 None
-        """
-        bridge = self._libreoffice_bridge
-        bridge_source_id = int(getattr(self, "_libreoffice_bridge_source_id", 0) or 0)
-        bridge_uri = str(getattr(self, "_libreoffice_bridge_uri", "") or "")
-        if bridge is not None and self._libreoffice_bridge_is_stale():
-            self._close_bridge(bridge)
-            self._libreoffice_bridge = None
-            self._libreoffice_bridge_ready_at = 0.0
-            self._libreoffice_bridge_source_id = 0
-            self._libreoffice_bridge_uri = ""
-            logger.info("LibreOffice bridge 预热已过期，丢弃后改为前台冷启动")
-            return None
-        if bridge is not None and source_id > 0 and bridge_source_id > 0:
-            if bridge_source_id != source_id or bridge_uri != uri:
-                self._close_bridge(bridge)
-                self._libreoffice_bridge = None
-                self._libreoffice_bridge_ready_at = 0.0
-                self._libreoffice_bridge_source_id = 0
-                self._libreoffice_bridge_uri = ""
-                return None
-        self._libreoffice_bridge = None
-        self._libreoffice_bridge_ready_at = 0.0
-        self._libreoffice_bridge_source_id = 0
-        self._libreoffice_bridge_uri = ""
-        return bridge
-
-    def return_libreoffice_bridge(self, bridge: object) -> None:
-        """
-        归还 LibreOffice bridge 到预热池。
-        :param bridge: LibreOfficeBridgeClient
-        :return: None
-        """
-        if self._libreoffice_bridge is not None and self._libreoffice_bridge is not bridge:
-            self._close_bridge(self._libreoffice_bridge)
-        self._libreoffice_bridge = bridge
-        self._libreoffice_bridge_ready_at = time.monotonic()
-        self._libreoffice_bridge_source_id = 0
-        self._libreoffice_bridge_uri = ""
 
     def stop_stream_preheat(self, source_id: int) -> None:
         """
@@ -267,12 +208,6 @@ class PlayerPreheatPool:
             stream.close()
         self._streams.clear()
         self._ppt_apps.close_all()
-        if self._libreoffice_bridge is not None:
-            self._close_bridge(self._libreoffice_bridge)
-            self._libreoffice_bridge = None
-            self._libreoffice_bridge_ready_at = 0.0
-            self._libreoffice_bridge_source_id = 0
-            self._libreoffice_bridge_uri = ""
 
     def _preheat_image(self, source_id: int, uri: str, force: bool) -> None:
         """
@@ -353,47 +288,6 @@ class PlayerPreheatPool:
         handle.start()
         self._streams[source_id] = handle
 
-    def _preheat_libreoffice_bridge(self, source_id: int = 0, uri: str = "") -> None:
-        """
-        预启动 LibreOffice bridge。
-        :param source_id: 可选媒体源 ID，用于文件级预热
-        :param uri: 可选 PPT 文件路径，用于文件级预热
-        :return: None
-        """
-        if self._libreoffice_bridge is not None and (
-            source_id <= 0
-            or (self._libreoffice_bridge_source_id == source_id and self._libreoffice_bridge_uri == uri)
-        ):
-            return
-        from scp_cv.player.adapters.ppt_libreoffice_bridge import LibreOfficeBridgeClient
-
-        if self._libreoffice_bridge is not None:
-            self._close_bridge(self._libreoffice_bridge)
-        bridge = LibreOfficeBridgeClient(logger)
-        try:
-            if source_id > 0 and uri:
-                bridge.open(uri, autoplay=False)
-            else:
-                bridge.preheat()
-        except Exception as preheat_error:
-            bridge.close()
-            logger.warning("LibreOffice 文件级预热失败：source_id=%d, error=%s", source_id, preheat_error)
-            return
-        self._libreoffice_bridge = bridge
-        self._libreoffice_bridge_ready_at = time.monotonic()
-        self._libreoffice_bridge_source_id = source_id if uri else 0
-        self._libreoffice_bridge_uri = uri if source_id > 0 else ""
-        logger.info("LibreOffice bridge 已预热：source_id=%d", source_id)
-
-    def _libreoffice_bridge_is_stale(self) -> bool:
-        """
-        判断预热 LibreOffice bridge 是否已陈旧。
-        :return: True 表示应丢弃并由前台冷启动
-        """
-        if self._libreoffice_bridge_ready_at <= 0:
-            return False
-        return time.monotonic() - self._libreoffice_bridge_ready_at > _LIBREOFFICE_BRIDGE_TTL_SECONDS
-
     @staticmethod
     def _dispose_video(video: PreheatedVideoSource) -> None:
         """
@@ -418,17 +312,5 @@ class PlayerPreheatPool:
         audio.player.setAudioOutput(None)
         audio.player.deleteLater()
         audio.audio_output.deleteLater()
-
-    @staticmethod
-    def _close_bridge(bridge: object) -> None:
-        """
-        关闭 LibreOffice bridge。
-        :param bridge: bridge 客户端
-        :return: None
-        """
-        close = getattr(bridge, "close", None)
-        if callable(close):
-            close()
-
 
 __all__ = ["PlayerPreheatPool"]

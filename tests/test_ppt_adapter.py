@@ -19,9 +19,8 @@ from scp_cv.player.adapters.ppt_constants import (
     PP_SLIDE_SHOW_WINDOW,
 )
 from scp_cv.player.adapters.ppt_media import candidate_media_shape_ids
-from scp_cv.player.adapters.ppt_wps import WpsPptSourceAdapter
 from scp_cv.player.adapters.ppt_window import configure_windowed_slideshow
-from scp_cv.ppt_com import WPS_COM_PROG_IDS
+from scp_cv.ppt_com import POWERPOINT_COM_PROG_IDS
 
 
 class _PresentationStub:
@@ -104,17 +103,20 @@ class _Win32ComClientStub:
         :return: None
         """
         self.calls: list[str] = []
+        self.failures: dict[str, int] = {"PowerPoint.Application": 3}
         self.app = object()
 
     def DispatchEx(self, prog_id: str) -> object:
         """
-        记录 ProgID，并让第一个 WPS ProgID 失败以验证候选顺序。
+        记录 ProgID，并让第一个 PowerPoint ProgID 失败以验证候选顺序。
         :param prog_id: COM ProgID
         :return: 应用替身
         """
         self.calls.append(prog_id)
-        if prog_id == WPS_COM_PROG_IDS[0]:
-            raise RuntimeError("KWPP unavailable")
+        remaining_failures = self.failures.get(prog_id, 0)
+        if remaining_failures > 0:
+            self.failures[prog_id] = remaining_failures - 1
+            raise RuntimeError("PowerPoint unavailable")
         return self.app
 
 
@@ -156,7 +158,7 @@ class _StateFailingSlideShowView:
 
 
 class _ClickCapableSlideShowView:
-    """模拟支持动画点击级导航的 PowerPoint/WPS 放映视图。"""
+    """模拟支持动画点击级导航的 PowerPoint 放映视图。"""
 
     def __init__(self, current_position: int = 1) -> None:
         """
@@ -218,7 +220,7 @@ class _ClickCapableSlideShowView:
 
 
 class _ClickCountingSlideShowView(_ClickCapableSlideShowView):
-    """模拟可读取动画点击计数的 PowerPoint/WPS 放映视图。"""
+    """模拟可读取动画点击计数的 PowerPoint 放映视图。"""
 
     def __init__(
         self,
@@ -489,7 +491,7 @@ def test_close_presentation_without_save_prefers_explicit_false() -> None:
     assert presentation.close_args == (False,)
 
 
-def test_start_slideshow_only_updates_slide_range(monkeypatch: MonkeyPatch) -> None:
+def test_start_slideshow_raises_when_hwnd_is_missing(monkeypatch: MonkeyPatch) -> None:
     """启动放映时应只改页码范围，避免额外改写文稿级放映设置。"""
     adapter = PptSourceAdapter()
     presentation = _PresentationWithSettingsStub()
@@ -509,7 +511,12 @@ def test_start_slideshow_only_updates_slide_range(monkeypatch: MonkeyPatch) -> N
 
     monkeypatch.setattr(ppt, "find_slideshow_hwnd", fake_find_slideshow_hwnd)
 
-    adapter._start_slideshow(start_slide=3)
+    try:
+        adapter._start_slideshow(start_slide=3)
+    except RuntimeError as missing_hwnd_error:
+        assert "放映窗口句柄" in str(missing_hwnd_error)
+    else:
+        raise AssertionError("missing HWND must raise")
 
     assert presentation.SlideShowSettings.StartingSlide == 3
     assert presentation.SlideShowSettings.EndingSlide == 5
@@ -554,7 +561,7 @@ def test_open_presentation_for_slideshow_uses_editable_untitled_copy() -> None:
 def test_stop_exits_slideshow_when_external_window_release_fails(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """释放外部窗口失败不应阻断 PowerPoint/WPS 退出放映。"""
+    """释放外部窗口失败不应阻断 PowerPoint 退出放映。"""
     adapter = PptSourceAdapter()
     slideshow_view = _ExitTrackingSlideShowView(current_position=3)
     adapter._slideshow_view = slideshow_view
@@ -646,13 +653,35 @@ def test_close_com_resources_keeps_external_powerpoint_app_running() -> None:
     assert adapter._owns_ppt_app is False
 
 
-def test_wps_adapter_uses_wps_com_prog_id_candidates() -> None:
-    """WPS 适配器应按 WPS ProgID 候选创建 COM 应用。"""
-    adapter = WpsPptSourceAdapter()
+def test_powerpoint_adapter_uses_powerpoint_com_prog_id_candidates() -> None:
+    """PowerPoint 适配器应按 ProgID 候选创建 COM 应用。"""
+    adapter = PptSourceAdapter()
     win32com_client = _Win32ComClientStub()
+    adapter._com_prog_ids = ("PowerPoint.Application", "PowerPoint.Application.16")
 
     app = adapter._dispatch_ppt_application(win32com_client)
 
     assert app is win32com_client.app
-    assert win32com_client.calls == list(WPS_COM_PROG_IDS)
-    assert adapter._active_com_prog_id == WPS_COM_PROG_IDS[1]
+    assert win32com_client.calls == [
+        "PowerPoint.Application",
+        "PowerPoint.Application",
+        "PowerPoint.Application",
+        "PowerPoint.Application.16",
+    ]
+    assert adapter._active_com_prog_id == "PowerPoint.Application.16"
+
+
+def test_powerpoint_operation_retries_transient_failures(monkeypatch: MonkeyPatch) -> None:
+    """PowerPoint 冷启动阶段的临时 COM 失败应按固定次数重试。"""
+    adapter = PptSourceAdapter()
+    attempts = {"count": 0}
+    monkeypatch.setattr(ppt.time, "sleep", lambda _seconds: None)
+
+    def flaky_operation() -> object:
+        attempts["count"] += 1
+        if attempts["count"] < 3:
+            raise RuntimeError("busy")
+        return "ok"
+
+    assert adapter._run_powerpoint_operation("测试操作", flaky_operation) == "ok"
+    assert attempts["count"] == 3

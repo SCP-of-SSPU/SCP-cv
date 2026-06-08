@@ -74,8 +74,6 @@ class PlayerController(PlayerCommandHandlersMixin, BackgroundAudioHandlersMixin,
         self._adapter_source_types: dict[int, str] = {}
         # 适配器源 ID 记录：切源竞态中用于阻断旧 adapter 状态写回新会话。
         self._adapter_source_ids: dict[int, int] = {}
-        # PPT 后端记录：用于播放器成功打开后确认慢速 CLOSE 未清空当前会话源信息。
-        self._adapter_ppt_backends: dict[int, str] = {}
         # 统一预热池：由 Qt 主线程创建和使用，避免切源时重复冷启动。
         self._preheat_pool: object | None = None
         # 非 dev 模式下由 run_player 注入关闭回调，窗口重建后仍需保持相同行为。
@@ -208,13 +206,12 @@ class PlayerController(PlayerCommandHandlersMixin, BackgroundAudioHandlersMixin,
             is_available=True,
             keep_alive=True,
             is_temporary=False,
-        ).only("id", "source_type", "uri", "ppt_backend", "metadata"):
+        ).only("id", "source_type", "uri", "metadata"):
             preheat_uri = resolve_ppt_playback_uri(source) if source.source_type == SourceType.PPT else source.uri
             preheat_pool.preheat_source(
                 source.pk,
                 source.source_type,
                 preheat_uri,
-                getattr(source, "ppt_backend", ""),
             )
 
     def preheat_web_sources(self) -> None:

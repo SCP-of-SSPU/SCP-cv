@@ -263,8 +263,6 @@ paths:
                   type: boolean
                   default: true
                   description: 是否在播放器启动时预热该媒体源
-                ppt_backend:
-                  $ref: '#/components/schemas/PptBackend'
       responses:
         '201':
           description: 创建成功
@@ -837,29 +835,6 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/PptMediaControlRequest'
-      responses:
-        '200':
-          description: 操作成功
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PlaybackStateResponse'
-        '400':
-          $ref: '#/components/responses/ErrorResponse'
-  /playback/{window_id}/ppt-backend/:
-    parameters:
-      - $ref: '#/components/parameters/WindowId'
-    post:
-      tags:
-        - playback
-      summary: 临时切换当前 PPT 放映后端
-      operationId: switchPptBackend
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SwitchPptBackendRequest'
       responses:
         '200':
           description: 操作成功
@@ -1473,14 +1448,6 @@ components:
         - custom_stream
         - rtsp_stream
         - srt_stream
-    PptBackend:
-      type: string
-      enum:
-        - libreoffice
-        - powerpoint
-        - wps
-      default: powerpoint
-      description: PPT 放映后端。默认使用 Microsoft PowerPoint；LibreOffice 和 WPS 演示为显式选择，不会从其他后端失败后隐式兜底。
     MediaSource:
       type: object
       required:
@@ -1493,8 +1460,6 @@ components:
         - metadata
         - keep_alive
         - preheat_enabled
-        - ppt_backend
-        - ppt_backend_label
         - preview_url
         - thumbnail_url
         - preview_kind
@@ -1534,7 +1499,7 @@ components:
           additionalProperties: true
           description: |
             媒体源扩展元数据。PPT 源可能包含 `ppt_playback` 字段，记录播放专用 `.ppsx`/`.pps`
-            缓存的生成状态、后端、原始扩展名、缓存路径和错误信息；播放时仅在 `status=ready`
+            缓存的生成状态、原始扩展名、缓存路径和错误信息；播放时仅在 `status=ready`
             且缓存文件存在时使用该缓存 URI，否则回退原始 `uri`。
         keep_alive:
           type: boolean
@@ -1543,11 +1508,6 @@ components:
         preheat_enabled:
           type: boolean
           description: 媒体源预热开关；播放器启动时按源类型提前准备后台资源，PPT 源会按播放 URI 进行源文件级预热
-        ppt_backend:
-          $ref: '#/components/schemas/PptBackend'
-        ppt_backend_label:
-          type: string
-          description: PPT 后端展示名称
         preview_url:
           type: string
           description: 可嵌入前端缩略位的预览 URL；无真实预览时为空字符串
@@ -1604,8 +1564,6 @@ components:
         folder_id:
           type: integer
           nullable: true
-        ppt_backend:
-          $ref: '#/components/schemas/PptBackend'
         preheat_enabled:
           type: boolean
           default: true
@@ -1743,8 +1701,6 @@ components:
           type: boolean
           deprecated: true
           description: 旧字段兼容别名；建议改用 preheat_enabled
-        ppt_backend:
-          $ref: '#/components/schemas/PptBackend'
     PlaybackState:
       type: string
       enum:
@@ -1778,8 +1734,6 @@ components:
         - is_spliced
         - current_slide
         - total_slides
-        - ppt_backend
-        - ppt_backend_label
         - position_ms
         - duration_ms
         - pending_command
@@ -1823,10 +1777,6 @@ components:
           type: integer
         total_slides:
           type: integer
-        ppt_backend:
-          $ref: '#/components/schemas/PptBackend'
-        ppt_backend_label:
-          type: string
         position_ms:
           type: integer
         duration_ms:
@@ -2140,10 +2090,6 @@ components:
         autoplay:
           type: boolean
           default: true
-        ppt_backend:
-          allOf:
-            - $ref: '#/components/schemas/PptBackend'
-          description: 本次打开临时使用的 PPT 后端；不传时使用媒体源默认值，当前新建 PPT 源默认 PowerPoint。
         target_slide:
           type: integer
           minimum: 1
@@ -2206,13 +2152,6 @@ components:
           type: string
         media_index:
           type: integer
-    SwitchPptBackendRequest:
-      type: object
-      required:
-        - ppt_backend
-      properties:
-        ppt_backend:
-          $ref: '#/components/schemas/PptBackend'
     ToggleLoopRequest:
       type: object
       properties:

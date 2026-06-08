@@ -2,7 +2,7 @@
 
 本文说明 SCP-cv 的 Windows 部署、运行编排、日志、备份、测试和现场故障定位。它面向后续把本项目迁移合并到目标 Django + Fluent + Vue 项目时的交付和运维团队。
 
-最后更新：2026-06-04。
+最后更新：2026-06-08。
 
 ## 部署目标
 
@@ -15,7 +15,7 @@ Windows 主机
   MediaMTX
   PySide6 Player
   SQLite / media / logs
-  Office / WPS / LibreOffice / VLC runtime
+  PowerPoint / VLC runtime
 ```
 
 迁移后如果目标系统有统一部署平台，也应把播放器和 MediaMTX 作为本机运行组件管理，而不是作为普通 Web Worker 管理。
@@ -28,9 +28,7 @@ Windows 主机
 | Python | 3.12+，由 `uv` 管理 |
 | Node.js | 20+ |
 | DB | 当前为本机 SQLite |
-| Office | Microsoft PowerPoint 默认 PPT 后端 |
-| WPS | 可选 PPT 后端，需要 COM 注册 |
-| LibreOffice | 推荐安装，用于 PPT 播放、预览和导出后端 |
+| PowerPoint | 唯一支持的 PPT 播放、预览和导出组件 |
 | VLC | SRT/RTSP/custom stream 播放必需 |
 | MediaMTX | SRT 接收和 RTSP 读取 |
 | 显示器 | 现场四窗口输出需要 Windows 能枚举物理屏幕 |
@@ -48,7 +46,7 @@ Windows 主机
 
 | 文件 | 内容 |
 | --- | --- |
-| `.env` | Django、gRPC、MediaMTX、日志、PPT、直播低延迟、LibreOffice 配置 |
+| `.env` | Django、gRPC、MediaMTX、日志、PPT 和直播低延迟配置 |
 | `frontend/.env` | Vite 前端端口和 `VITE_BACKEND_TARGET` |
 | `config.toml` | 固定启动数据，当前主要是默认管理员 |
 | `tools/third_party/mediamtx/mediamtx.yml` | MediaMTX 自身配置 |
@@ -158,7 +156,7 @@ uv run manage.py clearall
 | `media/uploads/` | 上传媒体文件 |
 | `media/ppt_previews/` | 可选，PPT 预览缓存 |
 | `media/ppt_playback/` | 可选，PPT 播放缓存 |
-| `.env` 和 `frontend/.env` | 本机端口、PPT、MediaMTX、局域网访问配置 |
+| `.env` 和 `frontend/.env` | 本机端口、PowerPoint 超时、MediaMTX、局域网访问配置 |
 | `config.toml` | 固定管理员等启动数据 |
 
 恢复顺序：
@@ -195,7 +193,7 @@ npm --prefix frontend run build
 | `uv run pytest tests/test_player_controller.py -v` | 播放器控制器 |
 | `uv run pytest tests/test_mediamtx_service.py -v` | MediaMTX |
 | `uv run pytest tests/test_ppt_adapter.py -v` | PPT adapter |
-| `uv run pytest tests/test_ppt_router.py tests/test_ppt_libreoffice_adapter.py tests/test_ppt_libreoffice_window.py tests/test_ppt_preview.py -v` | PPT 路由、LibreOffice、预览 |
+| `uv run pytest tests/test_ppt_adapter.py tests/test_ppt_playback_cache.py tests/test_ppt_file_preheat.py tests/test_ppt_preview_worker.py tests/test_ppt_window.py tests/test_window_cleanup.py -v` | PowerPoint PPT 播放、缓存、预热、预览 worker 与窗口清理 |
 | `uv run pytest tests/test_srt_stream_adapter.py -v` | SRT/libVLC adapter |
 | `uv run pytest tests/test_volume_service.py -v` | 系统音量 |
 | `uv run pytest tests/test_device_service.py -v` | 设备 TCP 指令 |
@@ -229,8 +227,8 @@ npm --prefix frontend run build
 | 播放器不启动 | 是否活动桌面、PySide6、GPU 参数、`player.log` |
 | 只启动后无窗口 | headless 显示器 ID 是否存在，launcher 是否选择窗口 |
 | REST 发命令无反应 | `PlaybackSession.pending_command` 是否写入，播放器是否注册该窗口 |
-| PPT 无法打开 | `ppt_backend`、Office/WPS COM 注册、LibreOffice 路径、bridge 日志 |
-| PPT 卡在加载 | PPT 导出超时、LibreOffice bridge 超时、外部窗口 HWND 查找 |
+| PPT 无法打开 | PowerPoint 安装、PowerPoint COM 注册、文件权限、桌面会话 |
+| PPT 卡在加载 | PPT 导出超时、PowerPoint COM 启动、外部窗口 HWND 查找 |
 | 直播黑屏 | MediaMTX path、RTSP/SRT read URL、VLC runtime、网络缓存、OBS 推流状态 |
 | Web 页面空白 | QWebEngine、目标 URL、证书/登录状态、web 预热复用 |
 | 显示器不对 | `screeninfo` 枚举、Windows 显示器编号、DPI、`target_display_label` |
@@ -246,7 +244,7 @@ npm --prefix frontend run build
 | 构建 | 前端 typecheck/build 通过 |
 | 运行 | runall 能启动和关闭所有子进程 |
 | 媒体 | 图片、视频、Web、PPT、直播、背景音频均可播放 |
-| PPT | 三个后端按现场安装情况验证 |
+| PPT | PowerPoint 导入、预览、预热、放映、关闭和窗口清理验证 |
 | 流 | MediaMTX 自动发现和 RTSP read 验证 |
 | 设备 | 拼接屏和 TV TCP 指令现场验证 |
 | 文档 | README、使用文档、维护文档和设计文档同步 |

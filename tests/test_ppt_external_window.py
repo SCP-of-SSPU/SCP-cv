@@ -15,7 +15,6 @@ from types import ModuleType
 from pytest import MonkeyPatch
 
 from scp_cv.player.adapters.ppt_external_window import (
-    libreoffice_display_index_from_anchor_window,
     present_external_slideshow_window,
     release_external_slideshow_window,
 )
@@ -220,10 +219,3 @@ def test_release_external_slideshow_window_clears_topmost(monkeypatch: MonkeyPat
 
     assert calls["set_parent"] == [(909, 0)]
     assert calls["set_window_pos"][-1][1] == -2
-
-
-def test_libreoffice_display_index_from_anchor_window_is_one_based(monkeypatch: MonkeyPatch) -> None:
-    """LibreOffice Display 属性应使用锚点所在显示器的 1-based 序号。"""
-    _install_fake_win32_modules(monkeypatch)
-
-    assert libreoffice_display_index_from_anchor_window(2001) == 2

@@ -5,7 +5,7 @@
  */
 import { defineStore } from 'pinia';
 
-import { api, type PptBackend, type SessionSnapshot } from '@/services/api';
+import { api, type SessionSnapshot } from '@/services/api';
 
 interface SessionState {
   /** 后端返回的四个窗口会话；首次启动前为空数组。 */
@@ -58,9 +58,9 @@ export const useSessionStore = defineStore('sessions', {
         .forEach((session) => mergedSessions.push(session));
       this.sessions = mergedSessions.sort((left, right) => left.window_id - right.window_id);
     },
-    async openSource(windowId: number, sourceId: number, autoplay = true, pptBackend?: PptBackend, targetSlide = 0): Promise<void> {
-      const payload = pptBackend || targetSlide > 0
-        ? await api.openSourceWithOptions(windowId, { source_id: sourceId, autoplay, ppt_backend: pptBackend, target_slide: targetSlide || undefined })
+    async openSource(windowId: number, sourceId: number, autoplay = true, targetSlide = 0): Promise<void> {
+      const payload = targetSlide > 0
+        ? await api.openSourceWithOptions(windowId, { source_id: sourceId, autoplay, target_slide: targetSlide || undefined })
         : await api.openSource(windowId, sourceId, autoplay);
       this.applyRemoteSessions(payload.sessions);
     },
@@ -78,10 +78,6 @@ export const useSessionStore = defineStore('sessions', {
     },
     async controlPptMedia(windowId: number, action: string, mediaId: string, mediaIndex: number): Promise<void> {
       const payload = await api.controlPptMedia(windowId, action, mediaId, mediaIndex);
-      this.applyRemoteSessions(payload.sessions);
-    },
-    async switchPptBackend(windowId: number, pptBackend: PptBackend): Promise<void> {
-      const payload = await api.switchPptBackend(windowId, pptBackend);
       this.applyRemoteSessions(payload.sessions);
     },
     async setLoop(windowId: number, enabled: boolean): Promise<void> {

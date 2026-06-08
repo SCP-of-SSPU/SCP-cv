@@ -12,5 +12,3 @@ properties:
     type: boolean
     deprecated: true
     description: 旧字段兼容别名；建议改用 preheat_enabled
-  ppt_backend:
-    $ref: ./PptBackend.yaml

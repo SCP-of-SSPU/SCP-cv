@@ -30,7 +30,6 @@
 | gRPC | django-socio-grpc async server，100 MiB 消息限制 | 外部中控依赖时保留 |
 | MediaMTX | SRT/RTSP/API host/port、publish/read latency | 现场网络参数不要硬编码进 UI |
 | VLC stream | libVLC caching、clock、drop/skip frame 参数 | 直播延迟和稳定性依赖这些参数 |
-| LibreOffice | bin path、connect timeout、bridge timeout | 目标部署机需可找到 LibreOffice |
 | PPT preview/export | worker/export timeout | 大 PPT 导入性能和失败降级依赖 |
 | logging | `logs/app/scp-cv.log` rotating log | 迁移到统一日志系统时保留现场诊断字段 |
 
@@ -57,7 +56,7 @@
 | Folders | `folders/`, `folders/<folder_id>/` | `services.media` |
 | Sources | `sources/`, `sources/upload/`, `sources/local/`, `sources/web/`, `sources/<source_id>/...` | `services.media`, PPT services |
 | Sessions | `sessions/`, `sessions/<window_id>/`, `runtime/` | `services.playback` |
-| Playback | `playback/<window_id>/open/`, `control/`, `navigate/`, `ppt-media/`, `ppt-backend/`, `close/`, `loop/`, `volume/`, `mute/` | `services.playback`, `services.playback_window_controls` |
+| Playback | `playback/<window_id>/open/`, `control/`, `navigate/`, `ppt-media/`, `close/`, `loop/`, `volume/`, `mute/` | `services.playback`, `services.playback_window_controls` |
 | Global playback | `playback/show-ids/`, `reset-all/`, `reset-ppt/`, `physical-smoke/` | `services.playback`, `services.physical_smoke` |
 | Audio | `background-audio/...` | `services.background_audio` |
 | Displays | `displays/`, `displays/select/` | `services.display`, `services.playback` |
@@ -107,7 +106,6 @@
 | `set_big_screen_mode()` | 校验并设置 single/double，调用视频墙模式服务并应用静音策略 |
 | `apply_runtime_audio_policy()` | 强制窗口 3/4 静音，single 下窗口 2 静音 |
 | `open_source()` | 校验源、拒绝 audio 四窗口播放、准备 PPT playback URI、写 `OPEN` 指令 |
-| `switch_ppt_backend()` | 当前 PPT 重新打开为新后端，并回到当前页 |
 | `reset_ppt_playback()` | 关闭所有 PPT adapter，再按原源和页码重开 |
 | `control_playback()` | play/pause/stop |
 | `navigate_content()` | PPT next/prev/goto，视频 seek |
@@ -121,7 +119,7 @@
 
 - `VALID_WINDOW_IDS` 来自 `playback_sessions`，当前固定为 1-4。
 - `SourceType.AUDIO` 不允许打开到四个显示窗口，只能走背景音乐。
-- PPT 打开会解析 `ppt_backend`，并优先使用 `resolve_ppt_playback_uri()` 返回的 `.ppsx/.pps` 播放缓存。
+- PPT 打开会优先使用 `resolve_ppt_playback_uri()` 返回的 `.ppsx/.pps` 播放缓存，并统一交给 PowerPoint。
 - 关闭时如旧源是临时源，会通过 `cleanup_source_id` 触发清理。
 - 运行态静音策略不是前端 UI 规则，而是后端写入每个 session 的业务规则。
 
@@ -136,7 +134,7 @@
 | `add_uploaded_file()` | 保存上传文件，识别类型，创建 `MediaSource`，准备 PPT 资源和缓存 |
 | `add_local_path()` | 注册本机绝对路径，创建 `MediaSource` |
 | `add_web_source()` | 创建网页源 |
-| `update_media_source()` | 修改源信息、文件夹、PPT 后端、预热等 |
+| `update_media_source()` | 修改源信息、文件夹、预热等 |
 | `delete_media_source()` | 删除源并清理背景音频引用、PPT 缓存、上传文件、PPT 预览资源 |
 | `delete_temporary_source_if_unused()` | 清理未被使用的临时源 |
 | `cleanup_expired_temporary_sources()` | 扫描过期临时源 |
@@ -156,11 +154,10 @@
 | 文件 | 职责 |
 | --- | --- |
 | `scp_cv/services/ppt_resources.py` | 从 PPTX zip 解析页数、备注、媒体关系；导出 PNG 预览；维护 `PptResource` |
-| `scp_cv/services/ppt_preview.py` | 通过独立 worker 调用 PowerPoint/WPS/LibreOffice 导出 PNG 预览 |
+| `scp_cv/services/ppt_preview.py` | 通过独立 worker 调用 PowerPoint 导出 PNG 预览 |
 | `scp_cv/services/ppt_preview_worker.py` | 隔离预览导出副作用 |
 | `scp_cv/services/ppt_playback_cache.py` | 生成播放专用 `.ppsx/.pps` 缓存并写入 `MediaSource.metadata.ppt_playback` |
-| `scp_cv/services/ppt_playback_export.py` | PowerPoint/WPS COM 和 LibreOffice headless 导出 show-format 文件 |
-| `scp_cv/ppt_backend.py` | PPT 后端常量、默认值和规范化 |
+| `scp_cv/services/ppt_playback_export.py` | PowerPoint COM 导出 show-format 文件 |
 
 PPT 资源处理是容错设计：zip 解析失败时仍会尝试导出预览；预览或播放缓存失败不会阻止媒体源创建，只会写 metadata 错误并在播放时回退原始文件。
 
@@ -292,5 +289,5 @@ PPT 资源处理是容错设计：zip 解析失败时仍会尝试导出预览；
 - REST URL 可以增加前缀，但应给前端集中配置，不要让页面组件硬编码路径。
 - 若目标项目已有认证体系，保留 JSON 401 和 CSRF/session 兼容层，前端才能平滑迁移。
 - 若目标项目使用 Celery 或消息队列，可以把耗时 PPT 预览/导出迁移为任务，但要保留失败不阻断媒体源创建的容错语义。
-- 设备 IP、MediaMTX host、LibreOffice path、VLC runtime path 应配置化，不要继续散落硬编码。
+- 设备 IP、MediaMTX host、VLC runtime path 应配置化，不要继续散落硬编码。
 - 所有写播放状态的 API 都应返回最新 `sessions` 和 `background_audio`，否则前端会出现本地状态与 SSE 状态抖动。
