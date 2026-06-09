@@ -33,6 +33,10 @@ def _install_fake_win32_modules(monkeypatch: MonkeyPatch) -> dict[str, object]:
         "set_window_pos": [],
         "show_window": [],
     }
+    window_rects: dict[int, tuple[int, int, int, int]] = {
+        2001: (100, 200, 1380, 920),
+        909: (0, 0, 300, 200),
+    }
     fake_win32con = ModuleType("win32con")
     fake_win32con.GWL_STYLE = -16
     fake_win32con.GWL_EXSTYLE = -20
@@ -62,9 +66,7 @@ def _install_fake_win32_modules(monkeypatch: MonkeyPatch) -> dict[str, object]:
         :param hwnd: 窗口句柄
         :return: 矩形
         """
-        if hwnd == 2001:
-            return 100, 200, 1380, 920
-        return 0, 0, 300, 200
+        return window_rects.get(hwnd, (0, 0, 300, 200))
 
     def monitor_from_window(hwnd: int, _flags: int) -> str:
         """
@@ -181,6 +183,7 @@ def _install_fake_win32_modules(monkeypatch: MonkeyPatch) -> dict[str, object]:
         :return: None
         """
         calls["move_window"].append((hwnd, x, y, width, height, repaint))  # type: ignore[attr-defined]
+        window_rects[hwnd] = (x, y, x + width, y + height)
 
     fake_win32api.MonitorFromWindow = monitor_from_window
     fake_win32api.EnumDisplayMonitors = enum_display_monitors
@@ -209,6 +212,69 @@ def test_present_external_slideshow_window_uses_anchor_rect(monkeypatch: MonkeyP
     assert calls["show_window"] == [(909, 9), (909, 9)]
     assert calls["set_window_pos"][-1][:6] == (909, -1, 100, 200, 1280, 720)
     assert calls["move_window"] == [(909, 100, 200, 1280, 720, True)]
+
+
+def test_present_external_slideshow_window_retries_until_rect_matches(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """PowerPoint 异步改回窗口位置时，应重试直到实际矩形匹配目标区域。"""
+    calls = _install_fake_win32_modules(monkeypatch)
+    import win32gui
+
+    read_count = {"value": 0}
+    original_get_window_rect = win32gui.GetWindowRect
+
+    def flaky_get_window_rect(hwnd: int) -> tuple[int, int, int, int]:
+        """
+        第一次读取放映窗口时模拟 PowerPoint 尚未应用目标矩形。
+        :param hwnd: 窗口句柄
+        :return: 窗口矩形
+        """
+        if hwnd == 909:
+            read_count["value"] += 1
+            if read_count["value"] == 1:
+                return 0, 0, 300, 200
+        return original_get_window_rect(hwnd)
+
+    monkeypatch.setattr(win32gui, "GetWindowRect", flaky_get_window_rect)
+
+    size = present_external_slideshow_window(909, 2001)
+
+    assert size == (1280, 720)
+    assert len(calls["set_window_pos"]) == 2
+    assert len(calls["move_window"]) == 2
+
+
+def test_present_external_slideshow_window_raises_when_rect_never_matches(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """多次铺满后实际矩形仍不匹配时，应抛错让控制器回退黑屏。"""
+    calls = _install_fake_win32_modules(monkeypatch)
+    import win32gui
+
+    original_get_window_rect = win32gui.GetWindowRect
+
+    def mismatched_slideshow_rect(hwnd: int) -> tuple[int, int, int, int]:
+        """
+        只让放映窗口始终保持错误矩形，锚点窗口仍返回真实目标区域。
+        :param hwnd: 窗口句柄
+        :return: 窗口矩形
+        """
+        if hwnd == 909:
+            return 0, 0, 300, 200
+        return original_get_window_rect(hwnd)
+
+    monkeypatch.setattr(win32gui, "GetWindowRect", mismatched_slideshow_rect)
+
+    try:
+        present_external_slideshow_window(909, 2001)
+    except RuntimeError as present_error:
+        assert "未能铺满目标区域" in str(present_error)
+    else:
+        raise AssertionError("mismatched rect must raise")
+
+    assert len(calls["set_window_pos"]) == 4
+    assert len(calls["move_window"]) == 4
 
 
 def test_release_external_slideshow_window_clears_topmost(monkeypatch: MonkeyPatch) -> None:

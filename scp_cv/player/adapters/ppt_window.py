@@ -18,6 +18,7 @@ from typing import Optional
 from scp_cv.player.adapters.ppt_constants import PP_SLIDE_SHOW_WINDOW
 
 SLIDESHOW_CLASS_NAMES = frozenset({"screenClass", "paneClassDC", "PPTFrameClass"})
+_EXISTING_COM_HWND_GRACE_SECONDS = 0.35
 _SLIDESHOW_TITLE_PREFIXES = (
     "powerpoint slide show -",
     "powerpoint slide show:",
@@ -112,6 +113,7 @@ def find_slideshow_hwnd(
     poll_interval_seconds: float = 0.1,
     process_id: Optional[int] = None,
     allow_existing_when_unique: bool = False,
+    existing_com_grace_seconds: float = _EXISTING_COM_HWND_GRACE_SECONDS,
 ) -> int:
     """
     查找 PPT 放映窗口的 HWND。
@@ -123,6 +125,7 @@ def find_slideshow_hwnd(
     :param poll_interval_seconds: 重试间隔秒数
     :param process_id: 可选进程 ID；用于确认候选窗口属于当前 PowerPoint 实例
     :param allow_existing_when_unique: 进程可确认时，允许使用启动前已存在的唯一候选窗口
+    :param existing_com_grace_seconds: COM 返回启动前已有 HWND 时，等待新窗口出现的最短秒数
     :return: 本次放映窗口句柄，无法唯一确定时返回 0
     """
     try:
@@ -131,13 +134,52 @@ def find_slideshow_hwnd(
         win32gui = None
         logger.debug("Win32 模块不可用，将仅通过 COM 查找 PPT 放映窗口：%s", import_error)
 
-    deadline = time.monotonic() + max(0.0, timeout_seconds)
+    started_at = time.monotonic()
+    deadline = started_at + max(0.0, timeout_seconds)
     retry_interval = max(0.01, poll_interval_seconds)
+    existing_com_grace = max(0.0, existing_com_grace_seconds)
+    excluded_hwnds = existing_hwnds or set()
     matched_hwnds: list[int] = []
     while True:
         ppt_hwnd = _read_com_slideshow_hwnd(slideshow_window, logger)
         if ppt_hwnd != 0:
-            return ppt_hwnd
+            if win32gui is None:
+                return ppt_hwnd
+            if _is_valid_slideshow_hwnd(
+                win32gui,
+                logger,
+                ppt_hwnd,
+                class_names,
+                process_id,
+            ):
+                if ppt_hwnd not in excluded_hwnds:
+                    logger.debug("通过 COM 验证到本次放映 HWND=%d", ppt_hwnd)
+                    return ppt_hwnd
+                if allow_existing_when_unique and (
+                    time.monotonic() - started_at
+                ) >= existing_com_grace:
+                    reusable_hwnd = _reusable_existing_com_hwnd(
+                        win32gui,
+                        logger,
+                        ppt_hwnd,
+                        class_names,
+                        process_id,
+                    )
+                    if reusable_hwnd:
+                        logger.debug(
+                            "COM 返回启动前已存在且已稳定的放映 HWND=%d",
+                            reusable_hwnd,
+                        )
+                        return reusable_hwnd
+                logger.debug(
+                    "COM 返回启动前已存在的放映 HWND=%d，继续等待新窗口或稳定回收",
+                    ppt_hwnd,
+                )
+            else:
+                logger.debug(
+                    "COM 返回的放映 HWND=%d 未通过 Win32 校验，继续枚举窗口",
+                    ppt_hwnd,
+                )
 
         if win32gui is not None:
             matched_hwnds = _find_matching_slideshow_hwnds(
@@ -221,12 +263,68 @@ def _read_com_slideshow_hwnd(
     if slideshow_window is None:
         return 0
     try:
-        ppt_hwnd = slideshow_window.HWND
-        if ppt_hwnd and ppt_hwnd > 0:
+        ppt_hwnd = int(slideshow_window.HWND or 0)
+        if ppt_hwnd > 0:
             logger.debug("通过 COM 获取到放映 HWND=%d", ppt_hwnd)
-            return int(ppt_hwnd)
+            return ppt_hwnd
     except Exception as com_error:
         logger.debug("COM 获取 HWND 失败：%s，尝试枚举窗口", com_error)
+    return 0
+
+
+def _is_valid_slideshow_hwnd(
+    win32gui: object,
+    logger: logging.Logger,
+    hwnd: int,
+    class_names: Optional[Iterable[str]],
+    process_id: Optional[int],
+) -> bool:
+    """
+    校验 COM 返回的 HWND 是否仍是当前 PowerPoint 放映窗口。
+    :param win32gui: win32gui 模块或测试替身
+    :param logger: 日志器
+    :param hwnd: COM 返回的窗口句柄
+    :param class_names: 放映窗口 class name 候选集合
+    :param process_id: 可选 PowerPoint 进程 ID
+    :return: True 表示可以使用该 HWND
+    """
+    try:
+        return _is_candidate_slideshow_window(
+            win32gui,
+            hwnd,
+            _selected_slideshow_class_names(class_names),
+            process_id,
+        )
+    except Exception as validation_error:
+        logger.debug("校验 PPT 放映 HWND=%d 失败：%s", hwnd, validation_error)
+        return False
+
+
+def _reusable_existing_com_hwnd(
+    win32gui: object,
+    logger: logging.Logger,
+    preferred_hwnd: int,
+    class_names: Optional[Iterable[str]],
+    process_id: Optional[int],
+) -> int:
+    """
+    在 PowerPoint 复用窗口化放映 HWND 时，确认该 HWND 已是唯一可用候选。
+    :param win32gui: win32gui 模块或测试替身
+    :param logger: 日志器
+    :param preferred_hwnd: COM 返回的启动前已有 HWND
+    :param class_names: 放映窗口 class name 候选集合
+    :param process_id: 可选 PowerPoint 进程 ID
+    :return: 可安全回收的 HWND；无法确认唯一时返回 0
+    """
+    scoped_hwnds = _find_matching_slideshow_hwnds(
+        win32gui,
+        logger,
+        existing_hwnds=None,
+        class_names=class_names,
+        process_id=process_id,
+    )
+    if len(scoped_hwnds) == 1 and scoped_hwnds[0] == preferred_hwnd:
+        return preferred_hwnd
     return 0
 
 

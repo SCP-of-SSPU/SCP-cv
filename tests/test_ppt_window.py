@@ -110,12 +110,88 @@ def test_snapshot_slideshow_hwnds_collects_visible_powerpoint_windows(
     assert slideshow_hwnds == {101, 202}
 
 
-def test_find_slideshow_hwnd_prefers_com_hwnd() -> None:
-    """COM 直接返回 HWND 时应直接使用，避免 Win32 枚举误判。"""
+def test_find_slideshow_hwnd_prefers_com_hwnd(monkeypatch: MonkeyPatch) -> None:
+    """COM 直接返回新且有效的 HWND 时应直接使用，避免 Win32 枚举误判。"""
     logger = logging.getLogger(__name__)
     slideshow_window = type("_SlideShowWindowStub", (), {"HWND": 101})()
-    hwnd = find_slideshow_hwnd(slideshow_window, logger, existing_hwnds={101})
+    _install_fake_win32gui(monkeypatch, {101: ("screenClass", True)})
+    hwnd = find_slideshow_hwnd(slideshow_window, logger, existing_hwnds=set())
     assert hwnd == 101
+
+
+def test_find_slideshow_hwnd_waits_when_com_returns_existing_hwnd(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """COM 返回旧 HWND 时应优先等待本次 Run 后新出现的放映窗口。"""
+    windows = {
+        101: ("screenClass", True),
+        202: ("screenClass", False),
+    }
+    now = [0.0]
+    sleep_calls: list[float] = []
+    slideshow_window = type("_SlideShowWindowStub", (), {"HWND": 101})()
+    _install_fake_win32gui(monkeypatch, windows)
+
+    def fake_sleep(seconds: float) -> None:
+        """
+        模拟等待期间新放映窗口出现。
+        :param seconds: 等待秒数
+        :return: None
+        """
+        sleep_calls.append(seconds)
+        now[0] += seconds
+        windows[202] = ("screenClass", True)
+
+    monkeypatch.setattr(ppt_window.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(ppt_window.time, "sleep", fake_sleep)
+
+    hwnd = find_slideshow_hwnd(
+        slideshow_window,
+        logging.getLogger(__name__),
+        existing_hwnds={101},
+        timeout_seconds=1.0,
+        poll_interval_seconds=0.1,
+        allow_existing_when_unique=True,
+    )
+
+    assert hwnd == 202
+    assert sleep_calls == [0.1]
+
+
+def test_find_slideshow_hwnd_can_reuse_existing_com_hwnd_after_grace(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """PowerPoint 复用唯一旧 HWND 时，应等待稳定后再接受该 COM HWND。"""
+    windows = {101: ("screenClass", True)}
+    now = [0.0]
+    sleep_calls: list[float] = []
+    slideshow_window = type("_SlideShowWindowStub", (), {"HWND": 101})()
+    _install_fake_win32gui(monkeypatch, windows)
+
+    def fake_sleep(seconds: float) -> None:
+        """
+        推进虚拟时钟但不创建新窗口。
+        :param seconds: 等待秒数
+        :return: None
+        """
+        sleep_calls.append(seconds)
+        now[0] += seconds
+
+    monkeypatch.setattr(ppt_window.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(ppt_window.time, "sleep", fake_sleep)
+
+    hwnd = find_slideshow_hwnd(
+        slideshow_window,
+        logging.getLogger(__name__),
+        existing_hwnds={101},
+        timeout_seconds=1.0,
+        poll_interval_seconds=0.1,
+        allow_existing_when_unique=True,
+        existing_com_grace_seconds=0.25,
+    )
+
+    assert hwnd == 101
+    assert sleep_calls == [0.1, 0.1, 0.1]
 
 
 def test_find_slideshow_hwnd_excludes_existing_windows(

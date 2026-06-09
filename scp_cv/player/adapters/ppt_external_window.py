@@ -9,6 +9,14 @@ PPT 外部放映窗口 Win32 操作工具，将 PowerPoint 放映窗口铺满目
 '''
 from __future__ import annotations
 
+import logging
+import time
+
+logger = logging.getLogger(__name__)
+_PRESENT_VERIFY_RETRIES = 4
+_PRESENT_VERIFY_DELAY_SECONDS = 0.1
+_RECT_TOLERANCE_PX = 2
+
 
 def present_external_slideshow_window(slideshow_hwnd: int, anchor_hwnd: int) -> tuple[int, int]:
     """
@@ -31,20 +39,34 @@ def present_external_slideshow_window(slideshow_hwnd: int, anchor_hwnd: int) -> 
     height = max(1, bottom - top)
 
     win32gui.SetParent(slideshow_hwnd, 0)
-    _restore_window_for_resize(win32gui, win32con, slideshow_hwnd)
-    _set_external_window_styles(win32gui, win32con, slideshow_hwnd)
-    _restore_window_for_resize(win32gui, win32con, slideshow_hwnd)
-    win32gui.SetWindowPos(
-        slideshow_hwnd,
-        win32con.HWND_TOPMOST,
-        left,
-        top,
-        width,
-        height,
-        win32con.SWP_FRAMECHANGED | win32con.SWP_SHOWWINDOW,
+    last_rect = (0, 0, 0, 0)
+    for attempt in range(1, _PRESENT_VERIFY_RETRIES + 1):
+        _apply_external_window_rect(
+            win32gui,
+            win32con,
+            slideshow_hwnd,
+            left,
+            top,
+            width,
+            height,
+        )
+        last_rect = _read_window_rect(win32gui, slideshow_hwnd)
+        if _rect_matches(last_rect, (left, top, right, bottom)):
+            if attempt > 1:
+                logger.info(
+                    "PowerPoint 外部窗口第 %d 次重试后铺满目标区域：HWND=%d, rect=%s",
+                    attempt,
+                    slideshow_hwnd,
+                    last_rect,
+                )
+            return width, height
+        if attempt < _PRESENT_VERIFY_RETRIES:
+            time.sleep(_PRESENT_VERIFY_DELAY_SECONDS)
+
+    raise RuntimeError(
+        "PowerPoint 放映窗口未能铺满目标区域："
+        f"hwnd={slideshow_hwnd}, target={(left, top, right, bottom)}, actual={last_rect}"
     )
-    _move_window(win32gui, slideshow_hwnd, left, top, width, height)
-    return width, height
 
 
 def release_external_slideshow_window(slideshow_hwnd: int) -> None:
@@ -162,6 +184,71 @@ def _set_external_window_styles(
         slideshow_hwnd,
         win32con.GWL_EXSTYLE,
         extended_style,
+    )
+
+
+def _apply_external_window_rect(
+    win32gui: object,
+    win32con: object,
+    slideshow_hwnd: int,
+    left: int,
+    top: int,
+    width: int,
+    height: int,
+) -> None:
+    """
+    将 PowerPoint 放映窗口设置为无边框顶层并移动到目标矩形。
+    :param win32gui: win32gui 模块或测试替身
+    :param win32con: win32con 模块或测试替身
+    :param slideshow_hwnd: 放映窗口 HWND
+    :param left: 目标左侧坐标
+    :param top: 目标顶部坐标
+    :param width: 目标宽度
+    :param height: 目标高度
+    :return: None
+    """
+    _restore_window_for_resize(win32gui, win32con, slideshow_hwnd)
+    _set_external_window_styles(win32gui, win32con, slideshow_hwnd)
+    _restore_window_for_resize(win32gui, win32con, slideshow_hwnd)
+    win32gui.SetWindowPos(
+        slideshow_hwnd,
+        win32con.HWND_TOPMOST,
+        left,
+        top,
+        width,
+        height,
+        win32con.SWP_FRAMECHANGED | win32con.SWP_SHOWWINDOW,
+    )
+    _move_window(win32gui, slideshow_hwnd, left, top, width, height)
+
+
+def _read_window_rect(win32gui: object, slideshow_hwnd: int) -> tuple[int, int, int, int]:
+    """
+    读取窗口矩形，失败时返回空矩形。
+    :param win32gui: win32gui 模块或测试替身
+    :param slideshow_hwnd: 放映窗口 HWND
+    :return: Win32 窗口矩形
+    """
+    try:
+        left, top, right, bottom = win32gui.GetWindowRect(slideshow_hwnd)  # type: ignore[attr-defined]
+    except Exception:
+        return 0, 0, 0, 0
+    return int(left), int(top), int(right), int(bottom)
+
+
+def _rect_matches(
+    actual_rect: tuple[int, int, int, int],
+    expected_rect: tuple[int, int, int, int],
+) -> bool:
+    """
+    判断实际窗口矩形是否与目标矩形足够接近。
+    :param actual_rect: 实际窗口矩形
+    :param expected_rect: 目标窗口矩形
+    :return: True 表示偏差在容差内
+    """
+    return all(
+        abs(actual_value - expected_value) <= _RECT_TOLERANCE_PX
+        for actual_value, expected_value in zip(actual_rect, expected_rect)
     )
 
 
