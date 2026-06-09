@@ -2,6 +2,12 @@
 
 ## 2026-06-09
 
+### 修复 PPT 多开保护与直播默认拉流路径
+
+- 播放器：窗口清理会把受保护 HWND 归一到顶层 root，避免 PowerPoint 返回子窗口句柄时误把已有 PPT 放映最小化。
+- 后端：MediaMTX 在线流自动同步时默认创建/更新为 `srt_stream`，URI 使用 `get_srt_read_url()`，避开现场 RTSP 读端持续 `reader is too slow` 导致画面不显示的问题。
+- 播放器：直播源打开前先激活视频渲染容器，确保 libVLC 绑定 HWND 时目标容器已可见。
+
 ### 修复现场控制与推流配置提示
 
 - 后端：SRT 推流 URL 按 MediaMTX SRT 客户端格式补充 `pkt_size=1316`，保留 `streamid=publish:<流标识>` 与低延迟 `latency`。
@@ -21,7 +27,7 @@
 
 ### 升级背景音频与直播预热
 
-- 后端：MediaMTX 在线流自动同步时默认创建/更新为 `rtsp_stream`，URI 使用 `get_rtsp_read_url()`；旧自动发现的 `srt_stream` 在线后会升级为 RTSP 拉流源，手动 SRT 源仍可继续使用。
+- 后端：MediaMTX 在线流自动同步曾改为默认创建/更新 `rtsp_stream`，后续现场验证已切回默认 SRT 直拉；RTSP 仅保留为手动兼容路径。
 - 播放器：新增 `PreheatedAudioSource`，背景音乐通道会按 `source_id + uri` 认领已设置本地文件源的 `QMediaPlayer + QAudioOutput`，避免背景音频冷开时重复初始化 Qt Multimedia。
 - 播放器：直播预热从“只预连接”升级为 URI 级可认领资源；`StreamPreheatHandle` 保留 libVLC `instance/player/media`，前台 `SrtStreamAdapter` 命中相同 `source_id + uri` 时直接复用并重新绑定目标 HWND。
 - 配置：新增 `MEDIAMTX_SRT_READ_LATENCY_MS`、`MEDIAMTX_SRT_PUBLISH_LATENCY_US`、`MEDIAMTX_RTSP_READ_TRANSPORT`、`STREAM_VLC_*` 和 `STREAM_PREHEAT_*`，将直播低延迟缓存、丢帧和预热 TTL 参数外置到 `.env`。

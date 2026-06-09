@@ -14,12 +14,12 @@ SCP-cv 是用于控制 **上海第二工业大学 28#108 多媒体显示系统**
 
 ## 核心能力
 
-- **统一媒体源管理**：上传文件、添加本机路径、添加网页源、自动发现 MediaMTX SRT 入流并默认创建 RTSP 拉流源。
+- **统一媒体源管理**：上传文件、添加本机路径、添加网页源、自动发现 MediaMTX SRT 入流并默认创建 SRT 直拉源。
 - **统一预热**：媒体源可开启后台预热，网页、图片、视频、背景音频、直播流和 PPT 按类型提前准备；直播流使用 URI 级可认领预热，PPT 按源文件级预打开，降低现场切换等待。
 - **四窗口播控**：大屏左、大屏右、TV 左、TV 右分别独立控制，支持 single / double 大屏模式。
 - **背景音乐**：音频源通过独立后台播放器输出，支持播放列表、立即播放、循环、音量和静音控制。
 - **PPT 控制**：所有 PPT 导入、预览、播放缓存、预热和放映统一使用 Microsoft PowerPoint；导入后会尝试生成播放专用 `.ppsx`/`.pps` 缓存，显控页提供翻页、跳页和媒体控制。
-- **SRT / RTSP 直播播放**：MediaMTX 接收 OBS / 外部设备 SRT 推流，自动发现源默认通过 RTSP 地址交给 libVLC 播放；手动源仍可使用 SRT URL。
+- **SRT / RTSP 直播播放**：MediaMTX 接收 OBS / 外部设备 SRT 推流，自动发现源默认通过 SRT read 地址交给 libVLC 播放；RTSP 保留为手动兼容路径。
 - **REST + SSE 控制台**：Vue 前端通过 REST 下发指令，通过 SSE 同步播放状态。
 - **保留 gRPC 接口**：用于兼容中控系统和自动化脚本。
 - **设备控制**：支持拼接屏、电视电源 TCP 指令和 Windows 系统音量同步。
@@ -113,7 +113,7 @@ PPT 相关配置：
 
 - 图片和本地视频按 `source_id + uri` 进行文件级预热；命中后前台直接认领已加载资源。
 - 背景音频按 `source_id + uri` 预设本地 `QMediaPlayer + QAudioOutput`，背景音乐打开时优先认领，音频源仍不占用四个显示窗口。
-- 自动发现的 MediaMTX 在线流默认保存为 `rtsp://<read-host>:8554/<stream_identifier>`；如需直接 SRT 拉流，可手动添加 SRT / 自定义直播源。
+- 自动发现的 MediaMTX 在线流默认保存为 `srt://<read-host>:8890?streamid=read:<stream_identifier>&latency=<ms>`；如需 RTSP 拉流，可手动添加 RTSP / 自定义直播源。
 - SRT / RTSP / 自定义直播按 `source_id + uri` 建立可认领 libVLC 预热连接；前台 `SrtStreamAdapter` 命中后复用预热的 `instance/player/media`，不再把直播预热称为文件级。
 
 `runall` 启动前端时会移除父进程继承的 `VITE_*` 变量，让 `frontend/.env` 成为前端开发服务的实际配置来源。若 `frontend/.env` 未配置 `VITE_BACKEND_TARGET`，`runall` 才会按当前后端监听地址提供兜底值。

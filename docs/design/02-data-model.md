@@ -265,7 +265,7 @@ tri-state 设计的价值是避免预案激活时无意清空未配置窗口。�
 | `last_seen_at` | 最近被 MediaMTX API 看到时间 |
 | `last_error_message` | 错误说明 |
 
-`sync_stream_states()` 更新 `StreamSource` 后，`sync_streams_to_media_sources()` 会把在线流同步为 `MediaSource`，当前 README 描述为默认 RTSP 拉流源。
+`sync_stream_states()` 更新 `StreamSource` 后，`sync_streams_to_media_sources()` 会把在线流同步为 `srt_stream` 类型 `MediaSource`，URI 使用 `get_srt_read_url()` 生成的 SRT read 地址；RTSP 源仅作为手动兼容路径保留。
 
 ## 重要 migration 脉络
 

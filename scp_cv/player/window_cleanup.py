@@ -32,14 +32,19 @@ def minimize_unprotected_top_level_windows(protected_hwnds: Iterable[int]) -> li
     :param protected_hwnds: 需要保留可见状态的顶层窗口句柄集合
     :return: 已尝试最小化的 HWND 列表
     """
-    protected_roots = _normalized_protected_roots(protected_hwnds)
-    if not protected_roots:
-        return []
     try:
         import win32con
         import win32gui
     except Exception as import_error:
         logger.debug("Win32 模块不可用，跳过窗口最小化：%s", import_error)
+        return []
+
+    protected_roots = _normalized_protected_roots(
+        protected_hwnds,
+        win32gui=win32gui,
+        win32con=win32con,
+    )
+    if not protected_roots:
         return []
 
     minimized: list[int] = []
@@ -100,14 +105,31 @@ def _is_powerpoint_slideshow_window(win32gui: object, hwnd: int, root_hwnd: int)
     return any(marker in normalized_title for marker in _POWERPOINT_SLIDESHOW_TITLE_MARKERS)
 
 
-def _normalized_protected_roots(protected_hwnds: Iterable[int]) -> set[int]:
+def _normalized_protected_roots(
+    protected_hwnds: Iterable[int],
+    win32gui: object | None = None,
+    win32con: object | None = None,
+) -> set[int]:
     """
     归一化受保护窗口句柄。
 
     :param protected_hwnds: 原始 HWND 集合
+    :param win32gui: 可选 win32gui 模块；传入时将子窗口归一到顶层根窗口
+    :param win32con: 可选 win32con 模块；传入时将子窗口归一到顶层根窗口
     :return: 去除 0 后的整数集合
     """
-    return {int(hwnd) for hwnd in protected_hwnds if int(hwnd or 0) > 0}
+    normalized_roots: set[int] = set()
+    for raw_hwnd in protected_hwnds:
+        try:
+            hwnd = int(raw_hwnd or 0)
+        except (TypeError, ValueError):
+            continue
+        if hwnd <= 0:
+            continue
+        if win32gui is not None and win32con is not None:
+            hwnd = _root_window(win32gui, win32con, hwnd)
+        normalized_roots.add(hwnd)
+    return normalized_roots
 
 
 def _root_window(win32gui: object, win32con: object, hwnd: int) -> int:

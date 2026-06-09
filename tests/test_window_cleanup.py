@@ -111,7 +111,7 @@ def test_minimize_unprotected_top_level_windows_keeps_protected_roots(
     monkeypatch.setitem(sys.modules, "win32con", fake_win32con)
     monkeypatch.setitem(sys.modules, "win32gui", fake_win32gui)
 
-    result = minimize_unprotected_top_level_windows({10})
+    result = minimize_unprotected_top_level_windows({11})
 
     assert result == [20]
     assert minimized == [20]

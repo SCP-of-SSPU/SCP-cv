@@ -344,12 +344,12 @@ def cleanup_expired_temporary_sources() -> int:
 def sync_streams_to_media_sources() -> dict[str, int]:
     """
     将 StreamSource 中在线的流同步为 MediaSource 记录。
-    已存在的更新可用状态，新发现的自动创建为 RTSP 拉流源。
+    已存在的更新可用状态，新发现的自动创建为 SRT 直拉源。
     同时删除离线超过 1 小时的直播源。
     :return: 同步计数 {created, updated, removed}
     """
     from scp_cv.apps.streams.models import StreamSource
-    from scp_cv.services.mediamtx import get_rtsp_read_url
+    from scp_cv.services.mediamtx import get_srt_read_url
 
     counts: dict[str, int] = {"created": 0, "updated": 0, "removed": 0}
     active_identifiers: set[str] = set()
@@ -362,23 +362,23 @@ def sync_streams_to_media_sources() -> dict[str, int]:
             stream_identifier=stream.stream_identifier,
         ).order_by("source_type", "id").first()
 
-        rtsp_url = get_rtsp_read_url(stream.stream_identifier)
+        srt_url = get_srt_read_url(stream.stream_identifier)
 
         if existing is None:
             MediaSource.objects.create(
-                source_type=SourceType.RTSP_STREAM,
+                source_type=SourceType.SRT_STREAM,
                 name=stream.name,
-                uri=rtsp_url,
+                uri=srt_url,
                 stream_identifier=stream.stream_identifier,
                 is_available=True,
             )
             counts["created"] += 1
         else:
-            if not existing.is_available or existing.uri != rtsp_url or existing.source_type != SourceType.RTSP_STREAM:
+            if not existing.is_available or existing.uri != srt_url or existing.source_type != SourceType.SRT_STREAM:
                 existing.is_available = True
-                existing.uri = rtsp_url
+                existing.uri = srt_url
                 existing.name = stream.name
-                existing.source_type = SourceType.RTSP_STREAM
+                existing.source_type = SourceType.SRT_STREAM
                 existing.save()
                 counts["updated"] += 1
 

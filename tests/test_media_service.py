@@ -517,9 +517,9 @@ class TestPptResources:
 class TestSyncStreamsToMediaSources:
     """测试流状态同步到媒体源。"""
 
-    @patch("scp_cv.services.mediamtx.get_rtsp_read_url", return_value="rtsp://127.0.0.1:8554/test-stream")
-    def test_creates_new_source_for_online_stream(self, mock_rtsp_url: MagicMock) -> None:
-        """在线的新流应创建 RTSP 拉流 MediaSource。"""
+    @patch("scp_cv.services.mediamtx.get_srt_read_url", return_value="srt://127.0.0.1:8890?streamid=read:test-stream&latency=50")
+    def test_creates_new_source_for_online_stream(self, mock_srt_url: MagicMock) -> None:
+        """在线的新流应创建 SRT 直拉 MediaSource。"""
         from scp_cv.apps.streams.models import StreamSource
 
         StreamSource.objects.create(
@@ -532,12 +532,12 @@ class TestSyncStreamsToMediaSources:
 
         assert counts["created"] == 1
         created_source = MediaSource.objects.get(stream_identifier="test-stream")
-        assert created_source.source_type == SourceType.RTSP_STREAM
+        assert created_source.source_type == SourceType.SRT_STREAM
         assert created_source.is_available is True
-        assert created_source.uri == "rtsp://127.0.0.1:8554/test-stream"
+        assert created_source.uri == "srt://127.0.0.1:8890?streamid=read:test-stream&latency=50"
 
-    @patch("scp_cv.services.mediamtx.get_rtsp_read_url", return_value="rtsp://127.0.0.1:8554/test-stream")
-    def test_marks_offline_streams_unavailable(self, mock_rtsp_url: MagicMock) -> None:
+    @patch("scp_cv.services.mediamtx.get_srt_read_url", return_value="srt://127.0.0.1:8890?streamid=read:test-stream&latency=50")
+    def test_marks_offline_streams_unavailable(self, mock_srt_url: MagicMock) -> None:
         """流离线后，对应的 MediaSource 应标记为不可用。"""
         # 预先创建一个 RTSP 源（模拟之前在线）
         MediaSource.objects.create(
@@ -554,9 +554,9 @@ class TestSyncStreamsToMediaSources:
         offline_source = MediaSource.objects.get(stream_identifier="gone-stream")
         assert offline_source.is_available is False
 
-    @patch("scp_cv.services.mediamtx.get_rtsp_read_url", return_value="rtsp://127.0.0.1:8554/test-stream")
-    def test_existing_srt_source_is_upgraded_to_rtsp(self, mock_rtsp_url: MagicMock) -> None:
-        """已存在的自动发现 SRT 源在线时应升级为 RTSP 拉流源。"""
+    @patch("scp_cv.services.mediamtx.get_srt_read_url", return_value="srt://127.0.0.1:8890?streamid=read:test-stream&latency=50")
+    def test_existing_rtsp_source_is_switched_to_srt(self, mock_srt_url: MagicMock) -> None:
+        """已存在的自动发现 RTSP 源在线时应切回 SRT 直拉源。"""
         from scp_cv.apps.streams.models import StreamSource
 
         StreamSource.objects.create(
@@ -565,9 +565,9 @@ class TestSyncStreamsToMediaSources:
             is_online=True,
         )
         MediaSource.objects.create(
-            source_type=SourceType.SRT_STREAM,
-            name="旧 SRT 流",
-            uri="srt://127.0.0.1:8890?streamid=read:test-stream&latency=50",
+            source_type=SourceType.RTSP_STREAM,
+            name="旧 RTSP 流",
+            uri="rtsp://127.0.0.1:8554/test-stream",
             stream_identifier="test-stream",
             is_available=True,
         )
@@ -576,5 +576,5 @@ class TestSyncStreamsToMediaSources:
 
         assert counts["updated"] == 1
         source = MediaSource.objects.get(stream_identifier="test-stream")
-        assert source.source_type == SourceType.RTSP_STREAM
-        assert source.uri == "rtsp://127.0.0.1:8554/test-stream"
+        assert source.source_type == SourceType.SRT_STREAM
+        assert source.uri == "srt://127.0.0.1:8890?streamid=read:test-stream&latency=50"

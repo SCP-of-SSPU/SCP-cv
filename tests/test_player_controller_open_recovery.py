@@ -537,7 +537,7 @@ def test_handle_open_stops_stream_preheat_when_reuse_disabled(monkeypatch: pytes
 
     assert stop_stream_calls == [9]
     assert states == [(1, "loading")]
-    assert window.calls == ["black", "show", "raise", "video"]
+    assert window.calls == ["black", "show", "raise", "video", "show", "raise", "video"]
 
 
 def test_handle_open_keeps_previous_ppt_when_factory_fails(monkeypatch: pytest.MonkeyPatch) -> None:
