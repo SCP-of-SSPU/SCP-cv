@@ -397,6 +397,28 @@ class TestPptResources:
         assert resources[0]["media_items"][0]["media_index"] == 1
         assert resources[0]["has_media"] is True
 
+    def test_add_local_pptx_deduplicates_same_target_across_relationship_types(self, tmp_path: Path) -> None:
+        """同一媒体被 PPT 写成不同关系类型时，仍只统计一次。"""
+        pptx_file = tmp_path / "demo.pptx"
+        with zipfile.ZipFile(pptx_file, "w") as archive:
+            archive.writestr("ppt/slides/slide1.xml", "<p:sld xmlns:p='p' />")
+            archive.writestr(
+                "ppt/slides/_rels/slide1.xml.rels",
+                """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/video" Target="../media/video1.mp4" />
+                  <Relationship Id="rId2" Type="http://schemas.microsoft.com/office/2007/relationships/media" Target="../media/video1.mp4" />
+                </Relationships>
+                """,
+            )
+
+        source = add_local_path(str(pptx_file))
+        resources = list_ppt_resources(source.pk)
+
+        assert len(resources[0]["media_items"]) == 1
+        assert resources[0]["media_items"][0]["name"] == "video1.mp4"
+        assert resources[0]["media_items"][0]["media_index"] == 1
+
     @patch("scp_cv.services.media._export_ppt_slide_previews")
     def test_add_local_pptx_attaches_exported_previews(
         self,
@@ -443,6 +465,43 @@ class TestPptResources:
 
         mock_prepare_resources.assert_called_once()
         assert resources[0]["slide_image"] == "/media/ppt_previews/1/slide-1.png"
+
+    @patch("scp_cv.services.ppt_resources.export_ppt_slide_previews")
+    def test_list_resources_repairs_existing_ppt_with_missing_previews(
+        self,
+        mock_export_previews: MagicMock,
+        media_source_ppt: MediaSource,
+    ) -> None:
+        """读取已有 PPT 资源时，应懒修复缺失的 slide_image 且保留媒体清单。"""
+        mock_export_previews.return_value = [
+            "/media/ppt_previews/1/slide-1.png",
+            "/media/ppt_previews/1/slide-2.png",
+        ]
+        replace_ppt_resources(media_source_ppt.pk, [
+            {
+                "page_index": 1,
+                "slide_image": "",
+                "speaker_notes": "第一页提示",
+                "media_items": [{"id": "m1", "media_index": 1, "media_type": "video", "name": "片头.mp4"}],
+            },
+            {
+                "page_index": 2,
+                "slide_image": "",
+                "speaker_notes": "第二页提示",
+                "media_items": [],
+            },
+        ])
+
+        resources = list_ppt_resources(media_source_ppt.pk)
+        media_source_ppt.refresh_from_db(fields=["metadata"])
+
+        assert resources[0]["slide_image"] == "/media/ppt_previews/1/slide-1.png"
+        assert resources[0]["speaker_notes"] == "第一页提示"
+        assert resources[0]["media_items"][0]["name"] == "片头.mp4"
+        assert resources[0]["next_slide_image"] == "/media/ppt_previews/1/slide-2.png"
+        assert resources[1]["slide_image"] == "/media/ppt_previews/1/slide-2.png"
+        assert media_source_ppt.metadata["ppt_preview_repair_status"] == "repaired"
+        assert media_source_ppt.metadata["preview_count"] == 2
 
     def test_rejects_non_ppt_source(self, media_source_video: MediaSource) -> None:
         """非 PPT 源不应保存 PPT 解析资源。"""

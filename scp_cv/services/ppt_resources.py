@@ -10,6 +10,7 @@ PPT 媒体源资源解析服务，负责页资源、备注、嵌入媒体和预�
 from __future__ import annotations
 
 import logging
+import posixpath
 import re
 import zipfile
 from pathlib import Path
@@ -124,6 +125,9 @@ def list_ppt_resources(
         preparer = prepare_resources or prepare_ppt_source_resources
         preparer(source)
         source.refresh_from_db(fields=["metadata"])
+    elif _ppt_preview_is_incomplete(source):
+        _repair_ppt_slide_previews(source)
+        source.refresh_from_db(fields=["metadata"])
     return [_ppt_resource_payload(resource) for resource in source.ppt_resources.all()]
 
 
@@ -153,7 +157,7 @@ def replace_ppt_resources(source_id: int, resources: list[dict[str, object]]) ->
             media_items=media_items,
         )
     logger.info("保存 PPT 资源：source_id=%d, pages=%d", source_id, len(resources))
-    return list_ppt_resources(source_id)
+    return [_ppt_resource_payload(resource) for resource in source.ppt_resources.all()]
 
 
 def _apply_preview_paths(resources: list[dict[str, object]], preview_paths: list[str]) -> None:
@@ -168,6 +172,62 @@ def _apply_preview_paths(resources: list[dict[str, object]], preview_paths: list
     for resource_index, resource_data in enumerate(resources):
         if resource_index < len(preview_paths):
             resource_data["slide_image"] = preview_paths[resource_index]
+
+
+def _ppt_preview_is_incomplete(source: MediaSource) -> bool:
+    """
+    判断已有 PPT 页资源是否缺少预览图。
+    :param source: PPT 媒体源
+    :return: True 表示存在页资源但预览图不完整
+    """
+    resources = list(source.ppt_resources.all())
+    if not resources:
+        return False
+    return any(not resource.slide_image for resource in resources)
+
+
+def _repair_ppt_slide_previews(source: MediaSource) -> None:
+    """
+    懒修复已有 PPT 资源的预览图，不覆盖备注和媒体清单。
+    :param source: PPT 媒体源
+    :return: None
+    """
+    metadata = dict(source.metadata or {})
+    preview_paths = export_ppt_slide_previews(Path(source.uri), source.pk)
+    if not preview_paths:
+        metadata.update({
+            "ppt_preview_repair_status": "failed",
+            "preview_count": 0,
+        })
+        source.metadata = metadata
+        source.save(update_fields=["metadata"])
+        logger.info("PPT 预览懒修复失败：source_id=%d", source.pk)
+        return
+
+    updated_count = 0
+    resources = list(source.ppt_resources.order_by("page_index"))
+    for resource_index, resource in enumerate(resources):
+        if resource_index >= len(preview_paths):
+            break
+        preview_path = preview_paths[resource_index]
+        if resource.slide_image == preview_path:
+            continue
+        resource.slide_image = preview_path
+        resource.save(update_fields=["slide_image"])
+        updated_count += 1
+
+    metadata.update({
+        "ppt_preview_repair_status": "repaired",
+        "preview_count": len(preview_paths),
+    })
+    source.metadata = metadata
+    source.save(update_fields=["metadata"])
+    logger.info(
+        "PPT 预览懒修复完成：source_id=%d, previews=%d, updated=%d",
+        source.pk,
+        len(preview_paths),
+        updated_count,
+    )
 
 
 def _resources_from_preview_paths(preview_paths: list[str]) -> list[dict[str, object]]:
@@ -231,13 +291,13 @@ def _extract_slide_media_items(
         return []
     root = ElementTree.fromstring(archive.read(relationship_name))
     media_items: list[dict[str, object]] = []
-    seen_media_targets: set[tuple[str, str]] = set()
+    seen_media_targets: set[str] = set()
     for relationship in root:
         target = str(relationship.attrib.get("Target", ""))
         relationship_type = str(relationship.attrib.get("Type", "")).lower()
         if not _is_ppt_media_relationship(target, relationship_type):
             continue
-        media_key = (target.lower(), relationship_type)
+        media_key = _normalize_ppt_media_target(target)
         if media_key in seen_media_targets:
             continue
         seen_media_targets.add(media_key)
@@ -252,6 +312,16 @@ def _extract_slide_media_items(
             "shape_id": 0,
         })
     return media_items
+
+
+def _normalize_ppt_media_target(target: str) -> str:
+    """
+    规范化 PPT 媒体目标路径，用于跨关系类型去重。
+    :param target: relationship Target 原始值
+    :return: 规范化后的目标路径
+    """
+    normalized_target = posixpath.normpath(target.replace("\\", "/")).casefold()
+    return normalized_target.lstrip("./")
 
 
 def _extract_notes_text(archive: zipfile.ZipFile, page_index: int) -> str:

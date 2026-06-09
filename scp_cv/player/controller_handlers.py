@@ -655,14 +655,13 @@ class PlayerCommandHandlersMixin:
 
     def _minimize_unprotected_windows_for_ppt(self, adapter: object) -> None:
         """
-        PPT 放映窗口就绪后，最小化除所有 PySide 播放窗口和当前 PPT 外的其它顶层窗口。
+        PPT 放映窗口就绪后，最小化除所有 PySide 播放窗口和活跃 PPT 外的其它顶层窗口。
         :param adapter: 当前 PPT 适配器
         :return: None
         """
         from scp_cv.player.window_cleanup import minimize_unprotected_top_level_windows
 
-        ppt_hwnd = int(getattr(adapter, "external_slideshow_hwnd", 0) or 0)
-        protected_hwnds = [ppt_hwnd]
+        protected_hwnds = self._active_ppt_slideshow_hwnds(adapter)
         for window in self._windows.values():
             protected_hwns_attr = getattr(window, "top_level_window_handle", 0)
             try:
@@ -670,6 +669,25 @@ class PlayerCommandHandlersMixin:
             except (TypeError, ValueError):
                 continue
         minimize_unprotected_top_level_windows(protected_hwnds)
+
+    def _active_ppt_slideshow_hwnds(self, current_adapter: object) -> list[int]:
+        """
+        收集当前播放器内所有活跃 PPT 放映窗口 HWND。
+        :param current_adapter: 刚打开或刚同步的 PPT 适配器
+        :return: 可保护的 HWND 列表
+        """
+        protected_hwnds: list[int] = []
+        candidates = [current_adapter, *self._adapters.values()]
+        for candidate in candidates:
+            if not bool(getattr(candidate, "has_external_slideshow_window", False)):
+                continue
+            try:
+                ppt_hwnd = int(getattr(candidate, "external_slideshow_hwnd", 0) or 0)
+            except (TypeError, ValueError):
+                continue
+            if ppt_hwnd > 0 and ppt_hwnd not in protected_hwnds:
+                protected_hwnds.append(ppt_hwnd)
+        return protected_hwnds
 
     @staticmethod
     def _set_player_window_topmost(window: object, enabled: bool) -> None:

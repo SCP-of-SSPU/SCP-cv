@@ -29,6 +29,7 @@ class _OpenAdapter:
         self.closed = False
         self.fail_open = False
         self.has_external_slideshow_window = True
+        self.external_slideshow_hwnd = 9001
 
     def open(self, uri: str, window_handle: int, autoplay: bool = True) -> None:
         """
@@ -433,6 +434,32 @@ def test_handle_open_closes_previous_ppt_before_reopening_ppt(monkeypatch: pytes
     assert controller._adapters[1] is new_adapter
     assert window.calls == ["black", "show", "raise", "black", "show", "raise", "black", "show"]
     assert window.topmost == [True, True, False]
+
+
+def test_minimize_unprotected_windows_protects_all_active_ppt_hwnds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """打开第二个 PPT 时，不应把第一个 PPT 放映窗口当作未保护窗口最小化。"""
+    controller = PlayerController()
+    current_adapter = _OpenAdapter()
+    current_adapter.external_slideshow_hwnd = 9002
+    previous_adapter = _OpenAdapter()
+    previous_adapter.external_slideshow_hwnd = 9001
+    window = _WindowStub()
+    protected_calls: list[list[int]] = []
+
+    controller._adapters[1] = previous_adapter  # type: ignore[assignment]
+    controller._adapters[2] = current_adapter  # type: ignore[assignment]
+    controller._windows[1] = window  # type: ignore[assignment]
+
+    monkeypatch.setattr(
+        "scp_cv.player.window_cleanup.minimize_unprotected_top_level_windows",
+        lambda protected_hwnds: protected_calls.append(list(protected_hwnds)) or [],
+    )
+
+    controller._minimize_unprotected_windows_for_ppt(current_adapter)
+
+    assert protected_calls == [[9002, 9001, 5001]]
 
 
 def test_stop_polling_closes_adapters_without_reheat(monkeypatch: pytest.MonkeyPatch) -> None:

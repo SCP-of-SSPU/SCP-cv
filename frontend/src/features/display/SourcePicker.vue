@@ -3,7 +3,7 @@
  * 显示控制页左侧「切换源」面板：
  *   - 顶部搜索 + 类型筛选 Pill；
  *   - List/Detail 风格列表，点击行直接打开到当前窗口；
- *   - 折叠的「上传并打开」区域：上传但不保存 / 上传并保存。
+ *   - 折叠的「上传并打开」区域：上传后保存到媒体源并立即打开。
  */
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -72,7 +72,7 @@ function onFileSelect(event: Event): void {
   fileToUpload.value = target.files?.[0] ?? null;
 }
 
-async function uploadAndOpen(persist: boolean): Promise<void> {
+async function uploadAndOpen(): Promise<void> {
   if (!fileToUpload.value) {
     uploadError.value = t('sourcePicker.pickFileFirst');
     return;
@@ -83,7 +83,7 @@ async function uploadAndOpen(persist: boolean): Promise<void> {
   try {
     const result = await sourceStore.upload(fileToUpload.value, {
       name: fileDisplayName.value.trim() || undefined,
-      isTemporary: !persist,
+      isTemporary: false,
       onProgress: (percent) => {
         uploadProgress.value = percent;
       },
@@ -93,7 +93,7 @@ async function uploadAndOpen(persist: boolean): Promise<void> {
       toast.success(t('backgroundAudio.playingOk', { name: result.name }));
     } else {
       await sessionStore.openSource(props.windowId, result.id, true);
-      toast.success(persist ? t('sourcePicker.uploadedOpenedSave') : t('sourcePicker.uploadedOpenedNoSave'), t('sourcePicker.sourceNameDetail', { name: result.name }));
+      toast.success(t('sourcePicker.uploadedOpened'), t('sourcePicker.sourceNameDetail', { name: result.name }));
     }
     fileToUpload.value = null;
     fileDisplayName.value = '';
@@ -182,13 +182,9 @@ const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.v
         <n-progress v-if="uploading" type="line" :percentage="uploadProgress" />
 
         <div class="source-picker__upload-actions">
-          <n-button block :disabled="uploading || !fileToUpload"
-            :loading="uploading && uploadProgress < 100" @click="() => uploadAndOpen(false)">
-            {{ t('sourcePicker.uploadNoSave') }}
-          </n-button>
           <n-button type="primary" block :disabled="uploading || !fileToUpload" :loading="uploading"
-            @click="() => uploadAndOpen(true)">
-            {{ t('sourcePicker.uploadSave') }}
+            @click="uploadAndOpen">
+            {{ t('sourcePicker.uploadOpen') }}
           </n-button>
         </div>
       </div>
