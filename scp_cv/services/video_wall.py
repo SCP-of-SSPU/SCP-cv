@@ -9,9 +9,14 @@
 '''
 from __future__ import annotations
 
+from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 import socket
+import threading
+import time
 from ipaddress import IPv4Address
+from typing import cast
 
 from scp_cv.apps.playback.models import BigScreenMode
 
@@ -24,6 +29,10 @@ class VideoWallError(Exception):
 
 _TCP_PORT = 4830
 _TCP_TIMEOUT_SECONDS = 1.0
+_TCP_RETRY_ATTEMPTS = 5
+_TCP_RETRY_DELAY_SECONDS = 0.05
+_CLEAR_TO_MAPPING_DELAY_SECONDS = 0.1
+_MAX_PARALLEL_SENDS = 50
 _WALL_COLS = 10
 _WALL_ROWS = 5
 _SCREEN_WIDTH = 1920
@@ -36,6 +45,7 @@ _CLEAR_PACKET = bytes.fromhex("FB FC 61 FF 00 00 00 00 01 60 FD FE")
 _COMMIT_PACKET = bytes.fromhex("FB FC 61 B8 00 00 00 00 01 19 FD FE")
 _REFRESH_PACKET = bytes.fromhex("FB FC 61 B9 00 00 00 00 01 1A FD FE")
 _FIXED_FLAGS = bytes.fromhex("00 09 00 01 00 01")
+_APPLY_LOCK = threading.Lock()
 
 
 class VideoWallMode:
@@ -54,9 +64,129 @@ def apply_big_screen_mode(big_screen_mode: str) -> None:
     """
     mode = _video_wall_mode_for_runtime(big_screen_mode)
     sequence = build_sequence(mode)
-    for item in sequence:
-        _send_tcp_packet(item["ip"], item["port"], item["packet"])
+    with _APPLY_LOCK:
+        failures = _send_sequence_by_phase(sequence)
+    if failures:
+        summary = _format_failures(failures)
+        raise VideoWallError(f"发送视频墙控制包失败：{summary}")
     logger.info("视频墙模式已切换为 %s，共发送 %d 个 TCP 包", mode, len(sequence))
+
+
+def _send_sequence_by_phase(sequence: list[dict[str, object]]) -> list[dict[str, str]]:
+    """
+    按阶段并行下发控制包，阶段之间保持清屏、映射、提交、刷新的原始顺序。
+    :param sequence: 控制包发送序列
+    :return: 最终仍失败的发送项列表
+    """
+    failures: list[dict[str, str]] = []
+    for phase, items in _group_sequence_by_phase(sequence).items():
+        if phase == "mapping":
+            time.sleep(_CLEAR_TO_MAPPING_DELAY_SECONDS)
+        phase_failures = _send_phase_parallel(phase, items)
+        failures.extend(phase_failures)
+        if phase_failures:
+            return failures
+    return failures
+
+
+def _group_sequence_by_phase(sequence: list[dict[str, object]]) -> OrderedDict[str, list[dict[str, object]]]:
+    """
+    按协议阶段聚合控制包并保持首次出现顺序。
+    :param sequence: 控制包发送序列
+    :return: phase 到发送项列表的有序映射
+    """
+    grouped: OrderedDict[str, list[dict[str, object]]] = OrderedDict()
+    for item in sequence:
+        phase = _phase_group_name(str(item["phase"]))
+        grouped.setdefault(phase, []).append(item)
+    return grouped
+
+
+def _phase_group_name(phase: str) -> str:
+    """
+    将细分 phase 归并为可并行发送的协议阶段。
+    :param phase: 原始 phase 名
+    :return: 协议阶段名
+    """
+    if phase.startswith("mapping_"):
+        return "mapping"
+    return phase
+
+
+def _send_phase_parallel(phase: str, items: list[dict[str, object]]) -> list[dict[str, str]]:
+    """
+    并行发送单个阶段中的所有控制包。
+    :param phase: 阶段名
+    :param items: 同阶段发送项
+    :return: 最终失败项列表
+    """
+    if not items:
+        return []
+    failures: list[dict[str, str]] = []
+    worker_count = min(_MAX_PARALLEL_SENDS, len(items))
+    with ThreadPoolExecutor(max_workers=worker_count, thread_name_prefix="video-wall") as executor:
+        future_to_item = {
+            executor.submit(_send_item_with_retry, item): item
+            for item in items
+        }
+        for future in as_completed(future_to_item):
+            item = future_to_item[future]
+            try:
+                future.result()
+            except VideoWallError as send_error:
+                ip = str(item["ip"])
+                port = str(item["port"])
+                failures.append({
+                    "phase": str(item["phase"]),
+                    "target": f"{ip}:{port}",
+                    "error": str(send_error),
+                })
+    if failures:
+        logger.warning("视频墙阶段 %s 下发存在 %d 个失败节点", phase, len(failures))
+    return failures
+
+
+def _send_item_with_retry(item: dict[str, object]) -> None:
+    """
+    带短重试发送单个视频墙控制包。
+    :param item: 控制包发送项
+    :return: None
+    :raises VideoWallError: 多次发送仍失败时
+    """
+    last_error: VideoWallError | None = None
+    for attempt in range(1, _TCP_RETRY_ATTEMPTS + 1):
+        try:
+            _send_tcp_packet(str(item["ip"]), int(item["port"]), cast(bytes, item["packet"]))
+            if attempt > 1:
+                logger.info(
+                    "视频墙控制包重试成功：%s:%s phase=%s attempt=%d",
+                    item["ip"],
+                    item["port"],
+                    item["phase"],
+                    attempt,
+                )
+            return
+        except VideoWallError as send_error:
+            last_error = send_error
+            if attempt < _TCP_RETRY_ATTEMPTS:
+                time.sleep(_TCP_RETRY_DELAY_SECONDS)
+    if last_error is not None:
+        raise last_error
+
+
+def _format_failures(failures: list[dict[str, str]]) -> str:
+    """
+    格式化视频墙下发失败摘要。
+    :param failures: 失败项列表
+    :return: 面向日志和 API 的简短摘要
+    """
+    preview = "; ".join(
+        f"{failure['target']} phase={failure['phase']} error={failure['error']}"
+        for failure in failures[:5]
+    )
+    if len(failures) > 5:
+        preview = f"{preview}; 其余 {len(failures) - 5} 个失败"
+    return preview
 
 
 def build_sequence(mode: str) -> list[dict[str, object]]:

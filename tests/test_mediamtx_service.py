@@ -21,7 +21,10 @@ def test_publish_url_uses_configured_public_host(settings: object) -> None:
     """
     settings.MEDIAMTX_SRT_PUBLIC_HOST = "192.168.1.100"
 
-    assert get_srt_publish_url("camera-a") == "srt://192.168.1.100:8890?streamid=publish:camera-a&latency=30000"
+    assert (
+        get_srt_publish_url("camera-a")
+        == "srt://192.168.1.100:8890?streamid=publish:camera-a&latency=30000&pkt_size=1316"
+    )
 
 
 def test_read_url_uses_configured_read_host(settings: object) -> None:
@@ -68,5 +71,8 @@ def test_srt_latency_values_are_configurable(settings: object) -> None:
     settings.MEDIAMTX_SRT_PUBLISH_LATENCY_US = 120000
     settings.MEDIAMTX_SRT_READ_LATENCY_MS = 120
 
-    assert get_srt_publish_url("camera-a") == "srt://10.0.0.5:8890?streamid=publish:camera-a&latency=120000"
+    assert (
+        get_srt_publish_url("camera-a")
+        == "srt://10.0.0.5:8890?streamid=publish:camera-a&latency=120000&pkt_size=1316"
+    )
     assert get_srt_read_url("camera-a") == "srt://10.0.0.6:8890?streamid=read:camera-a&latency=120"

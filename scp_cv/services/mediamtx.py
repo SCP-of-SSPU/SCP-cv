@@ -73,7 +73,7 @@ def get_srt_publish_url(stream_identifier: str) -> str:
     """
     public_host = _detect_lan_host()
     latency_us = int(getattr(settings, "MEDIAMTX_SRT_PUBLISH_LATENCY_US", 30000))
-    return f"srt://{public_host}:{_SRT_PORT}?streamid=publish:{stream_identifier}&latency={latency_us}"
+    return f"srt://{public_host}:{_SRT_PORT}?streamid=publish:{stream_identifier}&latency={latency_us}&pkt_size=1316"
 
 
 def get_srt_read_url(stream_identifier: str) -> str:

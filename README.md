@@ -101,7 +101,7 @@ PPT 相关配置：
 
 直播与低延迟相关配置：
 
-- `MEDIAMTX_SRT_PUBLISH_LATENCY_US=30000`：SRT 推流端 URL 中的 latency，按微秒理解，默认保留现场已验证的 30ms。
+- `MEDIAMTX_SRT_PUBLISH_LATENCY_US=30000`：SRT 推流端 URL 中的 latency，按微秒理解，默认保留现场已验证的 30ms；OBS / 编码器推流地址形如 `srt://<主机IP>:8890?streamid=publish:<流标识>&latency=30000&pkt_size=1316`。
 - `MEDIAMTX_SRT_READ_LATENCY_MS=50`：播放器 SRT 拉流 URL 中的 latency，按毫秒理解，可按现场网络质量增减。
 - `MEDIAMTX_RTSP_READ_TRANSPORT=tcp`：RTSP 拉流传输策略，播放器会转换为 libVLC `:rtsp-tcp` 或 `:rtsp-udp`。
 - `STREAM_VLC_NETWORK_CACHING_MS=50`、`STREAM_VLC_LIVE_CACHING_MS=50`、`STREAM_VLC_FILE_CACHING_MS=0`：前台 libVLC 播放缓存参数。

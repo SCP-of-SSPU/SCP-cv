@@ -16,6 +16,17 @@ import sys
 from pathlib import Path
 
 
+def _ensure_project_root_on_path() -> None:
+    """
+    将项目根目录加入 sys.path，保证脚本直跑时也能导入 scp_cv。
+    :return: None
+    """
+    project_root = Path(__file__).resolve().parents[2]
+    project_root_text = str(project_root)
+    if project_root_text not in sys.path:
+        sys.path.insert(0, project_root_text)
+
+
 def main(argv: list[str] | None = None) -> int:
     """
     执行 PPT 预览导出并把结果以单行 JSON 写到标准输出。
@@ -28,6 +39,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "scp_cv.settings")
+    _ensure_project_root_on_path()
     try:
         import django
 

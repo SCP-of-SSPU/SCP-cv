@@ -74,6 +74,7 @@ def _export_ppt_slide_previews_with_worker(file_path: Path, source_id: int) -> l
     ]
     env = os.environ.copy()
     env.setdefault("DJANGO_SETTINGS_MODULE", "scp_cv.settings")
+    env["PYTHONPATH"] = _prepend_pythonpath(str(settings.BASE_DIR), env.get("PYTHONPATH", ""))
     try:
         completed = subprocess.run(
             command,
@@ -103,6 +104,21 @@ def _export_ppt_slide_previews_with_worker(file_path: Path, source_id: int) -> l
         )
         return []
     return _parse_worker_preview_output(completed.stdout)
+
+
+def _prepend_pythonpath(path: str, current_pythonpath: str) -> str:
+    """
+    将项目根目录加入 PYTHONPATH 前部，确保 worker 可导入 scp_cv 包。
+    :param path: 需要加入的路径
+    :param current_pythonpath: 当前 PYTHONPATH
+    :return: 合并后的 PYTHONPATH
+    """
+    if not current_pythonpath:
+        return path
+    entries = [entry for entry in current_pythonpath.split(os.pathsep) if entry]
+    if path in entries:
+        return current_pythonpath
+    return os.pathsep.join([path, *entries])
 
 
 def _parse_worker_preview_output(stdout: str) -> list[str]:

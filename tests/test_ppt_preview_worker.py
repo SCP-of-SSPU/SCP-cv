@@ -10,7 +10,10 @@ PPT 预览 worker 测试，验证隔离进程入口的 JSON 协议。
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 import types
+from pathlib import Path
 
 from pytest import CaptureFixture, MonkeyPatch
 
@@ -63,3 +66,62 @@ def test_worker_main_reports_invalid_arguments(capsys: CaptureFixture[str]) -> N
     assert exit_code == 2
     assert payload["success"] is False
     assert payload["previews"] == []
+
+
+def test_preview_worker_subprocess_receives_project_pythonpath(
+    monkeypatch: MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """父进程启动预览 worker 时应显式传入项目根 PYTHONPATH。"""
+    captured: dict[str, object] = {}
+    ppt_file = tmp_path / "demo.pptx"
+    ppt_file.write_bytes(_minimal_pptx_bytes())
+
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        """
+        记录 worker 启动参数并返回空预览结果。
+        :param command: 子进程命令
+        :param kwargs: subprocess.run 关键字参数
+        :return: 完成结果
+        """
+        captured["command"] = command
+        captured["kwargs"] = kwargs
+        return subprocess.CompletedProcess(command, 0, stdout='{"success": true, "previews": []}\n', stderr="")
+
+    monkeypatch.setattr(ppt_preview.subprocess, "run", fake_run)
+
+    previews = ppt_preview.export_ppt_slide_previews(ppt_file, 9)
+
+    assert previews == []
+    env = captured["kwargs"]["env"]  # type: ignore[index]
+    assert str(ppt_preview.settings.BASE_DIR) in str(env["PYTHONPATH"]).split(os.pathsep)  # type: ignore[index]
+    assert captured["kwargs"]["cwd"] == str(ppt_preview.settings.BASE_DIR)  # type: ignore[index]
+
+
+def test_worker_adds_project_root_to_sys_path(monkeypatch: MonkeyPatch) -> None:
+    """worker 脚本直跑时应自行把项目根目录加入 sys.path。"""
+    project_root = str(Path(ppt_preview_worker.__file__).resolve().parents[2])
+    original_path = list(ppt_preview_worker.sys.path)
+    monkeypatch.setattr(
+        ppt_preview_worker.sys,
+        "path",
+        [path for path in original_path if path != project_root],
+    )
+
+    ppt_preview_worker._ensure_project_root_on_path()
+
+    assert ppt_preview_worker.sys.path[0] == project_root
+
+
+def _minimal_pptx_bytes() -> bytes:
+    """
+    生成可通过粗略格式检查的最小 pptx zip。
+    :return: pptx 字节
+    """
+    import io
+    import zipfile
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("[Content_Types].xml", "<Types />")
+    return buffer.getvalue()

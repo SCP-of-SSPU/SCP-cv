@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-06-09
+
+### 修复现场控制与推流配置提示
+
+- 后端：SRT 推流 URL 按 MediaMTX SRT 客户端格式补充 `pkt_size=1316`，保留 `streamid=publish:<流标识>` 与低延迟 `latency`。
+- 文档：OBS 推流示例统一使用 `<主机IP>:8890`，明确本项目未开启 RTMP，避免现场误用 `127.0.0.1`、`:9997` 或 RTMP 地址。
+
 ## 2026-06-08
 
 ### 统一 PPT 为 PowerPoint-only
