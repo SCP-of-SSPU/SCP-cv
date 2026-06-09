@@ -13,6 +13,16 @@ import logging
 from collections.abc import Iterable
 
 logger = logging.getLogger(__name__)
+_POWERPOINT_SLIDESHOW_CLASS_NAMES = frozenset({
+    "screenClass",
+    "paneClassDC",
+    "PPTFrameClass",
+})
+_POWERPOINT_SLIDESHOW_TITLE_MARKERS = (
+    "slide show",
+    "slideshow",
+    "幻灯片放映",
+)
 
 
 def minimize_unprotected_top_level_windows(protected_hwnds: Iterable[int]) -> list[int]:
@@ -38,6 +48,8 @@ def minimize_unprotected_top_level_windows(protected_hwnds: Iterable[int]) -> li
         root_hwnd = _root_window(win32gui, win32con, int(hwnd))
         if root_hwnd in protected_roots:
             return True
+        if _is_powerpoint_slideshow_window(win32gui, int(hwnd), root_hwnd):
+            return True
         if not _is_minimizable_top_level_window(win32gui, win32con, int(hwnd), root_hwnd):
             return True
         try:
@@ -54,6 +66,38 @@ def minimize_unprotected_top_level_windows(protected_hwnds: Iterable[int]) -> li
     if minimized:
         logger.info("PPT 放映期间已最小化未保护窗口：%s", minimized)
     return minimized
+
+
+def _is_powerpoint_slideshow_window(win32gui: object, hwnd: int, root_hwnd: int) -> bool:
+    """
+    判断窗口是否为 PowerPoint 放映窗口；放映窗口即使未在保护列表中也不应被清理。
+
+    :param win32gui: win32gui 模块或测试替身
+    :param hwnd: 枚举到的窗口句柄
+    :param root_hwnd: 根窗口句柄
+    :return: True 表示应保留该 PowerPoint 放映窗口
+    """
+    if hwnd != root_hwnd:
+        return False
+    try:
+        if not win32gui.IsWindowVisible(root_hwnd):  # type: ignore[attr-defined]
+            return False
+    except Exception:
+        return False
+    try:
+        class_name = str(win32gui.GetClassName(root_hwnd))  # type: ignore[attr-defined]
+    except Exception:
+        class_name = ""
+    if class_name not in _POWERPOINT_SLIDESHOW_CLASS_NAMES:
+        return False
+    try:
+        title = str(win32gui.GetWindowText(root_hwnd))  # type: ignore[attr-defined]
+    except Exception:
+        title = ""
+    normalized_title = title.casefold()
+    if not normalized_title:
+        return True
+    return any(marker in normalized_title for marker in _POWERPOINT_SLIDESHOW_TITLE_MARKERS)
 
 
 def _normalized_protected_roots(protected_hwnds: Iterable[int]) -> set[int]:
