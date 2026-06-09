@@ -3,7 +3,7 @@
  * 移动端「更多」 Sheet：列出二级入口。
  * tabbar「更多」弹出底部 Sheet（DESIGN.md §2 Scale 适配下的移动端导航形态）。
  */
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import {
@@ -11,13 +11,12 @@ import {
   NCard,
   NDrawer,
   NDrawerContent,
-  NRadio,
-  NRadioGroup,
   NSwitch,
 } from 'naive-ui';
 
 import EmergencyMenu from './EmergencyMenu.vue';
 import FIcon from '@/design-system/FIcon.vue';
+import BigScreenModeButtons from '@/features/runtime/BigScreenModeButtons.vue';
 import { useDialog } from '@/composables/useDialog';
 import { useToast } from '@/composables/useToast';
 import { useRuntimeStore } from '@/stores/runtime';
@@ -30,18 +29,22 @@ const router = useRouter();
 const runtime = useRuntimeStore();
 const dialog = useDialog();
 const toast = useToast();
+const pendingMode = ref<'single' | 'double' | null>(null);
 
-const screenMode = computed({
-  get: () => runtime.runtime?.big_screen_mode ?? 'single',
-  set: async (mode: string) => {
-    try {
-      await runtime.setBigScreenMode(mode as 'single' | 'double');
-      toast.success(mode === 'double' ? t('more.switchedDouble') : t('more.switchedSingle'));
-    } catch (error) {
-      toast.error(t('more.switchFail'), error instanceof Error ? error.message : t('common.retry'));
-    }
-  },
-});
+const currentScreenMode = computed<'single' | 'double'>(() => runtime.runtime?.big_screen_mode ?? 'single');
+
+async function switchScreenMode(mode: 'single' | 'double'): Promise<void> {
+  if (pendingMode.value !== null) return;
+  pendingMode.value = mode;
+  try {
+    await runtime.setBigScreenMode(mode);
+    toast.success(mode === 'double' ? t('more.switchedDouble') : t('more.switchedSingle'));
+  } catch (error) {
+    toast.error(t('more.switchFail'), error instanceof Error ? error.message : t('common.retry'));
+  } finally {
+    pendingMode.value = null;
+  }
+}
 
 const muteToggle = computed({
   get: () => runtime.systemVolume.muted,
@@ -83,10 +86,12 @@ void dialog;
       <p class="more-sheet__desc">{{ t('more.desc') }}</p>
 
       <n-card size="small" :title="t('more.screenMode')" class="more-sheet__card">
-        <n-radio-group v-model:value="screenMode">
-          <n-radio value="single">{{ t('screen.single') }}</n-radio>
-          <n-radio value="double">{{ t('screen.double') }}</n-radio>
-        </n-radio-group>
+        <BigScreenModeButtons
+          :current-mode="currentScreenMode"
+          :pending-mode="pendingMode"
+          block
+          @select="switchScreenMode"
+        />
         <p class="more-sheet__hint">{{ t('more.screenHint') }}</p>
       </n-card>
 

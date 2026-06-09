@@ -28,11 +28,12 @@ class VideoWallError(Exception):
 
 
 _TCP_PORT = 4830
-_TCP_TIMEOUT_SECONDS = 1.0
+_TCP_TIMEOUT_SECONDS = 2.0
 _TCP_RETRY_ATTEMPTS = 5
-_TCP_RETRY_DELAY_SECONDS = 0.05
-_CLEAR_TO_MAPPING_DELAY_SECONDS = 0.1
-_MAX_PARALLEL_SENDS = 50
+_TCP_RETRY_BASE_DELAY_SECONDS = 0.2
+_TCP_RETRY_MAX_DELAY_SECONDS = 1.0
+_CLEAR_TO_MAPPING_DELAY_SECONDS = 0.2
+_MAX_PARALLEL_SENDS = 25
 _WALL_COLS = 10
 _WALL_ROWS = 5
 _SCREEN_WIDTH = 1920
@@ -169,9 +170,33 @@ def _send_item_with_retry(item: dict[str, object]) -> None:
         except VideoWallError as send_error:
             last_error = send_error
             if attempt < _TCP_RETRY_ATTEMPTS:
-                time.sleep(_TCP_RETRY_DELAY_SECONDS)
+                retry_delay = _retry_delay_seconds(attempt)
+                logger.warning(
+                    "视频墙控制包发送失败，将重试：%s:%s phase=%s attempt=%d/%d delay=%.2fs error=%s",
+                    item["ip"],
+                    item["port"],
+                    item["phase"],
+                    attempt,
+                    _TCP_RETRY_ATTEMPTS,
+                    retry_delay,
+                    send_error,
+                )
+                time.sleep(retry_delay)
     if last_error is not None:
         raise last_error
+
+
+def _retry_delay_seconds(failed_attempt: int) -> float:
+    """
+    计算 TCP 控制包失败后的退避等待时间，避免设备端 accept 队列忙碌时立即重撞。
+    :param failed_attempt: 刚失败的尝试序号，从 1 开始
+    :return: 本次重试前等待秒数
+    """
+    exponent = max(0, failed_attempt - 1)
+    return min(
+        _TCP_RETRY_MAX_DELAY_SECONDS,
+        _TCP_RETRY_BASE_DELAY_SECONDS * (2 ** exponent),
+    )
 
 
 def _format_failures(failures: list[dict[str, str]]) -> str:
@@ -383,6 +408,20 @@ def _send_tcp_packet(ip: str, port: int, packet: bytes) -> None:
     """
     try:
         with socket.create_connection((ip, port), timeout=_TCP_TIMEOUT_SECONDS) as tcp_socket:
+            _prepare_tcp_socket(tcp_socket)
             tcp_socket.sendall(packet)
     except OSError as send_error:
         raise VideoWallError(f"发送视频墙控制包失败：{ip}:{port} {send_error}") from send_error
+
+
+def _prepare_tcp_socket(tcp_socket: socket.socket) -> None:
+    """
+    配置已完成握手的 TCP socket，确保小控制帧及时发出且 sendall 继承明确超时。
+    :param tcp_socket: 已连接的 TCP socket
+    :return: None
+    """
+    tcp_socket.settimeout(_TCP_TIMEOUT_SECONDS)
+    try:
+        tcp_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+    except OSError:
+        logger.debug("视频墙 TCP_NODELAY 设置失败，继续使用默认 socket 行为", exc_info=True)

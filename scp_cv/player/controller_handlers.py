@@ -108,6 +108,8 @@ class PlayerCommandHandlersMixin:
                 window.show()
                 self._set_player_window_topmost(window, True)
                 window.raise_()
+                if is_ppt_source:
+                    self._prepare_ppt_anchor_window(window_id, window)
 
             self._prepare_adapter_preheat_context(
                 adapter,
@@ -652,6 +654,27 @@ class PlayerCommandHandlersMixin:
         window.show()
         self._set_player_window_topmost(window, True)
         window.raise_()
+
+    @staticmethod
+    def _prepare_ppt_anchor_window(window_id: int, window: object) -> None:
+        """
+        首次打开 PPT 前激活渲染容器，避免 PowerPoint 读取到未 show 的小矩形。
+        :param window_id: 窗口编号
+        :param window: PlayerWindow 或测试替身
+        :return: None
+        """
+        try:
+            prepare_anchor = getattr(window, "prepare_ppt_anchor", None)
+            if callable(prepare_anchor):
+                prepare_anchor()
+                return
+            show_video_container = getattr(window, "show_video_container", None)
+            if callable(show_video_container):
+                show_video_container()
+                window.show()
+                window.raise_()
+        except Exception as prepare_error:
+            logger.debug("窗口 %d PPT 锚点容器激活失败：%s", window_id, prepare_error)
 
     def _minimize_unprotected_windows_for_ppt(self, adapter: object) -> None:
         """

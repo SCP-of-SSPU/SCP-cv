@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 _PRESENT_VERIFY_RETRIES = 4
 _PRESENT_VERIFY_DELAY_SECONDS = 0.1
 _RECT_TOLERANCE_PX = 2
+_MIN_TRUSTED_ANCHOR_WIDTH = 640
+_MIN_TRUSTED_ANCHOR_HEIGHT = 360
 
 
 def present_external_slideshow_window(slideshow_hwnd: int, anchor_hwnd: int) -> tuple[int, int]:
@@ -114,7 +116,16 @@ def _target_rect_from_anchor(
     try:
         left, top, right, bottom = win32gui.GetWindowRect(anchor_hwnd)  # type: ignore[attr-defined]
         if right > left and bottom > top:
-            return int(left), int(top), int(right), int(bottom)
+            anchor_rect = int(left), int(top), int(right), int(bottom)
+            fallback_rect = _root_rect_for_small_anchor(
+                win32gui,
+                win32con,
+                anchor_hwnd,
+                anchor_rect,
+            )
+            if fallback_rect is not None:
+                return fallback_rect
+            return anchor_rect
     except Exception:
         pass
 
@@ -146,6 +157,54 @@ def _target_rect_from_anchor(
         return 0, 0, 1, 1
     left, top, right, bottom = monitor_rect
     return int(left), int(top), int(right), int(bottom)
+
+
+def _root_rect_for_small_anchor(
+    win32gui: object,
+    win32con: object,
+    anchor_hwnd: int,
+    anchor_rect: tuple[int, int, int, int],
+) -> tuple[int, int, int, int] | None:
+    """
+    当首次显示时容器 HWND 仍是异常小矩形，回退到播放器顶层窗口矩形。
+    :param win32gui: win32gui 模块或测试替身
+    :param win32con: win32con 模块或测试替身
+    :param anchor_hwnd: PySide 播放器容器 HWND
+    :param anchor_rect: 当前读取到的容器矩形
+    :return: 可用顶层窗口矩形，或 None
+    """
+    anchor_width = anchor_rect[2] - anchor_rect[0]
+    anchor_height = anchor_rect[3] - anchor_rect[1]
+    if (
+        anchor_width >= _MIN_TRUSTED_ANCHOR_WIDTH
+        and anchor_height >= _MIN_TRUSTED_ANCHOR_HEIGHT
+    ):
+        return None
+
+    try:
+        root_hwnd = win32gui.GetAncestor(  # type: ignore[attr-defined]
+            anchor_hwnd,
+            getattr(win32con, "GA_ROOT", 2),
+        )
+        if not root_hwnd or root_hwnd == anchor_hwnd:
+            return None
+        left, top, right, bottom = win32gui.GetWindowRect(root_hwnd)  # type: ignore[attr-defined]
+    except Exception:
+        return None
+
+    root_rect = int(left), int(top), int(right), int(bottom)
+    root_width = root_rect[2] - root_rect[0]
+    root_height = root_rect[3] - root_rect[1]
+    if root_width <= anchor_width or root_height <= anchor_height:
+        return None
+    if root_width < _MIN_TRUSTED_ANCHOR_WIDTH or root_height < _MIN_TRUSTED_ANCHOR_HEIGHT:
+        return None
+    logger.debug(
+        "PPT 锚点矩形过小，改用顶层播放器窗口矩形：anchor=%s, root=%s",
+        anchor_rect,
+        root_rect,
+    )
+    return root_rect
 
 
 def _set_external_window_styles(

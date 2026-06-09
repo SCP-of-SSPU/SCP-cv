@@ -3,19 +3,18 @@
  * 设置中心运行态 Tab。
  * 承载大屏模式、系统音量、SSE 状态与重置全部窗口等全局运行控制。
  */
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
   NButton,
   NCard,
-  NRadio,
-  NRadioGroup,
   NSlider,
   NSwitch,
   NTag,
 } from 'naive-ui';
 
 import FIcon from '@/design-system/FIcon.vue';
+import BigScreenModeButtons from '@/features/runtime/BigScreenModeButtons.vue';
 import { useThrottledSlider } from '@/composables/useThrottledSlider';
 import { useToast } from '@/composables/useToast';
 import { useRuntimeStore } from '@/stores/runtime';
@@ -25,18 +24,22 @@ const { t } = useI18n();
 const runtime = useRuntimeStore();
 const session = useSessionStore();
 const toast = useToast();
+const pendingMode = ref<'single' | 'double' | null>(null);
 
-const screenMode = computed({
-  get: () => runtime.runtime?.big_screen_mode ?? 'single',
-  set: async (mode: string) => {
-    try {
-      await runtime.setBigScreenMode(mode as 'single' | 'double');
-      toast.success(mode === 'double' ? t('more.switchedDouble') : t('more.switchedSingle'));
-    } catch (error) {
-      toast.error(t('more.switchFail'), error instanceof Error ? error.message : t('common.retry'));
-    }
-  },
-});
+const currentScreenMode = computed<'single' | 'double'>(() => runtime.runtime?.big_screen_mode ?? 'single');
+
+async function switchScreenMode(mode: 'single' | 'double'): Promise<void> {
+  if (pendingMode.value !== null) return;
+  pendingMode.value = mode;
+  try {
+    await runtime.setBigScreenMode(mode);
+    toast.success(mode === 'double' ? t('more.switchedDouble') : t('more.switchedSingle'));
+  } catch (error) {
+    toast.error(t('more.switchFail'), error instanceof Error ? error.message : t('common.retry'));
+  } finally {
+    pendingMode.value = null;
+  }
+}
 
 const volume = useThrottledSlider(
   () => runtime.systemVolume.level,
@@ -98,10 +101,12 @@ async function resetAll(): Promise<void> {
 <template>
   <section class="settings-view__grid">
     <n-card :title="t('settings.bigScreenMode')">
-      <n-radio-group v-model:value="screenMode">
-        <n-radio value="single">{{ t('screen.single') }}</n-radio>
-        <n-radio value="double">{{ t('screen.double') }}</n-radio>
-      </n-radio-group>
+      <BigScreenModeButtons
+        :current-mode="currentScreenMode"
+        :pending-mode="pendingMode"
+        block
+        @select="switchScreenMode"
+      />
       <p class="settings-view__hint">{{ t('settings.bigScreenHint') }}</p>
     </n-card>
 

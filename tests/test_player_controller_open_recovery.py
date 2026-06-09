@@ -143,6 +143,13 @@ class _WindowStub:
         """
         self.calls.append("video")
 
+    def prepare_ppt_anchor(self) -> None:
+        """
+        记录 PPT 锚点容器预激活。
+        :return: None
+        """
+        self.calls.append("ppt_anchor")
+
 
 def test_handle_open_ignores_legacy_ppt_backend_option(monkeypatch: pytest.MonkeyPatch) -> None:
     """播放器处理 OPEN 指令时应忽略旧 ppt_backend 字段。"""
@@ -190,7 +197,7 @@ def test_handle_open_ignores_legacy_ppt_backend_option(monkeypatch: pytest.Monke
     assert controller._adapters[1] is adapter
     assert controller._adapter_source_ids[1] == 7
     assert states == [(1, "playing")]
-    assert window.calls == ["black", "show", "raise", "black", "show"]
+    assert window.calls == ["black", "show", "raise", "ppt_anchor", "black", "show"]
     assert window.topmost == [True, False]
 
 
@@ -216,7 +223,7 @@ def test_handle_open_keeps_black_window_when_ppt_has_no_slideshow(monkeypatch: p
         "autoplay": False,
     })
 
-    assert window.calls == ["black", "show", "raise", "black", "show", "raise"]
+    assert window.calls == ["black", "show", "raise", "ppt_anchor", "black", "show", "raise"]
     assert states == [(1, "loading")]
 
 
@@ -243,7 +250,7 @@ def test_handle_open_restores_window_when_ppt_open_fails(monkeypatch: pytest.Mon
 
     assert adapter.closed is True
     assert controller._adapters == {}
-    assert window.calls == ["black", "show", "raise", "black", "show", "raise"]
+    assert window.calls == ["black", "show", "raise", "ppt_anchor", "black", "show", "raise"]
 
 
 def test_handle_stop_restores_black_window_for_ppt(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -432,7 +439,17 @@ def test_handle_open_closes_previous_ppt_before_reopening_ppt(monkeypatch: pytes
     assert calls == ["previous_close", "new_open", "reheat:77"]
     assert previous_adapter.closed is True
     assert controller._adapters[1] is new_adapter
-    assert window.calls == ["black", "show", "raise", "black", "show", "raise", "black", "show"]
+    assert window.calls == [
+        "black",
+        "show",
+        "raise",
+        "black",
+        "show",
+        "raise",
+        "ppt_anchor",
+        "black",
+        "show",
+    ]
     assert window.topmost == [True, True, False]
 
 

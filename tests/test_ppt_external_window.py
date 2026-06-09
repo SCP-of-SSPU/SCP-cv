@@ -34,7 +34,9 @@ def _install_fake_win32_modules(monkeypatch: MonkeyPatch) -> dict[str, object]:
         "show_window": [],
     }
     window_rects: dict[int, tuple[int, int, int, int]] = {
+        1002: (0, 0, 1600, 900),
         2001: (100, 200, 1380, 920),
+        2002: (0, 0, 300, 200),
         909: (0, 0, 300, 200),
     }
     fake_win32con = ModuleType("win32con")
@@ -67,6 +69,15 @@ def _install_fake_win32_modules(monkeypatch: MonkeyPatch) -> dict[str, object]:
         :return: 矩形
         """
         return window_rects.get(hwnd, (0, 0, 300, 200))
+
+    def get_ancestor(hwnd: int, _flags: int) -> int:
+        """
+        返回伪顶层窗口句柄。
+        :param hwnd: 窗口句柄
+        :param _flags: 祖先查询 flags
+        :return: 顶层窗口句柄
+        """
+        return {2002: 1002}.get(hwnd, hwnd)
 
     def monitor_from_window(hwnd: int, _flags: int) -> str:
         """
@@ -189,6 +200,7 @@ def _install_fake_win32_modules(monkeypatch: MonkeyPatch) -> dict[str, object]:
     fake_win32api.EnumDisplayMonitors = enum_display_monitors
     fake_win32api.GetMonitorInfo = get_monitor_info
     fake_win32gui.GetWindowRect = get_window_rect
+    fake_win32gui.GetAncestor = get_ancestor
     fake_win32gui.GetWindowLong = get_window_long
     fake_win32gui.SetWindowLong = set_window_long
     fake_win32gui.SetParent = set_parent
@@ -212,6 +224,20 @@ def test_present_external_slideshow_window_uses_anchor_rect(monkeypatch: MonkeyP
     assert calls["show_window"] == [(909, 9), (909, 9)]
     assert calls["set_window_pos"][-1][:6] == (909, -1, 100, 200, 1280, 720)
     assert calls["move_window"] == [(909, 100, 200, 1280, 720, True)]
+
+
+def test_present_external_slideshow_window_uses_root_rect_when_anchor_is_tiny(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """首次启动时锚点矩形异常偏小，应回退到播放器顶层窗口区域。"""
+    calls = _install_fake_win32_modules(monkeypatch)
+
+    size = present_external_slideshow_window(909, 2002)
+
+    assert size == (1600, 900)
+    assert calls["set_parent"] == [(909, 0)]
+    assert calls["set_window_pos"][-1][:6] == (909, -1, 0, 0, 1600, 900)
+    assert calls["move_window"] == [(909, 0, 0, 1600, 900, True)]
 
 
 def test_present_external_slideshow_window_retries_until_rect_matches(

@@ -248,6 +248,7 @@ interface ApiDetailPayload {
 }
 
 const REQUEST_TIMEOUT_MS = 10000;
+const RUNTIME_MODE_TIMEOUT_MS = 120000;
 export const PHYSICAL_SMOKE_TOTAL_TIMEOUT_SECONDS = 9 * 60;
 const PHYSICAL_SMOKE_TIMEOUT_MS = (PHYSICAL_SMOKE_TOTAL_TIMEOUT_SECONDS + 60) * 1000;
 const DEFAULT_BACKEND_PORT = '8000';
@@ -443,7 +444,11 @@ export const api = {
   listPptResources: (sourceId: number) => requestJson<{ success: boolean; resources: PptResourceItem[] }>(`/api/sources/${sourceId}/ppt-resources/`),
   listSessions: () => requestJson<ApiStatePayload>('/api/sessions/'),
   getRuntime: () => requestJson<{ success: boolean; runtime: RuntimeSnapshot }>('/api/runtime/'),
-  setRuntimeMode: (bigScreenMode: 'single' | 'double') => requestJson<ApiStatePayload & { runtime: RuntimeSnapshot }>('/api/runtime/', { method: 'PATCH', body: JSON.stringify({ big_screen_mode: bigScreenMode }) }),
+  setRuntimeMode: (bigScreenMode: 'single' | 'double') =>
+    requestJson<ApiStatePayload & { runtime: RuntimeSnapshot }>('/api/runtime/', {
+      method: 'PATCH',
+      body: JSON.stringify({ big_screen_mode: bigScreenMode }),
+    }, RUNTIME_MODE_TIMEOUT_MS),
   getSystemVolume: () => requestJson<{ success: boolean; volume: { level: number; muted: boolean; system_synced: boolean; backend: string } }>('/api/volume/'),
   setSystemVolume: (level: number, muted?: boolean) => requestJson<{ success: boolean; volume: { level: number; muted: boolean; system_synced: boolean; backend: string } }>('/api/volume/', { method: 'PATCH', body: JSON.stringify({ level, ...(muted === undefined ? {} : { muted }) }) }),
   getBackgroundAudio: () => requestJson<BackgroundAudioPayload>('/api/background-audio/'),

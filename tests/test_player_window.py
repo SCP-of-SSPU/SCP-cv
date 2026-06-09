@@ -94,3 +94,27 @@ def test_player_window_tracks_new_child_widgets_while_cursor_hidden(qt_app: QApp
     finally:
         window.close()
         qt_app.processEvents()
+
+
+def test_player_window_prepares_ppt_anchor_container(qt_app: QApplication) -> None:
+    """
+    PPT 首次打开前应激活视频容器并同步为播放器窗口尺寸。
+    :param qt_app: QApplication fixture
+    :return: None
+    """
+    window = PlayerWindow(window_id=4, debug_mode=True)
+
+    try:
+        window.resize(800, 450)
+        window.show_black_screen()
+
+        window.prepare_ppt_anchor()
+
+        assert window.is_showing_video is True
+        assert window._video_viewport.isVisible()
+        assert window._video_container.isVisible()
+        assert window._video_container.geometry().width() == 800
+        assert window._video_container.geometry().height() == 450
+    finally:
+        window.close()
+        qt_app.processEvents()

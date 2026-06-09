@@ -20,6 +20,7 @@ from scp_cv.services.video_wall import (
     VideoWallError,
     VideoWallMode,
     _mapping_packet,
+    _retry_delay_seconds,
     _video_wall_mode_for_runtime,
     all_target_ips,
     build_sequence,
@@ -188,7 +189,7 @@ def test_apply_big_screen_mode_retries_transient_packet_error(monkeypatch: Any) 
 
 
 def test_apply_big_screen_mode_waits_between_clear_and_mapping(monkeypatch: Any) -> None:
-    """清空内容阶段完成后，应等待 100ms 再发送更改显示映射包。"""
+    """清空内容阶段完成后，应等待 200ms 再发送更改显示映射包。"""
     from scp_cv.services import video_wall
 
     sleep_calls: list[float] = []
@@ -203,7 +204,18 @@ def test_apply_big_screen_mode_waits_between_clear_and_mapping(monkeypatch: Any)
 
     video_wall.apply_big_screen_mode(BigScreenMode.SINGLE)
 
-    assert sleep_calls == [0.1]
+    assert sleep_calls == [0.2]
+
+
+def test_video_wall_retry_delay_uses_bounded_backoff() -> None:
+    """TCP 握手失败后的重试间隔应逐步退避并设上限。"""
+    assert [_retry_delay_seconds(attempt) for attempt in range(1, 6)] == [
+        0.2,
+        0.4,
+        0.8,
+        1.0,
+        1.0,
+    ]
 
 
 def test_apply_big_screen_mode_reports_error_after_five_attempts(monkeypatch: Any) -> None:
@@ -249,3 +261,77 @@ def test_apply_big_screen_mode_reports_error_after_five_attempts(monkeypatch: An
     assert b"commit-ok" not in sent_packets
     assert b"refresh-ok" not in sent_packets
     assert "192.168.5.101:4830" in str(error.value)
+
+
+def test_send_tcp_packet_sets_timeout_and_nodelay(monkeypatch: Any) -> None:
+    """视频墙 TCP 控制帧应使用明确超时并关闭 Nagle 延迟。"""
+    from scp_cv.services import video_wall
+
+    class FakeSocket:
+        """
+        记录 TCP socket 配置和发送内容。
+        """
+
+        def __init__(self) -> None:
+            """初始化记录容器。"""
+            self.timeouts: list[float] = []
+            self.options: list[tuple[int, int, int]] = []
+            self.sent: list[bytes] = []
+
+        def __enter__(self) -> "FakeSocket":
+            """进入上下文管理器。"""
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            """退出上下文管理器。"""
+            return None
+
+        def settimeout(self, timeout: float) -> None:
+            """
+            记录 sendall 超时。
+            :param timeout: 超时秒数
+            :return: None
+            """
+            self.timeouts.append(timeout)
+
+        def setsockopt(self, level: int, option: int, value: int) -> None:
+            """
+            记录 socket 选项。
+            :param level: 协议层
+            :param option: 选项编号
+            :param value: 选项值
+            :return: None
+            """
+            self.options.append((level, option, value))
+
+        def sendall(self, packet: bytes) -> None:
+            """
+            记录发送内容。
+            :param packet: 控制帧
+            :return: None
+            """
+            self.sent.append(packet)
+
+    fake_socket = FakeSocket()
+    create_calls: list[tuple[tuple[str, int], float]] = []
+
+    def fake_create_connection(address: tuple[str, int], timeout: float) -> FakeSocket:
+        """
+        记录 TCP 握手目标与超时。
+        :param address: 目标地址
+        :param timeout: 连接超时
+        :return: 假 socket
+        """
+        create_calls.append((address, timeout))
+        return fake_socket
+
+    monkeypatch.setattr(video_wall.socket, "create_connection", fake_create_connection)
+
+    video_wall._send_tcp_packet("192.168.5.101", 4830, b"frame")
+
+    assert create_calls == [(("192.168.5.101", 4830), 2.0)]
+    assert fake_socket.timeouts == [2.0]
+    assert fake_socket.options == [
+        (video_wall.socket.IPPROTO_TCP, video_wall.socket.TCP_NODELAY, 1),
+    ]
+    assert fake_socket.sent == [b"frame"]

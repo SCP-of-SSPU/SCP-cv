@@ -326,6 +326,18 @@ class PlayerWindow(QWidget):
         self._is_showing_video = False
         logger.debug("窗口 [%d] 切换到黑屏模式", self._window_id)
 
+    def prepare_ppt_anchor(self) -> None:
+        """
+        首次启动 PowerPoint 放映前激活渲染容器，确保 Win32 锚点矩形已稳定。
+        :return: None
+        """
+        self.show_video_container()
+        self._apply_render_viewport_geometry()
+        self.show()
+        self.raise_()
+        self._flush_window_events()
+        logger.debug("窗口 [%d] 已激活 PPT 外部放映锚点容器", self._window_id)
+
     @Slot()
     def stop_all(self) -> None:
         """停止所有显示内容并回到黑屏。"""
@@ -525,6 +537,17 @@ class PlayerWindow(QWidget):
         viewport_height = max(1, self.height())
         self._video_container.setGeometry(0, 0, viewport_width, viewport_height)
         self._web_container.setGeometry(0, 0, viewport_width, viewport_height)
+
+    @staticmethod
+    def _flush_window_events() -> None:
+        """
+        处理一次 Qt 事件队列，让首次 show/resize 的原生窗口矩形同步到 Win32。
+        :return: None
+        """
+        app = QGuiApplication.instance()
+        if app is None:
+            return
+        app.processEvents()
 
     # ═══════════════════ 事件处理 ═══════════════════
 

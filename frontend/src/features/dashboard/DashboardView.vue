@@ -11,14 +11,13 @@ import {
   NAlert,
   NButton,
   NCard,
-  NRadio,
-  NRadioGroup,
   NSlider,
   NSpin,
   NSwitch,
 } from 'naive-ui';
 
 import FIcon from '@/design-system/FIcon.vue';
+import BigScreenModeButtons from '@/features/runtime/BigScreenModeButtons.vue';
 import { useDialog } from '@/composables/useDialog';
 import { useThrottledSlider } from '@/composables/useThrottledSlider';
 import { useToast } from '@/composables/useToast';
@@ -33,17 +32,10 @@ const dialog = useDialog();
 
 const pendingMode = ref<'single' | 'double' | null>(null);
 const isModeSwitching = computed(() => pendingMode.value !== null);
-
-const screenMode = computed({
-  get: (): 'single' | 'double' => pendingMode.value ?? (runtime.runtime?.big_screen_mode ?? 'single'),
-  set: (mode: string): void => {
-    if (isModeSwitching.value) return;
-    void switchScreenMode(mode as 'single' | 'double');
-  },
-});
+const currentScreenMode = computed<'single' | 'double'>(() => runtime.runtime?.big_screen_mode ?? 'single');
 
 async function switchScreenMode(mode: 'single' | 'double'): Promise<void> {
-  if (mode === (runtime.runtime?.big_screen_mode ?? 'single')) return;
+  if (isModeSwitching.value) return;
   pendingMode.value = mode;
   try {
     await runtime.setBigScreenMode(mode);
@@ -152,10 +144,12 @@ const hasDeviceError = computed(() =>
         <template #header-extra>
           <span class="dashboard__eyebrow">{{ t('dashboard.bigScreenEyebrow') }}</span>
         </template>
-        <n-radio-group v-model:value="screenMode" :disabled="isModeSwitching">
-          <n-radio value="single">{{ t('screen.single') }}</n-radio>
-          <n-radio value="double">{{ t('screen.double') }}</n-radio>
-        </n-radio-group>
+        <BigScreenModeButtons
+          :current-mode="currentScreenMode"
+          :pending-mode="pendingMode"
+          block
+          @select="switchScreenMode"
+        />
         <p v-if="isModeSwitching" class="dashboard__hint dashboard__hint--switching">
           <n-spin :size="14" /> {{ t('dashboard.switching') }}
         </p>
