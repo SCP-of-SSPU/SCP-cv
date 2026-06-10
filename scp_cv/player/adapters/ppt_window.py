@@ -457,18 +457,27 @@ def _largest_window(win32gui: object, hwnds: list[int]) -> int:
     return best_hwnd
 
 
-def embed_slideshow_window(ppt_hwnd: int, parent_hwnd: int) -> None:
+def embed_slideshow_window(ppt_hwnd: int, parent_hwnd: int) -> tuple[int, int]:
     """
     将 PPT 放映窗口嵌入播放器的原生窗口。
     :param ppt_hwnd: PPT 放映窗口句柄
     :param parent_hwnd: PySide 播放器窗口句柄
-    :return: None
+    :return: 调整后的宽高
     """
     import win32con
     import win32gui
 
+    if ppt_hwnd == 0 or parent_hwnd == 0:
+        raise RuntimeError("PPT 放映窗口或父容器 HWND 无效，无法嵌入")
+
     original_style = win32gui.GetWindowLong(ppt_hwnd, win32con.GWL_STYLE)
-    embedded_style = original_style & ~win32con.WS_OVERLAPPEDWINDOW | win32con.WS_CHILD
+    embedded_style = (
+        original_style
+        & ~win32con.WS_POPUP
+        & ~win32con.WS_OVERLAPPEDWINDOW
+        | win32con.WS_CHILD
+        | win32con.WS_VISIBLE
+    )
     win32gui.SetWindowLong(ppt_hwnd, win32con.GWL_STYLE, embedded_style)
 
     extended_style = win32gui.GetWindowLong(ppt_hwnd, win32con.GWL_EXSTYLE)
@@ -476,6 +485,7 @@ def embed_slideshow_window(ppt_hwnd: int, parent_hwnd: int) -> None:
     extended_style &= ~win32con.WS_EX_APPWINDOW
     win32gui.SetWindowLong(ppt_hwnd, win32con.GWL_EXSTYLE, extended_style)
     win32gui.SetParent(ppt_hwnd, parent_hwnd)
+    return resize_slideshow_window(ppt_hwnd, parent_hwnd)
 
 
 def resize_slideshow_window(ppt_hwnd: int, parent_hwnd: int) -> tuple[int, int]:
@@ -498,14 +508,100 @@ def resize_slideshow_window(ppt_hwnd: int, parent_hwnd: int) -> tuple[int, int]:
         0,
         container_width,
         container_height,
-        win32con.SWP_NOZORDER | win32con.SWP_SHOWWINDOW,
+        win32con.SWP_NOZORDER
+        | win32con.SWP_FRAMECHANGED
+        | win32con.SWP_SHOWWINDOW,
     )
+    move_window = getattr(win32gui, "MoveWindow", None)
+    if callable(move_window):
+        move_window(ppt_hwnd, 0, 0, container_width, container_height, True)
     return container_width, container_height
+
+
+def hide_embedded_slideshow_window(ppt_hwnd: int) -> None:
+    """
+    立即隐藏嵌入式 PPT 放映子窗口，用于低延迟切源。
+    :param ppt_hwnd: PPT 放映窗口句柄
+    :return: None
+    """
+    if ppt_hwnd == 0:
+        return
+    try:
+        import win32con
+        import win32gui
+
+        if _window_exists(win32gui, ppt_hwnd):
+            win32gui.ShowWindow(ppt_hwnd, win32con.SW_HIDE)
+    except Exception:
+        return
+
+
+def show_embedded_slideshow_window(ppt_hwnd: int, parent_hwnd: int) -> tuple[int, int]:
+    """
+    重新显示已嵌入的 PPT 放映子窗口，用于打开新源失败后的旧 PPT 恢复。
+    :param ppt_hwnd: PPT 放映窗口句柄
+    :param parent_hwnd: PySide 播放器窗口句柄
+    :return: 调整后的宽高
+    """
+    if ppt_hwnd == 0 or parent_hwnd == 0:
+        return 0, 0
+    try:
+        import win32con
+        import win32gui
+
+        if not _window_exists(win32gui, ppt_hwnd):
+            return 0, 0
+        win32gui.ShowWindow(ppt_hwnd, win32con.SW_SHOW)
+        return resize_slideshow_window(ppt_hwnd, parent_hwnd)
+    except Exception:
+        return 0, 0
+
+
+def close_embedded_slideshow_window(ppt_hwnd: int) -> None:
+    """
+    请求关闭嵌入式 PPT 放映子窗口，不把它恢复为可见外部顶层窗口。
+    :param ppt_hwnd: PPT 放映窗口句柄
+    :return: None
+    """
+    if ppt_hwnd == 0:
+        return
+    try:
+        import win32con
+        import win32gui
+
+        hide_embedded_slideshow_window(ppt_hwnd)
+        if not _window_exists(win32gui, ppt_hwnd):
+            return
+        post_message = getattr(win32gui, "PostMessage", None)
+        if callable(post_message):
+            post_message(ppt_hwnd, win32con.WM_CLOSE, 0, 0)
+            return
+        send_message = getattr(win32gui, "SendMessage", None)
+        if callable(send_message):
+            send_message(ppt_hwnd, win32con.WM_CLOSE, 0, 0)
+    except Exception:
+        return
+
+
+def _window_exists(win32gui: object, hwnd: int) -> bool:
+    """
+    判断窗口句柄是否仍存在；测试替身或旧 Win32 模块不支持时默认继续尝试。
+    :param win32gui: win32gui 模块或测试替身
+    :param hwnd: 窗口句柄
+    :return: True 表示窗口仍存在
+    """
+    is_window = getattr(win32gui, "IsWindow", None)
+    if not callable(is_window):
+        return True
+    try:
+        return bool(is_window(hwnd))
+    except Exception:
+        return True
 
 
 def detach_slideshow_window(ppt_hwnd: int) -> None:
     """
-    解除 PPT 放映窗口和播放器窗口的父子关系。
+    解除 PPT 放映窗口和播放器窗口的父子关系，仅供测试或故障诊断使用。
     :param ppt_hwnd: PPT 放映窗口句柄
     :return: None
     """
@@ -513,4 +609,19 @@ def detach_slideshow_window(ppt_hwnd: int) -> None:
         return
     import win32gui
 
+    hide_embedded_slideshow_window(ppt_hwnd)
     win32gui.SetParent(ppt_hwnd, 0)
+
+
+__all__ = [
+    "SLIDESHOW_CLASS_NAMES",
+    "close_embedded_slideshow_window",
+    "configure_windowed_slideshow",
+    "detach_slideshow_window",
+    "embed_slideshow_window",
+    "find_slideshow_hwnd",
+    "hide_embedded_slideshow_window",
+    "resize_slideshow_window",
+    "show_embedded_slideshow_window",
+    "snapshot_slideshow_hwnds",
+]

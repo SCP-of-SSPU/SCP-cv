@@ -127,7 +127,7 @@ gRPC-Web proxy 端口由 runall 参数和配置决定，迁移时需同时检查
 清空运行数据：
 
 ```powershell
-uv run manage.py clearall
+uv run python manage.py clearall
 ```
 
 该命令会删除 SQLite、media 和 logs 后重新迁移，只保留 `config.toml` 固定数据。它不暴露 REST API。
@@ -193,7 +193,7 @@ npm --prefix frontend run build
 | `uv run pytest tests/test_player_controller.py -v` | 播放器控制器 |
 | `uv run pytest tests/test_mediamtx_service.py -v` | MediaMTX |
 | `uv run pytest tests/test_ppt_adapter.py -v` | PPT adapter |
-| `uv run pytest tests/test_ppt_adapter.py tests/test_ppt_playback_cache.py tests/test_ppt_file_preheat.py tests/test_ppt_preview_worker.py tests/test_ppt_window.py tests/test_window_cleanup.py -v` | PowerPoint PPT 播放、缓存、预热、预览 worker 与窗口清理 |
+| `uv run pytest tests/test_ppt_adapter.py tests/test_ppt_playback_cache.py tests/test_ppt_file_preheat.py tests/test_ppt_preview_worker.py tests/test_ppt_window.py tests/test_player_controller_open_recovery.py -v` | PowerPoint PPT 播放、缓存、预热、预览 worker、嵌入 HWND 与切源恢复 |
 | `uv run pytest tests/test_srt_stream_adapter.py -v` | SRT/libVLC adapter |
 | `uv run pytest tests/test_volume_service.py -v` | 系统音量 |
 | `uv run pytest tests/test_device_service.py -v` | 设备 TCP 指令 |
@@ -228,7 +228,7 @@ npm --prefix frontend run build
 | 只启动后无窗口 | headless 显示器 ID 是否存在，launcher 是否选择窗口 |
 | REST 发命令无反应 | `PlaybackSession.pending_command` 是否写入，播放器是否注册该窗口 |
 | PPT 无法打开 | PowerPoint 安装、PowerPoint COM 注册、文件权限、桌面会话 |
-| PPT 卡在加载 | PPT 导出超时、PowerPoint COM 启动、外部窗口 HWND 查找 |
+| PPT 卡在加载 | PPT 导出超时、PowerPoint COM 启动、窗口化放映 HWND 查找和嵌入 |
 | 直播黑屏 | MediaMTX path、RTSP/SRT read URL、VLC runtime、网络缓存、OBS 推流状态 |
 | Web 页面空白 | QWebEngine、目标 URL、证书/登录状态、web 预热复用 |
 | 显示器不对 | `screeninfo` 枚举、Windows 显示器编号、DPI、`target_display_label` |
@@ -244,7 +244,7 @@ npm --prefix frontend run build
 | 构建 | 前端 typecheck/build 通过 |
 | 运行 | runall 能启动和关闭所有子进程 |
 | 媒体 | 图片、视频、Web、PPT、直播、背景音频均可播放 |
-| PPT | PowerPoint 导入、预览、预热、放映、关闭和窗口清理验证 |
+| PPT | PowerPoint 导入、预览、预热、放映 HWND 嵌入、关闭和多窗口切源验证 |
 | 流 | MediaMTX 自动发现和 RTSP read 验证 |
 | 设备 | 拼接屏和 TV TCP 指令现场验证 |
 | 文档 | README、使用文档、维护文档和设计文档同步 |

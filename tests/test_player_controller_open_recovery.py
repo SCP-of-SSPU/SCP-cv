@@ -1,7 +1,7 @@
 #!/user/bin/env python
 # -*- coding: UTF-8 -*-
 '''
-播放器 OPEN 指令失败恢复测试，覆盖 PPT 预关闭边界。
+播放器 OPEN 指令失败恢复测试，覆盖 PPT 嵌入窗口快速切源边界。
 @Project : SCP-cv
 @File : test_player_controller_open_recovery.py
 @Author : Qintsg
@@ -28,8 +28,8 @@ class _OpenAdapter:
         self.mutes: list[bool] = []
         self.closed = False
         self.fail_open = False
-        self.has_external_slideshow_window = True
-        self.external_slideshow_hwnd = 9001
+        self.detached_for_fast_switch = False
+        self.restored_after_failed_switch = False
 
     def open(self, uri: str, window_handle: int, autoplay: bool = True) -> None:
         """
@@ -54,6 +54,20 @@ class _OpenAdapter:
         :return: None
         """
         self.closed = True
+
+    def detach_for_fast_switch(self) -> None:
+        """
+        记录 PPT 嵌入子窗口隐藏调用。
+        :return: None
+        """
+        self.detached_for_fast_switch = True
+
+    def restore_after_failed_switch(self) -> None:
+        """
+        记录 PPT 嵌入子窗口恢复调用。
+        :return: None
+        """
+        self.restored_after_failed_switch = True
 
     def goto_item(self, index: int) -> None:
         """
@@ -100,13 +114,6 @@ class _WindowStub:
         """
         self.calls.append("black")
 
-    def hide_window(self) -> None:
-        """
-        记录隐藏窗口。
-        :return: None
-        """
-        self.calls.append("hide")
-
     def show(self) -> None:
         """
         记录显示窗口。
@@ -143,12 +150,12 @@ class _WindowStub:
         """
         self.calls.append("video")
 
-    def prepare_ppt_anchor(self) -> None:
+    def prepare_ppt_container(self) -> None:
         """
-        记录 PPT 锚点容器预激活。
+        记录 PPT 嵌入容器预激活。
         :return: None
         """
-        self.calls.append("ppt_anchor")
+        self.calls.append("ppt_container")
 
 
 def test_handle_open_ignores_legacy_ppt_backend_option(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -176,7 +183,6 @@ def test_handle_open_ignores_legacy_ppt_backend_option(monkeypatch: pytest.Monke
     monkeypatch.setattr(controller, "_close_adapter", lambda _window_id: None)
     monkeypatch.setattr(controller, "_cleanup_temporary_source", lambda _command_args: None)
     monkeypatch.setattr(controller, "_update_session_state", lambda window_id, state: states.append((window_id, state)))
-    monkeypatch.setattr(controller, "_minimize_unprotected_windows_for_ppt", lambda _adapter: None)
 
     controller._handle_open(1, {
         "source_id": 7,
@@ -197,15 +203,14 @@ def test_handle_open_ignores_legacy_ppt_backend_option(monkeypatch: pytest.Monke
     assert controller._adapters[1] is adapter
     assert controller._adapter_source_ids[1] == 7
     assert states == [(1, "playing")]
-    assert window.calls == ["black", "show", "raise", "ppt_anchor", "black", "show"]
-    assert window.topmost == [True, False]
+    assert window.calls == ["black", "show", "raise", "ppt_container", "video", "show", "raise"]
+    assert window.topmost == [True, True]
 
 
-def test_handle_open_keeps_black_window_when_ppt_has_no_slideshow(monkeypatch: pytest.MonkeyPatch) -> None:
-    """PPT 未自动放映时应保留 PySide 黑屏窗口，避免露出桌面。"""
+def test_handle_open_keeps_ppt_container_visible_when_autoplay_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    """PPT 未自动放映时也应保持 PySide 嵌入容器可见稳定。"""
     controller = PlayerController()
     adapter = _OpenAdapter()
-    adapter.has_external_slideshow_window = False
     window = _WindowStub()
     states: list[tuple[int, str]] = []
 
@@ -223,12 +228,13 @@ def test_handle_open_keeps_black_window_when_ppt_has_no_slideshow(monkeypatch: p
         "autoplay": False,
     })
 
-    assert window.calls == ["black", "show", "raise", "ppt_anchor", "black", "show", "raise"]
+    assert window.calls == ["black", "show", "raise", "ppt_container", "video", "show", "raise"]
+    assert window.topmost == [True, True]
     assert states == [(1, "loading")]
 
 
 def test_handle_open_restores_window_when_ppt_open_fails(monkeypatch: pytest.MonkeyPatch) -> None:
-    """PPT 外部窗口打开失败时应关闭适配器并恢复 PySide 黑屏窗口。"""
+    """PPT 打开失败时应关闭新适配器并恢复 PySide 黑屏窗口。"""
     controller = PlayerController()
     adapter = _OpenAdapter()
     adapter.fail_open = True
@@ -250,7 +256,8 @@ def test_handle_open_restores_window_when_ppt_open_fails(monkeypatch: pytest.Mon
 
     assert adapter.closed is True
     assert controller._adapters == {}
-    assert window.calls == ["black", "show", "raise", "ppt_anchor", "black", "show", "raise"]
+    assert window.calls == ["black", "show", "raise", "ppt_container", "black", "show", "raise"]
+    assert window.topmost == [True, True]
 
 
 def test_handle_stop_restores_black_window_for_ppt(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -262,9 +269,8 @@ def test_handle_stop_restores_black_window_for_ppt(monkeypatch: pytest.MonkeyPat
     stop_calls: list[bool] = []
 
     def stop_adapter() -> None:
-        """记录 stop 调用并模拟外部放映窗口已关闭。"""
+        """记录 stop 调用。"""
         stop_calls.append(True)
-        adapter.has_external_slideshow_window = False
 
     adapter.stop = stop_adapter  # type: ignore[method-assign]
     controller._adapters[1] = adapter  # type: ignore[assignment]
@@ -330,23 +336,16 @@ def test_handle_open_restores_previous_adapter_when_factory_fails(monkeypatch: p
     assert window.calls == ["show", "raise", "video"]
 
 
-def test_handle_open_closes_stale_ppt_before_new_source(monkeypatch: pytest.MonkeyPatch) -> None:
-    """旧 PPT 未建立外部窗口时应先关闭，再打开新源，避免后端阻塞后续 open。"""
+def test_handle_open_detaches_previous_ppt_before_new_source(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PPT 切视频时应先隐藏旧嵌入子窗口，再显示新内容并延迟关闭旧 PPT。"""
     controller = PlayerController()
     previous_adapter = _OpenAdapter()
-    previous_adapter.has_external_slideshow_window = False
     new_adapter = _OpenAdapter()
     window = _WindowStub()
     calls: list[str] = []
     states: list[tuple[int, str]] = []
-
-    def close_previous() -> None:
-        """
-        记录旧 PPT 关闭顺序。
-        :return: None
-        """
-        calls.append("previous_close")
-        previous_adapter.closed = True
 
     def open_new(uri: str, window_handle: int, autoplay: bool = True) -> None:
         """
@@ -359,7 +358,7 @@ def test_handle_open_closes_stale_ppt_before_new_source(monkeypatch: pytest.Monk
         calls.append("new_open")
         new_adapter.open_args = {"uri": uri, "window_handle": window_handle, "autoplay": autoplay}
 
-    previous_adapter.close = close_previous  # type: ignore[method-assign]
+    previous_adapter.detach_for_fast_switch = lambda: calls.append("previous_detach")  # type: ignore[method-assign]
     new_adapter.open = open_new  # type: ignore[method-assign]
     controller._adapters[1] = previous_adapter  # type: ignore[assignment]
     controller._adapter_source_types[1] = "ppt"
@@ -369,7 +368,11 @@ def test_handle_open_closes_stale_ppt_before_new_source(monkeypatch: pytest.Monk
     monkeypatch.setattr(controller, "get_window_handle", lambda _window_id: 2001)
     monkeypatch.setattr(controller, "get_window", lambda _window_id: window)
     monkeypatch.setattr(controller, "_cleanup_temporary_source", lambda _command_args: None)
-    monkeypatch.setattr(controller, "_reheat_source_if_enabled", lambda source_id: calls.append(f"reheat:{source_id}"))
+    monkeypatch.setattr(
+        controller,
+        "_schedule_close_detached_adapter",
+        lambda *_args, **_kwargs: calls.append("scheduled_close"),
+    )
     monkeypatch.setattr(controller, "_update_session_state", lambda window_id, state: states.append((window_id, state)))
 
     controller._handle_open(1, {
@@ -379,31 +382,24 @@ def test_handle_open_closes_stale_ppt_before_new_source(monkeypatch: pytest.Monk
         "autoplay": True,
     })
 
-    assert calls == ["previous_close", "new_open", "reheat:77"]
-    assert previous_adapter.closed is True
+    assert calls == ["previous_detach", "new_open", "scheduled_close"]
+    assert previous_adapter.closed is False
     assert controller._adapters[1] is new_adapter
     assert controller._adapter_source_types[1] == "video"
-    assert window.calls == ["black", "show", "raise", "black", "show", "raise", "video"]
-    assert window.topmost == [True, True]
+    assert window.calls == ["black", "show", "raise", "video"]
+    assert window.topmost == [True]
     assert states == [(1, "playing")]
 
 
-def test_handle_open_closes_previous_ppt_before_reopening_ppt(monkeypatch: pytest.MonkeyPatch) -> None:
-    """PPT 切 PPT 应先恢复 PySide 黑屏置顶并释放旧 PowerPoint 放映。"""
+def test_handle_open_detaches_previous_ppt_before_reopening_ppt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PPT 切 PPT 时应先隐藏旧嵌入子窗口，新 PPT 可见后再调度关闭旧 PPT。"""
     controller = PlayerController()
     previous_adapter = _OpenAdapter()
-    previous_adapter.has_external_slideshow_window = True
     new_adapter = _OpenAdapter()
     window = _WindowStub()
     calls: list[str] = []
-
-    def close_previous() -> None:
-        """
-        记录旧 PPT 关闭顺序。
-        :return: None
-        """
-        calls.append("previous_close")
-        previous_adapter.closed = True
 
     def open_new(uri: str, window_handle: int, autoplay: bool = True) -> None:
         """
@@ -416,7 +412,7 @@ def test_handle_open_closes_previous_ppt_before_reopening_ppt(monkeypatch: pytes
         calls.append("new_open")
         new_adapter.open_args = {"uri": uri, "window_handle": window_handle, "autoplay": autoplay}
 
-    previous_adapter.close = close_previous  # type: ignore[method-assign]
+    previous_adapter.detach_for_fast_switch = lambda: calls.append("previous_detach")  # type: ignore[method-assign]
     new_adapter.open = open_new  # type: ignore[method-assign]
     controller._adapters[1] = previous_adapter  # type: ignore[assignment]
     controller._adapter_source_types[1] = "ppt"
@@ -426,7 +422,11 @@ def test_handle_open_closes_previous_ppt_before_reopening_ppt(monkeypatch: pytes
     monkeypatch.setattr(controller, "get_window_handle", lambda _window_id: 2001)
     monkeypatch.setattr(controller, "get_window", lambda _window_id: window)
     monkeypatch.setattr(controller, "_cleanup_temporary_source", lambda _command_args: None)
-    monkeypatch.setattr(controller, "_reheat_source_if_enabled", lambda source_id: calls.append(f"reheat:{source_id}"))
+    monkeypatch.setattr(
+        controller,
+        "_schedule_close_detached_adapter",
+        lambda *_args, **_kwargs: calls.append("scheduled_close"),
+    )
     monkeypatch.setattr(controller, "_update_session_state", lambda _window_id, _state: None)
 
     controller._handle_open(1, {
@@ -436,47 +436,19 @@ def test_handle_open_closes_previous_ppt_before_reopening_ppt(monkeypatch: pytes
         "autoplay": True,
     })
 
-    assert calls == ["previous_close", "new_open", "reheat:77"]
-    assert previous_adapter.closed is True
+    assert calls == ["previous_detach", "new_open", "scheduled_close"]
+    assert previous_adapter.closed is False
     assert controller._adapters[1] is new_adapter
     assert window.calls == [
         "black",
         "show",
         "raise",
-        "black",
+        "ppt_container",
+        "video",
         "show",
         "raise",
-        "ppt_anchor",
-        "black",
-        "show",
     ]
-    assert window.topmost == [True, True, False]
-
-
-def test_minimize_unprotected_windows_protects_all_active_ppt_hwnds(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """打开第二个 PPT 时，不应把第一个 PPT 放映窗口当作未保护窗口最小化。"""
-    controller = PlayerController()
-    current_adapter = _OpenAdapter()
-    current_adapter.external_slideshow_hwnd = 9002
-    previous_adapter = _OpenAdapter()
-    previous_adapter.external_slideshow_hwnd = 9001
-    window = _WindowStub()
-    protected_calls: list[list[int]] = []
-
-    controller._adapters[1] = previous_adapter  # type: ignore[assignment]
-    controller._adapters[2] = current_adapter  # type: ignore[assignment]
-    controller._windows[1] = window  # type: ignore[assignment]
-
-    monkeypatch.setattr(
-        "scp_cv.player.window_cleanup.minimize_unprotected_top_level_windows",
-        lambda protected_hwnds: protected_calls.append(list(protected_hwnds)) or [],
-    )
-
-    controller._minimize_unprotected_windows_for_ppt(current_adapter)
-
-    assert protected_calls == [[9002, 9001, 5001]]
+    assert window.topmost == [True, True]
 
 
 def test_stop_polling_closes_adapters_without_reheat(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -564,10 +536,13 @@ def test_handle_open_keeps_previous_ppt_when_factory_fails(monkeypatch: pytest.M
         })
 
     assert previous_adapter.closed is False
+    assert previous_adapter.detached_for_fast_switch is True
+    assert previous_adapter.restored_after_failed_switch is True
     assert controller._adapters[1] is previous_adapter
     assert controller._adapter_source_types[1] == "ppt"
     assert controller._adapter_source_ids[1] == 77
-    assert window.calls == ["black", "show"]
+    assert window.calls == ["video", "show", "raise"]
+    assert window.topmost == [True]
 
 
 def test_handle_open_keeps_previous_ppt_when_window_handle_missing(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -592,32 +567,45 @@ def test_handle_open_keeps_previous_ppt_when_window_handle_missing(monkeypatch: 
     })
 
     assert previous_adapter.closed is False
+    assert previous_adapter.detached_for_fast_switch is True
+    assert previous_adapter.restored_after_failed_switch is True
     assert new_adapter.closed is True
     assert controller._adapters[1] is previous_adapter
     assert controller._adapter_source_types[1] == "ppt"
     assert controller._adapter_source_ids[1] == 77
-    assert window.calls == ["black", "show"]
+    assert window.calls == ["video", "show", "raise"]
+    assert window.topmost == [True]
 
 
-def test_handle_open_restores_black_after_preclosed_ppt_open_fails(monkeypatch: pytest.MonkeyPatch) -> None:
-    """必须预关闭旧 PPT 后，新源打开失败时应显式恢复黑屏并重建旧源预热。"""
+def test_handle_open_restores_previous_ppt_after_new_source_open_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """新源打开失败时应恢复旧 PPT 嵌入窗口，而不是预关闭旧 PPT。"""
     controller = PlayerController()
     previous_adapter = _OpenAdapter()
-    previous_adapter.has_external_slideshow_window = False
     new_adapter = _OpenAdapter()
     new_adapter.fail_open = True
     window = _WindowStub()
     calls: list[str] = []
 
-    def close_previous() -> None:
+    def detach_previous() -> None:
         """
-        记录旧 PPT 关闭调用。
+        记录旧 PPT 隐藏调用。
         :return: None
         """
-        calls.append("previous_close")
-        previous_adapter.closed = True
+        calls.append("previous_detach")
+        previous_adapter.detached_for_fast_switch = True
 
-    previous_adapter.close = close_previous  # type: ignore[method-assign]
+    def restore_previous() -> None:
+        """
+        记录旧 PPT 恢复调用。
+        :return: None
+        """
+        calls.append("previous_restore")
+        previous_adapter.restored_after_failed_switch = True
+
+    previous_adapter.detach_for_fast_switch = detach_previous  # type: ignore[method-assign]
+    previous_adapter.restore_after_failed_switch = restore_previous  # type: ignore[method-assign]
     controller._adapters[1] = previous_adapter  # type: ignore[assignment]
     controller._adapter_source_types[1] = "ppt"
     controller._adapter_source_ids[1] = 77
@@ -635,19 +623,20 @@ def test_handle_open_restores_black_after_preclosed_ppt_open_fails(monkeypatch: 
             "autoplay": True,
         })
 
-    assert calls == ["previous_close", "reheat:77"]
-    assert previous_adapter.closed is True
+    assert calls == ["previous_detach", "previous_restore"]
+    assert previous_adapter.closed is False
+    assert previous_adapter.detached_for_fast_switch is True
+    assert previous_adapter.restored_after_failed_switch is True
     assert new_adapter.closed is True
-    assert controller._adapters == {}
+    assert controller._adapters[1] is previous_adapter
+    assert controller._adapter_source_types[1] == "ppt"
+    assert controller._adapter_source_ids[1] == 77
     assert window.calls == [
         "black",
         "show",
         "raise",
-        "black",
-        "show",
-        "raise",
-        "black",
+        "video",
         "show",
         "raise",
     ]
-    assert window.topmost == [True, True, True]
+    assert window.topmost == [True, True]

@@ -44,8 +44,6 @@ class _StateAdapter:
 class _OpenAdapter:
     """记录打开流程的 adapter 替身。"""
 
-    has_external_slideshow_window = True
-
     def __init__(self) -> None:
         """
         初始化调用记录。
@@ -115,13 +113,6 @@ class _WindowStub:
     def raise_(self) -> None:
         """
         测试中无需置顶窗口。
-        :return: None
-        """
-        return
-
-    def hide_window(self) -> None:
-        """
-        测试中无需隐藏窗口。
         :return: None
         """
         return

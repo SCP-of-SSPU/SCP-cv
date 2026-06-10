@@ -14,6 +14,7 @@ import logging
 from PySide6.QtCore import QTimer
 
 from scp_cv.player.adapters import create_adapter
+from scp_cv.player.controller_window_helpers import PlayerWindowHelpersMixin
 
 logger = logging.getLogger(__name__)
 _PPT_REHEAT_DELAY_MS = 1500
@@ -28,7 +29,7 @@ def _is_stream_source(source_type: str) -> bool:
     return source_type.endswith("_stream")
 
 
-class PlayerCommandHandlersMixin:
+class PlayerCommandHandlersMixin(PlayerWindowHelpersMixin):
     """
     PlayerController 指令处理 mixin。
 
@@ -58,18 +59,13 @@ class PlayerCommandHandlersMixin:
         previous_source_type = self._adapter_source_types.pop(window_id, None)
         previous_source_id = self._adapter_source_ids.pop(window_id, None)
         self._last_reported_states.pop(window_id, None)
+        if previous_source_type == "ppt":
+            self._detach_ppt_for_fast_switch(previous_adapter)
 
         is_web_source = source_type == "web"
         is_ppt_source = source_type == "ppt"
         is_stream_source = _is_stream_source(source_type)
         adapter = None
-        preclosed_source_id: int | None = None
-        preclosed_source_type: str | None = None
-        should_preclose_previous = self._should_close_previous_before_open(
-            previous_adapter,
-            previous_source_type,
-            source_type,
-        )
 
         try:
             adapter = create_adapter(source_type)
@@ -88,21 +84,6 @@ class PlayerCommandHandlersMixin:
                 logger.warning("窗口 %d 没有可用句柄，跳过 OPEN", window_id)
                 return
 
-            if should_preclose_previous:
-                self._close_detached_adapter(
-                    window_id,
-                    previous_adapter,
-                    previous_source_type,
-                    previous_source_id,
-                    restore_window=True,
-                    reheat=False,
-                )
-                preclosed_source_id = previous_source_id
-                preclosed_source_type = previous_source_type
-                previous_adapter = None
-                previous_source_type = None
-                previous_source_id = None
-
             window = self.get_window(window_id)
             if window is not None:
                 window.show_black_screen()
@@ -110,7 +91,7 @@ class PlayerCommandHandlersMixin:
                 self._set_player_window_topmost(window, True)
                 window.raise_()
                 if is_ppt_source:
-                    self._prepare_ppt_anchor_window(window_id, window)
+                    self._prepare_ppt_container(window_id, window)
                 elif is_stream_source:
                     self._prepare_video_render_window(window_id, window)
 
@@ -139,10 +120,8 @@ class PlayerCommandHandlersMixin:
                 previous_source_type,
                 previous_source_id,
             )
-            if previous_adapter is None and (is_ppt_source or preclosed_source_type == "ppt"):
+            if previous_adapter is None and is_ppt_source:
                 self._restore_player_window_to_black(window_id)
-            if preclosed_source_id and preclosed_source_id != source_id:
-                self._reheat_source_if_enabled(int(preclosed_source_id))
             raise
         self._adapters[window_id] = adapter
         self._adapter_source_types[window_id] = source_type
@@ -153,7 +132,7 @@ class PlayerCommandHandlersMixin:
             if is_web_source:
                 window.show_web_container()
             elif is_ppt_source:
-                self._sync_ppt_window_visibility(window_id, adapter)
+                self._show_ppt_container(window_id)
             else:
                 window.show_video_container()
 
@@ -161,7 +140,7 @@ class PlayerCommandHandlersMixin:
         initial_state = "loading" if is_stream_source or not autoplay else "playing"
         self._update_session_state(window_id, initial_state)
         if previous_adapter is not None:
-            self._close_detached_adapter(
+            self._schedule_close_detached_adapter(
                 window_id,
                 previous_adapter,
                 previous_source_type,
@@ -169,8 +148,6 @@ class PlayerCommandHandlersMixin:
                 restore_window=False,
                 reheat=True,
             )
-        if preclosed_source_id and preclosed_source_id != source_id:
-            self._reheat_source_if_enabled(int(preclosed_source_id))
         self._cleanup_temporary_source(command_args)
 
     def _handle_play(self, window_id: int, command_args: dict[str, object]) -> None:
@@ -179,7 +156,7 @@ class PlayerCommandHandlersMixin:
         if adapter is not None:
             adapter.play()
             if self._adapter_source_types.get(window_id) == "ppt":
-                self._sync_ppt_window_visibility(window_id, adapter)
+                self._show_ppt_container(window_id)
             self._update_session_state(window_id, "playing")
 
     def _handle_pause(self, window_id: int, command_args: dict[str, object]) -> None:
@@ -425,23 +402,6 @@ class PlayerCommandHandlersMixin:
         self._adapter_source_ids.pop(window_id, None)
         self._last_reported_states.pop(window_id, None)
 
-    @staticmethod
-    def _should_close_previous_before_open(
-        previous_adapter: object | None,
-        previous_source_type: str | None,
-        next_source_type: str,
-    ) -> bool:
-        """
-        判断旧适配器是否必须在新源打开前释放。
-        :param previous_adapter: 已从当前窗口摘除的旧适配器
-        :param previous_source_type: 旧源类型
-        :param next_source_type: 即将打开的新源类型
-        :return: True 表示先关闭旧源，避免后端互相竞争或阻塞主线程
-        """
-        if previous_adapter is None or previous_source_type != "ppt":
-            return False
-        return True
-
     def _close_detached_adapter(
         self,
         window_id: int,
@@ -461,8 +421,6 @@ class PlayerCommandHandlersMixin:
         :param reheat: 是否按源配置重新预热
         :return: None
         """
-        if source_type == "ppt":
-            self._restore_player_window_to_black(window_id)
         if adapter is not None:
             try:
                 adapter.close()
@@ -525,7 +483,8 @@ class PlayerCommandHandlersMixin:
         if window is None:
             return
         if source_type == "ppt":
-            self._sync_ppt_window_visibility(window_id, adapter)
+            self._restore_ppt_after_failed_switch(adapter)
+            self._show_ppt_container(window_id)
         elif source_type == "web":
             window.show()
             window.raise_()
@@ -553,6 +512,37 @@ class PlayerCommandHandlersMixin:
         """
         if self._should_reheat_closed_source(window_id, source_id):
             self._reheat_source_if_enabled(source_id)
+
+    def _schedule_close_detached_adapter(
+        self,
+        window_id: int,
+        adapter: object | None,
+        source_type: str | None,
+        source_id: int | None,
+        restore_window: bool,
+        reheat: bool,
+    ) -> None:
+        """
+        将旧适配器关闭延后到当前 UI 切换完成后的下一轮 Qt 事件循环。
+        :param window_id: 窗口编号
+        :param adapter: 已从当前窗口映射中摘除的旧适配器
+        :param source_type: 旧适配器源类型
+        :param source_id: 旧适配器源 ID
+        :param restore_window: 是否恢复 PySide 黑屏窗口
+        :param reheat: 是否按源配置重新预热
+        :return: None
+        """
+        QTimer.singleShot(
+            0,
+            lambda: self._close_detached_adapter(
+                window_id,
+                adapter,
+                source_type,
+                source_id,
+                restore_window,
+                reheat,
+            ),
+        )
 
     def _prepare_adapter_preheat_context(
         self,
@@ -626,123 +616,6 @@ class PlayerCommandHandlersMixin:
             preheat_uri,
             force=source.source_type != "web",
         )
-
-    def _sync_ppt_window_visibility(self, window_id: int, adapter: object) -> None:
-        """
-        根据 PPT 外部放映窗口是否存在切换 PySide 播放窗口可见性。
-        :param window_id: 窗口编号
-        :param adapter: 当前 PPT 适配器
-        :return: None
-        """
-        if bool(getattr(adapter, "has_external_slideshow_window", False)):
-            window = self.get_window(window_id)
-            if window is not None:
-                window.show_black_screen()
-                window.show()
-                self._set_player_window_topmost(window, False)
-            self._minimize_unprotected_windows_for_ppt(adapter)
-            return
-        self._restore_player_window_to_black(window_id)
-
-    def _restore_player_window_to_black(self, window_id: int) -> None:
-        """
-        恢复 PySide 播放窗口并显示黑屏。
-        :param window_id: 窗口编号
-        :return: None
-        """
-        window = self.get_window(window_id)
-        if window is None:
-            return
-        window.show_black_screen()
-        window.show()
-        self._set_player_window_topmost(window, True)
-        window.raise_()
-
-    @staticmethod
-    def _prepare_ppt_anchor_window(window_id: int, window: object) -> None:
-        """
-        首次打开 PPT 前激活渲染容器，避免 PowerPoint 读取到未 show 的小矩形。
-        :param window_id: 窗口编号
-        :param window: PlayerWindow 或测试替身
-        :return: None
-        """
-        try:
-            prepare_anchor = getattr(window, "prepare_ppt_anchor", None)
-            if callable(prepare_anchor):
-                prepare_anchor()
-                return
-            show_video_container = getattr(window, "show_video_container", None)
-            if callable(show_video_container):
-                show_video_container()
-                window.show()
-                window.raise_()
-        except Exception as prepare_error:
-            logger.debug("窗口 %d PPT 锚点容器激活失败：%s", window_id, prepare_error)
-
-    @staticmethod
-    def _prepare_video_render_window(window_id: int, window: object) -> None:
-        """
-        前台打开直播/视频前激活原生渲染容器，确保 libVLC 绑定的 HWND 可见。
-        :param window_id: 窗口编号
-        :param window: PlayerWindow 或测试替身
-        :return: None
-        """
-        try:
-            show_video_container = getattr(window, "show_video_container", None)
-            if callable(show_video_container):
-                show_video_container()
-            window.show()
-            window.raise_()
-        except Exception as prepare_error:
-            logger.debug("窗口 %d 视频渲染容器激活失败：%s", window_id, prepare_error)
-
-    def _minimize_unprotected_windows_for_ppt(self, adapter: object) -> None:
-        """
-        PPT 放映窗口就绪后，最小化除所有 PySide 播放窗口和活跃 PPT 外的其它顶层窗口。
-        :param adapter: 当前 PPT 适配器
-        :return: None
-        """
-        from scp_cv.player.window_cleanup import minimize_unprotected_top_level_windows
-
-        protected_hwnds = self._active_ppt_slideshow_hwnds(adapter)
-        for window in self._windows.values():
-            protected_hwns_attr = getattr(window, "top_level_window_handle", 0)
-            try:
-                protected_hwnds.append(int(protected_hwns_attr))
-            except (TypeError, ValueError):
-                continue
-        minimize_unprotected_top_level_windows(protected_hwnds)
-
-    def _active_ppt_slideshow_hwnds(self, current_adapter: object) -> list[int]:
-        """
-        收集当前播放器内所有活跃 PPT 放映窗口 HWND。
-        :param current_adapter: 刚打开或刚同步的 PPT 适配器
-        :return: 可保护的 HWND 列表
-        """
-        protected_hwnds: list[int] = []
-        candidates = [current_adapter, *self._adapters.values()]
-        for candidate in candidates:
-            if not bool(getattr(candidate, "has_external_slideshow_window", False)):
-                continue
-            try:
-                ppt_hwnd = int(getattr(candidate, "external_slideshow_hwnd", 0) or 0)
-            except (TypeError, ValueError):
-                continue
-            if ppt_hwnd > 0 and ppt_hwnd not in protected_hwnds:
-                protected_hwnds.append(ppt_hwnd)
-        return protected_hwnds
-
-    @staticmethod
-    def _set_player_window_topmost(window: object, enabled: bool) -> None:
-        """
-        调整播放器窗口置顶状态，兼容测试替身。
-        :param window: PlayerWindow 或测试替身
-        :param enabled: 是否置顶
-        :return: None
-        """
-        set_topmost = getattr(window, "set_always_on_top", None)
-        if callable(set_topmost):
-            set_topmost(enabled)
 
     def _update_session_state(self, window_id: int, playback_state: str) -> None:
         """

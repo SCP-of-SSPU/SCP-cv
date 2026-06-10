@@ -31,9 +31,9 @@ SQLite 本地数据库
   |                                v
 PySide6 播放器进程组 ------------> 四个物理播放窗口
   |                                |
-  | libVLC / Qt Multimedia          | PowerPoint 外部放映窗口
+  | libVLC / Qt Multimedia          | PowerPoint 窗口化放映 HWND 嵌入 PySide
   v                                v
-MediaMTX / 本机文件 / Web / PPT 后端 / 系统音频 / 物理显示器
+MediaMTX / 本机文件 / Web / PowerPoint / 系统音频 / 物理显示器
 
 gRPC 服务与 REST 共用同一 Django 服务层。`runall --headless` 默认按窗口启动 4 个独立 PySide 播放器进程，隔离 PowerPoint COM 和 Qt 生命周期；直接 `run_player --headless` 也会在多窗口参数下拆分子进程，`--only-window` 可用于单窗口调试。
 ```
@@ -109,7 +109,7 @@ gRPC 服务与 REST 共用同一 Django 服务层。`runall --headless` 默认�
 
 | 类型 | 当前播放路径 | 备注 |
 | --- | --- | --- |
-| PPT | `PptSourceAdapter` 使用 PowerPoint COM | 外部原生放映窗口铺满目标显示器 |
+| PPT | `PptSourceAdapter` 使用 PowerPoint COM | 窗口化放映 HWND 嵌入 PySide 视频容器 |
 | video | `VideoSourceAdapter` | 本地视频使用 Qt Multimedia，不是 libVLC |
 | audio | 背景音频服务和 `BackgroundAudioAdapter` | 不允许作为四窗口显示源打开 |
 | image | `ImageSourceAdapter` | QPixmap 渲染到 QLabel |
@@ -183,7 +183,7 @@ SCP-cv 当前不是分布式平台，很多设计依赖单 Windows 主机：
 - Vue 控制台可以登录、拉取 CSRF、访问 REST、连接 SSE。
 - 打开任意媒体源后，目标窗口的 `PlaybackSession` 先进入 loading，再由播放器回写 playing/error。
 - 关闭媒体源后，UI 可观察到 `media_source=null`、`playback_state=idle`。
-- PPT 后端选择可以保存在媒体源，也可以在当前播放时临时切换并回到原页。
+- PPT 仅使用 PowerPoint，放映 HWND 能嵌入对应 PySide 窗口，翻页和当前页媒体控制可用。
 - 背景音频可以加入播放列表、播放、暂停、停止、调音量、循环。
 - MediaMTX 在线路径可以同步为 `StreamSource` 和 `MediaSource`。
 - reset-all 可以关闭 adapter、重建窗口、清空会话状态。

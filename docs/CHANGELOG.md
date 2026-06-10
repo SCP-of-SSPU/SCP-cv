@@ -2,11 +2,19 @@
 
 ## 2026-06-10
 
+### 改为嵌入式 PowerPoint 放映窗口
+
+- 播放器：PPT 放映改为唯一使用 `ppShowTypeWindow` + `SlideShowSettings.Run()` 获取 `SlideShowWindow.HWND`，再通过 Win32 `SetParent()` 嵌入对应 PySide 视频容器。
+- 播放器：删除外部顶层 PPT 窗口路径、PySide 窗口隐藏逻辑和全局顶层窗口最小化清理，PPT 播放期间 PySide 窗口始终保持可见和置顶。
+- 播放器：PPT 切其它内容时先隐藏旧嵌入子窗口并显示新内容，再延迟关闭旧 PowerPoint COM 资源；新源打开失败时恢复旧 PPT 嵌入窗口。
+- 预热：保留 PowerPoint 文件级预热，前台打开命中预热 `Presentation` 时只执行放映启动和 HWND 嵌入。
+- 测试：补充 PPT 嵌入 Win32 style/exstyle、SetParent/MoveWindow、切源 detach/restore 和控制器低延迟切换顺序覆盖。
+
 ### 修复第二个 PPT 打开时抢占首个窗口
 
 - 播放器：PowerPoint 放映 HWND 查找不再在进程不可确认时回收启动前已存在的全局放映窗口，避免窗口 2 打开 PPT 时把窗口 1 的放映窗口先移动或残留到错误画面。
 - 播放器：新建 PowerPoint COM 前按候选 ProgID 快照 `POWERPNT.EXE`，即使 Application.HWND 不可读也可用进程差集识别新实例，减少多窗口放映归属误判。
-- 播放器：关闭或停止 PPT 播放时会对已托管的外部放映 HWND 释放置顶并发送 `WM_CLOSE`，避免关闭播放后 PowerPoint 放映画面仍留在输出窗口。
+- 播放器：关闭或停止 PPT 播放时会隐藏已嵌入的放映 HWND 并发送 `WM_CLOSE`，避免关闭播放后 PowerPoint 放映画面仍留在输出窗口。
 - 测试：补充 PPT 放映窗口回收保护和 PowerPoint 进程差集识别覆盖。
 
 ## 2026-06-09

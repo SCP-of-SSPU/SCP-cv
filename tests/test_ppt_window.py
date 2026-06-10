@@ -15,7 +15,11 @@ from types import ModuleType
 from pytest import MonkeyPatch
 from scp_cv.player.adapters import ppt_window
 from scp_cv.player.adapters.ppt_window import (
+    close_embedded_slideshow_window,
+    embed_slideshow_window,
     find_slideshow_hwnd,
+    hide_embedded_slideshow_window,
+    show_embedded_slideshow_window,
     snapshot_slideshow_hwnds,
 )
 
@@ -93,6 +97,169 @@ def _install_fake_win32process(
     monkeypatch.setitem(sys.modules, "win32process", fake_win32process)
 
 
+def _install_fake_embed_win32(
+    monkeypatch: MonkeyPatch,
+    calls: list[tuple[object, ...]],
+    *,
+    window_exists: bool = True,
+) -> ModuleType:
+    """
+    安装嵌入窗口测试用 win32gui/win32con 替身。
+    :param monkeypatch: pytest monkeypatch fixture
+    :param calls: 调用记录
+    :param window_exists: IsWindow 返回值
+    :return: fake win32con 模块
+    """
+    fake_win32con = ModuleType("win32con")
+    fake_win32con.GWL_STYLE = -16
+    fake_win32con.GWL_EXSTYLE = -20
+    fake_win32con.WS_POPUP = 0x80000000
+    fake_win32con.WS_OVERLAPPEDWINDOW = 0x00CF0000
+    fake_win32con.WS_CHILD = 0x40000000
+    fake_win32con.WS_VISIBLE = 0x10000000
+    fake_win32con.WS_EX_TOPMOST = 0x00000008
+    fake_win32con.WS_EX_APPWINDOW = 0x00040000
+    fake_win32con.HWND_TOP = 0
+    fake_win32con.SWP_NOZORDER = 0x0004
+    fake_win32con.SWP_FRAMECHANGED = 0x0020
+    fake_win32con.SWP_SHOWWINDOW = 0x0040
+    fake_win32con.SW_HIDE = 0
+    fake_win32con.SW_SHOW = 5
+    fake_win32con.WM_CLOSE = 0x0010
+
+    fake_win32gui = ModuleType("win32gui")
+    state = {
+        "style": fake_win32con.WS_POPUP | fake_win32con.WS_OVERLAPPEDWINDOW,
+        "exstyle": fake_win32con.WS_EX_TOPMOST | fake_win32con.WS_EX_APPWINDOW,
+    }
+
+    def get_window_long(hwnd: int, index: int) -> int:
+        """
+        返回伪窗口样式。
+        :param hwnd: 窗口句柄
+        :param index: 样式索引
+        :return: 样式值
+        """
+        calls.append(("GetWindowLong", hwnd, index))
+        return state["style"] if index == fake_win32con.GWL_STYLE else state["exstyle"]
+
+    def set_window_long(hwnd: int, index: int, value: int) -> None:
+        """
+        记录样式写入。
+        :param hwnd: 窗口句柄
+        :param index: 样式索引
+        :param value: 样式值
+        :return: None
+        """
+        calls.append(("SetWindowLong", hwnd, index, value))
+        if index == fake_win32con.GWL_STYLE:
+            state["style"] = value
+        else:
+            state["exstyle"] = value
+
+    def set_parent(hwnd: int, parent_hwnd: int) -> None:
+        """
+        记录父窗口绑定。
+        :param hwnd: 窗口句柄
+        :param parent_hwnd: 父窗口句柄
+        :return: None
+        """
+        calls.append(("SetParent", hwnd, parent_hwnd))
+
+    def get_client_rect(hwnd: int) -> tuple[int, int, int, int]:
+        """
+        返回父容器客户区。
+        :param hwnd: 父窗口句柄
+        :return: 客户区矩形
+        """
+        calls.append(("GetClientRect", hwnd))
+        return 0, 0, 1280, 720
+
+    def set_window_pos(
+        hwnd: int,
+        insert_after: int,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        flags: int,
+    ) -> None:
+        """
+        记录窗口尺寸调整。
+        :param hwnd: 窗口句柄
+        :param insert_after: Z 序参数
+        :param x: X 坐标
+        :param y: Y 坐标
+        :param width: 宽度
+        :param height: 高度
+        :param flags: SetWindowPos 标志
+        :return: None
+        """
+        calls.append(("SetWindowPos", hwnd, insert_after, x, y, width, height, flags))
+
+    def move_window(
+        hwnd: int,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        repaint: bool,
+    ) -> None:
+        """
+        记录 MoveWindow 兜底尺寸同步。
+        :param hwnd: 窗口句柄
+        :param x: X 坐标
+        :param y: Y 坐标
+        :param width: 宽度
+        :param height: 高度
+        :param repaint: 是否重绘
+        :return: None
+        """
+        calls.append(("MoveWindow", hwnd, x, y, width, height, repaint))
+
+    def show_window(hwnd: int, command: int) -> None:
+        """
+        记录 ShowWindow 调用。
+        :param hwnd: 窗口句柄
+        :param command: 显示命令
+        :return: None
+        """
+        calls.append(("ShowWindow", hwnd, command))
+
+    def is_window(hwnd: int) -> bool:
+        """
+        返回伪窗口是否存在。
+        :param hwnd: 窗口句柄
+        :return: True 表示窗口存在
+        """
+        calls.append(("IsWindow", hwnd))
+        return window_exists
+
+    def post_message(hwnd: int, message: int, wparam: int, lparam: int) -> None:
+        """
+        记录异步关闭消息。
+        :param hwnd: 窗口句柄
+        :param message: 消息编号
+        :param wparam: wParam
+        :param lparam: lParam
+        :return: None
+        """
+        calls.append(("PostMessage", hwnd, message, wparam, lparam))
+
+    fake_win32gui.GetWindowLong = get_window_long
+    fake_win32gui.SetWindowLong = set_window_long
+    fake_win32gui.SetParent = set_parent
+    fake_win32gui.GetClientRect = get_client_rect
+    fake_win32gui.SetWindowPos = set_window_pos
+    fake_win32gui.MoveWindow = move_window
+    fake_win32gui.ShowWindow = show_window
+    fake_win32gui.IsWindow = is_window
+    fake_win32gui.PostMessage = post_message
+    monkeypatch.setitem(sys.modules, "win32con", fake_win32con)
+    monkeypatch.setitem(sys.modules, "win32gui", fake_win32gui)
+    return fake_win32con
+
+
 def test_snapshot_slideshow_hwnds_collects_visible_powerpoint_windows(
     monkeypatch: MonkeyPatch,
 ) -> None:
@@ -108,6 +275,95 @@ def test_snapshot_slideshow_hwnds_collects_visible_powerpoint_windows(
     )
     slideshow_hwnds = snapshot_slideshow_hwnds(logging.getLogger(__name__))
     assert slideshow_hwnds == {101, 202}
+
+
+def test_embed_slideshow_window_reparents_and_fills_container(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """嵌入 PPT 时应改成子窗口、清理顶层样式并铺满父容器。"""
+    calls: list[tuple[object, ...]] = []
+    win32con = _install_fake_embed_win32(monkeypatch, calls)
+
+    size = embed_slideshow_window(909, 2001)
+
+    style_calls = [
+        call for call in calls
+        if call[0] == "SetWindowLong" and call[2] == win32con.GWL_STYLE
+    ]
+    exstyle_calls = [
+        call for call in calls
+        if call[0] == "SetWindowLong" and call[2] == win32con.GWL_EXSTYLE
+    ]
+    assert size == (1280, 720)
+    assert style_calls
+    embedded_style = int(style_calls[-1][3])
+    assert embedded_style & win32con.WS_CHILD
+    assert embedded_style & win32con.WS_VISIBLE
+    assert not embedded_style & win32con.WS_POPUP
+    assert not embedded_style & win32con.WS_OVERLAPPEDWINDOW
+    assert exstyle_calls
+    embedded_exstyle = int(exstyle_calls[-1][3])
+    assert not embedded_exstyle & win32con.WS_EX_TOPMOST
+    assert not embedded_exstyle & win32con.WS_EX_APPWINDOW
+    assert ("SetParent", 909, 2001) in calls
+    assert any(
+        call[0] == "SetWindowPos"
+        and call[1:6] == (909, win32con.HWND_TOP, 0, 0, 1280)
+        and call[6] == 720
+        and int(call[7]) & win32con.SWP_FRAMECHANGED
+        and int(call[7]) & win32con.SWP_SHOWWINDOW
+        for call in calls
+    )
+    assert ("MoveWindow", 909, 0, 0, 1280, 720, True) in calls
+
+
+def test_embed_slideshow_window_rejects_zero_hwnd() -> None:
+    """PPT HWND 或父容器 HWND 为空时应拒绝嵌入。"""
+    import pytest
+
+    with pytest.raises(RuntimeError, match="HWND 无效"):
+        embed_slideshow_window(0, 2001)
+    with pytest.raises(RuntimeError, match="HWND 无效"):
+        embed_slideshow_window(909, 0)
+
+
+def test_hide_embedded_slideshow_window_uses_sw_hide(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """低延迟切源时应直接隐藏嵌入式子窗口。"""
+    calls: list[tuple[object, ...]] = []
+    win32con = _install_fake_embed_win32(monkeypatch, calls)
+
+    hide_embedded_slideshow_window(909)
+
+    assert ("ShowWindow", 909, win32con.SW_HIDE) in calls
+
+
+def test_show_embedded_slideshow_window_restores_and_resizes(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """新源打开失败后应显示旧 PPT 子窗口并重新同步父容器尺寸。"""
+    calls: list[tuple[object, ...]] = []
+    win32con = _install_fake_embed_win32(monkeypatch, calls)
+
+    size = show_embedded_slideshow_window(909, 2001)
+
+    assert size == (1280, 720)
+    assert ("ShowWindow", 909, win32con.SW_SHOW) in calls
+    assert ("MoveWindow", 909, 0, 0, 1280, 720, True) in calls
+
+
+def test_close_embedded_slideshow_window_hides_and_posts_close(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """关闭嵌入式 PPT 时不应恢复成可见顶层窗口，只发送关闭请求。"""
+    calls: list[tuple[object, ...]] = []
+    win32con = _install_fake_embed_win32(monkeypatch, calls)
+
+    close_embedded_slideshow_window(909)
+
+    assert ("ShowWindow", 909, win32con.SW_HIDE) in calls
+    assert ("PostMessage", 909, win32con.WM_CLOSE, 0, 0) in calls
 
 
 def test_find_slideshow_hwnd_prefers_com_hwnd(monkeypatch: MonkeyPatch) -> None:

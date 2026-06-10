@@ -529,8 +529,8 @@ def test_start_slideshow_raises_when_hwnd_is_missing(monkeypatch: MonkeyPatch) -
     assert find_calls[0]["allow_existing_when_unique"] is False
 
 
-def test_start_slideshow_presents_external_window(monkeypatch: MonkeyPatch) -> None:
-    """找到放映 HWND 后应铺满外部顶层窗口，而不是嵌入 PySide。"""
+def test_start_slideshow_embeds_window_into_pyside_container(monkeypatch: MonkeyPatch) -> None:
+    """找到放映 HWND 后应嵌入 PySide 视频容器。"""
     adapter = PptSourceAdapter()
     presentation = _PresentationWithSettingsStub()
     calls: list[object] = []
@@ -539,7 +539,7 @@ def test_start_slideshow_presents_external_window(monkeypatch: MonkeyPatch) -> N
     adapter._window_handle = 2001
 
     monkeypatch.setattr(ppt, "find_slideshow_hwnd", lambda *_args, **_kwargs: 909)
-    monkeypatch.setattr(ppt, "present_external_slideshow_window", lambda *args: calls.append(args) or (1920, 1080))
+    monkeypatch.setattr(ppt, "embed_slideshow_window", lambda *args: calls.append(args) or (1920, 1080))
 
     adapter._start_slideshow(start_slide=2)
 
@@ -561,10 +561,10 @@ def test_open_presentation_for_slideshow_uses_editable_untitled_copy() -> None:
     ]
 
 
-def test_stop_closes_external_slideshow_window(
+def test_stop_closes_embedded_slideshow_window(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """停止 PPT 时应退出 COM 放映并关闭外部放映 HWND。"""
+    """停止 PPT 时应退出 COM 放映并关闭嵌入式放映 HWND。"""
     adapter = PptSourceAdapter()
     slideshow_view = _ExitTrackingSlideShowView(current_position=3)
     adapter._slideshow_view = slideshow_view
@@ -572,7 +572,7 @@ def test_stop_closes_external_slideshow_window(
     adapter._ppt_hwnd = 909
     adapter._total_slides = 5
     close_calls: list[int] = []
-    monkeypatch.setattr(ppt, "close_external_slideshow_window", close_calls.append)
+    monkeypatch.setattr(ppt, "close_embedded_slideshow_window", close_calls.append)
 
     adapter.stop()
 
@@ -635,7 +635,7 @@ def test_close_com_resources_quits_owned_powerpoint_app(
     adapter._slideshow_view = slideshow_view
     adapter._ppt_hwnd = 909
 
-    monkeypatch.setattr(ppt, "close_external_slideshow_window", close_calls.append)
+    monkeypatch.setattr(ppt, "close_embedded_slideshow_window", close_calls.append)
 
     adapter._close_com_resources()
 
@@ -645,6 +645,39 @@ def test_close_com_resources_quits_owned_powerpoint_app(
     assert ppt_app.quit_called is True
     assert adapter._ppt_app is None
     assert adapter._owns_ppt_app is False
+
+
+def test_detach_for_fast_switch_hides_embedded_slideshow_window(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """切离 PPT 前应先隐藏嵌入式子窗口，避免旧画面挡住新内容。"""
+    adapter = PptSourceAdapter()
+    adapter._ppt_hwnd = 909
+    hide_calls: list[int] = []
+    monkeypatch.setattr(ppt, "hide_embedded_slideshow_window", hide_calls.append)
+
+    adapter.detach_for_fast_switch()
+
+    assert hide_calls == [909]
+
+
+def test_restore_after_failed_switch_shows_embedded_slideshow_window(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """新源打开失败后应恢复旧 PPT 嵌入窗口。"""
+    adapter = PptSourceAdapter()
+    adapter._ppt_hwnd = 909
+    adapter._window_handle = 2001
+    show_calls: list[tuple[int, int]] = []
+    monkeypatch.setattr(
+        ppt,
+        "show_embedded_slideshow_window",
+        lambda *args: show_calls.append(args) or (1920, 1080),
+    )
+
+    adapter.restore_after_failed_switch()
+
+    assert show_calls == [(909, 2001)]
 
 
 def test_close_com_resources_keeps_external_powerpoint_app_running() -> None:

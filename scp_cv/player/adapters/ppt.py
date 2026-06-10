@@ -27,13 +27,13 @@ from scp_cv.player.adapters.ppt_constants import (
     PP_SLIDE_SHOW_RUNNING as _PP_SLIDE_SHOW_RUNNING,
 )
 from scp_cv.player.adapters.ppt_media import control_slide_media
-from scp_cv.player.adapters.ppt_external_window import (
-    close_external_slideshow_window,
-    present_external_slideshow_window,
-)
 from scp_cv.player.adapters.ppt_window import (
+    close_embedded_slideshow_window,
     configure_windowed_slideshow,
+    embed_slideshow_window,
     find_slideshow_hwnd,
+    hide_embedded_slideshow_window,
+    show_embedded_slideshow_window,
     snapshot_slideshow_hwnds,
 )
 from scp_cv.player.adapters.ppt_process import (
@@ -93,22 +93,6 @@ class PptSourceAdapter(PptPreheatMixin, SourceAdapter):
         self._preheat_pool: object | None = None
         # COM 线程锁（所有 COM 调用须串行）
         self._com_lock = threading.Lock()
-
-    @property
-    def has_external_slideshow_window(self) -> bool:
-        """
-        当前是否存在已铺满目标区域的外部 PPT 放映窗口。
-        :return: True 表示外部放映窗口正在承担显示输出
-        """
-        return self._ppt_hwnd != 0
-
-    @property
-    def external_slideshow_hwnd(self) -> int:
-        """
-        当前外部 PowerPoint 放映窗口 HWND。
-        :return: HWND；未打开时返回 0
-        """
-        return self._ppt_hwnd
 
     def set_preheat_context(self, source_id: int, preheat_enabled: bool, preheat_pool: object | None) -> None:
         """
@@ -249,7 +233,7 @@ class PptSourceAdapter(PptPreheatMixin, SourceAdapter):
 
     def _start_slideshow(self, start_slide: int = 1) -> None:
         """
-        启动幻灯片放映并将外部放映窗口铺满目标显示区域。
+        启动幻灯片放映并嵌入 PySide 播放器容器。
         :param start_slide: 起始页码
         """
         if self._presentation is None:
@@ -291,10 +275,10 @@ class PptSourceAdapter(PptPreheatMixin, SourceAdapter):
         )
         if ppt_hwnd == 0:
             raise RuntimeError(
-                f"未找到 {self._app_label} 放映窗口句柄，无法铺满目标显示区域"
+                f"未找到 {self._app_label} 放映窗口句柄，无法嵌入播放器容器"
             )
 
-        container_width, container_height = present_external_slideshow_window(
+        container_width, container_height = embed_slideshow_window(
             ppt_hwnd, self._window_handle
         )
         self._slideshow_window = slideshow_window
@@ -302,14 +286,14 @@ class PptSourceAdapter(PptPreheatMixin, SourceAdapter):
         self._ppt_hwnd = ppt_hwnd
         self._is_paused = False
         self._logger.debug(
-            "%s 外部放映窗口已铺满目标区域：%dx%d",
+            "%s 放映窗口已嵌入 PySide 容器：%dx%d",
             self._app_label,
             container_width,
             container_height,
         )
 
         self._logger.info(
-            "%s 放映已启动为外部顶层窗口（HWND=%d，共 %d 页）",
+            "%s 放映已嵌入播放器窗口（HWND=%d，共 %d 页）",
             self._app_label,
             ppt_hwnd,
             self._total_slides,
@@ -323,7 +307,7 @@ class PptSourceAdapter(PptPreheatMixin, SourceAdapter):
         self._logger.info("PPT 已关闭")
 
     def _close_com_resources(self) -> None:
-        """释放所有 COM 资源，并解除 PPT 外部窗口置顶。"""
+        """释放所有 COM 资源，并关闭嵌入式 PPT 放映子窗口。"""
         import pythoncom
 
         try:
@@ -339,7 +323,7 @@ class PptSourceAdapter(PptPreheatMixin, SourceAdapter):
 
             if self._ppt_hwnd != 0:
                 try:
-                    close_external_slideshow_window(self._ppt_hwnd)
+                    close_embedded_slideshow_window(self._ppt_hwnd)
                 except Exception:
                     pass
                 self._ppt_hwnd = 0
@@ -372,6 +356,30 @@ class PptSourceAdapter(PptPreheatMixin, SourceAdapter):
 
         self._total_slides = 0
         self._is_paused = False
+
+    def detach_for_fast_switch(self) -> None:
+        """
+        切换到其它内容前立即隐藏嵌入式 PPT 子窗口，避免旧画面阻塞新内容显示。
+        :return: None
+        """
+        if self._ppt_hwnd == 0:
+            return
+        try:
+            hide_embedded_slideshow_window(self._ppt_hwnd)
+        except Exception:
+            pass
+
+    def restore_after_failed_switch(self) -> None:
+        """
+        新源打开失败后恢复已隐藏的嵌入式 PPT 子窗口。
+        :return: None
+        """
+        if self._ppt_hwnd == 0:
+            return
+        try:
+            show_embedded_slideshow_window(self._ppt_hwnd, self._window_handle)
+        except Exception:
+            pass
 
     def _set_powerpoint_alerts(self, alert_level: int) -> None:
         """
@@ -489,7 +497,7 @@ class PptSourceAdapter(PptPreheatMixin, SourceAdapter):
                     pass
                 if self._ppt_hwnd != 0:
                     try:
-                        close_external_slideshow_window(self._ppt_hwnd)
+                        close_embedded_slideshow_window(self._ppt_hwnd)
                     except Exception:
                         pass
                     self._ppt_hwnd = 0

@@ -93,8 +93,8 @@ PPT 相关配置：
 - PowerPoint 是唯一 PPT 播放器；导入、预览、播放缓存、预热和放映均不再提供后端选择。
 - 支持 `.pptx/.ppt/.pps/.ppsx/.pptm/.ppsm/.pot/.potx/.potm/.odp` 等演示文件。导入后会尝试生成播放专用 `.ppsx`/`.pps` 缓存，宏格式默认导出为非宏 `.ppsx`；生成失败不阻断媒体源创建，播放时回退原始文件。
 - PPT 媒体源启用预热时会按播放 URI 执行文件级预热：PowerPoint COM 会提前启动并无窗口预打开演示文稿，前台打开时按 `source_id + uri` 精确认领。
-- PPT 放映时对应 PySide 播放窗口会先切到黑屏；PowerPoint 放映窗口成功后置顶，目标 PySide 窗口取消置顶；结束播放或切换到其它内容时先恢复 PySide 黑屏置顶，再关闭 PowerPoint 放映窗口。
-- PPT 生命周期中播放器会最小化同一 Windows 桌面上除所有 PySide 播放窗口和当前 PowerPoint 放映窗口外的其它顶层可见窗口，避免残留窗口遮挡。
+- PPT 放映时目标 PySide 播放窗口会立即切到黑色视频容器并保持可见、置顶；PowerPoint 以窗口化放映启动，播放器将 `SlideShowWindow.HWND` 嵌入该视频容器。
+- PPT 切换到视频、图片、网页或直播时，播放器会先隐藏旧 PPT 嵌入子窗口并显示新内容，再延后关闭旧 PowerPoint 放映和 COM 资源，减少切换黑屏和窗口抢占。
 - 右上角“重置 PPT 放映”会关闭当前 PowerPoint 放映窗口与文档，再重启当前 PPT 放映并回到重置前页码。
 - `PPT_PREVIEW_WORKER_TIMEOUT_SECONDS=180`：上传或导入 PPT 时，预览导出 worker 的最长等待时间；Office 预览导出失败或超时只会跳过预览，不会阻断媒体源创建。
 - `PPT_PLAYBACK_EXPORT_TIMEOUT_SECONDS=180`：导入 PPT 时生成 `.ppsx`/`.pps` 播放缓存的最长等待时间；缓存生成失败只记录 metadata 并回退原始文件播放。
@@ -206,7 +206,7 @@ npm --prefix frontend run build
 如需把现场恢复到空数据库和空媒体状态，先停止 `runall`、Django、播放器等正在运行的进程，再执行：
 
 ```powershell
-uv run manage.py clearall
+uv run python manage.py clearall
 ```
 
 该命令只作为 Django 管理命令提供，不暴露 API 或前端入口。它会删除 `db.sqlite3` 及 SQLite 附属文件，清空 `media/` 和 `logs/`，重新执行迁移，并仅按 `config.toml` 写入固定数据；当前固定数据只有默认管理员。

@@ -2,7 +2,7 @@
 
 本文说明 PySide6 播放器、媒体 adapter、PowerPoint PPT、预热、状态回写和四窗口运行时。该部分是迁移中最不适合并入 Django Web Worker 的模块。
 
-最后更新：2026-06-08。
+最后更新：2026-06-10。
 
 ## 运行时定位
 
@@ -95,7 +95,7 @@ Django 服务层
 
 `open` 的关键参数包括 `source_id`、`source_type`、`uri`、`autoplay`、`volume`、`muted`、`preheat_enabled`、`target_slide`。
 
-打开新源时，播放器会尽量在新内容可见后再关闭旧 adapter，减少黑屏。但是 PPT 切 PPT 或旧 PPT 没有外部窗口时会先恢复 PySide 黑屏置顶并关闭旧 PPT，以避免 PowerPoint 资源和窗口层级冲突。
+打开新源时，播放器会尽量在新内容可见后再关闭旧 adapter，减少黑屏。若旧源是 PPT，控制器会先隐藏已嵌入的 PowerPoint 放映子窗口，让 PySide 容器立即接管；新源打开成功后再通过 Qt 下一轮事件循环关闭旧 PPT，打开失败时恢复旧 PPT 子窗口。
 
 ## PlayerWindow
 
@@ -106,7 +106,7 @@ Django 服务层
 | 结构 | 用途 |
 | --- | --- |
 | 黑屏 label | 空闲、关闭、切换时的背景 |
-| video viewport/container | 图片、本地视频、libVLC、PPT anchor |
+| video viewport/container | 图片、本地视频、libVLC、PPT 嵌入容器 |
 | web viewport/container | QWebEngineView 页面 |
 | ID overlay | `show-id` 时显示窗口编号 |
 
@@ -172,10 +172,11 @@ PPT 适配器文件：`scp_cv/player/adapters/ppt.py`。
 | 能力 | 文件 |
 | --- | --- |
 | PowerPoint COM 放映 | `scp_cv/player/adapters/ppt.py` |
-| 外部窗口定位和置顶 | `scp_cv/player/adapters/ppt_external_window.py`, `scp_cv/player/adapters/ppt_window.py` |
-| 顶层窗口清理 | `scp_cv/player/window_cleanup.py` |
+| 放映 HWND 查找、嵌入和尺寸同步 | `scp_cv/player/adapters/ppt_window.py` |
+| PPT 切源容器准备和恢复 | `scp_cv/player/controller_window_helpers.py` |
+| 当前页媒体控制 | `scp_cv/player/adapters/ppt_media.py` |
 
-PPT 外部窗口定位：`scp_cv/player/adapters/ppt_external_window.py`。
+PowerPoint 播放只支持 COM 窗口化放映。适配器配置 `ppShowTypeWindow` 后调用 `SlideShowSettings.Run()`，读取 `SlideShowWindow.HWND`，再通过 Win32 `SetParent()` 嵌入目标 `PlayerWindow.video_window_handle`。嵌入时会移除顶层/弹出窗口样式，添加 `WS_CHILD | WS_VISIBLE`，清理 topmost/appwindow 扩展样式，并填满 PySide 视频容器。
 
 | 后端 | 媒体控制 |
 | --- | --- |
@@ -183,7 +184,7 @@ PPT 外部窗口定位：`scp_cv/player/adapters/ppt_external_window.py`。
 
 PPT 全局 volume/mute 大多不可控。窗口音量 UI 对 PPT 不应承诺等价于视频音量。
 
-PowerPoint 启动、打开文档、运行放映和 HWND 查找都带确定性重试；失败时保留 PySide 黑屏并回写明确错误，不回退到其它后端。
+PowerPoint 启动、打开文档、运行放映、HWND 查找和嵌入都带确定性重试或明确失败路径；失败时保留 PySide 黑屏并回写明确错误，不回退到其它后端。播放器不再隐藏 PySide 窗口，不取消 PySide 置顶，也不最小化其它顶层窗口。
 
 ## PPT 资源、预览和播放缓存
 
@@ -247,7 +248,7 @@ PPT 后端不仅有播放 adapter，还有导入阶段的资源解析和缓存�
 | 命令消费 | REST 写入命令后播放器能在 1 秒内消费 |
 | 状态回写 | 前端看到的状态来自真实 adapter |
 | 四窗口 | 1-4 语义保持不变 |
-| PPT | 三个 backend 可按源或会话选择 |
+| PPT | PowerPoint-only，窗口化放映 HWND 嵌入 PySide 视频容器 |
 | 直播 | MediaMTX 自动源和手动 SRT/RTSP 源均可播放 |
 | 预热 | `keep_alive` 源能预热并可被前台认领 |
 | 背景音频 | 播放列表、自然下一首、循环、音量、静音可用 |
