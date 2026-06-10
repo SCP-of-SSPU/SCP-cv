@@ -15,6 +15,7 @@ from types import ModuleType
 from pytest import MonkeyPatch
 
 from scp_cv.player.adapters.ppt_external_window import (
+    close_external_slideshow_window,
     present_external_slideshow_window,
     release_external_slideshow_window,
 )
@@ -28,6 +29,7 @@ def _install_fake_win32_modules(monkeypatch: MonkeyPatch) -> dict[str, object]:
     """
     calls: dict[str, object] = {
         "move_window": [],
+        "post_message": [],
         "set_parent": [],
         "set_window_long": [],
         "set_window_pos": [],
@@ -58,6 +60,7 @@ def _install_fake_win32_modules(monkeypatch: MonkeyPatch) -> dict[str, object]:
     fake_win32con.MONITOR_DEFAULTTONEAREST = 2
     fake_win32con.GA_ROOT = 2
     fake_win32con.SW_RESTORE = 9
+    fake_win32con.WM_CLOSE = 0x0010
 
     fake_win32api = ModuleType("win32api")
     fake_win32gui = ModuleType("win32gui")
@@ -196,6 +199,25 @@ def _install_fake_win32_modules(monkeypatch: MonkeyPatch) -> dict[str, object]:
         calls["move_window"].append((hwnd, x, y, width, height, repaint))  # type: ignore[attr-defined]
         window_rects[hwnd] = (x, y, x + width, y + height)
 
+    def is_window(hwnd: int) -> bool:
+        """
+        返回伪窗口是否存在。
+        :param hwnd: 窗口句柄
+        :return: True 表示存在
+        """
+        return hwnd in window_rects
+
+    def post_message(hwnd: int, message: int, wparam: int, lparam: int) -> None:
+        """
+        记录异步窗口消息。
+        :param hwnd: 窗口句柄
+        :param message: 消息类型
+        :param wparam: WPARAM
+        :param lparam: LPARAM
+        :return: None
+        """
+        calls["post_message"].append((hwnd, message, wparam, lparam))  # type: ignore[attr-defined]
+
     fake_win32api.MonitorFromWindow = monitor_from_window
     fake_win32api.EnumDisplayMonitors = enum_display_monitors
     fake_win32api.GetMonitorInfo = get_monitor_info
@@ -207,6 +229,8 @@ def _install_fake_win32_modules(monkeypatch: MonkeyPatch) -> dict[str, object]:
     fake_win32gui.SetWindowPos = set_window_pos
     fake_win32gui.ShowWindow = show_window
     fake_win32gui.MoveWindow = move_window
+    fake_win32gui.IsWindow = is_window
+    fake_win32gui.PostMessage = post_message
     monkeypatch.setitem(sys.modules, "win32api", fake_win32api)
     monkeypatch.setitem(sys.modules, "win32con", fake_win32con)
     monkeypatch.setitem(sys.modules, "win32gui", fake_win32gui)
@@ -311,3 +335,16 @@ def test_release_external_slideshow_window_clears_topmost(monkeypatch: MonkeyPat
 
     assert calls["set_parent"] == [(909, 0)]
     assert calls["set_window_pos"][-1][1] == -2
+
+
+def test_close_external_slideshow_window_posts_close_message(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """关闭外部 PPT 放映窗口时应释放置顶并发送 WM_CLOSE。"""
+    calls = _install_fake_win32_modules(monkeypatch)
+
+    close_external_slideshow_window(909)
+
+    assert calls["set_parent"] == [(909, 0)]
+    assert calls["set_window_pos"][-1][1] == -2
+    assert calls["post_message"] == [(909, 0x0010, 0, 0)]

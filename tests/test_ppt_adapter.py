@@ -20,7 +20,6 @@ from scp_cv.player.adapters.ppt_constants import (
 )
 from scp_cv.player.adapters.ppt_media import candidate_media_shape_ids
 from scp_cv.player.adapters.ppt_window import configure_windowed_slideshow
-from scp_cv.ppt_com import POWERPOINT_COM_PROG_IDS
 
 
 class _PresentationStub:
@@ -510,6 +509,7 @@ def test_start_slideshow_raises_when_hwnd_is_missing(monkeypatch: MonkeyPatch) -
         return 0
 
     monkeypatch.setattr(ppt, "find_slideshow_hwnd", fake_find_slideshow_hwnd)
+    monkeypatch.setattr(ppt, "snapshot_slideshow_hwnds", lambda *_args, **_kwargs: {101})
 
     try:
         adapter._start_slideshow(start_slide=3)
@@ -523,7 +523,10 @@ def test_start_slideshow_raises_when_hwnd_is_missing(monkeypatch: MonkeyPatch) -
     assert presentation.SlideShowSettings.ShowType == PP_SLIDE_SHOW_WINDOW
     assert presentation.SlideShowSettings.run_called is True
     assert presentation.Saved is True
+    assert adapter._slideshow_view is None
+    assert adapter._slideshow_window is None
     assert find_calls[0]["timeout_seconds"] == ppt._SLIDESHOW_HWND_TIMEOUT_SECONDS
+    assert find_calls[0]["allow_existing_when_unique"] is False
 
 
 def test_start_slideshow_presents_external_window(monkeypatch: MonkeyPatch) -> None:
@@ -558,25 +561,23 @@ def test_open_presentation_for_slideshow_uses_editable_untitled_copy() -> None:
     ]
 
 
-def test_stop_exits_slideshow_when_external_window_release_fails(
+def test_stop_closes_external_slideshow_window(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """释放外部窗口失败不应阻断 PowerPoint 退出放映。"""
+    """停止 PPT 时应退出 COM 放映并关闭外部放映 HWND。"""
     adapter = PptSourceAdapter()
     slideshow_view = _ExitTrackingSlideShowView(current_position=3)
     adapter._slideshow_view = slideshow_view
     adapter._presentation = _PresentationStub()
     adapter._ppt_hwnd = 909
     adapter._total_slides = 5
-    monkeypatch.setattr(
-        ppt,
-        "release_external_slideshow_window",
-        lambda _hwnd: (_ for _ in ()).throw(RuntimeError("release failed")),
-    )
+    close_calls: list[int] = []
+    monkeypatch.setattr(ppt, "close_external_slideshow_window", close_calls.append)
 
     adapter.stop()
 
     assert slideshow_view.exit_called is True
+    assert close_calls == [909]
     assert adapter._ppt_hwnd == 0
     assert adapter._slideshow_view is None
     assert adapter._last_slide_index == 3
@@ -619,17 +620,27 @@ def test_candidate_media_shape_ids_prioritizes_selected_page_media() -> None:
     assert presentation.Slides.requested_positions == [4]
 
 
-def test_close_com_resources_quits_owned_powerpoint_app() -> None:
+def test_close_com_resources_quits_owned_powerpoint_app(
+    monkeypatch: MonkeyPatch,
+) -> None:
     """适配器自建的 PowerPoint 进程应在关闭时退出。"""
     adapter = PptSourceAdapter()
     presentation = _PresentationStub()
     ppt_app = _PptAppStub()
+    slideshow_view = _ExitTrackingSlideShowView(current_position=3)
+    close_calls: list[int] = []
     adapter._presentation = presentation
     adapter._ppt_app = ppt_app
     adapter._owns_ppt_app = True
+    adapter._slideshow_view = slideshow_view
+    adapter._ppt_hwnd = 909
+
+    monkeypatch.setattr(ppt, "close_external_slideshow_window", close_calls.append)
 
     adapter._close_com_resources()
 
+    assert slideshow_view.exit_called is True
+    assert close_calls == [909]
     assert presentation.close_called is True
     assert ppt_app.quit_called is True
     assert adapter._ppt_app is None

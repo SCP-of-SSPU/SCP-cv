@@ -12,7 +12,6 @@ from __future__ import annotations
 import sys
 import types
 
-import pytest
 from pytest import MonkeyPatch
 
 from scp_cv.player.adapters import ppt
@@ -263,7 +262,11 @@ def test_ppt_adapter_reuses_preheated_presentation(monkeypatch: MonkeyPatch) -> 
     adapter = PptSourceAdapter()
     adapter.set_preheat_context(7, True, preheat_pool)
     adapter._file_path = uri
-    monkeypatch.setattr(ppt, "snapshot_candidate_process_ids", lambda _prog_id: set())
+    monkeypatch.setattr(
+        ppt,
+        "snapshot_candidate_process_ids_for_prog_ids",
+        lambda *_args, **_kwargs: set(),
+    )
     monkeypatch.setattr(ppt, "read_ppt_app_process_id", lambda *_args, **_kwargs: 0)
     monkeypatch.setattr(adapter, "_start_slideshow", lambda *_args, **_kwargs: None)
 

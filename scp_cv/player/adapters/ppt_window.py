@@ -155,7 +155,7 @@ def find_slideshow_hwnd(
                 if ppt_hwnd not in excluded_hwnds:
                     logger.debug("通过 COM 验证到本次放映 HWND=%d", ppt_hwnd)
                     return ppt_hwnd
-                if allow_existing_when_unique and (
+                if process_id is not None and allow_existing_when_unique and (
                     time.monotonic() - started_at
                 ) >= existing_com_grace:
                     reusable_hwnd = _reusable_existing_com_hwnd(
@@ -222,20 +222,6 @@ def find_slideshow_hwnd(
                 scoped_hwnds,
             )
             return selected_hwnd
-
-    if win32gui is not None and allow_existing_when_unique and process_id is None:
-        all_hwnds = _find_matching_slideshow_hwnds(
-            win32gui,
-            logger,
-            existing_hwnds=None,
-            class_names=class_names,
-        )
-        if len(all_hwnds) == 1:
-            logger.debug(
-                "进程 ID 不可用，使用系统中唯一放映 HWND=%d",
-                all_hwnds[0],
-            )
-            return all_hwnds[0]
 
     if win32gui is None:
         logger.warning("Win32 模块不可用，无法查找 PPT 放映窗口")
@@ -389,7 +375,7 @@ def _is_candidate_slideshow_window(
     :param win32gui: win32gui 模块或测试替身
     :param hwnd: 窗口句柄
     :param selected_class_names: 可接受的窗口 class name 集合
-    :param process_id: 可选进程 ID
+    :param process_id: PowerPoint 进程 ID
     :return: True 表示可作为放映窗口候选
     """
     if not win32gui.IsWindowVisible(hwnd):

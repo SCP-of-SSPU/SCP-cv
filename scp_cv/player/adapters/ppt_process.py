@@ -9,6 +9,8 @@ PowerPoint 进程识别辅助函数。
 '''
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 
 def read_ppt_app_process_id(
     ppt_app: object | None,
@@ -26,11 +28,10 @@ def read_ppt_app_process_id(
     if ppt_app is None:
         return 0
     app_hwnd = _read_app_hwnd(ppt_app)
-    if not app_hwnd:
-        return 0
-    process_id = _process_id_from_hwnd(app_hwnd)
-    if process_id:
-        return process_id
+    if app_hwnd:
+        process_id = _process_id_from_hwnd(app_hwnd)
+        if process_id:
+            return process_id
     new_process_ids = snapshot_candidate_process_ids(active_com_prog_id) - (existing_process_ids or set())
     if len(new_process_ids) == 1:
         return next(iter(new_process_ids))
@@ -45,6 +46,34 @@ def snapshot_candidate_process_ids(active_com_prog_id: str) -> set[int]:
     :returns: 进程 ID 集合
     """
     process_names = candidate_process_names(active_com_prog_id)
+    return _snapshot_process_ids(process_names)
+
+
+def snapshot_candidate_process_ids_for_prog_ids(
+    com_prog_ids: Iterable[str],
+    active_com_prog_id: str = "",
+) -> set[int]:
+    """
+    按当前 COM 候选 ProgID 获取 PowerPoint 后端候选进程 ID。
+
+    :param com_prog_ids: 当前适配器可尝试的 COM ProgID 集合
+    :param active_com_prog_id: 已确认可用的 COM ProgID；为空时回退到候选集合
+    :returns: 进程 ID 集合
+    """
+    process_names: set[str] = set()
+    process_names.update(candidate_process_names(active_com_prog_id))
+    for prog_id in com_prog_ids:
+        process_names.update(candidate_process_names(prog_id))
+    return _snapshot_process_ids(process_names)
+
+
+def _snapshot_process_ids(process_names: set[str]) -> set[int]:
+    """
+    按进程名读取当前系统中的候选进程 ID。
+
+    :param process_names: 小写进程名集合
+    :returns: 进程 ID 集合
+    """
     if not process_names:
         return set()
     try:
@@ -109,4 +138,5 @@ __all__ = [
     "candidate_process_names",
     "read_ppt_app_process_id",
     "snapshot_candidate_process_ids",
+    "snapshot_candidate_process_ids_for_prog_ids",
 ]

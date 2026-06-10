@@ -28,8 +28,8 @@ from scp_cv.player.adapters.ppt_constants import (
 )
 from scp_cv.player.adapters.ppt_media import control_slide_media
 from scp_cv.player.adapters.ppt_external_window import (
+    close_external_slideshow_window,
     present_external_slideshow_window,
-    release_external_slideshow_window,
 )
 from scp_cv.player.adapters.ppt_window import (
     configure_windowed_slideshow,
@@ -38,7 +38,7 @@ from scp_cv.player.adapters.ppt_window import (
 )
 from scp_cv.player.adapters.ppt_process import (
     read_ppt_app_process_id,
-    snapshot_candidate_process_ids,
+    snapshot_candidate_process_ids_for_prog_ids,
 )
 from scp_cv.player.adapters.ppt_preheat import PptPreheatMixin
 from scp_cv.player.preheat_types import PreheatedPptApplication
@@ -154,7 +154,10 @@ class PptSourceAdapter(PptPreheatMixin, SourceAdapter):
         pythoncom.CoInitialize()
 
         self._owns_ppt_app = False
-        existing_process_ids = snapshot_candidate_process_ids(self._active_com_prog_id)
+        existing_process_ids = snapshot_candidate_process_ids_for_prog_ids(
+            self._com_prog_ids,
+            self._active_com_prog_id,
+        )
         self._preheated_app = self._take_preheated_application()
         if self._preheated_app is not None:
             self._ppt_app = self._preheated_app.app
@@ -267,25 +270,24 @@ class PptSourceAdapter(PptPreheatMixin, SourceAdapter):
             process_id=self._ppt_process_id or None,
         )
 
-        self._slideshow_window = self._run_powerpoint_operation(
+        slideshow_window = self._run_powerpoint_operation(
             "启动幻灯片放映",
             settings.Run,
         )
         self._mark_presentation_clean()
-        if self._slideshow_window is None:
+        if slideshow_window is None:
             raise RuntimeError(f"{self._app_label} SlideShowSettings.Run 未返回放映窗口")
-        self._slideshow_view = self._slideshow_window.View
-        self._is_paused = False
+        slideshow_view = slideshow_window.View
 
         # 获取 PPT 放映窗口的 HWND
         ppt_hwnd = find_slideshow_hwnd(
-            self._slideshow_window,
+            slideshow_window,
             self._logger,
             existing_hwnds,
             class_names=self._slideshow_class_names,
             timeout_seconds=_SLIDESHOW_HWND_TIMEOUT_SECONDS,
             process_id=self._ppt_process_id or None,
-            allow_existing_when_unique=True,
+            allow_existing_when_unique=not existing_hwnds,
         )
         if ppt_hwnd == 0:
             raise RuntimeError(
@@ -295,7 +297,10 @@ class PptSourceAdapter(PptPreheatMixin, SourceAdapter):
         container_width, container_height = present_external_slideshow_window(
             ppt_hwnd, self._window_handle
         )
+        self._slideshow_window = slideshow_window
+        self._slideshow_view = slideshow_view
         self._ppt_hwnd = ppt_hwnd
+        self._is_paused = False
         self._logger.debug(
             "%s 外部放映窗口已铺满目标区域：%dx%d",
             self._app_label,
@@ -323,14 +328,6 @@ class PptSourceAdapter(PptPreheatMixin, SourceAdapter):
 
         try:
             self._set_powerpoint_alerts(_PP_ALERTS_NONE)
-            # 先释放外部窗口置顶关系，避免 PPT 应用关闭时影响其它窗口层级。
-            if self._ppt_hwnd != 0:
-                try:
-                    release_external_slideshow_window(self._ppt_hwnd)
-                except Exception:
-                    pass
-                self._ppt_hwnd = 0
-
             if self._slideshow_view is not None:
                 try:
                     self._mark_presentation_clean()
@@ -339,6 +336,13 @@ class PptSourceAdapter(PptPreheatMixin, SourceAdapter):
                     pass
                 self._slideshow_view = None
                 self._slideshow_window = None
+
+            if self._ppt_hwnd != 0:
+                try:
+                    close_external_slideshow_window(self._ppt_hwnd)
+                except Exception:
+                    pass
+                self._ppt_hwnd = 0
 
             if self._presentation is not None:
                 try:
@@ -480,15 +484,15 @@ class PptSourceAdapter(PptPreheatMixin, SourceAdapter):
                         or self._last_slide_index
                     )
                     self._mark_presentation_clean()
-                    if self._ppt_hwnd != 0:
-                        try:
-                            release_external_slideshow_window(self._ppt_hwnd)
-                        except Exception:
-                            pass
-                        self._ppt_hwnd = 0
                     self._slideshow_view.Exit()
                 except Exception:
                     pass
+                if self._ppt_hwnd != 0:
+                    try:
+                        close_external_slideshow_window(self._ppt_hwnd)
+                    except Exception:
+                        pass
+                    self._ppt_hwnd = 0
                 self._slideshow_view = None
                 self._slideshow_window = None
                 self._is_paused = False

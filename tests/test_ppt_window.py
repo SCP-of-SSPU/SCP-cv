@@ -161,12 +161,13 @@ def test_find_slideshow_hwnd_waits_when_com_returns_existing_hwnd(
 def test_find_slideshow_hwnd_can_reuse_existing_com_hwnd_after_grace(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """PowerPoint 复用唯一旧 HWND 时，应等待稳定后再接受该 COM HWND。"""
+    """PowerPoint 复用当前进程唯一旧 HWND 时，应等待稳定后再接受。"""
     windows = {101: ("screenClass", True)}
     now = [0.0]
     sleep_calls: list[float] = []
     slideshow_window = type("_SlideShowWindowStub", (), {"HWND": 101})()
     _install_fake_win32gui(monkeypatch, windows)
+    _install_fake_win32process(monkeypatch, {101: 900})
 
     def fake_sleep(seconds: float) -> None:
         """
@@ -186,12 +187,32 @@ def test_find_slideshow_hwnd_can_reuse_existing_com_hwnd_after_grace(
         existing_hwnds={101},
         timeout_seconds=1.0,
         poll_interval_seconds=0.1,
+        process_id=900,
         allow_existing_when_unique=True,
         existing_com_grace_seconds=0.25,
     )
 
     assert hwnd == 101
     assert sleep_calls == [0.1, 0.1, 0.1]
+
+
+def test_find_slideshow_hwnd_rejects_existing_com_hwnd_without_process(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """进程不可确认时，不应把启动前已有 HWND 当作本次放映窗口。"""
+    slideshow_window = type("_SlideShowWindowStub", (), {"HWND": 101})()
+    _install_fake_win32gui(monkeypatch, {101: ("screenClass", True)})
+
+    hwnd = find_slideshow_hwnd(
+        slideshow_window,
+        logging.getLogger(__name__),
+        existing_hwnds={101},
+        timeout_seconds=0.0,
+        allow_existing_when_unique=True,
+        existing_com_grace_seconds=0.0,
+    )
+
+    assert hwnd == 0
 
 
 def test_find_slideshow_hwnd_excludes_existing_windows(
@@ -369,10 +390,10 @@ def test_find_slideshow_hwnd_can_use_process_scoped_existing_window(
     assert hwnd == 101
 
 
-def test_find_slideshow_hwnd_can_use_single_global_existing_window(
+def test_find_slideshow_hwnd_rejects_single_global_existing_window(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """进程不可读时，只能回收系统中唯一的放映候选。"""
+    """进程不可读时，不应回收启动前已存在的全局唯一放映候选。"""
     _install_fake_win32gui(
         monkeypatch,
         {
@@ -387,7 +408,7 @@ def test_find_slideshow_hwnd_can_use_single_global_existing_window(
         allow_existing_when_unique=True,
     )
 
-    assert hwnd == 101
+    assert hwnd == 0
 
 
 def test_find_slideshow_hwnd_waits_for_delayed_window(

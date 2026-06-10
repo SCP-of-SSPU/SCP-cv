@@ -99,6 +99,48 @@ def release_external_slideshow_window(slideshow_hwnd: int) -> None:
         return
 
 
+def close_external_slideshow_window(slideshow_hwnd: int) -> None:
+    """
+    请求关闭外部 PowerPoint 放映窗口。
+    :param slideshow_hwnd: PowerPoint 放映窗口 HWND
+    :return: None
+    """
+    if slideshow_hwnd == 0:
+        return
+    try:
+        import win32con
+        import win32gui
+
+        release_external_slideshow_window(slideshow_hwnd)
+        if not _window_exists(win32gui, slideshow_hwnd):
+            return
+        post_message = getattr(win32gui, "PostMessage", None)
+        if callable(post_message):
+            post_message(slideshow_hwnd, win32con.WM_CLOSE, 0, 0)
+            return
+        send_message = getattr(win32gui, "SendMessage", None)
+        if callable(send_message):
+            send_message(slideshow_hwnd, win32con.WM_CLOSE, 0, 0)
+    except Exception as close_error:
+        logger.debug("请求关闭 PowerPoint 放映窗口失败：hwnd=%s, error=%s", slideshow_hwnd, close_error)
+
+
+def _window_exists(win32gui: object, hwnd: int) -> bool:
+    """
+    判断窗口句柄是否仍存在；替身或旧 Win32 模块不支持时默认继续尝试关闭。
+    :param win32gui: win32gui 模块或测试替身
+    :param hwnd: 窗口句柄
+    :return: True 表示窗口仍存在
+    """
+    is_window = getattr(win32gui, "IsWindow", None)
+    if not callable(is_window):
+        return True
+    try:
+        return bool(is_window(hwnd))
+    except Exception:
+        return True
+
+
 def _target_rect_from_anchor(
     win32gui: object,
     win32con: object,
@@ -356,6 +398,7 @@ def _move_window(
 
 
 __all__ = [
+    "close_external_slideshow_window",
     "present_external_slideshow_window",
     "release_external_slideshow_window",
 ]
