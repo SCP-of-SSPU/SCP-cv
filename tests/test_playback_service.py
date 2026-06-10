@@ -416,6 +416,25 @@ class TestPptResetOperations:
         restart_sessions = session.command_args["restart_sessions"]
         assert restart_sessions[0]["source_id"] == media_source_ppt.pk
         assert restart_sessions[0]["target_slide"] == 5
+        assert "reset_token" in session.command_args
+
+    def test_reset_ppt_playback_broadcasts_to_each_active_ppt_window(
+        self,
+        media_source_ppt: MediaSource,
+    ) -> None:
+        """多播放器进程下，每个活跃 PPT 窗口都应收到 reset-ppt 指令。"""
+        open_source(1, media_source_ppt.pk)
+        open_source(2, media_source_ppt.pk)
+        clear_pending_command(1)
+        clear_pending_command(2)
+
+        reset_ppt_playback()
+        session1 = get_or_create_session(1)
+        session2 = get_or_create_session(2)
+
+        assert session1.pending_command == PlaybackCommand.RESET_PPT
+        assert session2.pending_command == PlaybackCommand.RESET_PPT
+        assert session1.command_args["reset_token"] == session2.command_args["reset_token"]
 
     def test_reset_ppt_playback_uses_ready_playback_cache(
         self,

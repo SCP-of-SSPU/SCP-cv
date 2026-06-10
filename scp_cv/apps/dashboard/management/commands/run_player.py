@@ -12,8 +12,10 @@ Django 管理命令：启动 PySide6 多窗口播放器。
 
 from __future__ import annotations
 
+import subprocess
 import signal
 import sys
+import time
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
@@ -62,7 +64,19 @@ class Command(BaseCommand):
             "--window4", type=int, default=0, help="窗口 4 使用的 Windows 显示器 ID"
         )
         parser.add_argument(
+            "--only-window",
+            type=int,
+            default=0,
+            help="仅创建指定窗口；用于 runall 将多窗口拆分为独立播放器进程",
+        )
+        parser.add_argument(
             "--gpu", type=int, default=-1, help="GPU ID；未指定时使用系统默认 GPU"
+        )
+        parser.add_argument(
+            "--disable-background-audio",
+            action="store_true",
+            default=False,
+            help="禁用背景音频命令消费；多播放器进程中仅一个进程应负责背景音频",
         )
 
     def handle(self, **options: object) -> None:
@@ -82,6 +96,9 @@ class Command(BaseCommand):
 
         dev_mode = bool(options.get("dev", False)) or settings.DEBUG
         poll_interval = float(options.get("poll_interval", 0.2))
+        background_audio_enabled = not bool(options.get("disable_background_audio", False))
+        only_window_id = int(options.get("only_window", 0) or 0)
+        shutdown_requested = {"value": False}
 
         # GUI 模式保留自动选择显卡；headless 未显式给 --gpu 时交给系统默认 GPU。
         from scp_cv.player.gpu_detector import auto_select_gpu
@@ -105,6 +122,7 @@ class Command(BaseCommand):
             :param _frame: 当前栈帧
             :return: None
             """
+            shutdown_requested["value"] = True
             self.stdout.write(self.style.WARNING(f"收到信号 {signum}，正在关闭播放器…"))
             qt_app.quit()
 
@@ -142,8 +160,23 @@ class Command(BaseCommand):
                 )
             )
 
+        if only_window_id <= 0 and assigned_count > 1:
+            self._run_isolated_window_players(
+                launch_result,
+                dev_mode,
+                poll_interval,
+                shutdown_requested,
+            )
+            return
+
         # ═══ 根据分配结果创建播放窗口 ═══
-        self._start_player(qt_app, launch_result, dev_mode, poll_interval)
+        self._start_player(
+            qt_app,
+            launch_result,
+            dev_mode,
+            poll_interval,
+            background_audio_enabled,
+        )
 
     def _collect_launcher_result(self, qt_app: object, dev_mode: bool) -> object | None:
         """
@@ -204,12 +237,114 @@ class Command(BaseCommand):
         }
         gpu_id = int(options.get("gpu", -1))
         try:
+            only_window_id = int(options.get("only_window", 0) or 0)
             return build_headless_launch_result(
                 window_display_ids=window_display_ids,
                 gpu_id=gpu_id if gpu_id >= 0 else None,
+                only_window_id=only_window_id or None,
             )
         except ValueError as launch_error:
             raise CommandError(str(launch_error)) from launch_error
+
+    def _run_isolated_window_players(
+        self,
+        launch_result: object,
+        dev_mode: bool,
+        poll_interval: float,
+        shutdown_requested: dict[str, bool],
+    ) -> None:
+        """
+        将多个播放窗口拆成独立 run_player 子进程，隔离 PowerPoint COM 生命周期。
+        :param launch_result: LauncherResult
+        :param dev_mode: 是否开发模式
+        :param poll_interval: 轮询间隔
+        :param shutdown_requested: 信号处理器设置的关闭标记
+        :return: None
+        """
+        from scp_cv.player.launcher_gui import LauncherResult
+
+        result: LauncherResult = launch_result
+        window_ids = sorted(result.window_assignments.keys())
+        background_audio_owner = window_ids[0]
+        processes: list[subprocess.Popen[bytes]] = []
+        try:
+            for window_id in window_ids:
+                display_target = result.window_assignments[window_id]
+                command_args = [
+                    sys.executable,
+                    "manage.py",
+                    "run_player",
+                    "--poll-interval",
+                    str(poll_interval),
+                    "--headless",
+                    "--only-window",
+                    str(window_id),
+                    f"--window{window_id}",
+                    str(display_target.index),
+                ]
+                if dev_mode:
+                    command_args.append("--dev")
+                selected_gpu = result.selected_gpu
+                if selected_gpu is not None:
+                    command_args.extend(["--gpu", str(selected_gpu.index)])
+                if window_id != background_audio_owner:
+                    command_args.append("--disable-background-audio")
+                processes.append(subprocess.Popen(command_args))
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f"独立播放器窗口 {window_id} 已启动（显示器 ID={display_target.index}）"
+                    )
+                )
+            self._monitor_isolated_players(processes, shutdown_requested)
+        finally:
+            self._terminate_isolated_players(processes)
+
+    def _monitor_isolated_players(
+        self,
+        processes: list[subprocess.Popen[bytes]],
+        shutdown_requested: dict[str, bool],
+    ) -> None:
+        """
+        监控独立播放器子进程，任一窗口退出时关闭整组播放器。
+        :param processes: 子进程列表
+        :param shutdown_requested: 信号处理器设置的关闭标记
+        :return: None
+        """
+        try:
+            while processes:
+                if shutdown_requested.get("value", False):
+                    return
+                for process in processes:
+                    exit_code = process.poll()
+                    if exit_code is None:
+                        continue
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"独立播放器进程已退出（pid={process.pid}, code={exit_code}）"
+                        )
+                    )
+                    sys.exit(exit_code or 0)
+                time.sleep(0.3)
+        except KeyboardInterrupt:
+            shutdown_requested["value"] = True
+
+    @staticmethod
+    def _terminate_isolated_players(processes: list[subprocess.Popen[bytes]]) -> None:
+        """
+        关闭仍在运行的独立播放器子进程。
+        :param processes: 子进程列表
+        :return: None
+        """
+        for process in processes:
+            if process.poll() is None:
+                process.terminate()
+        for process in processes:
+            if process.poll() is not None:
+                continue
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
 
     def _start_player(
         self,
@@ -217,6 +352,7 @@ class Command(BaseCommand):
         launch_result: object,
         dev_mode: bool,
         poll_interval: float,
+        background_audio_enabled: bool = True,
     ) -> None:
         """
         根据启动器结果创建多个播放窗口并启动事件循环。
@@ -235,7 +371,7 @@ class Command(BaseCommand):
         result: LauncherResult = launch_result
 
         # 创建控制器
-        controller = PlayerController()
+        controller = PlayerController(enable_background_audio=background_audio_enabled)
         if not dev_mode:
             controller.set_window_closed_callback(qt_app.quit)
         all_windows: list[PlayerWindow] = []
@@ -289,7 +425,7 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"播放器已启动（{len(all_windows)} 窗口），等待播放指令…"
+                f"播放器已启动（{len(all_windows)} 窗口，背景音频={background_audio_enabled}），等待播放指令…"
             )
         )
 

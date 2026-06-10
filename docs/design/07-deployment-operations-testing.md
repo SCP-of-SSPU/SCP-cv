@@ -139,7 +139,7 @@ uv run manage.py clearall
 | `logs/app/scp-cv.log` | Django 应用日志，RotatingFileHandler |
 | `logs/runall/<timestamp>/django.log` | runall 启动的 Django 子进程输出 |
 | `logs/runall/<timestamp>/frontend.log` | Vite 输出 |
-| `logs/runall/<timestamp>/player.log` | PySide 播放器输出 |
+| `logs/runall/<timestamp>/pyside-播放器-<窗口号>.log` | 对应窗口的 PySide 播放器输出 |
 | `logs/runall/<timestamp>/mediamtx.log` | MediaMTX 输出 |
 | `logs/runall/service/` | `--service` 后台启动日志 |
 | `logs/runall.shutdown` | 系统关机哨兵文件 |
@@ -224,7 +224,7 @@ npm --prefix frontend run build
 | --- | --- |
 | 控制台 401 | 登录态、CSRF、`ApiAuthMiddleware`、cookie SameSite |
 | SSE 不更新 | `/api/events/`、浏览器 EventSource、Django 日志、DB 是否被播放器写回 |
-| 播放器不启动 | 是否活动桌面、PySide6、GPU 参数、`player.log` |
+| 播放器不启动 | 是否活动桌面、PySide6、GPU 参数、对应 `pyside-播放器-<窗口号>.log` |
 | 只启动后无窗口 | headless 显示器 ID 是否存在，launcher 是否选择窗口 |
 | REST 发命令无反应 | `PlaybackSession.pending_command` 是否写入，播放器是否注册该窗口 |
 | PPT 无法打开 | PowerPoint 安装、PowerPoint COM 注册、文件权限、桌面会话 |

@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 import pytest
 
-from scp_cv.apps.playback.models import MediaSource, PlaybackState, SourceType
+from scp_cv.apps.playback.models import MediaSource, PlaybackCommand, PlaybackState, SourceType
 from scp_cv.player.adapters.base import AdapterState
 from scp_cv.player.controller import PlayerController
 from scp_cv.services.playback import RESET_ALL_WINDOWS_ARG, get_or_create_session, get_session_snapshot, open_source
@@ -494,3 +494,47 @@ def test_reset_all_windows_command_rebuilds_player_runtime(
     assert preheated == [True]
     assert len(close_callbacks) == 4
     assert quit_on_last_window_values == [False, True]
+
+
+def test_reset_broadcast_token_is_consumed_once_in_single_process(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """单进程调试路径收到同一 reset 广播时应只执行一次。"""
+    controller = PlayerController()
+    reset_all_calls: list[int] = []
+    reset_ppt_calls: list[int] = []
+
+    monkeypatch.setattr(
+        controller,
+        "_handle_reset_all_windows",
+        lambda: reset_all_calls.append(1),
+    )
+    monkeypatch.setattr(
+        controller,
+        "_handle_reset_ppt",
+        lambda window_id, _args: reset_ppt_calls.append(window_id),
+    )
+
+    controller._execute_command_on_main_thread(
+        1,
+        PlaybackCommand.CLOSE,
+        {RESET_ALL_WINDOWS_ARG: True, "reset_token": "all-1"},
+    )
+    controller._execute_command_on_main_thread(
+        2,
+        PlaybackCommand.CLOSE,
+        {RESET_ALL_WINDOWS_ARG: True, "reset_token": "all-1"},
+    )
+    controller._execute_command_on_main_thread(
+        1,
+        PlaybackCommand.RESET_PPT,
+        {"restart_sessions": [], "reset_token": "ppt-1"},
+    )
+    controller._execute_command_on_main_thread(
+        2,
+        PlaybackCommand.RESET_PPT,
+        {"restart_sessions": [], "reset_token": "ppt-1"},
+    )
+
+    assert reset_all_calls == [1]
+    assert reset_ppt_calls == [1]

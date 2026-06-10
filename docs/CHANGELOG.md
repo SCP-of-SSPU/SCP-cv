@@ -2,6 +2,12 @@
 
 ## 2026-06-09
 
+### 修复多窗口 PPT 播放隔离
+
+- 播放器：`runall --headless` 改为按窗口启动独立 PySide 播放器进程，并为 `run_player` 增加 `--only-window` 单窗口调试入口，隔离 PowerPoint COM 生命周期，避免多窗口 PPT 串扰。
+- 后端：reset-all 和 reset-ppt 改为按窗口广播并携带 `reset_token`，兼容多播放器进程和旧单进程调试路径。
+- 测试：补充 headless 单窗口映射、播放器进程拆分、PPT 重置广播和 reset token 覆盖。
+
 ### 修复 PPT 多开保护与直播默认拉流路径
 
 - 播放器：窗口清理会把受保护 HWND 归一到顶层 root，避免 PowerPoint 返回子窗口句柄时误把已有 PPT 放映最小化。

@@ -29,13 +29,13 @@ SQLite 本地数据库
   ^                                |
   | 状态回写                        | 轮询 pending_command
   |                                v
-PySide6 播放器进程 --------------> 四个物理播放窗口
+PySide6 播放器进程组 ------------> 四个物理播放窗口
   |                                |
   | libVLC / Qt Multimedia          | PowerPoint 外部放映窗口
   v                                v
 MediaMTX / 本机文件 / Web / PPT 后端 / 系统音频 / 物理显示器
 
-gRPC 服务与 REST 共用同一 Django 服务层。
+gRPC 服务与 REST 共用同一 Django 服务层。`runall --headless` 默认按窗口启动 4 个独立 PySide 播放器进程，隔离 PowerPoint COM 和 Qt 生命周期；直接 `run_player --headless` 也会在多窗口参数下拆分子进程，`--only-window` 可用于单窗口调试。
 ```
 
 ## 主要进程

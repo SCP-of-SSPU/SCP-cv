@@ -171,7 +171,8 @@ def test_reset_all_sessions_api_sets_windows_idle(media_source_ppt: MediaSource)
     assert response.json()["sessions"][0]["playback_state"] == "idle"
     assert session.media_source is None
     assert session.pending_command == PlaybackCommand.CLOSE
-    assert session.command_args == {RESET_ALL_WINDOWS_ARG: True}
+    assert session.command_args[RESET_ALL_WINDOWS_ARG] is True
+    assert "reset_token" in session.command_args
 
 
 @pytest.mark.django_db
@@ -343,6 +344,7 @@ def test_reset_ppt_playback_api_requests_ppt_reset(media_source_ppt: MediaSource
     assert response.status_code == 200
     assert session.pending_command == PlaybackCommand.RESET_PPT
     assert session.command_args["restart_sessions"][0]["target_slide"] == 6
+    assert "reset_token" in session.command_args
     assert "ppt_backend" not in session.command_args["restart_sessions"][0]
 
 

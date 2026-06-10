@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Optional
 
 from scp_cv.apps.playback.models import (
@@ -50,6 +51,7 @@ from scp_cv.services.video_wall import VideoWallError, apply_big_screen_mode as 
 logger = logging.getLogger(__name__)
 
 RESET_ALL_WINDOWS_ARG = "reset_all_windows"
+RESET_TOKEN_ARG = "reset_token"
 
 
 def reset_all_sessions_to_idle() -> list[PlaybackSession]:
@@ -229,13 +231,24 @@ def reset_ppt_playback() -> list[PlaybackSession]:
         ])
         updated_sessions.append(session)
 
-    coordinator_window_id = min(VALID_WINDOW_IDS)
-    coordinator = get_or_create_session(coordinator_window_id)
-    coordinator.pending_command = PlaybackCommand.RESET_PPT
-    coordinator.command_args = {"restart_sessions": restart_sessions}
-    coordinator.save(update_fields=["pending_command", "command_args", "last_updated_at"])
-    if coordinator not in updated_sessions:
-        updated_sessions.append(coordinator)
+    reset_token = _new_reset_token("ppt")
+    target_window_ids = {
+        int(restart_args.get("window_id") or 0)
+        for restart_args in restart_sessions
+        if int(restart_args.get("window_id") or 0) > 0
+    }
+    if not target_window_ids:
+        target_window_ids = {min(VALID_WINDOW_IDS)}
+    for target_window_id in sorted(target_window_ids):
+        session = get_or_create_session(target_window_id)
+        session.pending_command = PlaybackCommand.RESET_PPT
+        session.command_args = {
+            "restart_sessions": restart_sessions,
+            RESET_TOKEN_ARG: reset_token,
+        }
+        session.save(update_fields=["pending_command", "command_args", "last_updated_at"])
+        if session not in updated_sessions:
+            updated_sessions.append(session)
     logger.info("已请求重置 PPT 放映，待重启窗口数=%d", len(restart_sessions))
     return updated_sessions
 
@@ -543,11 +556,24 @@ def _request_player_windows_rebuild() -> None:
     请求播放器进程在主线程关闭并重建全部窗口。
     :return: None
     """
-    coordinator_window_id = min(VALID_WINDOW_IDS)
-    session = get_or_create_session(coordinator_window_id)
-    session.pending_command = PlaybackCommand.CLOSE
-    session.command_args = {RESET_ALL_WINDOWS_ARG: True}
-    session.save(update_fields=["pending_command", "command_args", "last_updated_at"])
+    reset_token = _new_reset_token("all")
+    for window_id in sorted(VALID_WINDOW_IDS):
+        session = get_or_create_session(window_id)
+        session.pending_command = PlaybackCommand.CLOSE
+        session.command_args = {
+            RESET_ALL_WINDOWS_ARG: True,
+            RESET_TOKEN_ARG: reset_token,
+        }
+        session.save(update_fields=["pending_command", "command_args", "last_updated_at"])
+
+
+def _new_reset_token(prefix: str) -> str:
+    """
+    生成一次全局重置广播 token，用于单进程播放器去重。
+    :param prefix: token 前缀
+    :return: token 字符串
+    """
+    return f"{prefix}-{time.time_ns()}"
 
 
 def _reset_playback_fields(session: PlaybackSession) -> None:

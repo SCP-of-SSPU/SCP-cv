@@ -314,6 +314,13 @@ class Command(BaseCommand):
         :param gpu_id: GPU ID；小于 0 表示使用系统默认 GPU
         :return: None
         """
+        if headless:
+            self._start_headless_player_processes(
+                poll_interval,
+                window_assignments or {},
+                gpu_id,
+            )
+            return
         player_command = [
             sys.executable,
             "manage.py",
@@ -323,14 +330,44 @@ class Command(BaseCommand):
         ]
         if settings.DEBUG:
             player_command.append("--dev")
-        if headless:
-            player_command.append("--headless")
-            for window_id, display_id in sorted((window_assignments or {}).items()):
-                if display_id > 0:
-                    player_command.extend([f"--window{window_id}", str(display_id)])
+        self._spawn("PySide 播放器", player_command, required=True)
+
+    def _start_headless_player_processes(
+        self,
+        poll_interval: float,
+        window_assignments: dict[int, int],
+        gpu_id: int = -1,
+    ) -> None:
+        """
+        为每个输出窗口启动独立播放器进程，隔离 PowerPoint COM/Qt 生命周期。
+        :param poll_interval: 轮询间隔秒数
+        :param window_assignments: 窗口编号到显示器 ID 的显式映射
+        :param gpu_id: GPU ID；小于 0 表示使用系统默认 GPU
+        :return: None
+        """
+        target_window_ids = sorted(window_assignments.keys() or [1, 2, 3, 4])
+        background_audio_owner = target_window_ids[0] if target_window_ids else 1
+        for window_id in target_window_ids:
+            player_command = [
+                sys.executable,
+                "manage.py",
+                "run_player",
+                "--poll-interval",
+                str(poll_interval),
+                "--headless",
+                "--only-window",
+                str(window_id),
+            ]
+            if settings.DEBUG:
+                player_command.append("--dev")
+            display_id = int(window_assignments.get(window_id, 0) or 0)
+            if display_id > 0:
+                player_command.extend([f"--window{window_id}", str(display_id)])
             if gpu_id >= 0:
                 player_command.extend(["--gpu", str(gpu_id)])
-        self._spawn("PySide 播放器", player_command, required=True)
+            if window_id != background_audio_owner:
+                player_command.append("--disable-background-audio")
+            self._spawn(f"PySide 播放器 {window_id}", player_command, required=True)
 
     def _spawn(
         self,

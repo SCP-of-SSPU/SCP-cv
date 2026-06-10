@@ -156,7 +156,7 @@ uv run python manage.py runall --headless --service
 uv run python manage.py runall --headless --window1 1 --window2 2 --window3 3 --window4 4 --gpu 0
 ```
 
-`--headless` 默认把窗口 1/2/3/4 分别映射到 Windows 显示器 ID 1/2/3/4；未传 `--gpu` 时使用系统默认 GPU。`--window3` 与兼容别名 `--windows3` 等价。
+`--headless` 默认把窗口 1/2/3/4 分别映射到 Windows 显示器 ID 1/2/3/4；`runall --headless` 会为每个窗口启动独立 PySide 播放器进程，隔离 PowerPoint COM 生命周期，避免多窗口 PPT 串扰。未传 `--gpu` 时使用系统默认 GPU。`--window3` 与兼容别名 `--windows3` 等价。
 如果通过 SSH、OpenSSH 服务或其它非控制台会话远程启动，直接运行 `--headless` 无法访问物理显示器；请使用 `uv run python manage.py runall --headless --service`，系统会在当前登录用户的交互桌面中拉起真实 runall。
 
 分进程调试：
@@ -173,6 +173,9 @@ uv run python manage.py run_player
 
 # PySide6 播放器无 GUI 启动
 uv run python manage.py run_player --headless --window1 1 --window2 2 --window3 3 --window4 4
+
+# 单窗口调试，常用于验证某一路 PPT/显示器
+uv run python manage.py run_player --headless --only-window 2 --window2 2
 
 # MediaMTX
 .\tools\third_party\mediamtx\mediamtx.exe .\tools\third_party\mediamtx\mediamtx.yml

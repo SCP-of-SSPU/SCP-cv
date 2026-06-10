@@ -42,13 +42,14 @@ Django 服务层
 | --- | --- |
 | 1 | 创建 `QApplication` |
 | 2 | GUI 模式打开 launcher，headless 模式从 `--window1` 到 `--window4` 构造映射 |
-| 3 | 创建 `PlayerController` |
-| 4 | 为每个映射创建 `PlayerWindow` |
-| 5 | 写入 `PlaybackSession.target_display_label` |
-| 6 | `position_on_display()` 定位窗口 |
-| 7 | `controller.apply_current_layout()` 应用布局 |
-| 8 | `controller.preheat_sources()` 预热 |
-| 9 | `controller.start_polling()` 开始轮询 |
+| 3 | 多窗口启动会拆成每窗口一个 `run_player --only-window` 子进程，隔离 PowerPoint COM 生命周期 |
+| 4 | 单窗口进程创建 `PlayerController` |
+| 5 | 为本窗口映射创建 `PlayerWindow` |
+| 6 | 写入 `PlaybackSession.target_display_label` |
+| 7 | `position_on_display()` 定位窗口 |
+| 8 | `controller.apply_current_layout()` 应用布局 |
+| 9 | `controller.preheat_sources()` 预热 |
+| 10 | `controller.start_polling()` 开始轮询 |
 
 通过 SSH、Windows 服务或非控制台会话启动时，播放器无法可靠访问物理显示器。此时应使用 `runall --headless --service`，让真实运行发生在当前登录用户的交互桌面中。
 
@@ -236,7 +237,7 @@ PPT 后端不仅有播放 adapter，还有导入阶段的资源解析和缓存�
 | PPT reset | `reset_ppt_playback()` | `_handle_reset_ppt()` |
 | 显示窗口 ID | `show_window_ids_api()` | `_handle_show_id()` |
 
-全局 reset 会通过一个协调窗口写入 `CLOSE` + `{reset_all_windows: true}`。播放器消费后关闭 adapter、关闭预热池、重建已注册窗口、重新预热。
+全局 reset 会向全部窗口写入带相同 `reset_token` 的 `CLOSE` + `{reset_all_windows: true}`。单窗口播放器各自消费自己的重置指令；旧的单进程调试路径会用 `reset_token` 去重，避免重复重建窗口和预热池。
 
 ## 迁移验收标准
 

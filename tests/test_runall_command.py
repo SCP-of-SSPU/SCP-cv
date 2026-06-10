@@ -346,7 +346,7 @@ def test_start_player_forwards_headless_display_and_gpu_options(
     monkeypatch: Any,
 ) -> None:
     """
-    runall --headless 应把窗口显示器 ID 和 GPU ID 透传给 run_player。
+    runall --headless 应为每个窗口启动独立播放器进程，隔离 PowerPoint COM。
     :param monkeypatch: pytest monkeypatch fixture
     :return: None
     """
@@ -392,20 +392,77 @@ def test_start_player_forwards_headless_display_and_gpu_options(
         gpu_id=2,
     )
 
-    assert len(spawned_processes) == 1
-    assert spawned_processes[0]["name"] == "PySide 播放器"
-    assert spawned_processes[0]["command_args"][-11:] == [
+    assert [item["name"] for item in spawned_processes] == [
+        "PySide 播放器 1",
+        "PySide 播放器 2",
+        "PySide 播放器 3",
+        "PySide 播放器 4",
+    ]
+    assert spawned_processes[0]["command_args"][-7:] == [
         "--headless",
+        "--only-window",
+        "1",
         "--window1",
         "4",
+        "--gpu",
+        "2",
+    ]
+    assert spawned_processes[1]["command_args"][-8:] == [
+        "--headless",
+        "--only-window",
+        "2",
         "--window2",
+        "3",
+        "--gpu",
+        "2",
+        "--disable-background-audio",
+    ]
+    assert spawned_processes[2]["command_args"][-8:] == [
+        "--headless",
+        "--only-window",
         "3",
         "--window3",
         "2",
+        "--gpu",
+        "2",
+        "--disable-background-audio",
+    ]
+    assert spawned_processes[3]["command_args"][-8:] == [
+        "--headless",
+        "--only-window",
+        "4",
         "--window4",
         "1",
         "--gpu",
         "2",
+        "--disable-background-audio",
+    ]
+
+
+def test_start_player_keeps_single_gui_player_process(monkeypatch: Any) -> None:
+    """
+    非 headless 模式仍启动一个带启动器的播放器入口。
+    :param monkeypatch: pytest monkeypatch fixture
+    :return: None
+    """
+    spawned_processes: list[dict[str, Any]] = []
+    command = runall.Command()
+    monkeypatch.setattr(
+        command,
+        "_spawn",
+        lambda name, command_args, **kwargs: spawned_processes.append(
+            {"name": name, "command_args": command_args, **kwargs}
+        ),
+    )
+    monkeypatch.setattr(runall.settings, "DEBUG", False)
+
+    command._start_player(poll_interval=0.3, headless=False)
+
+    assert len(spawned_processes) == 1
+    assert spawned_processes[0]["name"] == "PySide 播放器"
+    assert spawned_processes[0]["command_args"][-2:] == [
+        "--poll-interval",
+        "0.3",
     ]
 
 

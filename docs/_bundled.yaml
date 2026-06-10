@@ -950,7 +950,7 @@ paths:
       tags:
         - playback
       summary: 重置全部窗口并重建播放器窗口
-      description: 清空全部播放会话，通知运行中的 PySide 播放器关闭并重建窗口，同时重建媒体预热池。
+      description: 清空全部播放会话，向全部窗口播放器广播重置指令，通知运行中的 PySide 播放器关闭并重建窗口，同时重建媒体预热池。
       operationId: resetAllSessions
       responses:
         '200':
@@ -966,7 +966,7 @@ paths:
       tags:
         - playback
       summary: 重置 PPT 放映后端并恢复页码
-      description: 关闭当前 PPT 放映窗口与文档，重启所有正在放映的 PPT，并回到重置前页码；已预热的后端应用会尽量保留。
+      description: 向所有正在放映 PPT 的窗口广播重置指令，关闭当前 PPT 放映窗口与文档，重启所有正在放映的 PPT，并回到重置前页码。
       operationId: resetPptPlayback
       responses:
         '200':

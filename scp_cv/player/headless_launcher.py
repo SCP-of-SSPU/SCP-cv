@@ -18,11 +18,13 @@ from scp_cv.services.display import DisplayTarget, list_display_targets
 def build_headless_launch_result(
     window_display_ids: dict[int, int],
     gpu_id: int | None,
+    only_window_id: int | None = None,
 ) -> LauncherResult:
     """
     根据命令行显示器配置构造播放器启动结果。
     :param window_display_ids: 窗口编号到显示器 ID 的映射；未提供时默认窗口 N -> 显示器 N
     :param gpu_id: GPU ID；None 表示使用系统默认 GPU
+    :param only_window_id: 只创建指定窗口；None 表示创建全部窗口
     :return: 可直接传给播放器启动流程的 LauncherResult
     :raises ValueError: 显示器或 GPU ID 不存在时
     """
@@ -31,7 +33,14 @@ def build_headless_launch_result(
         display_target.index: display_target for display_target in display_targets
     }
     window_assignments: dict[int, DisplayTarget] = {}
-    for window_id in range(1, TOTAL_WINDOWS + 1):
+    target_window_ids = (
+        [int(only_window_id)]
+        if only_window_id is not None
+        else list(range(1, TOTAL_WINDOWS + 1))
+    )
+    for window_id in target_window_ids:
+        if window_id < 1 or window_id > TOTAL_WINDOWS:
+            raise ValueError(f"无效窗口编号 {window_id}，必须在 1-{TOTAL_WINDOWS} 之间")
         requested_display_id = int(window_display_ids.get(window_id) or window_id)
         display_target = display_by_id.get(requested_display_id)
         if display_target is None:

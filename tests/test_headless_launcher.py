@@ -93,6 +93,48 @@ def test_build_headless_launch_result_respects_explicit_display_and_gpu(
     assert launch_result.selected_gpu == gpus[1]
 
 
+def test_build_headless_launch_result_can_limit_to_single_window(monkeypatch: Any) -> None:
+    """
+    only_window_id 应只创建指定窗口，便于 runall 拆分独立播放器进程。
+    :param monkeypatch: pytest monkeypatch fixture
+    :return: None
+    """
+    displays = [
+        DisplayTarget(
+            index=index,
+            name=f"显示器 {index}",
+            width=1920,
+            height=1080,
+            x=0,
+            y=0,
+            is_primary=index == 1,
+        )
+        for index in range(1, 5)
+    ]
+    monkeypatch.setattr(
+        "scp_cv.player.headless_launcher.list_display_targets", lambda: displays
+    )
+    monkeypatch.setattr("scp_cv.player.headless_launcher.enumerate_gpus", lambda: [])
+
+    launch_result = build_headless_launch_result(
+        window_display_ids={2: 4},
+        gpu_id=None,
+        only_window_id=2,
+    )
+
+    assert list(launch_result.window_assignments) == [2]
+    assert launch_result.window_assignments[2].index == 4
+
+
+def test_build_headless_launch_result_rejects_invalid_single_window() -> None:
+    """
+    only_window_id 越界时应明确报错。
+    :return: None
+    """
+    with pytest.raises(ValueError, match="无效窗口编号 5"):
+        build_headless_launch_result(window_display_ids={}, gpu_id=None, only_window_id=5)
+
+
 def test_build_headless_launch_result_rejects_missing_display(monkeypatch: Any) -> None:
     """
     显示器 ID 不存在时应明确报错，避免创建错屏窗口。

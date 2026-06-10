@@ -62,7 +62,11 @@ class PlayerController(PlayerCommandHandlersMixin, BackgroundAudioHandlersMixin,
     sig_dispatch_background_audio_command = Signal(str, dict)  # (command, command_args)
     sig_report_states = Signal()                   # 轮询线程 → Qt 主线程：读取适配器状态
 
-    def __init__(self, parent: Optional[QObject] = None) -> None:
+    def __init__(
+        self,
+        parent: Optional[QObject] = None,
+        enable_background_audio: bool = True,
+    ) -> None:
         super().__init__(parent)
 
         # 窗口映射：window_id(int) → PlayerWindow
@@ -79,9 +83,12 @@ class PlayerController(PlayerCommandHandlersMixin, BackgroundAudioHandlersMixin,
         # 非 dev 模式下由 run_player 注入关闭回调，窗口重建后仍需保持相同行为。
         self._window_closed_callback: Callable[[], None] | None = None
         # 背景音频单实例适配器，不占用任何 PlayerWindow。
+        self._enable_background_audio = enable_background_audio
         self._background_audio_adapter: object | None = None
         self._background_audio_source_id = 0
         self._last_reported_background_audio_state: tuple[str, str, int, int] | None = None
+        self._last_reset_all_token = ""
+        self._last_reset_ppt_token = ""
 
         # 轮询线程
         self._poll_thread: Optional[threading.Thread] = None
@@ -94,7 +101,8 @@ class PlayerController(PlayerCommandHandlersMixin, BackgroundAudioHandlersMixin,
 
         # 连接指令分发信号到主线程处理槽
         self.sig_dispatch_command.connect(self._execute_command_on_main_thread)
-        self.sig_dispatch_background_audio_command.connect(self._execute_background_audio_command_on_main_thread)
+        if self._enable_background_audio:
+            self.sig_dispatch_background_audio_command.connect(self._execute_background_audio_command_on_main_thread)
         self.sig_report_states.connect(self._report_all_adapter_states)
 
     def set_window_closed_callback(self, callback: Callable[[], None] | None) -> None:
@@ -207,6 +215,8 @@ class PlayerController(PlayerCommandHandlersMixin, BackgroundAudioHandlersMixin,
             keep_alive=True,
             is_temporary=False,
         ).only("id", "source_type", "uri", "metadata"):
+            if source.source_type == SourceType.AUDIO and not self._enable_background_audio:
+                continue
             preheat_uri = resolve_ppt_playback_uri(source) if source.source_type == SourceType.PPT else source.uri
             preheat_pool.preheat_source(
                 source.pk,
@@ -351,7 +361,8 @@ class PlayerController(PlayerCommandHandlersMixin, BackgroundAudioHandlersMixin,
                 # 轮询所有已注册窗口的指令
                 for window_id in self.registered_window_ids:
                     self._check_and_dispatch_command(window_id)
-                self._check_and_dispatch_background_audio_command()
+                if self._enable_background_audio:
+                    self._check_and_dispatch_background_audio_command()
                 # COM 和 Qt 状态读取必须回到适配器创建时所在的 Qt 主线程。
                 self._request_adapter_state_report()
             except Exception as poll_error:
@@ -413,6 +424,8 @@ class PlayerController(PlayerCommandHandlersMixin, BackgroundAudioHandlersMixin,
         from scp_cv.apps.playback.models import PlaybackCommand
 
         logger.info("主线程执行指令：窗口 %d → %s", window_id, command)
+        if self._is_duplicate_reset_command(window_id, command, command_args):
+            return
 
         command_dispatch: dict[str, object] = {
             PlaybackCommand.OPEN: self._handle_open,
@@ -439,6 +452,38 @@ class PlayerController(PlayerCommandHandlersMixin, BackgroundAudioHandlersMixin,
             except Exception as cmd_error:
                 logger.error("执行指令 %s（窗口 %d）失败：%s", command, window_id, cmd_error)
                 self._update_session_error(window_id, str(cmd_error))
+
+    def _is_duplicate_reset_command(
+        self,
+        window_id: int,
+        command: str,
+        command_args: dict[str, object],
+    ) -> bool:
+        """
+        判断全局重置广播是否已被当前单进程播放器消费。
+        :param window_id: 触发窗口编号
+        :param command: 播放器指令
+        :param command_args: 指令参数
+        :return: True 表示重复广播，应忽略
+        """
+        from scp_cv.apps.playback.models import PlaybackCommand
+        from scp_cv.services.playback import RESET_ALL_WINDOWS_ARG, RESET_TOKEN_ARG
+
+        reset_token = str(command_args.get(RESET_TOKEN_ARG, ""))
+        if not reset_token:
+            return False
+        if command == PlaybackCommand.RESET_PPT:
+            if self._last_reset_ppt_token == reset_token:
+                logger.debug("窗口 %d 忽略重复 PPT reset token=%s", window_id, reset_token)
+                return True
+            self._last_reset_ppt_token = reset_token
+            return False
+        if command == PlaybackCommand.CLOSE and bool(command_args.get(RESET_ALL_WINDOWS_ARG)):
+            if self._last_reset_all_token == reset_token:
+                logger.debug("窗口 %d 忽略重复 reset-all token=%s", window_id, reset_token)
+                return True
+            self._last_reset_all_token = reset_token
+        return False
 
     @Slot()
     def _report_all_adapter_states(self) -> None:
@@ -478,7 +523,8 @@ class PlayerController(PlayerCommandHandlersMixin, BackgroundAudioHandlersMixin,
                     duration_ms=adapter_state.duration_ms,
                 )
                 self._last_reported_states[window_id] = state_signature
-            self._report_background_audio_state()
+            if self._enable_background_audio:
+                self._report_background_audio_state()
         finally:
             with self._state_report_lock:
                 self._state_report_pending = False
