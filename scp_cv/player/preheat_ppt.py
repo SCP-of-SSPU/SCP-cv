@@ -112,6 +112,7 @@ class PptApplicationPreheater:
         :param item: 预热应用
         :return: None
         """
+        self._ensure_com_initialized()
         _close_presentation(item.presentation)
         item.source_id = 0
         item.uri = ""

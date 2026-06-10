@@ -38,6 +38,7 @@ class _SlideShowSettingsStub:
         self.ShowType = 0
         self.StartingSlide = 0
         self.EndingSlide = 0
+        self.ShowPresenterView = True
         self.run_called = False
 
     def Run(self) -> object:
@@ -55,6 +56,7 @@ class _PresentationWithSettingsStub(_PresentationStub):
 class _PptAppStub:
     def __init__(self) -> None:
         self.DisplayAlerts = 2
+        self.WindowState = 0
         self.quit_called = False
 
     def Quit(self) -> None:
@@ -91,6 +93,25 @@ class _PptAppWithPresentationsStub:
         :return: None
         """
         self.Presentations = _PresentationsOpenStub()
+
+
+class _ReturnedPptPoolStub:
+    """记录 PowerPoint 应用归还预热池。"""
+
+    def __init__(self) -> None:
+        """
+        初始化归还记录。
+        :return: None
+        """
+        self.returned_items: list[object] = []
+
+    def return_ppt_application(self, item: object) -> None:
+        """
+        记录归还的预热项。
+        :param item: 预热项
+        :return: None
+        """
+        self.returned_items.append(item)
 
 
 class _Win32ComClientStub:
@@ -599,6 +620,7 @@ def test_configure_windowed_slideshow_sets_window_mode() -> None:
     assert settings.ShowType == PP_SLIDE_SHOW_WINDOW
     assert settings.StartingSlide == 5
     assert settings.EndingSlide == 5
+    assert settings.ShowPresenterView is False
 
 
 def test_candidate_media_shape_ids_prioritizes_selected_page_media() -> None:
@@ -695,6 +717,36 @@ def test_close_com_resources_keeps_external_powerpoint_app_running() -> None:
     assert ppt_app.quit_called is False
     assert adapter._ppt_app is None
     assert adapter._owns_ppt_app is False
+
+
+def test_close_com_resources_returns_owned_app_to_preheat_pool(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """启用 PPT 预热时，切源关闭应回收 PowerPoint 应用而不是同步退出 Office。"""
+    adapter = PptSourceAdapter()
+    presentation = _PresentationStub()
+    ppt_app = _PptAppStub()
+    pool = _ReturnedPptPoolStub()
+    adapter._presentation = presentation
+    adapter._ppt_app = ppt_app
+    adapter._owns_ppt_app = True
+    adapter._preheat_enabled = True
+    adapter._preheat_pool = pool
+    adapter._active_com_prog_id = "PowerPoint.Application"
+    adapter._ppt_hwnd = 909
+    close_calls: list[int] = []
+    monkeypatch.setattr(ppt, "close_embedded_slideshow_window", close_calls.append)
+
+    adapter._close_com_resources()
+
+    assert close_calls == [909]
+    assert presentation.close_called is True
+    assert ppt_app.quit_called is False
+    assert pool.returned_items
+    returned_item = pool.returned_items[0]
+    assert returned_item.app is ppt_app
+    assert returned_item.prog_id == "PowerPoint.Application"
+    assert ppt_app.WindowState == 2
 
 
 def test_powerpoint_adapter_uses_powerpoint_com_prog_id_candidates() -> None:

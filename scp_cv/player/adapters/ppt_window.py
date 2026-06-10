@@ -16,6 +16,12 @@ from collections.abc import Iterable
 from typing import Optional
 
 from scp_cv.player.adapters.ppt_constants import PP_SLIDE_SHOW_WINDOW
+from scp_cv.player.adapters.ppt_window_registry import (
+    EMBEDDED_SLIDESHOW_PROP,
+    has_embedded_slideshow_marker,
+    mark_embedded_slideshow_window,
+    unmark_embedded_slideshow_window,
+)
 
 SLIDESHOW_CLASS_NAMES = frozenset({"screenClass", "paneClassDC", "PPTFrameClass"})
 _EXISTING_COM_HWND_GRACE_SECONDS = 0.35
@@ -61,6 +67,10 @@ def configure_windowed_slideshow(
     settings.ShowType = PP_SLIDE_SHOW_WINDOW
     settings.StartingSlide = max(1, min(start_slide, total_slides or 1))
     settings.EndingSlide = total_slides
+    try:
+        settings.ShowPresenterView = False
+    except Exception:
+        pass
     return settings
 
 
@@ -378,6 +388,8 @@ def _is_candidate_slideshow_window(
     :param process_id: PowerPoint 进程 ID
     :return: True 表示可作为放映窗口候选
     """
+    if has_embedded_slideshow_marker(win32gui, hwnd):
+        return False
     if not win32gui.IsWindowVisible(hwnd):
         return False
     class_name = win32gui.GetClassName(hwnd)
@@ -470,6 +482,10 @@ def embed_slideshow_window(ppt_hwnd: int, parent_hwnd: int) -> tuple[int, int]:
     if ppt_hwnd == 0 or parent_hwnd == 0:
         raise RuntimeError("PPT 放映窗口或父容器 HWND 无效，无法嵌入")
 
+    show_window = getattr(win32gui, "ShowWindow", None)
+    if callable(show_window):
+        show_window(ppt_hwnd, win32con.SW_HIDE)
+
     original_style = win32gui.GetWindowLong(ppt_hwnd, win32con.GWL_STYLE)
     embedded_style = (
         original_style
@@ -485,6 +501,7 @@ def embed_slideshow_window(ppt_hwnd: int, parent_hwnd: int) -> tuple[int, int]:
     extended_style &= ~win32con.WS_EX_APPWINDOW
     win32gui.SetWindowLong(ppt_hwnd, win32con.GWL_EXSTYLE, extended_style)
     win32gui.SetParent(ppt_hwnd, parent_hwnd)
+    mark_embedded_slideshow_window(ppt_hwnd, parent_hwnd)
     return resize_slideshow_window(ppt_hwnd, parent_hwnd)
 
 
@@ -509,6 +526,7 @@ def resize_slideshow_window(ppt_hwnd: int, parent_hwnd: int) -> tuple[int, int]:
         container_width,
         container_height,
         win32con.SWP_NOZORDER
+        | getattr(win32con, "SWP_NOACTIVATE", 0)
         | win32con.SWP_FRAMECHANGED
         | win32con.SWP_SHOWWINDOW,
     )
@@ -571,6 +589,7 @@ def close_embedded_slideshow_window(ppt_hwnd: int) -> None:
 
         hide_embedded_slideshow_window(ppt_hwnd)
         if not _window_exists(win32gui, ppt_hwnd):
+            unmark_embedded_slideshow_window(ppt_hwnd)
             return
         post_message = getattr(win32gui, "PostMessage", None)
         if callable(post_message):
@@ -610,18 +629,22 @@ def detach_slideshow_window(ppt_hwnd: int) -> None:
     import win32gui
 
     hide_embedded_slideshow_window(ppt_hwnd)
+    unmark_embedded_slideshow_window(ppt_hwnd)
     win32gui.SetParent(ppt_hwnd, 0)
 
 
 __all__ = [
     "SLIDESHOW_CLASS_NAMES",
+    "EMBEDDED_SLIDESHOW_PROP",
     "close_embedded_slideshow_window",
     "configure_windowed_slideshow",
     "detach_slideshow_window",
     "embed_slideshow_window",
     "find_slideshow_hwnd",
     "hide_embedded_slideshow_window",
+    "mark_embedded_slideshow_window",
     "resize_slideshow_window",
     "show_embedded_slideshow_window",
     "snapshot_slideshow_hwnds",
+    "unmark_embedded_slideshow_window",
 ]

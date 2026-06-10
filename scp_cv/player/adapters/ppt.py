@@ -340,10 +340,11 @@ class PptSourceAdapter(PptPreheatMixin, SourceAdapter):
                 if self._preheated_app is not None:
                     self._return_preheated_application()
                 elif self._owns_ppt_app:
-                    try:
-                        self._ppt_app.Quit()
-                    except Exception:
-                        pass
+                    if not self._return_owned_application_to_preheat_pool():
+                        try:
+                            self._ppt_app.Quit()
+                        except Exception:
+                            pass
             self._ppt_app = None
             self._owns_ppt_app = False
             self._ppt_process_id = 0
@@ -356,6 +357,34 @@ class PptSourceAdapter(PptPreheatMixin, SourceAdapter):
 
         self._total_slides = 0
         self._is_paused = False
+
+    def _return_owned_application_to_preheat_pool(self) -> bool:
+        """
+        将当前适配器创建的空闲 PowerPoint 应用移交给预热池，减少切源时退出 Office 的卡顿。
+        :return: True 表示已移交，调用方不应再 Quit 该应用
+        """
+        if (
+            not self._preheat_enabled
+            or self._preheat_pool is None
+            or self._ppt_app is None
+        ):
+            return False
+        return_application = getattr(self._preheat_pool, "return_ppt_application", None)
+        if not callable(return_application):
+            return False
+        try:
+            self._ppt_app.WindowState = 2
+        except Exception:
+            pass
+        return_application(
+            PreheatedPptApplication(
+                "powerpoint",
+                self._ppt_app,
+                self._active_com_prog_id,
+            )
+        )
+        self._owns_ppt_app = False
+        return True
 
     def detach_for_fast_switch(self) -> None:
         """

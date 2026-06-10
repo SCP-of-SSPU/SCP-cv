@@ -18,6 +18,7 @@ from scp_cv.player.controller_window_helpers import PlayerWindowHelpersMixin
 
 logger = logging.getLogger(__name__)
 _PPT_REHEAT_DELAY_MS = 1500
+_PPT_DETACHED_CLOSE_DELAY_MS = 450
 
 
 def _is_stream_source(source_type: str) -> bool:
@@ -523,7 +524,7 @@ class PlayerCommandHandlersMixin(PlayerWindowHelpersMixin):
         reheat: bool,
     ) -> None:
         """
-        将旧适配器关闭延后到当前 UI 切换完成后的下一轮 Qt 事件循环。
+        将旧适配器关闭延后到当前 UI 切换完成后，PPT 额外留出新内容首帧绘制时间。
         :param window_id: 窗口编号
         :param adapter: 已从当前窗口映射中摘除的旧适配器
         :param source_type: 旧适配器源类型
@@ -532,8 +533,9 @@ class PlayerCommandHandlersMixin(PlayerWindowHelpersMixin):
         :param reheat: 是否按源配置重新预热
         :return: None
         """
+        delay_ms = _PPT_DETACHED_CLOSE_DELAY_MS if source_type == "ppt" else 0
         QTimer.singleShot(
-            0,
+            delay_ms,
             lambda: self._close_detached_adapter(
                 window_id,
                 adapter,

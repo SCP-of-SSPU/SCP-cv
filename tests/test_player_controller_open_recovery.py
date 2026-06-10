@@ -12,6 +12,7 @@ from __future__ import annotations
 import pytest
 
 from scp_cv.player.controller import PlayerController
+from scp_cv.player import controller_handlers
 
 
 class _OpenAdapter:
@@ -449,6 +450,66 @@ def test_handle_open_detaches_previous_ppt_before_reopening_ppt(
         "raise",
     ]
     assert window.topmost == [True, True]
+
+
+def test_schedule_close_detached_adapter_delays_ppt_close(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """旧 PPT 关闭应短延迟执行，给新内容先完成一次绘制。"""
+    controller = PlayerController()
+    adapter = _OpenAdapter()
+    scheduled: list[tuple[int, object]] = []
+    close_calls: list[tuple[int, str | None]] = []
+    monkeypatch.setattr(
+        "scp_cv.player.controller_handlers.QTimer.singleShot",
+        lambda delay_ms, callback: scheduled.append((delay_ms, callback)),
+    )
+    monkeypatch.setattr(
+        controller,
+        "_close_detached_adapter",
+        lambda window_id, _adapter, source_type, *_args: close_calls.append(
+            (window_id, source_type)
+        ),
+    )
+
+    controller._schedule_close_detached_adapter(
+        1,
+        adapter,
+        "ppt",
+        7,
+        restore_window=False,
+        reheat=True,
+    )
+
+    assert scheduled[0][0] == controller_handlers._PPT_DETACHED_CLOSE_DELAY_MS
+    assert close_calls == []
+
+    scheduled[0][1]()
+
+    assert close_calls == [(1, "ppt")]
+
+
+def test_schedule_close_detached_adapter_keeps_non_ppt_immediate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """非 PPT 旧适配器关闭保持下一轮事件循环执行，不引入额外等待。"""
+    controller = PlayerController()
+    scheduled: list[int] = []
+    monkeypatch.setattr(
+        "scp_cv.player.controller_handlers.QTimer.singleShot",
+        lambda delay_ms, _callback: scheduled.append(delay_ms),
+    )
+
+    controller._schedule_close_detached_adapter(
+        1,
+        _OpenAdapter(),
+        "video",
+        8,
+        restore_window=False,
+        reheat=True,
+    )
+
+    assert scheduled == [0]
 
 
 def test_stop_polling_closes_adapters_without_reheat(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -16,6 +16,7 @@ from pytest import MonkeyPatch
 from scp_cv.player.adapters import ppt_window
 from scp_cv.player.adapters.ppt_window import (
     close_embedded_slideshow_window,
+    EMBEDDED_SLIDESHOW_PROP,
     embed_slideshow_window,
     find_slideshow_hwnd,
     hide_embedded_slideshow_window,
@@ -27,14 +28,17 @@ from scp_cv.player.adapters.ppt_window import (
 def _install_fake_win32gui(
     monkeypatch: MonkeyPatch,
     windows: dict[int, tuple[str, bool] | tuple[str, bool, str]],
+    embedded_hwnds: set[int] | None = None,
 ) -> None:
     """
     安装可控的 win32gui 替身，避免测试依赖真实 Windows 桌面窗口。
     :param monkeypatch: pytest monkeypatch fixture
     :param windows: HWND 到 (class_name, visible[, title]) 的映射
+    :param embedded_hwnds: 已被 PySide 认领的 PPT 放映 HWND
     :return: None
     """
     fake_win32gui = ModuleType("win32gui")
+    embedded = embedded_hwnds or set()
 
     def is_window_visible(hwnd: int) -> bool:
         """
@@ -71,10 +75,22 @@ def _install_fake_win32gui(
             if callback(hwnd, extra) is False:
                 break
 
+    def get_prop(hwnd: int, name: str) -> int:
+        """
+        返回伪 Win32 窗口属性。
+        :param hwnd: 窗口句柄
+        :param name: 属性名
+        :return: 属性值；0 表示不存在
+        """
+        if name == EMBEDDED_SLIDESHOW_PROP and hwnd in embedded:
+            return 1
+        return 0
+
     fake_win32gui.IsWindowVisible = is_window_visible
     fake_win32gui.GetClassName = get_class_name
     fake_win32gui.GetWindowText = get_window_text
     fake_win32gui.EnumWindows = enum_windows
+    fake_win32gui.GetProp = get_prop
     monkeypatch.setitem(sys.modules, "win32gui", fake_win32gui)
 
 
@@ -121,6 +137,7 @@ def _install_fake_embed_win32(
     fake_win32con.WS_EX_APPWINDOW = 0x00040000
     fake_win32con.HWND_TOP = 0
     fake_win32con.SWP_NOZORDER = 0x0004
+    fake_win32con.SWP_NOACTIVATE = 0x0010
     fake_win32con.SWP_FRAMECHANGED = 0x0020
     fake_win32con.SWP_SHOWWINDOW = 0x0040
     fake_win32con.SW_HIDE = 0
@@ -131,6 +148,7 @@ def _install_fake_embed_win32(
     state = {
         "style": fake_win32con.WS_POPUP | fake_win32con.WS_OVERLAPPEDWINDOW,
         "exstyle": fake_win32con.WS_EX_TOPMOST | fake_win32con.WS_EX_APPWINDOW,
+        "props": {},
     }
 
     def get_window_long(hwnd: int, index: int) -> int:
@@ -246,6 +264,37 @@ def _install_fake_embed_win32(
         """
         calls.append(("PostMessage", hwnd, message, wparam, lparam))
 
+    def set_prop(hwnd: int, name: str, value: int) -> None:
+        """
+        记录 Win32 窗口属性。
+        :param hwnd: 窗口句柄
+        :param name: 属性名
+        :param value: 属性值
+        :return: None
+        """
+        calls.append(("SetProp", hwnd, name, value))
+        state["props"][(hwnd, name)] = value
+
+    def get_prop(hwnd: int, name: str) -> int:
+        """
+        返回已记录的 Win32 窗口属性。
+        :param hwnd: 窗口句柄
+        :param name: 属性名
+        :return: 属性值；不存在时返回 0
+        """
+        calls.append(("GetProp", hwnd, name))
+        return int(state["props"].get((hwnd, name), 0))
+
+    def remove_prop(hwnd: int, name: str) -> None:
+        """
+        移除 Win32 窗口属性。
+        :param hwnd: 窗口句柄
+        :param name: 属性名
+        :return: None
+        """
+        calls.append(("RemoveProp", hwnd, name))
+        state["props"].pop((hwnd, name), None)
+
     fake_win32gui.GetWindowLong = get_window_long
     fake_win32gui.SetWindowLong = set_window_long
     fake_win32gui.SetParent = set_parent
@@ -255,6 +304,9 @@ def _install_fake_embed_win32(
     fake_win32gui.ShowWindow = show_window
     fake_win32gui.IsWindow = is_window
     fake_win32gui.PostMessage = post_message
+    fake_win32gui.SetProp = set_prop
+    fake_win32gui.GetProp = get_prop
+    fake_win32gui.RemoveProp = remove_prop
     monkeypatch.setitem(sys.modules, "win32con", fake_win32con)
     monkeypatch.setitem(sys.modules, "win32gui", fake_win32gui)
     return fake_win32con
@@ -305,13 +357,16 @@ def test_embed_slideshow_window_reparents_and_fills_container(
     embedded_exstyle = int(exstyle_calls[-1][3])
     assert not embedded_exstyle & win32con.WS_EX_TOPMOST
     assert not embedded_exstyle & win32con.WS_EX_APPWINDOW
+    assert ("ShowWindow", 909, win32con.SW_HIDE) in calls
     assert ("SetParent", 909, 2001) in calls
+    assert ("SetProp", 909, EMBEDDED_SLIDESHOW_PROP, 2001) in calls
     assert any(
         call[0] == "SetWindowPos"
         and call[1:6] == (909, win32con.HWND_TOP, 0, 0, 1280)
         and call[6] == 720
         and int(call[7]) & win32con.SWP_FRAMECHANGED
         and int(call[7]) & win32con.SWP_SHOWWINDOW
+        and int(call[7]) & win32con.SWP_NOACTIVATE
         for call in calls
     )
     assert ("MoveWindow", 909, 0, 0, 1280, 720, True) in calls
@@ -373,6 +428,29 @@ def test_find_slideshow_hwnd_prefers_com_hwnd(monkeypatch: MonkeyPatch) -> None:
     _install_fake_win32gui(monkeypatch, {101: ("screenClass", True)})
     hwnd = find_slideshow_hwnd(slideshow_window, logger, existing_hwnds=set())
     assert hwnd == 101
+
+
+def test_find_slideshow_hwnd_rejects_embedded_com_hwnd(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """COM 返回已嵌入旧 HWND 时不应重新认领，避免第二个 PPT 抢占第一个窗口。"""
+    logger = logging.getLogger(__name__)
+    slideshow_window = type("_SlideShowWindowStub", (), {"HWND": 101})()
+    _install_fake_win32gui(
+        monkeypatch,
+        {101: ("screenClass", True)},
+        embedded_hwnds={101},
+    )
+
+    hwnd = find_slideshow_hwnd(
+        slideshow_window,
+        logger,
+        existing_hwnds=set(),
+        timeout_seconds=0.0,
+        allow_existing_when_unique=True,
+    )
+
+    assert hwnd == 0
 
 
 def test_find_slideshow_hwnd_waits_when_com_returns_existing_hwnd(
