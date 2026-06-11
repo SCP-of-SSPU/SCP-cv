@@ -363,6 +363,7 @@ class Command(BaseCommand):
         """
         from PySide6.QtCore import QRect
 
+        from scp_cv.player.adapters.ppt_com_worker import PptComWorker
         from scp_cv.player.controller import PlayerController
         from scp_cv.player.launcher_gui import LauncherResult
         from scp_cv.player.window import PlayerWindow
@@ -370,8 +371,11 @@ class Command(BaseCommand):
 
         result: LauncherResult = launch_result
 
-        # 创建控制器
-        controller = PlayerController(enable_background_audio=background_audio_enabled)
+        # 创建控制器；PPT COM 操作统一走专用工作线程，避免阻塞 Qt 主线程
+        controller = PlayerController(
+            enable_background_audio=background_audio_enabled,
+            ppt_com_worker=PptComWorker(),
+        )
         if not dev_mode:
             controller.set_window_closed_callback(qt_app.quit)
         all_windows: list[PlayerWindow] = []

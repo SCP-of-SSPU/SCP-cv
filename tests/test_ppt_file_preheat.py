@@ -211,7 +211,8 @@ def test_preheat_source_opens_presentation_without_edit_window(
     assert item.uri == "C:/demo/source.pptx"
     assert item.presentation is presentation
     assert presentation.Saved is True
-    assert app.WindowState == 2
+    # 预热不再最小化编辑窗口；仅对本系统拉起的进程做任务栏隐藏
+    assert app.WindowState == 0
     assert app.Presentations.calls == [
         ("C:/demo/source.pptx", (), {"ReadOnly": False, "Untitled": True, "WithWindow": False}),
     ]
@@ -280,3 +281,104 @@ def test_ppt_adapter_reuses_preheated_presentation(monkeypatch: MonkeyPatch) -> 
     assert preheat_pool.returned_items == [item]
     assert item.presentation is None
     assert app.quit_called is False
+
+
+def test_quit_ppt_app_if_idle_skips_when_presentations_open() -> None:
+    """PowerPoint 仍有打开的演示文稿时，预热清理不得退出应用。"""
+    from scp_cv.player.preheat_ppt import quit_ppt_app_if_idle
+
+    presentation = _PresentationStub()
+    app = _PptAppStub(presentation)
+    app.Presentations = type("_BusyPresentations", (), {"Count": 3})()
+
+    assert quit_ppt_app_if_idle(app) is False
+    assert app.quit_called is False
+
+
+def test_quit_ppt_app_if_idle_quits_when_no_presentations() -> None:
+    """没有打开演示文稿时允许退出 PowerPoint。"""
+    from scp_cv.player.preheat_ppt import quit_ppt_app_if_idle
+
+    presentation = _PresentationStub()
+    app = _PptAppStub(presentation)
+    app.Presentations = type("_IdlePresentations", (), {"Count": 0})()
+
+    assert quit_ppt_app_if_idle(app) is True
+    assert app.quit_called is True
+
+
+def test_preheat_records_and_conceals_spawned_powerpoint(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """预热拉起新 PowerPoint 进程时应记录进程并隐藏编辑窗口。"""
+    from scp_cv.player import preheat_ppt
+
+    presentation = _PresentationStub()
+    app = _PptAppStub(presentation)
+    _install_com_stubs(monkeypatch, app)
+    recorded_pids: list[int] = []
+    concealed_apps: list[object] = []
+    monkeypatch.setattr(
+        preheat_ppt,
+        "snapshot_candidate_process_ids_for_prog_ids",
+        lambda *_args, **_kwargs: set(),
+    )
+    monkeypatch.setattr(
+        preheat_ppt,
+        "read_ppt_app_process_id",
+        lambda *_args, **_kwargs: 4242,
+    )
+    monkeypatch.setattr(preheat_ppt, "record_spawned_ppt_process", recorded_pids.append)
+    monkeypatch.setattr(
+        preheat_ppt,
+        "conceal_ppt_editor_window",
+        lambda target_app, _logger=None: concealed_apps.append(target_app),
+    )
+
+    preheater = PptApplicationPreheater()
+    preheater.preheat()
+    item = preheater.take()
+
+    assert recorded_pids == [4242]
+    assert concealed_apps == [app]
+    assert item is not None
+    assert item.process_id == 4242
+    assert item.spawned_process is True
+
+
+def test_preheat_keeps_existing_powerpoint_untouched(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """连接到既有 PowerPoint 进程时不得隐藏用户窗口或记录清理目标。"""
+    from scp_cv.player import preheat_ppt
+
+    presentation = _PresentationStub()
+    app = _PptAppStub(presentation)
+    _install_com_stubs(monkeypatch, app)
+    recorded_pids: list[int] = []
+    concealed_apps: list[object] = []
+    monkeypatch.setattr(
+        preheat_ppt,
+        "snapshot_candidate_process_ids_for_prog_ids",
+        lambda *_args, **_kwargs: {4242},
+    )
+    monkeypatch.setattr(
+        preheat_ppt,
+        "read_ppt_app_process_id",
+        lambda *_args, **_kwargs: 4242,
+    )
+    monkeypatch.setattr(preheat_ppt, "record_spawned_ppt_process", recorded_pids.append)
+    monkeypatch.setattr(
+        preheat_ppt,
+        "conceal_ppt_editor_window",
+        lambda target_app, _logger=None: concealed_apps.append(target_app),
+    )
+
+    preheater = PptApplicationPreheater()
+    preheater.preheat()
+    item = preheater.take()
+
+    assert recorded_pids == []
+    assert concealed_apps == []
+    assert item is not None
+    assert item.spawned_process is False

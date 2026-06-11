@@ -14,6 +14,7 @@ import logging
 from PySide6.QtCore import QTimer
 
 from scp_cv.player.adapters import create_adapter
+from scp_cv.player.controller_ppt_open import PptOpenFlowMixin
 from scp_cv.player.controller_window_helpers import PlayerWindowHelpersMixin
 
 logger = logging.getLogger(__name__)
@@ -30,7 +31,7 @@ def _is_stream_source(source_type: str) -> bool:
     return source_type.endswith("_stream")
 
 
-class PlayerCommandHandlersMixin(PlayerWindowHelpersMixin):
+class PlayerCommandHandlersMixin(PptOpenFlowMixin, PlayerWindowHelpersMixin):
     """
     PlayerController 指令处理 mixin。
 
@@ -104,6 +105,23 @@ class PlayerCommandHandlersMixin(PlayerWindowHelpersMixin):
                 uri,
                 window,
             )
+            if is_ppt_source:
+                set_com_worker = getattr(adapter, "set_com_worker", None)
+                if callable(set_com_worker):
+                    set_com_worker(self._ppt_com_worker)
+                open_async = getattr(adapter, "open_async", None)
+                if callable(open_async):
+                    # PPT 慢操作走 COM 工作线程，完成后经信号回主线程收尾。
+                    self._begin_ppt_open_async(
+                        window_id,
+                        adapter,
+                        window_handle,
+                        command_args,
+                        previous_adapter,
+                        previous_source_type,
+                        previous_source_id,
+                    )
+                    return
             adapter.open(uri=uri, window_handle=window_handle, autoplay=autoplay)
             if is_ppt_source and target_slide > 0:
                 adapter.goto_item(target_slide)
@@ -218,6 +236,7 @@ class PlayerCommandHandlersMixin(PlayerWindowHelpersMixin):
         处理全局重置：关闭全部播放资源、替换窗口并重新建立媒体预热池。
         :return: None
         """
+        self._abort_pending_ppt_opens()
         for adapter_window_id in list(self._adapters.keys()):
             self._close_adapter(adapter_window_id, reheat=False)
         self._adapter_source_types.clear()
@@ -332,13 +351,18 @@ class PlayerCommandHandlersMixin(PlayerWindowHelpersMixin):
         if not isinstance(restart_sessions, list):
             logger.warning("窗口 %d：RESET_PPT 参数 restart_sessions 不是列表", window_id)
             return
+        from scp_cv.apps.playback.models import PlaybackCommand
+
         for raw_restart in restart_sessions:
             if not isinstance(raw_restart, dict):
                 continue
             restart_window_id = int(raw_restart.get("window_id") or 0)
             if restart_window_id not in self.registered_window_ids:
                 continue
-            self._handle_open(restart_window_id, dict(raw_restart))
+            # 统一走指令入口：目标窗口存在在途 PPT 打开时自动排队取代，避免 pending 记录被覆盖
+            self._execute_command_on_main_thread(
+                restart_window_id, PlaybackCommand.OPEN, dict(raw_restart)
+            )
         logger.info("播放器已完成 PPT 放映重置，重启窗口数=%d", len(restart_sessions))
 
     def _handle_set_loop(self, window_id: int, command_args: dict[str, object]) -> None:

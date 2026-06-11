@@ -21,6 +21,7 @@
 '''
 from __future__ import annotations
 
+import itertools
 import logging
 import threading
 import time
@@ -61,11 +62,14 @@ class PlayerController(PlayerCommandHandlersMixin, BackgroundAudioHandlersMixin,
     sig_dispatch_command = Signal(int, str, dict)  # (window_id, command, command_args)
     sig_dispatch_background_audio_command = Signal(str, dict)  # (command, command_args)
     sig_report_states = Signal()                   # 轮询线程 → Qt 主线程：读取适配器状态
+    # COM 工作线程 → Qt 主线程：PPT 后台打开完成（window_id, token, error）
+    sig_ppt_open_finished = Signal(int, int, object)
 
     def __init__(
         self,
         parent: Optional[QObject] = None,
         enable_background_audio: bool = True,
+        ppt_com_worker: object | None = None,
     ) -> None:
         super().__init__(parent)
 
@@ -80,6 +84,11 @@ class PlayerController(PlayerCommandHandlersMixin, BackgroundAudioHandlersMixin,
         self._adapter_source_ids: dict[int, int] = {}
         # 统一预热池：由 Qt 主线程创建和使用，避免切源时重复冷启动。
         self._preheat_pool: object | None = None
+        # 共享 PPT COM 工作线程：None 时所有 PPT COM 操作内联执行（测试场景）。
+        self._ppt_com_worker: object | None = ppt_com_worker
+        # 在途 PPT 打开请求：window_id → _PendingPptOpen
+        self._pending_ppt_opens: dict[int, object] = {}
+        self._ppt_open_token_counter = itertools.count(1)
         # 非 dev 模式下由 run_player 注入关闭回调，窗口重建后仍需保持相同行为。
         self._window_closed_callback: Callable[[], None] | None = None
         # 背景音频单实例适配器，不占用任何 PlayerWindow。
@@ -104,6 +113,7 @@ class PlayerController(PlayerCommandHandlersMixin, BackgroundAudioHandlersMixin,
         if self._enable_background_audio:
             self.sig_dispatch_background_audio_command.connect(self._execute_background_audio_command_on_main_thread)
         self.sig_report_states.connect(self._report_all_adapter_states)
+        self.sig_ppt_open_finished.connect(self._on_ppt_open_finished)
 
     def set_window_closed_callback(self, callback: Callable[[], None] | None) -> None:
         """
@@ -180,14 +190,33 @@ class PlayerController(PlayerCommandHandlersMixin, BackgroundAudioHandlersMixin,
             self._poll_thread.join(timeout=3.0)
             self._poll_thread = None
 
-        # 关闭所有窗口的适配器
+        # 取消在途 PPT 打开，再关闭所有窗口的适配器
+        self._abort_pending_ppt_opens()
         for wid in list(self._adapters.keys()):
             self._close_adapter(wid, reheat=False)
         if self._preheat_pool is not None:
             self._preheat_pool.close_all()
             self._preheat_pool = None
         self._close_background_audio_adapter()
+        self._shutdown_ppt_com_worker()
         logger.info("控制器轮询已停止")
+
+    def _shutdown_ppt_com_worker(self) -> None:
+        """
+        关闭 PPT COM 工作线程，并兜底清理本系统拉起的残留 PowerPoint 进程。
+        :return: None
+        """
+        if self._ppt_com_worker is None:
+            return
+        try:
+            self._ppt_com_worker.shutdown(timeout_seconds=10.0)
+        except Exception as shutdown_error:
+            logger.warning("PPT COM 工作线程关闭异常：%s", shutdown_error)
+        from scp_cv.player.adapters.ppt_process import terminate_spawned_ppt_processes
+
+        terminated = terminate_spawned_ppt_processes()
+        if terminated:
+            logger.info("退出时清理残留 PowerPoint 进程：%s", terminated)
 
     def _ensure_preheat_pool(self) -> object:
         """
@@ -198,6 +227,7 @@ class PlayerController(PlayerCommandHandlersMixin, BackgroundAudioHandlersMixin,
 
         if self._preheat_pool is None:
             self._preheat_pool = PlayerPreheatPool()
+            self._preheat_pool.attach_ppt_com_worker(self._ppt_com_worker)
         return self._preheat_pool
 
     def preheat_sources(self) -> None:
@@ -424,6 +454,10 @@ class PlayerController(PlayerCommandHandlersMixin, BackgroundAudioHandlersMixin,
         from scp_cv.apps.playback.models import PlaybackCommand
 
         logger.info("主线程执行指令：窗口 %d → %s", window_id, command)
+        # 排队检查必须先于 reset 去重：排队时不记录 reset token，
+        # 否则打开完成后重放同一条 reset 指令会被误判为重复广播而丢弃。
+        if self._defer_command_during_ppt_open(window_id, command, command_args):
+            return
         if self._is_duplicate_reset_command(window_id, command, command_args):
             return
 

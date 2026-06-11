@@ -39,6 +39,16 @@ class PlayerPreheatPool:
         self._audios: dict[int, PreheatedAudioSource] = {}
         self._streams: dict[int, StreamPreheatHandle] = {}
         self._ppt_apps = PptApplicationPreheater()
+        # PPT COM 工作线程；注入后 PPT 预热在该线程后台执行，不阻塞主线程。
+        self._ppt_com_worker: object | None = None
+
+    def attach_ppt_com_worker(self, com_worker: object | None) -> None:
+        """
+        注入共享 PPT COM 工作线程。
+        :param com_worker: PptComWorker 实例；None 表示内联执行
+        :return: None
+        """
+        self._ppt_com_worker = com_worker
 
     def preheat_source(
         self,
@@ -155,14 +165,24 @@ class PlayerPreheatPool:
     def preheat_ppt_source(self, source_id: int = 0, uri: str = "") -> None:
         """
         预热 PowerPoint 应用或指定 PPT 文件。
+        注入 COM 工作线程时在后台执行，避免冷启动阻塞主线程。
         :param source_id: 可选媒体源 ID，用于文件级预热
         :param uri: 可选 PPT 文件路径，用于文件级预热
         :return: None
         """
         if source_id > 0 and uri:
-            self._ppt_apps.preheat_source(source_id, uri)
+            preheat_job = lambda: self._ppt_apps.preheat_source(source_id, uri)  # noqa: E731
+            description = f"预热 PPT 文件 source_id={source_id}"
         else:
-            self._ppt_apps.preheat()
+            preheat_job = self._ppt_apps.preheat
+            description = "预热 PowerPoint 应用"
+        # getattr 兜底：测试可能绕过 __init__ 构造预热池实例
+        worker = getattr(self, "_ppt_com_worker", None)
+        if worker is None or getattr(worker, "is_current_thread", False):
+            preheat_job()
+            return
+        # 预热走低优先级：前台打开/关闭等指令可插队，不被预热队列挡住
+        worker.submit(description, preheat_job, low_priority=True)
 
     def take_ppt_application(self, source_id: int = 0, uri: str = "") -> PreheatedPptApplication | None:
         """
@@ -207,7 +227,29 @@ class PlayerPreheatPool:
         for stream in list(self._streams.values()):
             stream.close()
         self._streams.clear()
-        self._ppt_apps.close_all()
+        self._close_ppt_preheats()
+
+    def _close_ppt_preheats(self) -> None:
+        """
+        关闭 PPT 预热资源；COM 对象属于工作线程时同步等待其在该线程释放。
+        :return: None
+        """
+        worker = getattr(self, "_ppt_com_worker", None)
+        if worker is None or getattr(worker, "is_current_thread", False):
+            self._ppt_apps.close_all()
+            return
+        # 先丢弃排队中的预热任务，避免池关闭后旧预热再拉起新 PowerPoint
+        discard_low_priority = getattr(worker, "discard_low_priority_jobs", None)
+        if callable(discard_low_priority):
+            discard_low_priority()
+        try:
+            worker.submit_and_wait(
+                "关闭 PPT 预热资源",
+                self._ppt_apps.close_all,
+                timeout_seconds=10.0,
+            )
+        except Exception as close_error:
+            logger.warning("关闭 PPT 预热资源失败：%s", close_error)
 
     def _preheat_image(self, source_id: int, uri: str, force: bool) -> None:
         """

@@ -565,7 +565,7 @@ def test_start_slideshow_embeds_window_into_pyside_container(monkeypatch: Monkey
     adapter._start_slideshow(start_slide=2)
 
     assert adapter._ppt_hwnd == 909
-    assert calls == [(909, 2001)]
+    assert calls == [(909, 2001, adapter._embed_owner_token)]
 
 
 def test_open_presentation_for_slideshow_uses_editable_untitled_copy() -> None:
@@ -586,19 +586,25 @@ def test_stop_closes_embedded_slideshow_window(
     monkeypatch: MonkeyPatch,
 ) -> None:
     """停止 PPT 时应退出 COM 放映并关闭嵌入式放映 HWND。"""
+    from scp_cv.player.adapters import ppt_navigation
+
     adapter = PptSourceAdapter()
     slideshow_view = _ExitTrackingSlideShowView(current_position=3)
     adapter._slideshow_view = slideshow_view
     adapter._presentation = _PresentationStub()
     adapter._ppt_hwnd = 909
     adapter._total_slides = 5
-    close_calls: list[int] = []
-    monkeypatch.setattr(ppt, "close_embedded_slideshow_window", close_calls.append)
+    close_calls: list[tuple[int, int]] = []
+    monkeypatch.setattr(
+        ppt_navigation,
+        "close_embedded_slideshow_window",
+        lambda hwnd, owner_token=0: close_calls.append((hwnd, owner_token)),
+    )
 
     adapter.stop()
 
     assert slideshow_view.exit_called is True
-    assert close_calls == [909]
+    assert close_calls == [(909, adapter._embed_owner_token)]
     assert adapter._ppt_hwnd == 0
     assert adapter._slideshow_view is None
     assert adapter._last_slide_index == 3
@@ -650,19 +656,23 @@ def test_close_com_resources_quits_owned_powerpoint_app(
     presentation = _PresentationStub()
     ppt_app = _PptAppStub()
     slideshow_view = _ExitTrackingSlideShowView(current_position=3)
-    close_calls: list[int] = []
+    close_calls: list[tuple[int, int]] = []
     adapter._presentation = presentation
     adapter._ppt_app = ppt_app
     adapter._owns_ppt_app = True
     adapter._slideshow_view = slideshow_view
     adapter._ppt_hwnd = 909
 
-    monkeypatch.setattr(ppt, "close_embedded_slideshow_window", close_calls.append)
+    monkeypatch.setattr(
+        ppt,
+        "close_embedded_slideshow_window",
+        lambda hwnd, owner_token=0: close_calls.append((hwnd, owner_token)),
+    )
 
     adapter._close_com_resources()
 
     assert slideshow_view.exit_called is True
-    assert close_calls == [909]
+    assert close_calls == [(909, adapter._embed_owner_token)]
     assert presentation.close_called is True
     assert ppt_app.quit_called is True
     assert adapter._ppt_app is None
@@ -734,19 +744,24 @@ def test_close_com_resources_returns_owned_app_to_preheat_pool(
     adapter._preheat_pool = pool
     adapter._active_com_prog_id = "PowerPoint.Application"
     adapter._ppt_hwnd = 909
-    close_calls: list[int] = []
-    monkeypatch.setattr(ppt, "close_embedded_slideshow_window", close_calls.append)
+    close_calls: list[tuple[int, int]] = []
+    monkeypatch.setattr(
+        ppt,
+        "close_embedded_slideshow_window",
+        lambda hwnd, owner_token=0: close_calls.append((hwnd, owner_token)),
+    )
 
     adapter._close_com_resources()
 
-    assert close_calls == [909]
+    assert close_calls == [(909, adapter._embed_owner_token)]
     assert presentation.close_called is True
     assert ppt_app.quit_called is False
     assert pool.returned_items
     returned_item = pool.returned_items[0]
     assert returned_item.app is ppt_app
     assert returned_item.prog_id == "PowerPoint.Application"
-    assert ppt_app.WindowState == 2
+    # 非本系统拉起的 PowerPoint 不再被最小化或隐藏窗口
+    assert ppt_app.WindowState == 0
 
 
 def test_powerpoint_adapter_uses_powerpoint_com_prog_id_candidates() -> None:
@@ -769,9 +784,11 @@ def test_powerpoint_adapter_uses_powerpoint_com_prog_id_candidates() -> None:
 
 def test_powerpoint_operation_retries_transient_failures(monkeypatch: MonkeyPatch) -> None:
     """PowerPoint 冷启动阶段的临时 COM 失败应按固定次数重试。"""
+    from scp_cv.player.adapters import ppt_com_session
+
     adapter = PptSourceAdapter()
     attempts = {"count": 0}
-    monkeypatch.setattr(ppt.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(ppt_com_session.time, "sleep", lambda _seconds: None)
 
     def flaky_operation() -> object:
         attempts["count"] += 1
@@ -781,3 +798,93 @@ def test_powerpoint_operation_retries_transient_failures(monkeypatch: MonkeyPatc
 
     assert adapter._run_powerpoint_operation("测试操作", flaky_operation) == "ok"
     assert attempts["count"] == 3
+
+
+class _RecordingComWorkerStub:
+    """记录提交任务但不执行的 COM 工作线程替身。"""
+
+    is_current_thread = False
+
+    def __init__(self) -> None:
+        """
+        初始化提交记录。
+        :return: None
+        """
+        self.submitted: list[str] = []
+
+    def submit(self, description: str, fn: object, on_done: object = None) -> None:
+        """
+        仅记录任务描述，不执行任务体。
+        :param description: 任务描述
+        :param fn: 任务体
+        :param on_done: 完成回调
+        :return: None
+        """
+        self.submitted.append(description)
+
+
+def test_close_com_resources_skips_quit_when_other_presentations_open() -> None:
+    """PowerPoint 仍有其它演示文稿打开时不得退出应用（单实例进程被共享）。"""
+    adapter = PptSourceAdapter()
+    presentation = _PresentationStub()
+    ppt_app = _PptAppStub()
+    ppt_app.Presentations = type("_BusyPresentations", (), {"Count": 2})()
+    adapter._presentation = presentation
+    adapter._ppt_app = ppt_app
+    adapter._owns_ppt_app = True
+
+    adapter._close_com_resources()
+
+    assert presentation.close_called is True
+    assert ppt_app.quit_called is False
+    assert adapter._ppt_app is None
+
+
+def test_get_state_returns_cached_snapshot_when_worker_attached() -> None:
+    """注入 worker 后 get_state 应即时返回缓存并调度后台刷新。"""
+    adapter = PptSourceAdapter()
+    worker = _RecordingComWorkerStub()
+    adapter.set_com_worker(worker)
+    adapter._mark_open()
+
+    state = adapter.get_state()
+
+    assert state.playback_state == "idle"
+    assert worker.submitted == ["PowerPoint 刷新状态"]
+    # 刷新在途时不应重复调度
+    adapter.get_state()
+    assert worker.submitted == ["PowerPoint 刷新状态"]
+
+
+def test_navigation_commands_route_through_worker() -> None:
+    """注入 worker 后导航与关闭指令应投递到工作线程而非内联执行 COM。"""
+    adapter = PptSourceAdapter()
+    worker = _RecordingComWorkerStub()
+    adapter.set_com_worker(worker)
+    adapter._slideshow_view = _ClickCapableSlideShowView()
+
+    adapter.next_item()
+    adapter.pause()
+    adapter.close()
+
+    assert worker.submitted == [
+        "PowerPoint 下一动画/页",
+        "PowerPoint 暂停放映",
+        "PowerPoint 关闭",
+    ]
+    assert adapter.is_open is False
+
+
+def test_open_async_reports_missing_file_via_callback() -> None:
+    """open_async 对不存在文件应通过回调上报 FileNotFoundError 而不抛出。"""
+    adapter = PptSourceAdapter()
+    outcomes: list[object] = []
+
+    adapter.open_async(
+        "Z:/no/such/file.pptx",
+        2001,
+        on_finished=outcomes.append,
+    )
+
+    assert len(outcomes) == 1
+    assert isinstance(outcomes[0], FileNotFoundError)

@@ -777,3 +777,50 @@ def test_find_slideshow_hwnd_waits_for_delayed_window(
 
     assert hwnd == 202
     assert sleep_calls == [0.1]
+
+
+def test_embed_marks_owner_token_and_mismatched_close_is_skipped(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """嵌入时写入归属 token；旧适配器 token 不匹配时不得关闭被复用的窗口。"""
+    from scp_cv.player.adapters.ppt_window_registry import (
+        unmark_embedded_slideshow_window,
+    )
+
+    calls: list[tuple[object, ...]] = []
+    win32con = _install_fake_embed_win32(monkeypatch, calls)
+    try:
+        embed_slideshow_window(909, 2001, 1111)
+        assert ("SetProp", 909, EMBEDDED_SLIDESHOW_PROP, 1111) in calls
+
+        calls.clear()
+        close_embedded_slideshow_window(909, 2222)
+        assert ("ShowWindow", 909, win32con.SW_HIDE) not in calls
+        assert ("PostMessage", 909, win32con.WM_CLOSE, 0, 0) not in calls
+
+        close_embedded_slideshow_window(909, 1111)
+        assert ("ShowWindow", 909, win32con.SW_HIDE) in calls
+        assert ("PostMessage", 909, win32con.WM_CLOSE, 0, 0) in calls
+    finally:
+        unmark_embedded_slideshow_window(909)
+
+
+def test_close_without_owner_token_keeps_legacy_behavior(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """不携带 token 的关闭调用应保持历史行为，不做归属校验。"""
+    from scp_cv.player.adapters.ppt_window_registry import (
+        unmark_embedded_slideshow_window,
+    )
+
+    calls: list[tuple[object, ...]] = []
+    win32con = _install_fake_embed_win32(monkeypatch, calls)
+    try:
+        embed_slideshow_window(909, 2001, 1111)
+        calls.clear()
+
+        close_embedded_slideshow_window(909)
+
+        assert ("PostMessage", 909, win32con.WM_CLOSE, 0, 0) in calls
+    finally:
+        unmark_embedded_slideshow_window(909)

@@ -11,6 +11,12 @@ from __future__ import annotations
 
 import logging
 
+from scp_cv.player.adapters.ppt_focus import conceal_ppt_editor_window
+from scp_cv.player.adapters.ppt_process import (
+    read_ppt_app_process_id,
+    record_spawned_ppt_process,
+    snapshot_candidate_process_ids_for_prog_ids,
+)
 from scp_cv.player.preheat_types import PreheatedPptApplication
 from scp_cv.ppt_com import POWERPOINT_COM_PROG_IDS
 
@@ -42,17 +48,34 @@ class PptApplicationPreheater:
         except Exception as import_error:
             logger.warning("PowerPoint COM 预热不可用：%s", import_error)
             return
+        existing_process_ids = snapshot_candidate_process_ids_for_prog_ids(
+            POWERPOINT_COM_PROG_IDS
+        )
         last_error: BaseException | None = None
         for prog_id in POWERPOINT_COM_PROG_IDS:
             try:
                 app = win32com.client.DispatchEx(prog_id)
-                _minimize_app_window(app)
+                process_id = read_ppt_app_process_id(app, prog_id, existing_process_ids)
+                spawned_process = (
+                    process_id != 0 and process_id not in existing_process_ids
+                )
+                if spawned_process:
+                    record_spawned_ppt_process(process_id)
+                    # 隐藏由预热拉起的编辑窗口，避免任务栏出现 PowerPoint 按钮。
+                    conceal_ppt_editor_window(app, logger)
                 self._items[_POWERPOINT_BACKEND_KEY] = PreheatedPptApplication(
                     _POWERPOINT_BACKEND_KEY,
                     app,
                     prog_id,
+                    process_id=process_id,
+                    spawned_process=spawned_process,
                 )
-                logger.info("PowerPoint 已预热：prog_id=%s", prog_id)
+                logger.info(
+                    "PowerPoint 已预热：prog_id=%s, pid=%d, spawned=%s",
+                    prog_id,
+                    process_id,
+                    spawned_process,
+                )
                 return
             except BaseException as dispatch_error:
                 last_error = dispatch_error
@@ -82,7 +105,7 @@ class PptApplicationPreheater:
         if existing is not None and existing.presentation is not presentation:
             _close_presentation(existing.presentation)
             if existing.app is not item.app:
-                quit_ppt_app(existing.app)
+                quit_ppt_app_if_idle(existing.app)
         self._items[_source_key(source_id, uri)] = PreheatedPptApplication(
             _POWERPOINT_BACKEND_KEY,
             item.app,
@@ -90,6 +113,8 @@ class PptApplicationPreheater:
             source_id=source_id,
             uri=uri,
             presentation=presentation,
+            process_id=item.process_id,
+            spawned_process=item.spawned_process,
         )
         logger.info("PowerPoint 文件已预热：source_id=%d", source_id)
 
@@ -117,6 +142,9 @@ class PptApplicationPreheater:
         item.source_id = 0
         item.uri = ""
         item.presentation = None
+        if item.spawned_process:
+            # 放映结束后 PowerPoint 可能重新显示编辑窗口，归还时再次隐藏。
+            conceal_ppt_editor_window(item.app, logger)
         existing = self._items.pop(_POWERPOINT_BACKEND_KEY, None)
         if existing is not None:
             _dispose_item(existing, quit_app=existing.app is not item.app)
@@ -169,16 +197,22 @@ def quit_ppt_app(app: object) -> None:
         pass
 
 
-def _minimize_app_window(app: object) -> None:
+def quit_ppt_app_if_idle(app: object) -> bool:
     """
-    预热应用后尽量最小化编辑窗口。
+    仅在 PowerPoint 没有其它打开演示文稿时退出应用。
+    PowerPoint 是单实例进程，其它播放窗口或用户文档可能仍在使用。
     :param app: COM Application 对象
-    :return: None
+    :return: True 表示已尝试退出
     """
     try:
-        app.WindowState = 2
+        presentation_count = int(app.Presentations.Count)
     except Exception:
-        pass
+        presentation_count = 0
+    if presentation_count > 0:
+        logger.info("PowerPoint 仍有 %d 个演示文稿打开，跳过退出", presentation_count)
+        return False
+    quit_ppt_app(app)
+    return True
 
 
 def _open_presentation(app: object, uri: str) -> object:
@@ -238,7 +272,7 @@ def _dispose_item(item: PreheatedPptApplication, quit_app: bool) -> None:
     """
     _close_presentation(item.presentation)
     if quit_app:
-        quit_ppt_app(item.app)
+        quit_ppt_app_if_idle(item.app)
 
 
 def _source_key(source_id: int, uri: str) -> str:
@@ -254,4 +288,5 @@ def _source_key(source_id: int, uri: str) -> str:
 __all__ = [
     "PptApplicationPreheater",
     "quit_ppt_app",
+    "quit_ppt_app_if_idle",
 ]

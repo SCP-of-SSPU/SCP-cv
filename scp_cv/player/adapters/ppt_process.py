@@ -9,7 +9,15 @@ PowerPoint 进程识别辅助函数。
 '''
 from __future__ import annotations
 
+import logging
+import threading
 from collections.abc import Iterable
+
+logger = logging.getLogger(__name__)
+
+# 由本系统拉起的 PowerPoint 进程 ID，播放器退出时用于残留进程兜底清理。
+_SPAWNED_PPT_PROCESS_IDS: set[int] = set()
+_SPAWNED_PPT_PROCESS_LOCK = threading.Lock()
 
 
 def read_ppt_app_process_id(
@@ -101,6 +109,129 @@ def candidate_process_names(active_com_prog_id: str) -> set[str]:
     return set()
 
 
+def read_ppt_app_hwnd(ppt_app: object) -> int:
+    """
+    读取 PowerPoint Application 主窗口 HWND。
+
+    :param ppt_app: PowerPoint Application COM 对象
+    :returns: HWND；读取失败返回 0
+    """
+    if ppt_app is None:
+        return 0
+    return _read_app_hwnd(ppt_app)
+
+
+def record_spawned_ppt_process(process_id: int) -> None:
+    """
+    记录由本系统拉起的 PowerPoint 进程。
+
+    :param process_id: PowerPoint 进程 ID
+    :returns: None
+    """
+    if process_id <= 0:
+        return
+    with _SPAWNED_PPT_PROCESS_LOCK:
+        _SPAWNED_PPT_PROCESS_IDS.add(int(process_id))
+
+
+def forget_spawned_ppt_process(process_id: int) -> None:
+    """
+    移除已记录的 PowerPoint 进程。
+
+    :param process_id: PowerPoint 进程 ID
+    :returns: None
+    """
+    with _SPAWNED_PPT_PROCESS_LOCK:
+        _SPAWNED_PPT_PROCESS_IDS.discard(int(process_id))
+
+
+def spawned_ppt_process_ids() -> set[int]:
+    """
+    获取当前记录的本系统拉起的 PowerPoint 进程 ID 快照。
+
+    :returns: 进程 ID 集合副本
+    """
+    with _SPAWNED_PPT_PROCESS_LOCK:
+        return set(_SPAWNED_PPT_PROCESS_IDS)
+
+
+def terminate_spawned_ppt_processes(grace_seconds: float = 3.0) -> list[int]:
+    """
+    清理本系统拉起后仍残留的 PowerPoint 进程。
+    带可见顶层窗口的进程视为已被用户接管，跳过清理。
+
+    :param grace_seconds: terminate 后等待进程退出的秒数
+    :returns: 实际被终止的进程 ID 列表
+    """
+    try:
+        import psutil
+    except Exception:
+        return []
+
+    terminated: list[int] = []
+    for process_id in spawned_ppt_process_ids():
+        try:
+            process = psutil.Process(process_id)
+            process_name = str(process.name() or "").lower()
+        except Exception:
+            forget_spawned_ppt_process(process_id)
+            continue
+        if process_name != "powerpnt.exe":
+            forget_spawned_ppt_process(process_id)
+            continue
+        if _has_visible_top_level_window(process_id):
+            logger.info("PowerPoint 进程 %d 存在可见窗口，跳过残留清理", process_id)
+            continue
+        try:
+            process.terminate()
+            process.wait(timeout=max(0.5, grace_seconds))
+        except Exception:
+            try:
+                process.kill()
+            except Exception:
+                logger.warning("无法终止残留 PowerPoint 进程：%d", process_id)
+                continue
+        terminated.append(process_id)
+        forget_spawned_ppt_process(process_id)
+        logger.info("已清理残留 PowerPoint 进程：%d", process_id)
+    return terminated
+
+
+def _has_visible_top_level_window(process_id: int) -> bool:
+    """
+    判断进程是否拥有可见顶层窗口。
+
+    :param process_id: 目标进程 ID
+    :returns: True 表示存在可见窗口；Win32 不可用时按 True 处理以保守跳过清理
+    """
+    try:
+        import win32gui
+        import win32process
+    except Exception:
+        return True
+
+    found_visible = {"value": False}
+
+    def enum_callback(hwnd: int, _extra: object) -> bool:
+        try:
+            if not win32gui.IsWindowVisible(hwnd):
+                return True
+            _, window_pid = win32process.GetWindowThreadProcessId(hwnd)
+            if int(window_pid) == int(process_id):
+                found_visible["value"] = True
+                return False
+        except Exception:
+            return True
+        return True
+
+    try:
+        win32gui.EnumWindows(enum_callback, None)
+    except Exception:
+        # EnumWindows 在回调返回 False 终止枚举时会抛错，忽略即可
+        pass
+    return found_visible["value"]
+
+
 def _read_app_hwnd(ppt_app: object) -> int:
     """
     读取 Office Application 主窗口 HWND。
@@ -136,7 +267,12 @@ def _process_id_from_hwnd(app_hwnd: int) -> int:
 
 __all__ = [
     "candidate_process_names",
+    "forget_spawned_ppt_process",
+    "read_ppt_app_hwnd",
     "read_ppt_app_process_id",
+    "record_spawned_ppt_process",
     "snapshot_candidate_process_ids",
     "snapshot_candidate_process_ids_for_prog_ids",
+    "spawned_ppt_process_ids",
+    "terminate_spawned_ppt_processes",
 ]

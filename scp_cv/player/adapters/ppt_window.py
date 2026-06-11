@@ -20,6 +20,7 @@ from scp_cv.player.adapters.ppt_window_registry import (
     EMBEDDED_SLIDESHOW_PROP,
     has_embedded_slideshow_marker,
     mark_embedded_slideshow_window,
+    read_embedded_slideshow_owner,
     unmark_embedded_slideshow_window,
 )
 
@@ -469,11 +470,14 @@ def _largest_window(win32gui: object, hwnds: list[int]) -> int:
     return best_hwnd
 
 
-def embed_slideshow_window(ppt_hwnd: int, parent_hwnd: int) -> tuple[int, int]:
+def embed_slideshow_window(
+    ppt_hwnd: int, parent_hwnd: int, owner_token: int = 0
+) -> tuple[int, int]:
     """
     将 PPT 放映窗口嵌入播放器的原生窗口。
     :param ppt_hwnd: PPT 放映窗口句柄
     :param parent_hwnd: PySide 播放器窗口句柄
+    :param owner_token: 归属适配器 token；为 0 时回退用父容器句柄标记
     :return: 调整后的宽高
     """
     import win32con
@@ -501,7 +505,7 @@ def embed_slideshow_window(ppt_hwnd: int, parent_hwnd: int) -> tuple[int, int]:
     extended_style &= ~win32con.WS_EX_APPWINDOW
     win32gui.SetWindowLong(ppt_hwnd, win32con.GWL_EXSTYLE, extended_style)
     win32gui.SetParent(ppt_hwnd, parent_hwnd)
-    mark_embedded_slideshow_window(ppt_hwnd, parent_hwnd)
+    mark_embedded_slideshow_window(ppt_hwnd, owner_token or parent_hwnd)
     return resize_slideshow_window(ppt_hwnd, parent_hwnd)
 
 
@@ -575,10 +579,13 @@ def show_embedded_slideshow_window(ppt_hwnd: int, parent_hwnd: int) -> tuple[int
         return 0, 0
 
 
-def close_embedded_slideshow_window(ppt_hwnd: int) -> None:
+def close_embedded_slideshow_window(ppt_hwnd: int, owner_token: int = 0) -> None:
     """
     请求关闭嵌入式 PPT 放映子窗口，不把它恢复为可见外部顶层窗口。
+    PowerPoint 复用窗口给新放映时，旧适配器携带的 token 与当前归属不一致，
+    此时跳过关闭，避免误杀新放映画面。
     :param ppt_hwnd: PPT 放映窗口句柄
+    :param owner_token: 调用方持有的归属 token；为 0 时不做归属校验
     :return: None
     """
     if ppt_hwnd == 0:
@@ -587,6 +594,10 @@ def close_embedded_slideshow_window(ppt_hwnd: int) -> None:
         import win32con
         import win32gui
 
+        if owner_token:
+            current_owner = read_embedded_slideshow_owner(win32gui, ppt_hwnd)
+            if current_owner != 0 and current_owner != int(owner_token):
+                return
         hide_embedded_slideshow_window(ppt_hwnd)
         if not _window_exists(win32gui, ppt_hwnd):
             unmark_embedded_slideshow_window(ppt_hwnd)
@@ -643,6 +654,7 @@ __all__ = [
     "find_slideshow_hwnd",
     "hide_embedded_slideshow_window",
     "mark_embedded_slideshow_window",
+    "read_embedded_slideshow_owner",
     "resize_slideshow_window",
     "show_embedded_slideshow_window",
     "snapshot_slideshow_hwnds",

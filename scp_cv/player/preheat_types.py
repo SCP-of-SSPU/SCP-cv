@@ -80,6 +80,8 @@ class PreheatedPptApplication:
     :param source_id: 已预打开的媒体源 ID；0 表示仅预热应用
     :param uri: 已预打开的文件路径
     :param presentation: 已预打开的 Presentation COM 对象
+    :param process_id: PowerPoint 进程 ID；0 表示未识别
+    :param spawned_process: 进程是否由本系统拉起（影响窗口隐藏和退出清理）
     """
 
     backend: str
@@ -88,6 +90,8 @@ class PreheatedPptApplication:
     source_id: int = 0
     uri: str = ""
     presentation: object | None = None
+    process_id: int = 0
+    spawned_process: bool = False
 
 
 __all__ = [
