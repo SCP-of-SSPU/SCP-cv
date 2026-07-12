@@ -12,6 +12,10 @@ from __future__ import annotations
 import grpc
 
 from scp_cv.grpc_generated.scp_cv.v1 import control_pb2
+from scp_cv.services.command_status import (
+    capture_enqueued_commands,
+    control_command_payloads,
+)
 from scp_cv.services.media import (
     MediaError,
     add_local_path,
@@ -56,16 +60,18 @@ class MediaSourceServicerMixin:
             return _error_reply("media_source_id 必须大于 0")
 
         try:
-            session = open_source(
-                window_id=window_id,
-                media_source_id=int(media_source_id),
-                autoplay=request.autoplay,
-            )
+            with capture_enqueued_commands() as accepted_commands:
+                session = open_source(
+                    window_id=window_id,
+                    media_source_id=int(media_source_id),
+                    autoplay=request.autoplay,
+                )
             source_name = session.media_source.name if session.media_source else "未知"
             _publish_playback_state_event()
             return _success_reply(
-                message=f"窗口 {window_id} 源已打开",
+                message=f"窗口 {window_id} 打开指令已接受",
                 detail=source_name,
+                commands=control_command_payloads(accepted_commands),
             )
         except PlaybackError as playback_err:
             return _error_reply(str(playback_err))
@@ -83,9 +89,13 @@ class MediaSourceServicerMixin:
         """
         window_id = _extract_window_id(request)
         try:
-            close_source(window_id)
+            with capture_enqueued_commands() as accepted_commands:
+                close_source(window_id)
             _publish_playback_state_event()
-            return _success_reply(message=f"窗口 {window_id} 源已关闭")
+            return _success_reply(
+                message=f"窗口 {window_id} 关闭指令已接受",
+                commands=control_command_payloads(accepted_commands),
+            )
         except PlaybackError as playback_err:
             return _error_reply(str(playback_err))
 
@@ -245,7 +255,14 @@ class MediaSourceServicerMixin:
             return _error_reply("media_source_id 必须大于 0")
 
         try:
-            delete_media_source(int(request.media_source_id))
-            return _success_reply(message="媒体源已删除")
+            with capture_enqueued_commands() as accepted_commands:
+                delete_media_source(int(request.media_source_id))
+            command_payloads = control_command_payloads(accepted_commands)
+            if command_payloads:
+                _publish_playback_state_event()
+            return _success_reply(
+                message="媒体源已删除",
+                commands=command_payloads,
+            )
         except MediaError as media_err:
             return _error_reply(str(media_err))

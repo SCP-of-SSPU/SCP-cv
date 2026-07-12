@@ -28,7 +28,6 @@ from scp_cv.apps.dashboard.api_utils import (
     mutate_playback,
     parse_window_id,
 )
-from scp_cv.apps.playback.models import PlaybackCommand
 from scp_cv.services.display import build_left_right_splice_target, list_display_targets
 from scp_cv.services.physical_smoke import (
     DEFAULT_TOTAL_TIMEOUT_SECONDS,
@@ -36,14 +35,16 @@ from scp_cv.services.physical_smoke import (
     run_physical_smoke_test,
 )
 from scp_cv.services.background_audio_payloads import get_background_audio_snapshot
+from scp_cv.services.command_status import (
+    capture_enqueued_commands,
+    control_command_payloads,
+)
 from scp_cv.services.playback import (
-    VALID_WINDOW_IDS,
     PlaybackError,
     close_source,
     control_ppt_media,
     control_playback,
     get_all_sessions_snapshot,
-    get_or_create_session,
     get_runtime_snapshot,
     get_session_snapshot,
     navigate_content,
@@ -277,7 +278,8 @@ def runtime_state_api(request: HttpRequest) -> JsonResponse:
     if error is not None:
         return error
     try:
-        runtime = set_big_screen_mode(str(body.get("big_screen_mode", "")).strip())
+        with capture_enqueued_commands() as accepted_commands:
+            runtime = set_big_screen_mode(str(body.get("big_screen_mode", "")).strip())
     except PlaybackError as playback_error:
         return error_response(str(playback_error), code="playback_error")
     sessions = get_all_sessions_snapshot()
@@ -286,6 +288,7 @@ def runtime_state_api(request: HttpRequest) -> JsonResponse:
         "runtime": runtime,
         "sessions": sessions,
         "background_audio": get_background_audio_snapshot(),
+        "commands": control_command_payloads(accepted_commands),
     })
 
 
@@ -323,11 +326,9 @@ def show_window_ids_api(request: HttpRequest) -> JsonResponse:
     :return: 操作后的会话状态
     """
     def apply_show_id() -> None:
-        for window_id in VALID_WINDOW_IDS:
-            session = get_or_create_session(window_id)
-            session.pending_command = PlaybackCommand.SHOW_ID
-            session.command_args = {}
-            session.save(update_fields=["pending_command", "command_args"])
+        from scp_cv.services.playback import request_show_window_ids
+
+        request_show_window_ids()
 
     return mutate_playback(apply_show_id)
 
@@ -391,11 +392,13 @@ def shutdown_system_api(request: HttpRequest) -> JsonResponse:
     :param request: HTTP 请求
     :return: 当前会话状态
     """
-    request_all_windows_close()
+    with capture_enqueued_commands() as accepted_commands:
+        request_all_windows_close()
     _SYSTEM_SHUTDOWN_SIGNAL.write_text("shutdown\n", encoding="utf-8")
     return json_response({
         "success": True,
         "sessions": get_all_sessions_snapshot(),
+        "commands": control_command_payloads(accepted_commands),
         "detail": "系统关闭请求已发送",
     })
 

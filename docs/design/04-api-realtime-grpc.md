@@ -169,7 +169,7 @@ REST 和 gRPC 都委托同一服务层。迁移时应避免为 REST 和 gRPC 复
 - 拒绝把 audio 源打开到显示窗口。
 - PPT 源选择播放缓存 URI，并统一使用 PowerPoint。
 - 设置 session 为 `loading`。
-- 写 `pending_command=open` 和完整 `command_args`。
+- 向目标 `ControlCommand` 通道追加 `open` 和完整 `arguments`，返回命令 ID 与 `pending` 受理状态。
 
 ### 导航
 
@@ -213,7 +213,7 @@ REST 和 gRPC 都委托同一服务层。迁移时应避免为 REST 和 gRPC 复
 ```text
 id: 123
 event: playback_state
-data: {"sessions": [...], "background_audio": {...}}
+data: {"sessions": [...], "background_audio": {...}, "commands": [...]}
 
 ```
 
@@ -222,7 +222,7 @@ data: {"sessions": [...], "background_audio": {...}}
 | 机制 | 说明 |
 | --- | --- |
 | 内存事件总线 | `publish_event(event_type, payload)` 递增全局 sequence，保存最新事件 |
-| DB 轮询兜底 | 播放器独立进程只写 DB，SSE 每 0.2 秒读取 sessions/background_audio 并比较 JSON signature |
+| DB 轮询兜底 | 播放器独立进程只写 DB，SSE 每 0.2 秒读取 sessions/background_audio/commands 并比较 JSON signature |
 | 事件合并 | 如果没有新总线事件，但 DB 快照变化，会发送 `playback_state` |
 | 心跳 | 每 30 秒发送 heartbeat，避免代理或浏览器断开 |
 | Last-Event-ID | 支持 `last_sequence` 续传语义 |
@@ -231,7 +231,7 @@ data: {"sessions": [...], "background_audio": {...}}
 前端处理在 `frontend/src/stores/runtime.ts`：
 
 - `connectEvents()` 建立 `EventSource(buildBackendUrl('/api/events/'), { withCredentials: true })`。
-- 收到 `playback_state` 后调用 sessions store 和 background audio store。
+- 收到 `playback_state` 后调用 sessions store、background audio store，并按命令 ID 合并 `commands` 终态。
 - SSE 出错时切换到 reconnecting 状态，主动刷新 sessions/background audio，并 2 秒后重连。
 
 迁移时如果改用 WebSocket，也建议保留同名 `playback_state` payload，减少前端改动。
@@ -288,6 +288,7 @@ gRPC 与 REST 的迁移原则：
 - Proto 字段是外部中控合同，改名或删字段要比 REST 更谨慎。
 - 如果目标项目不再需要 gRPC，也应保留 proto 和兼容说明，便于后续中控对接。
 - `WatchPlaybackState` 应与 SSE 快照语义保持一致。
+- 会下发持久化命令的 RPC 回执应返回命令 ID、目标、命令、状态和错误；成功只表示已接受，最终结果由 `WatchPlaybackState` 中的命令终态表示。
 
 ## 前端 API 客户端契约
 

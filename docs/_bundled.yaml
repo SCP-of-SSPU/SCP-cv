@@ -440,10 +440,11 @@ paths:
       tags:
         - sources
       summary: 删除媒体源
+      description: 删除当前正在播放的背景音频源时会同时接受一条 STOP 命令；响应 commands 包含其 ID， 最终状态通过 SSE 中同一 ID 确认。删除非当前源时 commands 为空数组。
       operationId: deleteSource
       responses:
         '200':
-          description: 删除成功
+          description: 删除完成；可能同时接受背景音频停止命令
           content:
             application/json:
               schema:
@@ -640,7 +641,7 @@ paths:
       operationId: playBackgroundAudioItem
       responses:
         '200':
-          description: 已下发打开并播放指令
+          description: 打开并播放指令已持久化并接受；最终状态通过 SSE 更新确认
           content:
             application/json:
               schema:
@@ -661,7 +662,7 @@ paths:
               $ref: '#/components/schemas/BackgroundAudioSourceRequest'
       responses:
         '200':
-          description: 已加入列表并下发播放指令
+          description: 已加入列表，播放指令已持久化并接受；不表示播放器已开始输出音频
           content:
             application/json:
               schema:
@@ -682,7 +683,7 @@ paths:
               $ref: '#/components/schemas/BackgroundAudioControlRequest'
       responses:
         '200':
-          description: 控制指令已写入后台播放器状态
+          description: 背景音频控制指令已持久化并接受；最终播放器状态通过 SSE 更新确认
           content:
             application/json:
               schema:
@@ -703,7 +704,7 @@ paths:
               $ref: '#/components/schemas/BackgroundAudioVolumeRequest'
       responses:
         '200':
-          description: 音量已更新
+          description: 音量设置已持久化并接受；最终播放器状态通过 SSE 更新确认
           content:
             application/json:
               schema:
@@ -724,7 +725,7 @@ paths:
               $ref: '#/components/schemas/BackgroundAudioMuteRequest'
       responses:
         '200':
-          description: 静音状态已更新
+          description: 静音设置已持久化并接受；最终播放器状态通过 SSE 更新确认
           content:
             application/json:
               schema:
@@ -745,7 +746,7 @@ paths:
               $ref: '#/components/schemas/BackgroundAudioLoopRequest'
       responses:
         '200':
-          description: 循环状态已更新
+          description: 循环设置已持久化并接受；最终播放器状态通过 SSE 更新确认
           content:
             application/json:
               schema:
@@ -768,7 +769,7 @@ paths:
               $ref: '#/components/schemas/OpenSourceRequest'
       responses:
         '200':
-          description: 操作成功
+          description: 打开指令已持久化并接受；不表示播放器已执行完成，最终状态通过 SSE 会话更新确认
           content:
             application/json:
               schema:
@@ -791,7 +792,7 @@ paths:
               $ref: '#/components/schemas/PlaybackControlRequest'
       responses:
         '200':
-          description: 操作成功
+          description: 控制指令已持久化并接受；不表示播放器已执行完成，最终状态通过 SSE 会话更新确认
           content:
             application/json:
               schema:
@@ -814,7 +815,7 @@ paths:
               $ref: '#/components/schemas/NavigateContentRequest'
       responses:
         '200':
-          description: 操作成功
+          description: 导航指令已持久化并接受；连续指令按队列顺序执行，最终页码通过 SSE 会话更新确认
           content:
             application/json:
               schema:
@@ -837,7 +838,7 @@ paths:
               $ref: '#/components/schemas/PptMediaControlRequest'
       responses:
         '200':
-          description: 操作成功
+          description: PPT 媒体控制指令已持久化并接受；不表示 PowerPoint 已执行完成
           content:
             application/json:
               schema:
@@ -854,7 +855,7 @@ paths:
       operationId: closeWindowSource
       responses:
         '200':
-          description: 操作成功
+          description: 关闭指令已持久化并接受；不表示播放器已释放资源，最终状态通过 SSE 会话更新确认
           content:
             application/json:
               schema:
@@ -877,7 +878,7 @@ paths:
               $ref: '#/components/schemas/ToggleLoopRequest'
       responses:
         '200':
-          description: 操作成功
+          description: 循环设置已持久化并接受；最终播放器状态通过 SSE 会话更新确认
           content:
             application/json:
               schema:
@@ -900,7 +901,7 @@ paths:
               $ref: '#/components/schemas/SetWindowVolumeRequest'
       responses:
         '200':
-          description: 操作成功
+          description: 音量设置已持久化并接受；最终播放器状态通过 SSE 会话更新确认
           content:
             application/json:
               schema:
@@ -923,7 +924,7 @@ paths:
               $ref: '#/components/schemas/SetWindowMuteRequest'
       responses:
         '200':
-          description: 操作成功
+          description: 静音设置已持久化并接受；最终播放器状态通过 SSE 会话更新确认
           content:
             application/json:
               schema:
@@ -938,7 +939,7 @@ paths:
       operationId: showWindowIds
       responses:
         '200':
-          description: 操作成功
+          description: 显示窗口编号指令已持久化并接受
           content:
             application/json:
               schema:
@@ -950,11 +951,11 @@ paths:
       tags:
         - playback
       summary: 重置全部窗口并重建播放器窗口
-      description: 清空全部播放会话，向全部窗口播放器广播重置指令，通知运行中的 PySide 播放器关闭并重建窗口，同时重建媒体预热池。
+      description: 清空全部播放会话并为窗口 1-4 持久化关闭批次，通知运行中的 PySide 播放器关闭并重建窗口，同时重建媒体预热池。 HTTP 响应只表示批次已接受，最终状态通过 SSE 会话更新确认。
       operationId: resetAllSessions
       responses:
         '200':
-          description: 操作成功
+          description: 全窗口重置批次已持久化并接受
           content:
             application/json:
               schema:
@@ -966,11 +967,11 @@ paths:
       tags:
         - playback
       summary: 重置 PPT 放映后端并恢复页码
-      description: 向所有正在放映 PPT 的窗口广播重置指令，关闭当前 PPT 放映窗口与文档，重启所有正在放映的 PPT，并回到重置前页码。
+      description: 为每个正在放映 PPT 的窗口追加有序的 CLOSE、OPEN(target_slide) 指令批次； 每个窗口只重开自己的源并恢复重置前页码，不再广播单槽 RESET_PPT。 HTTP 响应只表示批次已持久化并接受，最终结果通过 SSE 会话状态确认。
       operationId: resetPptPlayback
       responses:
         '200':
-          description: 操作成功
+          description: 各 PPT 窗口的有序关闭、重开批次已持久化并接受
           content:
             application/json:
               schema:
@@ -1256,10 +1257,11 @@ paths:
       tags:
         - scenarios
       summary: 激活预案
+      description: 响应成功只表示预案产生的控制命令已接受。若后续目标校验失败，400 响应仍会在 commands 中列出失败前已持久化的命令，调用方必须继续通过 SSE 追踪这些 ID 的终态。
       operationId: activateScenario
       responses:
         '200':
-          description: 激活成功
+          description: 预案控制命令已接受
           content:
             application/json:
               schema:
@@ -1271,6 +1273,7 @@ paths:
       tags:
         - events
       summary: 订阅播放状态 SSE 事件流
+      description: 持续推送窗口、背景音频和最近的 ControlCommand 状态。控制接口返回只表示命令已接受； 客户端应保存响应 commands[].id，并在这里后续 commands 中找到同一 ID，直到状态进入 succeeded、failed 或 cancelled。状态帧包含全部未完成命令和最近完成的 100 条命令；持久化完成记录保留 7 天。
       operationId: streamEvents
       parameters:
         - in: query
@@ -1290,7 +1293,7 @@ paths:
                 example: |
                   id: 12
                   event: playback_state
-                  data: {"sessions": [], "background_audio": {"state": {"playback_state": "idle"}, "playlist": []}}
+                  data: {"sessions": [], "background_audio": {"state": {"playback_state": "idle"}, "playlist": []}, "commands": [{"id": 42, "target": "window:1", "command": "open", "status": "succeeded", "error_message": ""}]}
         '401':
           $ref: '#/components/responses/ErrorResponse'
 components:
@@ -1310,6 +1313,41 @@ components:
           type: string
           description: Django CSRF token，同时响应会通过 Set-Cookie 写入 `csrftoken`。
           example: x9I3kV7sExampleToken
+    ControlCommandState:
+      type: object
+      required:
+        - id
+        - target
+        - command
+        - status
+        - error_message
+      properties:
+        id:
+          type: integer
+          format: int64
+          minimum: 1
+          description: 持久化 ControlCommand 主键；受理响应与后续状态流使用同一 ID
+        target:
+          type: string
+          enum:
+            - window:1
+            - window:2
+            - window:3
+            - window:4
+            - background_audio
+        command:
+          type: string
+        status:
+          type: string
+          enum:
+            - pending
+            - executing
+            - succeeded
+            - failed
+            - cancelled
+        error_message:
+          type: string
+          description: failed 或 cancelled 时的错误或取消原因；其他状态通常为空串
     ErrorResponse:
       type: object
       required:
@@ -1322,6 +1360,11 @@ components:
         code:
           type: string
           example: invalid_json
+        commands:
+          type: array
+          description: 操作部分失败前已经持久化的命令；调用方仍需按 ID 追踪其终态
+          items:
+            $ref: '#/components/schemas/ControlCommandState'
     LoginRequest:
       type: object
       required:
@@ -1378,6 +1421,11 @@ components:
         success:
           type: boolean
           example: true
+        commands:
+          type: array
+          description: 操作产生异步控制副作用时实际持久化并接受的命令
+          items:
+            $ref: '#/components/schemas/ControlCommandState'
     Folder:
       type: object
       required:
@@ -1784,6 +1832,8 @@ components:
         pending_command:
           type: string
           nullable: true
+          readOnly: true
+          description: 只读兼容镜像，显示该窗口最早的未完成 ControlCommand；空字符串或 null 表示当前没有未完成指令。 新客户端不得把此字段当作命令真值或执行完成证明，最终播放结果应依据 SSE 中持续更新的状态与错误信息。
         last_updated_at:
           type: string
           format: date-time
@@ -1915,7 +1965,8 @@ components:
           description: 是否在自然播放到列表末尾后回到首项
         pending_command:
           type: string
-          description: 播放器进程尚未消费的后台指令；空字符串表示无指令
+          readOnly: true
+          description: 只读兼容镜像，显示背景音频通道最早的未完成 ControlCommand；空字符串表示当前没有未完成指令。 新客户端不得把此字段当作命令真值或执行完成证明，最终播放结果应依据 SSE 中持续更新的状态与错误信息。
           enum:
             - ''
             - open
@@ -1972,6 +2023,7 @@ components:
             - runtime
             - sessions
             - background_audio
+            - commands
           properties:
             runtime:
               $ref: '#/components/schemas/RuntimeSnapshot'
@@ -1981,6 +2033,11 @@ components:
                 $ref: '#/components/schemas/SessionSnapshot'
             background_audio:
               $ref: '#/components/schemas/BackgroundAudioSnapshot'
+            commands:
+              type: array
+              description: 大屏模式变更实际下发的窗口音频策略命令
+              items:
+                $ref: '#/components/schemas/ControlCommandState'
     SystemVolumeStatus:
       type: object
       required:
@@ -2027,6 +2084,11 @@ components:
           properties:
             background_audio:
               $ref: '#/components/schemas/BackgroundAudioSnapshot'
+            commands:
+              type: array
+              description: 本次请求实际持久化并接受的命令；GET 或纯播放列表变更可为空数组或省略
+              items:
+                $ref: '#/components/schemas/ControlCommandState'
     BackgroundAudioSourceRequest:
       type: object
       required:
@@ -2101,6 +2163,7 @@ components:
           required:
             - sessions
             - background_audio
+            - commands
           properties:
             sessions:
               type: array
@@ -2108,6 +2171,11 @@ components:
                 $ref: '#/components/schemas/SessionSnapshot'
             background_audio:
               $ref: '#/components/schemas/BackgroundAudioSnapshot'
+            commands:
+              type: array
+              description: 本次请求实际持久化并接受的命令；空数组表示该操作没有入队。 保存 id 并通过 SSE commands 中的同一 id 追踪 succeeded、failed 或 cancelled 终态。
+              items:
+                $ref: '#/components/schemas/ControlCommandState'
     PlaybackAction:
       type: string
       enum:
@@ -2342,6 +2410,7 @@ components:
           required:
             - sessions
             - detail
+            - commands
           properties:
             sessions:
               type: array
@@ -2350,6 +2419,11 @@ components:
             detail:
               type: string
               example: 系统关闭请求已发送
+            commands:
+              type: array
+              description: 关闭窗口及应用运行时音频策略时实际持久化的命令
+              items:
+                $ref: '#/components/schemas/ControlCommandState'
     DisplayTarget:
       type: object
       required:

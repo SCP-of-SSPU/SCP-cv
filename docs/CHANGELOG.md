@@ -1,19 +1,44 @@
 # CHANGELOG
 
+较早条目记录当时版本的行为；当前 PowerPoint 与控制指令架构以最上方最新条目为准。
+
+## 2026-07-11
+
+### PowerPoint 多窗口改为单一 Broker
+
+- 架构：新增当前 Windows 用户和 Session 唯一的 PowerPoint Broker。窗口 1-4 的播放器通过认证 Windows `AF_PIPE` 提交普通数据请求，COM 对象不再跨进程，也不再由每个播放器分别创建或清理。
+- COM：Broker 内部使用一个 STA、高低优先级队列和一个懒加载 PowerPoint Application；PNG 预览导出、`.ppsx`/`.pps` 缓存导出、预热、打开、关闭、翻页和状态读取全部经同一执行器，从根源上串行化 COM 调用。
+- 导出：PPT PNG 预览与 show-format 播放缓存不再启动隔离 worker，改为向 Broker 提交导出请求；导出任务只关闭自己的临时 Presentation，不影响窗口 1-4 的活动放映。`PPT_PREVIEW_WORKER_TIMEOUT_SECONDS` 保留旧名称并改为 Broker 预览调用超时，缓存导出沿用 `PPT_PLAYBACK_EXPORT_TIMEOUT_SECONDS`。
+- 会话：Broker 以 `window_id + owner_token` 登记每个窗口的 Presentation、放映 HWND 和父 HWND。旧播放器的迟到关闭不能释放新播放器会话；同一文件通过独立 untitled Presentation 支持多窗口同时播放。
+- 切换：PPT 切换改为事务式替换，先隐藏旧放映，验证新放映与嵌入成功后才释放旧 Presentation；打开失败时恢复旧画面。
+- 放映：保持完整放映范围，`Run()` 后对非首页目标显式跳页，避免区间放映产生相对页码；Presentation 只在真正关闭前标记为已保存，不影响后续多窗口 `Run()`。
+- 窗口：统一处理整数、可调用和包装型 `SlideShowWindow.HWND`，结合 PowerPoint PID、本次新增窗口、class，以及当前独立 `Presentation.Name` 的规范化标题确认归属；兼容真实 untitled 副本显示为“演示文稿1/2/3/4”，多候选时明确失败，不再选择最大窗口等不安全回退。生产嵌入改为 `SlideShowWindow → Broker 原生 host → Player 容器` 两级父链；关闭前先隐藏、脱离 Player，把 SlideShowWindow 恢复为顶层 popup 并销毁 host。
+- 完整关闭：每个公开会话（包括最后一个）都会退出 View、关闭源 Presentation 并释放放映 HWND/host，不再保留隐藏放映守护。Broker 仅保留一个无窗口、无 SlideShowWindow、无会话身份的空白 Application sentinel，规避嵌入式放映全部退出后下一次 `Run()` 返回 `E_FAIL`；物理冒烟按放映身份判断旧 HWND，并在全部关闭后重开四窗验证同一 Application 可继续使用。
+- 生命周期：Application 创建前后快照 `POWERPNT.EXE` PID 与创建时间，优先按 Application HWND 定位，无法读取时只接受唯一新增 PID；只有不在启动前快照中的已定位进程才取得所有权。启动前已有 Application 不修改全局 `DisplayAlerts`。单窗口关闭不退出 Application，Broker shutdown 仅在没有外部文档时退出自有实例；`Quit()` 失败后的强制清理还需精确匹配 PID、创建时间、进程名和无顶层窗口。删除播放器侧扫描、隐藏或终止全局 `POWERPNT.EXE` 的生命周期逻辑。
+- 运行时：Broker 管道地址、PID 和代次写入 `%LOCALAPPDATA%\SCP-cv\runtime\ppt-broker.json`，认证密钥独立保存在 `ppt-broker.auth`，诊断元数据不包含密钥。
+- 编排：`runall` 启用播放器时复用当前 Windows Session 中健康的 Broker，否则启动 required 自有实例；记录并持续校验 PID + generation，等待 AF_PIPE readiness 后再启动播放器。反序清理先停播放器；仅自有 Broker 才发送 `shutdown` 并等待，复用实例不取得关闭所有权，Broker 不走递归 PowerPoint 进程树终止。独立 `run_player` 同样只清理自己拥有的 Broker；`--only-window` 缺少既有 Broker 时明确报错。
+
+### 控制指令改为持久化确认队列
+
+- 数据：新增 `ControlCommand`，为窗口 1-4 和背景音频记录独立有序通道，状态覆盖 `pending`、`executing`、`succeeded`、`failed` 和 `cancelled`，并保存批次、消费者、取消请求、错误和时间戳。
+- 一致性：消费者通过条件更新原子领取最早指令，每个目标最多一条执行中记录；只有实际领取者可以确认终态，连续导航指令不再被单槽覆盖。
+- 取代与恢复：终止批次取消未领取旧指令并标记在途取消；消费者以随机 ID、PID、进程创建时间和心跳租约标识，恢复时保留仍存活且持续续约的播放器，只将已退出、身份不匹配或租约过期的执行记录标记失败且不盲目重放。尚未领取记录继续保留。
+- 兼容：迁移导入升级前非空的旧单槽指令；`PlaybackSession` 和背景音频的 `pending_command/command_args` 只镜像最早未完成指令，不再作为真值来源。终态记录默认保留七天。
+
+### 播放窗口与验证
+
+- 播放器：开发模式窗口解除 fixed-size，使用不超过目标屏幕 80% 的 16:9 预览并按窗口编号错位；resize 稳定后经 Adapter 通知 Broker 同步 host 与 PPT 放映窗口。生产模式继续固定为目标显示器全屏。
+- 物理冒烟：新增首选入口 `ppt_smoke --windows 1,2,3,4 --source-ids ... --iterations 3 --timeout 120`，支持一个 PPT source ID 四窗复用或四个 ID 按窗映射；每轮从四个调用线程同时打开，分别跳到第 2/3/4/5 页，关闭一窗后验证其余、重开该窗并再次验证四窗唯一 HWND 与严格父链，最后全部关闭。任一不变量失败返回非零；路径型 `run_ppt_physical_smoke` 继续兼容。
+- 测试：新增 Broker STA/AF_PIPE/会话所有权/COM 重试/HWND 识别、命令队列领取确认与恢复、runall/run_player 生命周期及开发/生产窗口几何覆盖。
+- 文档：README、使用文档和维护文档统一为单一 Broker、持久确认队列和安全 PowerPoint 生命周期，并补充 runtime 元数据、认证、导出归属、并发物理冒烟和排障说明。
+
 ## 2026-06-11
 
-### PPT 放映性能与稳定性重构
+### 历史：播放器内 COM 串行化（已被 Broker 替代）
 
-- 播放器：新增共享 `ppt-com-worker` STA 工作线程，PowerPoint COM 创建、打开、放映启动、翻页、状态读取和关闭全部移出 Qt 主线程；打开大 PPT 期间其它窗口的视频、直播和指令处理不再被阻塞。
-- 播放器：PPT 打开改为异步流程（`open_async` + 完成信号回主线程收尾），打开期间会话进入 `loading`，同窗口后续指令排队等待完成后按序重放；后到的 OPEN 自动取代在途打开。
-- 播放器：`get_state` 在注入工作线程后即时返回缓存快照并后台节流刷新，消除每 0.2 秒轮询对主线程的 COM 往返；多窗口 PPT 打开经同一工作线程串行执行，消除并发 `Run()` 抢窗口竞态。
-- 播放器：嵌入放映窗口写入归属 token，PowerPoint 复用窗口给新放映时旧适配器不再误发 `WM_CLOSE` 杀掉新画面；放映嵌入完成后若前台被 PowerPoint 抢走则自动夺回播放器窗口并重申置顶，避免全屏画面被任务栏盖住。
-- 播放器：退出 PowerPoint 前检查 `Presentations.Count`，仍有其它演示文稿（其它窗口或用户文档）时跳过 `Quit`；仅隐藏由本系统拉起的 PowerPoint 编辑窗口（不再无条件最小化），播放器退出时兜底清理自行拉起且无可见窗口的残留 `POWERPNT.EXE`。
-- 播放器：PPT 预热（应用级与文件级）经工作线程后台执行，启动和切源后的重新预热不再卡顿主线程；预热任务走低优先级队列，前台打开/关闭指令自动插队，预热池关闭与播放器退出时丢弃排队中的预热任务。
-- 播放器：加载中收到 CLOSE 同样取代在途打开——完成后不写 playing，重放的 CLOSE 能正常清空会话，修复"关闭加载中的 PPT 后会话复活"；排队检查先于 reset 去重，打开期间到达的 RESET_PPT/reset-all 重放时不再被误判为重复广播；取消在途打开时直接把适配器 close 排入 COM 线程（串行于 open 之后），资源释放不依赖退出阶段的 Qt 回调；异步打开成功后补齐 set_volume/set_mute，与同步路径行为一致。
-- 播放器：OPEN/CLOSE/RESET_PPT 等终止类指令入队时压缩排队队列（其之前的普通指令随之失效），积压上限只淘汰普通控制指令，终止类指令永不被 FIFO 淘汰，避免极端积压下关键关闭/替换指令丢失。
-- 测试：新增 COM 工作线程（串行/等待/错误传递/优先级/丢弃/关闭语义）、异步打开流程（成功/失败/排队/取代/取消/CLOSE 取代/reset 重放）、嵌入归属 token、Quit 守卫与 spawned 进程隐藏覆盖；适配既有 PPT 适配器与预热测试。
-- 文档：维护文档补充 `ppt-com-worker` 与残留进程清理排障要点。
+- 当时曾把 PowerPoint COM 操作移入播放器进程内的共享 STA 线程，并通过异步打开、缓存状态、优先级预热和窗口归属 token 缓解主线程阻塞与多窗口竞态。
+- 当时的加载中取代、终止指令保护和退出守卫解决了部分 CLOSE/reset 重放与残留进程问题，但 COM 与 PowerPoint 生命周期仍依附播放器进程。
+- 2026-07-11 起，该实现由独立 Broker 和持久化确认队列替代；播放器内 COM worker、每播放器 PowerPoint 所有权和残留进程兜底不再是当前架构。
 
 ## 2026-06-10
 
@@ -28,7 +53,7 @@
 ### 修复第二个 PPT 打开时抢占首个窗口
 
 - 播放器：PowerPoint 放映 HWND 查找不再在进程不可确认时回收启动前已存在的全局放映窗口，避免窗口 2 打开 PPT 时把窗口 1 的放映窗口先移动或残留到错误画面。
-- 播放器：新建 PowerPoint COM 前按候选 ProgID 快照 `POWERPNT.EXE`，即使 Application.HWND 不可读也可用进程差集识别新实例，减少多窗口放映归属误判。
+- 播放器：历史实现曾在新建 PowerPoint COM 前按候选 ProgID 快照 `POWERPNT.EXE`，以进程差集减少多窗口归属误判；当前实现已改由 Broker 的单一 Application 和严格 HWND 识别替代。
 - 播放器：关闭或停止 PPT 播放时会隐藏已嵌入的放映 HWND 并发送 `WM_CLOSE`，避免关闭播放后 PowerPoint 放映画面仍留在输出窗口。
 - 测试：补充 PPT 放映窗口回收保护和 PowerPoint 进程差集识别覆盖。
 
@@ -36,7 +61,7 @@
 
 ### 修复多窗口 PPT 播放隔离
 
-- 播放器：`runall --headless` 改为按窗口启动独立 PySide 播放器进程，并为 `run_player` 增加 `--only-window` 单窗口调试入口，隔离 PowerPoint COM 生命周期，避免多窗口 PPT 串扰。
+- 播放器：`runall --headless` 改为按窗口启动独立 PySide 播放器进程，并为 `run_player` 增加 `--only-window` 单窗口调试入口；该拆分现用于隔离 Qt/渲染生命周期，PowerPoint COM 已于 2026-07-11 集中到单一 Broker。
 - 后端：reset-all 和 reset-ppt 改为按窗口广播并携带 `reset_token`，兼容多播放器进程和旧单进程调试路径。
 - 测试：补充 headless 单窗口映射、播放器进程拆分、PPT 重置广播和 reset token 覆盖。
 

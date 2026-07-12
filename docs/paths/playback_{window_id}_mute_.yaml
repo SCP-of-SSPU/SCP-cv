@@ -13,7 +13,7 @@ patch:
           $ref: ../components/schemas/SetWindowMuteRequest.yaml
   responses:
     '200':
-      description: 操作成功
+      description: 静音设置已持久化并接受；最终播放器状态通过 SSE 会话更新确认
       content:
         application/json:
           schema:

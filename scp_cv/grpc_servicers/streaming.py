@@ -14,11 +14,13 @@ import time
 import grpc
 
 from scp_cv.grpc_generated.scp_cv.v1 import control_pb2
+from scp_cv.services.command_status import get_recent_control_command_payloads
 from scp_cv.services.playback import get_all_sessions_snapshot
 
 from .helpers import (
     _STATE_WATCH_POLL_SECONDS,
-    _session_snapshot_signature,
+    _command_state_to_proto,
+    _playback_state_signature,
     _snapshot_to_proto,
 )
 
@@ -54,12 +56,19 @@ class StreamingMixin:
 
         # 先推送当前完整状态作为初始帧
         initial_snapshots = get_all_sessions_snapshot()
-        current_signature = _session_snapshot_signature(initial_snapshots)
+        initial_commands = get_recent_control_command_payloads()
+        current_signature = _playback_state_signature(
+            initial_snapshots,
+            initial_commands,
+        )
         initial_event = control_pb2.PlaybackStateEvent(
             event_type="initial_state",
             sequence=0,
             sessions=[_snapshot_to_proto(s) for s in initial_snapshots],
             timestamp=time.time(),
+            commands=[
+                _command_state_to_proto(command) for command in initial_commands
+            ],
         )
         yield initial_event
 
@@ -77,7 +86,8 @@ class StreamingMixin:
 
             # DB 查询和 yield 都放在条件锁外，保证发布线程不被慢客户端阻塞。
             all_snapshots = get_all_sessions_snapshot()
-            next_signature = _session_snapshot_signature(all_snapshots)
+            all_commands = get_recent_control_command_payloads()
+            next_signature = _playback_state_signature(all_snapshots, all_commands)
             if not pending_events and next_signature == current_signature:
                 continue
 
@@ -93,5 +103,8 @@ class StreamingMixin:
                     _snapshot_to_proto(s) for s in all_snapshots
                 ],
                 timestamp=time.time(),
+                commands=[
+                    _command_state_to_proto(command) for command in all_commands
+                ],
             )
             yield state_event

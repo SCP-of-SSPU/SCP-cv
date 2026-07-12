@@ -25,21 +25,62 @@ class BackgroundAudioHandlersMixin:
 
         :return: None
         """
-        from scp_cv.apps.playback.models import BackgroundAudioCommand, BackgroundAudioState
+        from scp_cv.apps.playback.models import ControlCommandTarget
+        from scp_cv.services.command_queue import claim_next
 
-        state = BackgroundAudioState.objects.filter(pk=1).first()
-        if state is None:
+        queued = claim_next(
+            ControlCommandTarget.BACKGROUND_AUDIO,
+            self._command_consumer_id,
+        )
+        if queued is None:
             return
-        pending = state.pending_command
-        if not pending or pending == BackgroundAudioCommand.NONE:
+        self._command_consumer_active = True
+
+        command_args = dict(queued.arguments or {})
+        logger.info(
+            "背景音频领取指令 id=%d：%s，参数=%s",
+            queued.pk,
+            queued.command,
+            command_args,
+        )
+        self.sig_dispatch_queued_background_audio_command.emit(
+            int(queued.pk),
+            queued.command,
+            command_args,
+        )
+
+    def _execute_queued_background_audio_command_on_main_thread(
+        self,
+        command_id: int,
+        command: str,
+        command_args: dict[str, object],
+    ) -> None:
+        """执行并确认一条已领取的背景音频指令。"""
+        from scp_cv.apps.playback.models import ControlCommandStatus
+        from scp_cv.services.command_queue import finish
+
+        try:
+            self._dispatch_background_audio_command(command, command_args)
+        except Exception as command_error:
+            logger.error("执行背景音频指令 id=%d %s 失败：%s", command_id, command, command_error)
+            from scp_cv.services.background_audio import update_background_audio_progress
+
+            update_background_audio_progress(
+                playback_state="error",
+                error_message=str(command_error),
+            )
+            finish(
+                command_id,
+                self._command_consumer_id,
+                status=ControlCommandStatus.FAILED,
+                error_message=str(command_error),
+            )
             return
-
-        command_args = dict(state.command_args or {})
-        logger.info("背景音频轮询检测到指令：%s，参数=%s", pending, command_args)
-        self.sig_dispatch_background_audio_command.emit(pending, command_args)
-
-        from scp_cv.services.background_audio import clear_background_audio_command
-        clear_background_audio_command()
+        finish(
+            command_id,
+            self._command_consumer_id,
+            status=ControlCommandStatus.SUCCEEDED,
+        )
 
     def _execute_background_audio_command_on_main_thread(
         self,
@@ -53,6 +94,19 @@ class BackgroundAudioHandlersMixin:
         :param command_args: 指令参数
         :return: None
         """
+        try:
+            self._dispatch_background_audio_command(command, command_args)
+        except Exception as command_error:
+            logger.error("执行背景音频指令 %s 失败：%s", command, command_error)
+            from scp_cv.services.background_audio import update_background_audio_progress
+            update_background_audio_progress(playback_state="error", error_message=str(command_error))
+
+    def _dispatch_background_audio_command(
+        self,
+        command: str,
+        command_args: dict[str, object],
+    ) -> None:
+        """分发背景音频指令，失败时向队列确认层抛出异常。"""
         from scp_cv.apps.playback.models import BackgroundAudioCommand
 
         command_dispatch: dict[str, object] = {
@@ -67,13 +121,8 @@ class BackgroundAudioHandlersMixin:
         }
         handler = command_dispatch.get(command)
         if handler is None:
-            return
-        try:
-            handler(command_args)
-        except Exception as command_error:
-            logger.error("执行背景音频指令 %s 失败：%s", command, command_error)
-            from scp_cv.services.background_audio import update_background_audio_progress
-            update_background_audio_progress(playback_state="error", error_message=str(command_error))
+            raise ValueError(f"未知的背景音频指令：{command}")
+        handler(command_args)
 
     def _handle_background_audio_open(self, command_args: dict[str, object]) -> None:
         """
@@ -150,39 +199,46 @@ class BackgroundAudioHandlersMixin:
 
     def _handle_background_audio_play(self, command_args: dict[str, object]) -> None:
         """恢复背景音频播放。"""
-        if self._background_audio_adapter is not None:
-            self._background_audio_adapter.play()
+        adapter = self._require_background_audio_adapter("PLAY")
+        adapter.play()
 
     def _handle_background_audio_pause(self, command_args: dict[str, object]) -> None:
         """暂停背景音频播放。"""
-        if self._background_audio_adapter is not None:
-            self._background_audio_adapter.pause()
+        adapter = self._require_background_audio_adapter("PAUSE")
+        adapter.pause()
 
     def _handle_background_audio_stop(self, command_args: dict[str, object]) -> None:
         """停止背景音频播放，必要时释放文件句柄。"""
         if bool(command_args.get("clear_source", False)):
             self._close_background_audio_adapter()
             return
-        if self._background_audio_adapter is not None:
-            self._background_audio_adapter.stop()
+        adapter = self._require_background_audio_adapter("STOP")
+        adapter.stop()
 
     def _handle_background_audio_seek(self, command_args: dict[str, object]) -> None:
         """跳转背景音频播放进度。"""
-        if self._background_audio_adapter is not None:
-            self._background_audio_adapter.seek(int(command_args.get("position_ms", 0)))
+        adapter = self._require_background_audio_adapter("SEEK")
+        adapter.seek(int(command_args.get("position_ms", 0)))
 
     def _handle_background_audio_set_volume(self, command_args: dict[str, object]) -> None:
         """设置背景音频音量。"""
-        if self._background_audio_adapter is not None:
-            self._background_audio_adapter.set_volume(int(command_args.get("volume", 70)))
+        adapter = self._require_background_audio_adapter("SET_VOLUME")
+        adapter.set_volume(int(command_args.get("volume", 70)))
 
     def _handle_background_audio_set_mute(self, command_args: dict[str, object]) -> None:
         """设置背景音频静音。"""
-        if self._background_audio_adapter is not None:
-            self._background_audio_adapter.set_mute(bool(command_args.get("muted", False)))
+        adapter = self._require_background_audio_adapter("SET_MUTE")
+        adapter.set_mute(bool(command_args.get("muted", False)))
 
     def _handle_background_audio_set_loop(self, command_args: dict[str, object]) -> None:
         """列表循环由服务层推进逻辑处理，播放器侧无需额外动作。"""
+
+    def _require_background_audio_adapter(self, command: str) -> object:
+        """返回当前背景音频适配器；缺失时交给队列确认层记录失败。"""
+        adapter = self._background_audio_adapter
+        if adapter is None:
+            raise RuntimeError(f"无可用背景音频适配器，无法执行 {command}")
+        return adapter
 
     def _close_background_audio_adapter(self) -> None:
         """

@@ -1,5 +1,12 @@
 import { t } from '@/locales';
 
+import { ApiRequestError, parseJsonText, UnauthorizedError } from './api-errors';
+import type { ApiDetailPayload } from './api-errors';
+import type { ControlCommandState } from './control-command';
+
+export { ApiRequestError, UnauthorizedError } from './api-errors';
+export type { ControlCommandState, ControlCommandStatus } from './control-command';
+
 export interface MediaFolderItem {
   id: number;
   name: string;
@@ -106,6 +113,7 @@ export interface BackgroundAudioSnapshot {
 export interface BackgroundAudioPayload {
   success: boolean;
   background_audio: BackgroundAudioSnapshot;
+  commands?: ControlCommandState[];
 }
 
 export interface RuntimeSnapshot {
@@ -183,6 +191,7 @@ export interface ApiStatePayload {
   success: boolean;
   sessions: SessionSnapshot[];
   background_audio?: BackgroundAudioSnapshot;
+  commands?: ControlCommandState[];
 }
 
 export interface PhysicalSmokeRequest {
@@ -243,10 +252,6 @@ export interface ScenarioPayload {
   }>;
 }
 
-interface ApiDetailPayload {
-  detail?: string;
-}
-
 const REQUEST_TIMEOUT_MS = 10000;
 const RUNTIME_MODE_TIMEOUT_MS = 120000;
 export const PHYSICAL_SMOKE_TOTAL_TIMEOUT_SECONDS = 9 * 60;
@@ -274,35 +279,6 @@ export function buildBackendUrl(path: string): string {
   if (/^https?:\/\//i.test(path)) return path;
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   return resolveBackendBase() + normalizedPath;
-}
-
-function buildNonJsonError(statusCode: number, responseText: string): Error {
-  const normalizedText = responseText.trim().replace(/\s+/g, ' ');
-  const previewText = normalizedText.slice(0, 120) || t('api.emptyResponse');
-  return new Error(t('api.nonJson', { code: statusCode, preview: previewText }));
-}
-
-function parseJsonText<T>(responseText: string, statusCode: number, contentType = ''): T & ApiDetailPayload {
-  const trimmedText = responseText.trim();
-  if (!trimmedText) return {} as T & ApiDetailPayload;
-  if (contentType && !contentType.includes('application/json')) {
-    throw buildNonJsonError(statusCode, trimmedText);
-  }
-  try {
-    return JSON.parse(trimmedText) as T & ApiDetailPayload;
-  } catch (error) {
-    throw buildNonJsonError(statusCode, trimmedText);
-  }
-}
-
-/**
- * 401 专用错误：路由守卫 / Pinia store 据此触发清状态 + 跳登录。
- */
-export class UnauthorizedError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'UnauthorizedError';
-  }
 }
 
 let unauthorizedHandler: (() => void) | null = null;
@@ -364,7 +340,12 @@ async function requestJson<T>(url: string, init: RequestInit = {}, timeoutMs = R
     throw new UnauthorizedError(payload.detail || t('api.requestFail', { status: 401 }));
   }
   if (!response.ok) {
-    throw new Error(payload.detail || t('api.requestFail', { status: response.status }));
+    throw new ApiRequestError(
+      payload.detail || t('api.requestFail', { status: response.status }),
+      response.status,
+      payload.code || '',
+      payload.commands || [],
+    );
   }
   return payload;
 }
@@ -439,7 +420,7 @@ export const api = {
   addWebSource: (payload: { url: string; name?: string; folder_id?: number | null; preheat_enabled?: boolean; keep_alive?: boolean }) => requestJson<{ success: boolean; source: MediaSourceItem }>('/api/sources/web/', { method: 'POST', body: JSON.stringify(payload) }),
   moveSource: (sourceId: number, folderId: number | null) => requestJson<{ success: boolean; source: MediaSourceItem }>(`/api/sources/${sourceId}/move/`, { method: 'PATCH', body: JSON.stringify({ folder_id: folderId }) }),
   updateSource: (sourceId: number, payload: MediaSourceUpdate) => requestJson<{ success: boolean; source: MediaSourceItem }>(`/api/sources/${sourceId}/`, { method: 'PATCH', body: JSON.stringify(payload) }),
-  deleteSource: (sourceId: number) => requestJson<{ success: boolean }>(`/api/sources/${sourceId}/`, { method: 'DELETE' }),
+  deleteSource: (sourceId: number) => requestJson<{ success: boolean; commands?: ControlCommandState[] }>(`/api/sources/${sourceId}/`, { method: 'DELETE' }),
   downloadSourceUrl: (sourceId: number) => buildBackendUrl(`/api/sources/${sourceId}/download/`),
   listPptResources: (sourceId: number) => requestJson<{ success: boolean; resources: PptResourceItem[] }>(`/api/sources/${sourceId}/ppt-resources/`),
   listSessions: () => requestJson<ApiStatePayload>('/api/sessions/'),

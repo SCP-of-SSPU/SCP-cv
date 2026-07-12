@@ -18,11 +18,21 @@ from unittest.mock import patch
 import grpc
 import pytest
 
-from scp_cv.apps.playback.models import MediaSource, PlaybackState, SourceType
+from scp_cv.apps.playback.models import (
+    ControlCommand,
+    ControlCommandStatus,
+    MediaSource,
+    PlaybackCommand,
+    PlaybackState,
+    Scenario,
+    SourceType,
+)
 from scp_cv.grpc_generated.scp_cv.v1 import control_pb2
 from scp_cv.grpc_generated.scp_cv.v1 import control_pb2_grpc
 from scp_cv.grpc_servicers import PlaybackControlServicer
-from scp_cv.services.playback import get_or_create_session
+from scp_cv.services.background_audio import play_source
+from scp_cv.services.command_queue import claim_next, enqueue, finish
+from scp_cv.services.playback import get_or_create_session, open_source
 
 
 class _ActiveContext:
@@ -52,10 +62,177 @@ def test_open_source_publishes_playback_state_event(
         response = servicer.OpenSource(request, None)
 
     assert response.success is True
+    assert "已接受" in response.message
+    assert len(response.commands) == 1
+    assert response.commands[0].id == ControlCommand.objects.get(target="window:1").pk
+    assert response.commands[0].target == "window:1"
+    assert response.commands[0].command == PlaybackCommand.OPEN
+    assert response.commands[0].status == ControlCommandStatus.PENDING
+    assert response.commands[0].error_message == ""
     publish_event_mock.assert_called_once()
     event_type, event_payload = publish_event_mock.call_args.args
     assert event_type == "playback_state"
     assert event_payload["sessions"]
+
+
+@pytest.mark.django_db
+def test_show_window_ids_appends_persistent_commands() -> None:
+    """gRPC SHOW_ID 必须走与 REST 相同的持久化命令队列。"""
+    servicer = PlaybackControlServicer()
+
+    response = servicer.ShowWindowIds(control_pb2.EmptyRequest(), None)
+
+    queued = list(ControlCommand.objects.order_by("target", "id"))
+    assert response.success is True
+    assert [item.target for item in queued] == [
+        "window:1",
+        "window:2",
+        "window:3",
+        "window:4",
+    ]
+    assert all(item.command == PlaybackCommand.SHOW_ID for item in queued)
+    assert all(item.status == ControlCommandStatus.PENDING for item in queued)
+    assert [command.id for command in response.commands] == [item.pk for item in queued]
+    assert all(command.status == ControlCommandStatus.PENDING for command in response.commands)
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("rpc_name", "rpc_request", "expected_command"),
+    [
+        (
+            "ControlPlayback",
+            control_pb2.ControlPlaybackRequest(window_id=1, action=control_pb2.ACTION_PLAY),
+            PlaybackCommand.PLAY,
+        ),
+        (
+            "NavigateContent",
+            control_pb2.NavigateContentRequest(
+                window_id=1,
+                action=control_pb2.NAV_SEEK,
+                position_ms=1000,
+            ),
+            PlaybackCommand.SEEK,
+        ),
+        (
+            "ToggleLoop",
+            control_pb2.ToggleLoopRequest(window_id=1, enabled=True),
+            PlaybackCommand.SET_LOOP,
+        ),
+        (
+            "CloseSource",
+            control_pb2.CloseSourceRequest(window_id=1),
+            PlaybackCommand.CLOSE,
+        ),
+        (
+            "StopCurrentContent",
+            control_pb2.EmptyRequest(),
+            PlaybackCommand.CLOSE,
+        ),
+    ],
+)
+def test_grpc_control_replies_identify_accepted_command(
+    media_source_video: MediaSource,
+    rpc_name: str,
+    rpc_request: object,
+    expected_command: str,
+) -> None:
+    """所有持久化控制 RPC 都应返回可用于追踪终态的命令 ID。"""
+    open_source(1, media_source_video.pk)
+    servicer = PlaybackControlServicer()
+
+    response = getattr(servicer, rpc_name)(rpc_request, None)
+
+    assert response.success is True
+    assert len(response.commands) == 1
+    command = response.commands[0]
+    persisted = ControlCommand.objects.get(pk=command.id)
+    assert command.command == expected_command
+    assert command.target == "window:1"
+    assert command.status == ControlCommandStatus.PENDING
+    assert persisted.command == expected_command
+
+
+@pytest.mark.django_db
+def test_grpc_activate_scenario_returns_accepted_commands(
+    media_source_ppt: MediaSource,
+) -> None:
+    """gRPC 预案激活应返回其实际受理的窗口命令。"""
+    scenario = Scenario.objects.create(
+        name="gRPC 命令回执预案",
+        targets=[{
+            "window_id": 1,
+            "source_state": "set",
+            "source_id": media_source_ppt.pk,
+            "autoplay": True,
+            "resume": False,
+        }],
+    )
+    servicer = PlaybackControlServicer()
+
+    response = servicer.ActivateScenario(
+        control_pb2.ActivateScenarioRequest(scenario_id=scenario.pk),
+        None,
+    )
+
+    assert response.success is True
+    assert [(command.target, command.command) for command in response.commands] == [
+        ("window:1", PlaybackCommand.OPEN),
+    ]
+
+
+@pytest.mark.django_db
+def test_grpc_delete_current_audio_source_returns_stop_command(
+    media_source_audio: MediaSource,
+) -> None:
+    """gRPC 删除当前音频源时应返回其条件入队的 STOP 命令。"""
+    play_source(media_source_audio.pk)
+
+    response = PlaybackControlServicer().DeleteSource(
+        control_pb2.DeleteSourceRequest(media_source_id=media_source_audio.pk),
+        None,
+    )
+
+    assert response.success is True
+    assert [(command.target, command.command) for command in response.commands] == [
+        ("background_audio", "stop"),
+    ]
+
+
+@pytest.mark.django_db
+def test_grpc_partial_scenario_failure_returns_accepted_commands(
+    media_source_ppt: MediaSource,
+) -> None:
+    """gRPC 预案部分失败时也必须返回此前已受理的命令。"""
+    scenario = Scenario.objects.create(
+        name="gRPC 部分失败预案",
+        targets=[
+            {
+                "window_id": 1,
+                "source_state": "set",
+                "source_id": media_source_ppt.pk,
+                "autoplay": True,
+                "resume": False,
+            },
+            {
+                "window_id": 2,
+                "source_state": "set",
+                "source_id": 999999,
+                "autoplay": True,
+                "resume": False,
+            },
+        ],
+    )
+
+    response = PlaybackControlServicer().ActivateScenario(
+        control_pb2.ActivateScenarioRequest(scenario_id=scenario.pk),
+        None,
+    )
+
+    assert response.success is False
+    assert [(command.target, command.command) for command in response.commands] == [
+        ("window:1", PlaybackCommand.OPEN),
+    ]
 
 
 @pytest.mark.django_db
@@ -85,6 +262,42 @@ def test_watch_playback_state_pushes_changed_db_snapshot(
             and snapshot.playback_state == PlaybackState.PLAYING
             for snapshot in changed_event.sessions
         )
+    finally:
+        stream_generator.close()
+
+
+@pytest.mark.django_db
+def test_watch_playback_state_pushes_control_command_terminal_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """命令终态变化应独立触发 gRPC 状态帧，并保留原受理 ID。"""
+    monkeypatch.setattr("scp_cv.grpc_servicers.streaming._STATE_WATCH_POLL_SECONDS", 0.01)
+    queued = enqueue("window:1", PlaybackCommand.OPEN)
+    servicer = PlaybackControlServicer()
+    stream_generator: Generator = servicer.WatchPlaybackState(
+        control_pb2.EmptyRequest(),
+        _ActiveContext(),
+    )
+
+    initial_event = next(stream_generator)
+    assert [(command.id, command.status) for command in initial_event.commands] == [
+        (queued.pk, ControlCommandStatus.PENDING),
+    ]
+
+    claimed = claim_next("window:1", "player-1")
+    assert claimed is not None
+    assert finish(
+        claimed.pk,
+        "player-1",
+        status=ControlCommandStatus.FAILED,
+        error_message="播放器拒绝执行",
+    ) is True
+
+    changed_event = next(stream_generator)
+    try:
+        command = next(item for item in changed_event.commands if item.id == queued.pk)
+        assert command.status == ControlCommandStatus.FAILED
+        assert command.error_message == "播放器拒绝执行"
     finally:
         stream_generator.close()
 

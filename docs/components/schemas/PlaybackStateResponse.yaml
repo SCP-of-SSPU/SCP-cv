@@ -4,6 +4,7 @@ allOf:
     required:
       - sessions
       - background_audio
+      - commands
     properties:
       sessions:
         type: array
@@ -11,3 +12,10 @@ allOf:
           $ref: ./SessionSnapshot.yaml
       background_audio:
         $ref: ./BackgroundAudioSnapshot.yaml
+      commands:
+        type: array
+        description: >-
+          本次请求实际持久化并接受的命令；空数组表示该操作没有入队。
+          保存 id 并通过 SSE commands 中的同一 id 追踪 succeeded、failed 或 cancelled 终态。
+        items:
+          $ref: ./ControlCommandState.yaml

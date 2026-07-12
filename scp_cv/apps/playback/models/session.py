@@ -18,8 +18,8 @@ from .media import MediaSource
 class PlaybackSession(models.Model):
     """
     播放会话模型，每个输出窗口维护一个独立实例。
-    通过 window_id（1-4）区分不同窗口的播放状态与指令。
-    播放器进程通过轮询本表驱动播放行为。
+    通过 window_id（1-4）区分不同窗口的运行状态；播放器从
+    ControlCommand 队列认领指令，并将执行结果回写到本表。
     """
 
     # ── 窗口标识（1-4） ──
@@ -107,7 +107,7 @@ class PlaybackSession(models.Model):
         help_text="视频/音频播放完毕后是否自动重头播放",
     )
 
-    # ── 控制指令分发（Django 写入 → 播放器消费） ──
+    # ── 兼容指令镜像（新代码只读，ControlCommand 才是真值） ──
     pending_command = models.CharField(
         max_length=32,
         choices=PlaybackCommand.choices,

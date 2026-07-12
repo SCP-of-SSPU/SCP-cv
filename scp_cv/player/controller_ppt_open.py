@@ -2,7 +2,7 @@
 # -*- coding: UTF-8 -*-
 '''
 播放器控制器 PPT 异步打开流程 mixin。
-PPT 打开经 COM 工作线程后台执行，完成后通过 Qt 信号回到主线程收尾；
+PPT 打开经 Broker 客户端后台等待，完成后通过 Qt 信号回到主线程收尾；
 打开期间同窗口指令进入待重放队列，避免操作半开状态的适配器。
 @Project : SCP-cv
 @File : controller_ppt_open.py
@@ -30,6 +30,7 @@ class _PendingPptOpen:
     previous_adapter: object | None
     previous_source_type: str | None
     previous_source_id: int | None
+    command_id: int = 0
     superseded: bool = False
     adapter_disposed: bool = False
     deferred: list[tuple[str, dict[str, object]]] = field(default_factory=list)
@@ -72,12 +73,13 @@ class PptOpenFlowMixin:
             previous_adapter=previous_adapter,
             previous_source_type=previous_source_type,
             previous_source_id=previous_source_id,
+            command_id=int(getattr(self, "_dispatching_command_id", 0) or 0),
         )
         self._pending_ppt_opens[window_id] = entry
         self._update_session_state(window_id, "loading")
 
         def report_open_finished(error: BaseException | None) -> None:
-            # 可能在 COM 工作线程触发；经 Qt 信号回到主线程收尾。
+            # 可能在 Broker 客户端线程触发；经 Qt 信号回到主线程收尾。
             self.sig_ppt_open_finished.emit(window_id, token, error)
 
         try:
@@ -118,12 +120,38 @@ class PptOpenFlowMixin:
             return
         self._pending_ppt_opens.pop(window_id, None)
 
-        if entry.superseded:
+        command_status = "succeeded"
+        command_error = ""
+        persistent_cancel_requested = False
+        if entry.command_id > 0:
+            from scp_cv.services.command_queue import is_cancel_requested
+
+            persistent_cancel_requested = is_cancel_requested(
+                entry.command_id,
+                self._command_consumer_id,
+            )
+        if entry.superseded or persistent_cancel_requested:
             self._dispose_superseded_ppt_open(window_id, entry)
+            command_status = "cancelled"
         elif error is not None:
             self._finish_ppt_open_failure(window_id, entry, error)
+            command_status = "failed"
+            command_error = str(error)
         else:
             self._finish_ppt_open_success(window_id, entry)
+
+        if entry.command_id > 0:
+            from scp_cv.services.command_queue import finish, finish_cancelled
+
+            if command_status == "cancelled":
+                finish_cancelled(entry.command_id, self._command_consumer_id)
+            else:
+                finish(
+                    entry.command_id,
+                    self._command_consumer_id,
+                    status=command_status,
+                    error_message=command_error,
+                )
 
         deferred_commands = entry.deferred
         entry.deferred = []
@@ -290,7 +318,7 @@ class PptOpenFlowMixin:
     def _abort_pending_ppt_opens(self) -> None:
         """
         全局重置/退出前取消所有在途 PPT 打开。
-        在途适配器的 close 立即排入 COM 工作线程（串行在 open 任务之后执行），
+        在途适配器的 close 立即发送到 Broker（在同一 STA 中串行执行），
         资源释放不依赖 Qt 完成回调——退出阶段事件循环可能已不再派发信号。
         :return: None
         """

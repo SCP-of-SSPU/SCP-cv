@@ -20,9 +20,28 @@ import time
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
+from scp_cv.apps.dashboard.management.run_player_ppt_broker import (
+    RunPlayerPptBrokerLifecycle,
+)
 
-class Command(BaseCommand):
+
+class Command(RunPlayerPptBrokerLifecycle, BaseCommand):
     help = "启动 PySide6 多窗口本地播放器"
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        """
+        初始化播放器命令的 Broker 生命周期状态。
+        :param args: Django BaseCommand 参数
+        :param kwargs: Django BaseCommand 关键字参数
+        :return: None
+        """
+        super().__init__(*args, **kwargs)
+        self._ppt_broker_client: object | None = None
+        self._owned_ppt_broker_process: object | None = None
+
+    def _spawn_ppt_broker_process(self) -> subprocess.Popen[bytes]:
+        """创建由当前 run_player 管理的 PowerPoint Broker 子进程。"""
+        return subprocess.Popen([sys.executable, "manage.py", "run_ppt_broker"])
 
     def add_arguments(self, parser: object) -> None:
         """
@@ -160,23 +179,28 @@ class Command(BaseCommand):
                 )
             )
 
-        if only_window_id <= 0 and assigned_count > 1:
-            self._run_isolated_window_players(
+        self._prepare_ppt_broker(only_window_id)
+
+        try:
+            if only_window_id <= 0 and assigned_count > 1:
+                self._run_isolated_window_players(
+                    launch_result,
+                    dev_mode,
+                    poll_interval,
+                    shutdown_requested,
+                )
+                return
+
+            # ═══ 根据分配结果创建播放窗口 ═══
+            self._start_player(
+                qt_app,
                 launch_result,
                 dev_mode,
                 poll_interval,
-                shutdown_requested,
+                background_audio_enabled,
             )
-            return
-
-        # ═══ 根据分配结果创建播放窗口 ═══
-        self._start_player(
-            qt_app,
-            launch_result,
-            dev_mode,
-            poll_interval,
-            background_audio_enabled,
-        )
+        finally:
+            self._cleanup_owned_ppt_broker()
 
     def _collect_launcher_result(self, qt_app: object, dev_mode: bool) -> object | None:
         """
@@ -254,7 +278,7 @@ class Command(BaseCommand):
         shutdown_requested: dict[str, bool],
     ) -> None:
         """
-        将多个播放窗口拆成独立 run_player 子进程，隔离 PowerPoint COM 生命周期。
+        将多个播放窗口拆成独立 run_player 子进程，隔离各窗口的 Qt/渲染生命周期。
         :param launch_result: LauncherResult
         :param dev_mode: 是否开发模式
         :param poll_interval: 轮询间隔
@@ -363,7 +387,6 @@ class Command(BaseCommand):
         """
         from PySide6.QtCore import QRect
 
-        from scp_cv.player.adapters.ppt_com_worker import PptComWorker
         from scp_cv.player.controller import PlayerController
         from scp_cv.player.launcher_gui import LauncherResult
         from scp_cv.player.window import PlayerWindow
@@ -371,10 +394,15 @@ class Command(BaseCommand):
 
         result: LauncherResult = launch_result
 
-        # 创建控制器；PPT COM 操作统一走专用工作线程，避免阻塞 Qt 主线程
+        if self._ppt_broker_client is None:
+            raise RuntimeError(
+                "播放器缺少 PowerPoint Broker 客户端；请先完成 Broker 准备。"
+            )
+
+        # 创建控制器；PowerPoint 操作只通过 Broker 普通数据接口执行。
         controller = PlayerController(
             enable_background_audio=background_audio_enabled,
-            ppt_com_worker=PptComWorker(),
+            ppt_broker=self._ppt_broker_client,
         )
         if not dev_mode:
             controller.set_window_closed_callback(qt_app.quit)
@@ -409,12 +437,6 @@ class Command(BaseCommand):
                     f"({display_target.geometry_label})"
                 )
             )
-
-        # dev 模式下额外处理：调整窗口尺寸显示
-        if dev_mode:
-            for player_window in all_windows:
-                player_window.resize(960, 540)
-                player_window.show()
 
         # 启动时恢复上次保存的显示器目标，确保播放器窗口与 Web 控制台一致。
         controller.apply_current_layout()

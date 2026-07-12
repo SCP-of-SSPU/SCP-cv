@@ -46,13 +46,24 @@ def _mutate_background_audio(operation: Callable[[], Any]) -> JsonResponse:
     :param operation: 业务操作回调
     :return: 最新背景音频快照响应
     """
-    operation()
+    from scp_cv.services.command_status import (
+        capture_enqueued_commands,
+        control_command_payloads,
+    )
+
+    with capture_enqueued_commands() as accepted_commands:
+        operation()
     snapshot = get_background_audio_snapshot()
+    command_payloads = control_command_payloads(accepted_commands)
     publish_event("playback_state", {
         "sessions": get_all_sessions_snapshot(),
         "background_audio": snapshot,
     })
-    return json_response({"success": True, "background_audio": snapshot})
+    return json_response({
+        "success": True,
+        "background_audio": snapshot,
+        "commands": command_payloads,
+    })
 
 
 @require_GET

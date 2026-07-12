@@ -23,19 +23,23 @@ Vue/Vite 控制台
   | REST / SSE / cookie session / CSRF
   v
 Django Web 进程
-  | 服务层写 PlaybackSession / BackgroundAudioState / RuntimeState
+  | 服务层写 ControlCommand / PlaybackSession / BackgroundAudioState / RuntimeState
   v
 SQLite 本地数据库
   ^                                |
-  | 状态回写                        | 轮询 pending_command
+  | 状态和命令终态回写               | 原子领取 ControlCommand
   |                                v
 PySide6 播放器进程组 ------------> 四个物理播放窗口
   |                                |
-  | libVLC / Qt Multimedia          | PowerPoint 窗口化放映 HWND 嵌入 PySide
+  | libVLC / Qt Multimedia          | AF_PIPE 请求
+  |                                v
+  |                         唯一 PowerPoint Broker / STA
+  |                                |
+  |                                | PowerPoint 窗口化放映 HWND 嵌入 PySide
   v                                v
 MediaMTX / 本机文件 / Web / PowerPoint / 系统音频 / 物理显示器
 
-gRPC 服务与 REST 共用同一 Django 服务层。`runall --headless` 默认按窗口启动 4 个独立 PySide 播放器进程，隔离 PowerPoint COM 和 Qt 生命周期；直接 `run_player --headless` 也会在多窗口参数下拆分子进程，`--only-window` 可用于单窗口调试。
+gRPC 服务与 REST 共用同一 Django 服务层。`runall --headless` 默认按窗口启动 4 个独立 PySide 播放器进程，以隔离 Qt 和非 PPT adapter 生命周期；所有 PPT COM、Presentation、SlideShowWindow、预热和 PowerPoint 进程所有权统一收敛到一个 Broker STA。直接 `run_player --headless` 也会在多窗口参数下拆分子进程并连接或拉起 Broker，`--only-window` 只连接健康的已有 Broker。
 ```
 
 ## 主要进程
@@ -45,6 +49,7 @@ gRPC 服务与 REST 共用同一 Django 服务层。`runall --headless` 默认�
 | Django REST/gRPC | `manage.py runserver`, `runall.py` | API、认证、服务层、数据库状态、SSE | 可迁移到目标 Django，但服务层语义要保留 |
 | Vue/Vite | `npm --prefix frontend run dev`, `runall.py` | 控制台 UI | 可迁移到目标 Vue/Fluent 应用 |
 | PySide6 player | `manage.py run_player` | 读取 DB 指令、播放媒体、回写状态 | 必须继续作为桌面进程，不要放进 Web Worker |
+| PowerPoint Broker | `manage.py run_ppt_broker` | 唯一 STA、共享 PowerPoint Application、四窗 PPT 会话和预热 | 必须在活动 Windows 会话中保持单实例，COM 对象不得跨进程 |
 | MediaMTX | `tools/third_party/mediamtx/mediamtx.exe` | SRT 发布/读取、RTSP 暴露、路径 API | 可作为外部服务保留 |
 | gRPC-Web proxy | `runall.py` | 浏览器兼容 gRPC-Web | 如目标项目不需要可停用，但 proto 契约需保留迁移说明 |
 
@@ -56,12 +61,14 @@ gRPC 服务与 REST 共用同一 Django 服务层。`runall --headless` 默认�
 | Django root URL | `scp_cv/urls.py` |
 | REST API route table | `scp_cv/apps/dashboard/api_urls.py` |
 | 播放服务 | `scp_cv/services/playback.py` |
+| 持久化命令队列 | `scp_cv/services/command_queue.py`, `scp_cv/apps/playback/models/control_command.py` |
 | SSE 服务 | `scp_cv/services/sse.py` |
 | 媒体服务 | `scp_cv/services/media.py` |
 | MediaMTX 服务 | `scp_cv/services/mediamtx.py` |
 | 播放器控制器 | `scp_cv/player/controller.py`, `scp_cv/player/controller_handlers.py` |
 | 播放窗口 | `scp_cv/player/window.py` |
 | 播放 adapter | `scp_cv/player/adapters/` |
+| PowerPoint Broker | `scp_cv/player/ppt_broker/`, `scp_cv/player/adapters/ppt_broker.py` |
 | runall 编排 | `scp_cv/apps/dashboard/management/commands/runall.py` |
 | run_player | `scp_cv/apps/dashboard/management/commands/run_player.py` |
 
@@ -72,27 +79,28 @@ gRPC 服务与 REST 共用同一 Django 服务层。`runall --headless` 默认�
   -> frontend/src/services/api.ts 发 REST 请求
   -> Django api_*_views 解析请求
   -> scp_cv/services/* 校验业务规则
-  -> 写 PlaybackSession.pending_command 和 command_args
-  -> REST 返回 sessions/runtime/background_audio 快照
-  -> PlayerController 轮询 DB 发现 pending_command
+  -> 向目标通道追加 ControlCommand
+  -> REST 返回 sessions/runtime/background_audio 快照和已接受命令 ID
+  -> PlayerController 通过条件 UPDATE 原子领取最早的 pending 命令
   -> Qt 主线程执行 adapter 操作
-  -> adapter 读取本机文件、网页、MediaMTX 流、PPT 后端
+  -> adapter 读取本机文件、网页、MediaMTX 流；PPT 请求转交唯一 Broker
   -> PlayerController 回写 playback_state/position/duration/slide/error
-  -> SSE event_stream 发现 DB 快照变化
-  -> Pinia stores 合并远端状态并刷新 UI
+  -> PlayerController 把命令确认成 succeeded/failed/cancelled
+  -> SSE event_stream 发现 DB 快照或命令状态变化
+  -> Pinia stores 合并远端状态、命令终态并刷新 UI
 ```
 
 ## 状态与命令边界
 
 | 边界 | 说明 |
 | --- | --- |
-| REST 写命令 | 后端服务层把命令写入 `PlaybackSession.pending_command` 或 `BackgroundAudioState.pending_command` |
-| 播放器读命令 | `PlayerController._poll_loop()` 读取已注册窗口的 pending command |
-| 播放器清命令 | 播放器发出 Qt 信号后立即清空 pending command，失败通过状态回写表达 |
+| REST/gRPC 写命令 | 后端服务层把命令追加到窗口 1-4 或背景音频的 `ControlCommand` 通道，并返回命令 ID 与受理状态 |
+| 播放器读命令 | `PlayerController._poll_loop()` 按目标原子领取最早的 `pending` 命令，领取后进入 `executing` |
+| 播放器确认命令 | 同步 adapter 返回后确认；PPT 异步打开由回调确认，异常和取消分别写 `failed`/`cancelled` |
 | 播放器写状态 | `update_playback_progress()` 和 `update_background_audio_progress()` 写 DB |
-| 前端读状态 | REST 响应直接返回快照，SSE 持续推送 `playback_state` 事件 |
+| 前端读状态 | REST 响应返回快照和本次受理命令，SSE 持续推送会话、背景音频以及未完成和近期终态命令 |
 
-当前命令总线是单字段覆盖模型，不是队列。如果同一窗口短时间内连续写入多个命令，后写命令可能覆盖前写命令。迁移时如果改为队列，需要保留现有 REST 响应和 SSE 快照语义。
+`PlaybackSession.pending_command/command_args` 与背景音频同名字段只镜像目标通道中最早的未完成命令，供一个稳定版本兼容读取；新代码不得从这些字段领取、清空或判断完成。导航命令严格追加，音量、静音和循环只合并尚未领取的同类设置，终止批次可取消未执行旧命令并给在途命令设置取消标记。
 
 ## 四窗口模型
 
@@ -109,7 +117,7 @@ gRPC 服务与 REST 共用同一 Django 服务层。`runall --headless` 默认�
 
 | 类型 | 当前播放路径 | 备注 |
 | --- | --- | --- |
-| PPT | `PptSourceAdapter` 使用 PowerPoint COM | 窗口化放映 HWND 嵌入 PySide 视频容器 |
+| PPT | `PptBrokerSourceAdapter` 经 AF_PIPE 请求唯一 Broker | Broker 的 STA 独占 COM，并把窗口化放映 HWND 嵌入对应 PySide 视频容器 |
 | video | `VideoSourceAdapter` | 本地视频使用 Qt Multimedia，不是 libVLC |
 | audio | 背景音频服务和 `BackgroundAudioAdapter` | 不允许作为四窗口显示源打开 |
 | image | `ImageSourceAdapter` | QPixmap 渲染到 QLabel |
@@ -140,8 +148,11 @@ SCP-cv 当前不是分布式平台，很多设计依赖单 Windows 主机：
 | gRPC-Web | 按配置启动代理 |
 | 状态重置 | 调用 `reset_all_sessions_to_idle()`，保证 UI 和播放器从空闲态开始 |
 | Vue | 启动 Vite，必要时注入后端 target |
+| PPT Broker | 启动唯一 Broker，等待命名管道健康检查后再启动播放器 |
 | Player | 启动 PySide6 播放器，GUI 或 headless 选择显示器 |
 | 监控 | 监控子进程、关闭文件、端口和异常退出 |
+
+退出时按相反顺序停止：播放器先释放客户端会话，Broker 最后关闭自有 Presentation 和可确认归属的 PowerPoint Application。Broker 是关键进程；其异常退出会使活动 PPT 会话进入 error，并由 runall 终止整套运行时。
 
 ## 认证与访问边界
 
@@ -171,8 +182,8 @@ SCP-cv 当前不是分布式平台，很多设计依赖单 Windows 主机：
 
 | 限制 | 影响 | 迁移建议 |
 | --- | --- | --- |
-| `pending_command` 是单字段 | 连续命令可能覆盖 | 队列化或增加 command version |
-| 播放器只轮询已注册窗口 | 未创建窗口的命令会残留 | 迁移时显式区分物理窗口和逻辑窗口 |
+| SQLite 队列依赖本机共享数据库 | 不适合多主机消费者 | 迁移到外部数据库时保留目标内顺序、原子领取、取消和确认语义 |
+| 播放器只消费已注册窗口 | 未创建窗口的命令会保持 pending | 迁移时显式区分物理窗口和逻辑窗口，并监控目标积压 |
 | 显示器选择不是实时 reposition | 修改显示目标后需 reset/restart 才稳定生效 | 接通已有 `sig_reposition` 或新增播放器命令 |
 | 左右拼接主要是数据字段 | 播放窗口实际仍按单显示器定位 | 若需要真实拼接，补充窗口 geometry 计算 |
 | SQLite 轻量共享 | 多主机、多并发能力有限 | 目标系统可换 PostgreSQL，但要处理轮询性能和事务语义 |
@@ -183,7 +194,7 @@ SCP-cv 当前不是分布式平台，很多设计依赖单 Windows 主机：
 - Vue 控制台可以登录、拉取 CSRF、访问 REST、连接 SSE。
 - 打开任意媒体源后，目标窗口的 `PlaybackSession` 先进入 loading，再由播放器回写 playing/error。
 - 关闭媒体源后，UI 可观察到 `media_source=null`、`playback_state=idle`。
-- PPT 仅使用 PowerPoint，放映 HWND 能嵌入对应 PySide 窗口，翻页和当前页媒体控制可用。
+- PPT 仅使用 PowerPoint；四个播放器共用唯一 Broker/Application，每个活动会话拥有唯一放映 HWND，且父 HWND 与对应 PySide 容器一致。
 - 背景音频可以加入播放列表、播放、暂停、停止、调音量、循环。
 - MediaMTX 在线路径可以同步为 `StreamSource` 和 `MediaSource`。
 - reset-all 可以关闭 adapter、重建窗口、清空会话状态。

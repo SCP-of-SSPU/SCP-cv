@@ -227,8 +227,18 @@ message SelectDisplayTargetRequest {
 // 通用操作结果响应，用于所有返回 OperationReply 的 RPC。
 message OperationReply {
   bool success = 1;     // 操作是否成功
-  string message = 2;   // 人类可读的概要信息（如 "播放已开始"）
+  string message = 2;   // 人类可读的概要信息（如 "播放指令已接受"）
   string detail = 3;    // 异常时的详细信息（正常时为空串）
+  repeated ControlCommandState commands = 4; // 本次调用实际受理的持久化命令；空列表表示未入队
+}
+
+// 持久化控制命令状态。调用方用受理响应中的 id 在状态流中追踪最终结果。
+message ControlCommandState {
+  int64 id = 1;
+  string target = 2;
+  string command = 3;
+  string status = 4;        // pending / executing / succeeded / failed / cancelled
+  string error_message = 5; // failed/cancelled 的错误或取消原因；其他状态为空串
 }
 
 // 运行时状态概览响应（GetRuntimeStatus）。
@@ -472,6 +482,7 @@ message ActivateScenarioReply {
   bool success = 1;
   string message = 2;
   repeated SessionSnapshot sessions = 3;  // 激活后的窗口状态快照
+  repeated ControlCommandState commands = 4; // 本次预案激活实际受理的持久化命令
 }
 
 
@@ -485,4 +496,5 @@ message PlaybackStateEvent {
   int64 sequence = 2;                   // 事件序列号
   repeated SessionSnapshot sessions = 3; // 更新后的会话快照列表
   double timestamp = 4;                 // UNIX 时间戳
+  repeated ControlCommandState commands = 5; // 最近的命令状态，用受理响应中的 id 关联
 }

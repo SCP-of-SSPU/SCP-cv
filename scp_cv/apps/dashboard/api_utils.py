@@ -182,10 +182,23 @@ def mutate_playback(operation: Callable[[], Any]) -> JsonResponse:
     :param operation: 业务操作回调
     :return: 包含全量会话快照的 JSON 响应
     """
-    operation()
     from scp_cv.services.background_audio_payloads import get_background_audio_snapshot
+    from scp_cv.services.command_status import (
+        capture_enqueued_commands,
+        control_command_payloads,
+    )
+
+    with capture_enqueued_commands() as accepted_commands:
+        operation()
 
     sessions = get_all_sessions_snapshot()
-    payload = {"sessions": sessions, "background_audio": get_background_audio_snapshot()}
-    publish_event("playback_state", payload)
-    return json_response({"success": True, **payload})
+    state_payload = {
+        "sessions": sessions,
+        "background_audio": get_background_audio_snapshot(),
+    }
+    publish_event("playback_state", state_payload)
+    return json_response({
+        "success": True,
+        **state_payload,
+        "commands": control_command_payloads(accepted_commands),
+    })

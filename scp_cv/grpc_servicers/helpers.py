@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 from google.protobuf import struct_pb2
@@ -52,14 +53,25 @@ def _extract_window_id(request: object) -> int:
     return raw_window_id if raw_window_id > 0 else _DEFAULT_WINDOW_ID
 
 
-def _success_reply(message: str = "操作成功", detail: str = "") -> control_pb2.OperationReply:
+def _success_reply(
+    message: str = "操作成功",
+    detail: str = "",
+    *,
+    commands: Iterable[Mapping[str, object]] = (),
+) -> control_pb2.OperationReply:
     """
     构建成功的 OperationReply。
     :param message: 简要描述
     :param detail: 补充信息
+    :param commands: 本次调用实际受理的命令状态投影
     :return: OperationReply protobuf 实例
     """
-    return control_pb2.OperationReply(success=True, message=message, detail=detail)
+    return control_pb2.OperationReply(
+        success=True,
+        message=message,
+        detail=detail,
+        commands=[_command_state_to_proto(command) for command in commands],
+    )
 
 
 def _error_reply(message: str, detail: str = "") -> control_pb2.OperationReply:
@@ -70,6 +82,19 @@ def _error_reply(message: str, detail: str = "") -> control_pb2.OperationReply:
     :return: OperationReply protobuf 实例
     """
     return control_pb2.OperationReply(success=False, message=message, detail=detail)
+
+
+def _command_state_to_proto(
+    command: Mapping[str, object],
+) -> control_pb2.ControlCommandState:
+    """把普通命令状态投影转换为 protobuf 消息。"""
+    return control_pb2.ControlCommandState(
+        id=int(command["id"]),
+        target=str(command["target"]),
+        command=str(command["command"]),
+        status=str(command["status"]),
+        error_message=str(command["error_message"]),
+    )
 
 
 def _snapshot_to_proto(snapshot: dict[str, Any]) -> control_pb2.SessionSnapshot:
@@ -146,13 +171,22 @@ def _media_source_model_to_proto(media_source: Any) -> control_pb2.SourceItem:
     return _source_to_proto(media_source_payload(media_source))
 
 
-def _session_snapshot_signature(snapshots: list[dict[str, Any]]) -> str:
+def _playback_state_signature(
+    snapshots: list[dict[str, Any]],
+    commands: list[dict[str, object]],
+) -> str:
     """
-    构建会话快照签名，用于 gRPC 状态流去重。
+    构建会话与命令联合签名，用于 gRPC 状态流去重。
     :param snapshots: get_all_sessions_snapshot() 返回的快照列表
+    :param commands: 最近的 ControlCommand 状态投影
     :return: 稳定 JSON 字符串签名
     """
-    return json.dumps(snapshots, ensure_ascii=False, sort_keys=True, default=str)
+    return json.dumps(
+        {"sessions": snapshots, "commands": commands},
+        ensure_ascii=False,
+        sort_keys=True,
+        default=str,
+    )
 
 
 def _publish_playback_state_event() -> None:

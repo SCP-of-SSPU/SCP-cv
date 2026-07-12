@@ -2,7 +2,8 @@
 # -*- coding: UTF-8 -*-
 """
 Django 管理命令：一键启动 SCP-cv 所有本地服务。
-负责启动和监控 MediaMTX、gRPC-Web 代理、Django HTTP/gRPC、Vue 前端和 PySide 播放器。
+负责启动和监控 MediaMTX、gRPC-Web 代理、Django HTTP/gRPC、Vue 前端、
+PowerPoint Broker 和 PySide 播放器。
 @Project : SCP-cv
 @File : runall.py
 @Author : Qintsg
@@ -15,12 +16,9 @@ import atexit
 import signal
 import subprocess
 import sys
-import time
-from dataclasses import dataclass
 from pathlib import Path
 from typing import BinaryIO
 
-from psutil import Error as PsutilError
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
@@ -28,6 +26,10 @@ from scp_cv.apps.dashboard.management.runall_arguments import add_runall_argumen
 from scp_cv.apps.dashboard.management.runall_frontend import (
     read_frontend_env,
     resolve_frontend_port,
+)
+from scp_cv.apps.dashboard.management.runall_orchestration import (
+    ManagedProcess,
+    RunallProcessOrchestration,
 )
 from scp_cv.apps.dashboard.management.runall_processes import (
     connect_host,
@@ -44,20 +46,14 @@ from scp_cv.apps.dashboard.management.runall_service import (
     current_process_session_id,
     launch_runall_service,
 )
+from scp_cv.player.ppt_broker.contracts import BrokerHealth
 
 
-@dataclass
-class ManagedProcess:
-    """被 runall 编排的子进程记录。"""
-
-    name: str
-    process: subprocess.Popen[bytes]
-    required: bool = True
-    log_handle: BinaryIO | None = None
-
-
-class Command(BaseCommand):
-    help = "一键启动所有服务：MediaMTX + gRPC-Web + Django + Vue 前端 + PySide6 播放器"
+class Command(RunallProcessOrchestration, BaseCommand):
+    help = (
+        "一键启动所有服务：MediaMTX + gRPC-Web + Django + Vue 前端 + "
+        "PowerPoint Broker + PySide6 播放器"
+    )
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         """
@@ -77,6 +73,8 @@ class Command(BaseCommand):
         self._startup_reset_message = ""
         self._backend_port = 8000
         self._process_log_dir = Path(settings.LOG_DIR)
+        self._ppt_broker_client: object | None = None
+        self._ppt_broker_health: BrokerHealth | None = None
 
     def add_arguments(self, parser: object) -> None:
         """
@@ -169,6 +167,7 @@ class Command(BaseCommand):
                 3: int(options.get("window3", 0) or 0),
                 4: int(options.get("window4", 0) or 0),
             }
+            self._prepare_ppt_broker()
             self._start_player(
                 poll_interval,
                 bool(options.get("headless", False)),
@@ -299,199 +298,34 @@ class Command(BaseCommand):
         else:
             self.stdout.write(self.style.WARNING(f"Vue 前端已显式追加 --port {port}"))
 
-    def _start_player(
-        self,
-        poll_interval: float,
-        headless: bool = False,
-        window_assignments: dict[int, int] | None = None,
-        gpu_id: int = -1,
-    ) -> None:
-        """
-        启动 PySide 播放器子进程，避免 Qt 主循环阻塞 runall 监控。
-        :param poll_interval: 轮询间隔秒数
-        :param headless: 是否跳过播放器启动器
-        :param window_assignments: 窗口编号到显示器 ID 的显式映射
-        :param gpu_id: GPU ID；小于 0 表示使用系统默认 GPU
-        :return: None
-        """
-        if headless:
-            self._start_headless_player_processes(
-                poll_interval,
-                window_assignments or {},
-                gpu_id,
-            )
-            return
-        player_command = [
-            sys.executable,
-            "manage.py",
-            "run_player",
-            "--poll-interval",
-            str(poll_interval),
-        ]
-        if settings.DEBUG:
-            player_command.append("--dev")
-        self._spawn("PySide 播放器", player_command, required=True)
+    def _open_runall_process_log(self, log_dir: Path, name: str) -> BinaryIO:
+        """通过命令模块导出的工厂打开日志，保留既有测试替换缝隙。"""
+        return open_process_log(log_dir, name)
 
-    def _start_headless_player_processes(
+    def _spawn_runall_process(
         self,
-        poll_interval: float,
-        window_assignments: dict[int, int],
-        gpu_id: int = -1,
-    ) -> None:
-        """
-        为每个输出窗口启动独立播放器进程，隔离 PowerPoint COM/Qt 生命周期。
-        :param poll_interval: 轮询间隔秒数
-        :param window_assignments: 窗口编号到显示器 ID 的显式映射
-        :param gpu_id: GPU ID；小于 0 表示使用系统默认 GPU
-        :return: None
-        """
-        target_window_ids = sorted(window_assignments.keys() or [1, 2, 3, 4])
-        background_audio_owner = target_window_ids[0] if target_window_ids else 1
-        for window_id in target_window_ids:
-            player_command = [
-                sys.executable,
-                "manage.py",
-                "run_player",
-                "--poll-interval",
-                str(poll_interval),
-                "--headless",
-                "--only-window",
-                str(window_id),
-            ]
-            if settings.DEBUG:
-                player_command.append("--dev")
-            display_id = int(window_assignments.get(window_id, 0) or 0)
-            if display_id > 0:
-                player_command.extend([f"--window{window_id}", str(display_id)])
-            if gpu_id >= 0:
-                player_command.extend(["--gpu", str(gpu_id)])
-            if window_id != background_audio_owner:
-                player_command.append("--disable-background-audio")
-            self._spawn(f"PySide 播放器 {window_id}", player_command, required=True)
-
-    def _spawn(
-        self,
-        name: str,
         command_args: list[str],
+        log_handle: BinaryIO,
         cwd: Path | None = None,
-        required: bool = True,
         extra_env: dict[str, str] | None = None,
         env_remove_prefixes: tuple[str, ...] = (),
-    ) -> None:
-        """
-        启动子进程并继承控制台输出，避免 PIPE 缓冲区导致阻塞。
-        :param name: 服务名称
-        :param command_args: 命令参数列表
-        :param cwd: 工作目录
-        :param required: 是否关键服务
-        :param extra_env: 追加传给子进程的环境变量
-        :param env_remove_prefixes: 传递前从父进程环境移除的变量名前缀
-        :return: None
-        """
-        log_handle: BinaryIO | None = None
-        try:
-            log_handle = open_process_log(self._process_log_dir, name)
-            process = spawn_process(
-                command_args,
-                log_handle=log_handle,
-                cwd=cwd,
-                extra_env=extra_env,
-                env_remove_prefixes=env_remove_prefixes,
-            )
-        except OSError as start_error:
-            if log_handle is not None:
-                log_handle.close()
-            message = f"{name} 启动失败：{start_error}"
-            if required:
-                self.stderr.write(self.style.ERROR(message))
-                self._cleanup_processes()
-                sys.exit(1)
-            self.stderr.write(self.style.WARNING(message))
-            return
-        self._processes.append(
-            ManagedProcess(
-                name=name, process=process, required=required, log_handle=log_handle
-            )
-        )
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"{name} 已启动（pid={process.pid}，日志={log_handle.name}）"
-            )
+    ) -> subprocess.Popen[bytes]:
+        """通过命令模块导出的工厂启动子进程。"""
+        return spawn_process(
+            command_args,
+            log_handle=log_handle,
+            cwd=cwd,
+            extra_env=extra_env,
+            env_remove_prefixes=env_remove_prefixes,
         )
 
-    def _wait_for_port(self, name: str, host: str, port: int, required: bool) -> None:
-        """
-        轮询端口可连接状态，用于启动健康检查。
-        :param name: 服务名称
-        :param host: 主机
-        :param port: 端口
-        :param required: 是否关键服务
-        :return: None
-        """
-        if wait_for_port(host, port):
-            self.stdout.write(self.style.SUCCESS(f"{name} 端口已就绪：{host}:{port}"))
-            return
-        message = f"{name} 端口等待超时：{host}:{port}"
-        if required:
-            self.stderr.write(self.style.ERROR(message))
-            self._cleanup_processes()
-            sys.exit(1)
-        self.stderr.write(self.style.WARNING(message))
+    def _wait_for_runall_port(self, host: str, port: int) -> bool:
+        """通过命令模块导出的端口探测函数执行健康检查。"""
+        return wait_for_port(host, port)
 
-    def _monitor_processes(self) -> None:
-        """监控关键子进程，任一关键进程退出时清理所有服务。"""
-        try:
-            while not self._shutting_down:
-                shutdown_reason = self._consume_shutdown_request()
-                if shutdown_reason:
-                    self.stdout.write(self.style.WARNING(shutdown_reason))
-                    self._request_shutdown_reason = shutdown_reason
-                    self._cleanup_processes()
-                    return
-                for managed_process in list(self._processes):
-                    exit_code = managed_process.process.poll()
-                    if exit_code is None:
-                        continue
-                    self.stdout.write(
-                        self.style.WARNING(
-                            f"{managed_process.name} 已退出（pid={managed_process.process.pid}, code={exit_code}）"
-                        )
-                    )
-                    if managed_process.log_handle is not None:
-                        managed_process.log_handle.close()
-                    self._processes.remove(managed_process)
-                    if managed_process.required:
-                        self._cleanup_processes()
-                        return
-                time.sleep(0.5)
-        except KeyboardInterrupt:
-            self._cleanup_processes()
-
-    def _cleanup_processes(self) -> None:
-        """按启动反序终止所有仍在运行的子进程。"""
-        if self._shutting_down:
-            return
-        self._shutting_down = True
-        for managed_process in reversed(self._processes):
-            process = managed_process.process
-            if process.poll() is not None:
-                continue
-            try:
-                self.stdout.write(
-                    f"正在停止 {managed_process.name}（pid={process.pid}）…"
-                )
-                terminate_process_tree(process.pid)
-                self.stdout.write(self.style.SUCCESS(f"{managed_process.name} 已停止"))
-            except PsutilError as process_error:
-                self.stdout.write(
-                    self.style.WARNING(
-                        f"{managed_process.name} 停止异常：{process_error}"
-                    )
-                )
-            finally:
-                if managed_process.log_handle is not None:
-                    managed_process.log_handle.close()
-        self._processes.clear()
+    def _terminate_runall_process_tree(self, process_id: int) -> None:
+        """通过命令模块导出的清理函数终止普通子进程树。"""
+        terminate_process_tree(process_id)
 
     def _prepare_shutdown_signal_file(self) -> None:
         """初始化系统关闭请求信号文件。"""

@@ -13,7 +13,7 @@ patch:
           $ref: ../components/schemas/SetWindowVolumeRequest.yaml
   responses:
     '200':
-      description: 操作成功
+      description: 音量设置已持久化并接受；最终播放器状态通过 SSE 会话更新确认
       content:
         application/json:
           schema:

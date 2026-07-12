@@ -6,3 +6,8 @@ allOf:
     properties:
       background_audio:
         $ref: ./BackgroundAudioSnapshot.yaml
+      commands:
+        type: array
+        description: 本次请求实际持久化并接受的命令；GET 或纯播放列表变更可为空数组或省略
+        items:
+          $ref: ./ControlCommandState.yaml

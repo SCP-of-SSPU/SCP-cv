@@ -18,7 +18,7 @@ from .media import MediaSource
 class BackgroundAudioState(models.Model):
     """
     背景音频全局状态单例。
-    播放器进程轮询 pending_command，执行后回写播放状态和进度。
+    播放器从 ControlCommand 队列认领指令，执行后回写播放状态和进度。
     """
 
     id = models.AutoField(primary_key=True)

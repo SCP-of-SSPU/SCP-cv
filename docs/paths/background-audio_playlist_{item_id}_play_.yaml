@@ -12,7 +12,7 @@ post:
   operationId: playBackgroundAudioItem
   responses:
     '200':
-      description: 已下发打开并播放指令
+      description: 打开并播放指令已持久化并接受；最终状态通过 SSE 更新确认
       content:
         application/json:
           schema:

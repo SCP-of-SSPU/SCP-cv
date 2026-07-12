@@ -20,6 +20,7 @@ from .enums import (
     SourceType,
 )
 from .background_audio import BackgroundAudioPlaylistItem, BackgroundAudioState
+from .control_command import ControlCommand, ControlCommandStatus, ControlCommandTarget
 from .media import MediaFolder, MediaSource, PptResource
 from .session import PlaybackSession
 from .scenario_models import Scenario
@@ -30,6 +31,9 @@ __all__ = [
     "BackgroundAudioPlaylistItem",
     "BackgroundAudioState",
     "BigScreenMode",
+    "ControlCommand",
+    "ControlCommandStatus",
+    "ControlCommandTarget",
     "DeviceType",
     "MediaFolder",
     "MediaSource",

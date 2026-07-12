@@ -9,42 +9,37 @@
 '''
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 
 from pytest import MonkeyPatch
 
 from scp_cv.apps.playback.models import SourceType
 from scp_cv.player import preheat_pool
+from scp_cv.player.ppt_broker import PptPreheatRequest
 from scp_cv.player.preheat_pool import PlayerPreheatPool
 from scp_cv.player.preheat_types import PreheatedStreamSource
 
 
-class _PptAppsStub:
-    """记录 PowerPoint 预热池调用。"""
+class _PptBrokerStub:
+    """记录 PowerPoint Broker 预热请求。"""
 
     def __init__(self) -> None:
         """
         初始化调用记录。
         :return: None
         """
-        self.preheat_calls = 0
-        self.preheat_source_calls: list[tuple[int, str]] = []
+        self.requests: list[PptPreheatRequest] = []
+        self.called = threading.Event()
 
-    def preheat(self) -> None:
+    def preheat(self, request: PptPreheatRequest) -> None:
         """
-        记录应用级预热。
+        记录 Broker 预热请求。
+        :param request: 普通数据预热合同
         :return: None
         """
-        self.preheat_calls += 1
-
-    def preheat_source(self, source_id: int, uri: str) -> None:
-        """
-        记录文件级预热。
-        :param source_id: 媒体源 ID
-        :param uri: PPT 文件路径
-        :return: None
-        """
-        self.preheat_source_calls.append((source_id, uri))
+        self.requests.append(request)
+        self.called.set()
 
 
 class _FakePixmap:
@@ -196,15 +191,18 @@ class _FakeQUrl:
 
 
 def test_preheat_source_uses_file_level_powerpoint_preheat() -> None:
-    """PPT 源预热应携带 source_id/uri，进入 PowerPoint 文件级预热路径。"""
-    ppt_apps = _PptAppsStub()
+    """PPT 源预热只向 Broker 发送普通数据，不在播放器内创建 COM。"""
+    broker = _PptBrokerStub()
     pool = object.__new__(PlayerPreheatPool)
-    pool._ppt_apps = ppt_apps
+    pool._ppt_broker = broker
 
     pool.preheat_source(12, SourceType.PPT, "C:/demo/source.pptx")
 
-    assert ppt_apps.preheat_source_calls == [(12, "C:/demo/source.pptx")]
-    assert ppt_apps.preheat_calls == 0
+    assert broker.called.wait(2.0)
+    assert len(broker.requests) == 1
+    assert broker.requests[0].source_id == 12
+    assert broker.requests[0].uri == "C:/demo/source.pptx"
+    assert broker.requests[0].request_id
 
 
 def test_image_preheat_is_file_level_and_requires_exact_uri(

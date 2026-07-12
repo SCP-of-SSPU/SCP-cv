@@ -2,6 +2,10 @@ get:
   tags:
     - events
   summary: 订阅播放状态 SSE 事件流
+  description: >-
+    持续推送窗口、背景音频和最近的 ControlCommand 状态。控制接口返回只表示命令已接受；
+    客户端应保存响应 commands[].id，并在这里后续 commands 中找到同一 ID，直到状态进入
+    succeeded、failed 或 cancelled。状态帧包含全部未完成命令和最近完成的 100 条命令；持久化完成记录保留 7 天。
   operationId: streamEvents
   parameters:
     - in: query
@@ -21,6 +25,6 @@ get:
             example: |
               id: 12
               event: playback_state
-              data: {"sessions": [], "background_audio": {"state": {"playback_state": "idle"}, "playlist": []}}
+              data: {"sessions": [], "background_audio": {"state": {"playback_state": "idle"}, "playlist": []}, "commands": [{"id": 42, "target": "window:1", "command": "open", "status": "succeeded", "error_message": ""}]}
     '401':
       $ref: ../components/responses/ErrorResponse.yaml

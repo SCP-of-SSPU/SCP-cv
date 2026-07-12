@@ -66,6 +66,10 @@ properties:
   pending_command:
     type: string
     nullable: true
+    readOnly: true
+    description: >-
+      只读兼容镜像，显示该窗口最早的未完成 ControlCommand；空字符串或 null 表示当前没有未完成指令。
+      新客户端不得把此字段当作命令真值或执行完成证明，最终播放结果应依据 SSE 中持续更新的状态与错误信息。
   last_updated_at:
     type: string
     format: date-time

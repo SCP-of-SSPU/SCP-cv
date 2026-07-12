@@ -14,6 +14,11 @@ import json
 from django.http import HttpRequest, JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 
+from scp_cv.services.command_status import (
+    capture_enqueued_commands,
+    control_command_payloads,
+)
+from scp_cv.services.playback import get_all_sessions_snapshot
 from scp_cv.services.scenario import (
     ScenarioError,
     activate_scenario,
@@ -187,13 +192,22 @@ def activate_scenario_view(request: HttpRequest, scenario_id: str) -> JsonRespon
     except (ValueError, TypeError):
         return JsonResponse({"success": False, "error": "预案 ID 格式无效"}, status=400)
 
-    try:
-        session_snapshots = activate_scenario(sid)
-    except ScenarioError as act_err:
-        return JsonResponse({"success": False, "error": str(act_err)}, status=400)
+    with capture_enqueued_commands() as accepted_commands:
+        try:
+            session_snapshots = activate_scenario(sid)
+        except ScenarioError as act_err:
+            publish_event("playback_state", {
+                "sessions": get_all_sessions_snapshot(),
+            })
+            return JsonResponse({
+                "success": False,
+                "error": str(act_err),
+                "commands": control_command_payloads(accepted_commands),
+            }, status=400)
 
     publish_event("playback_state", {"sessions": session_snapshots})
     return JsonResponse({
         "success": True,
         "sessions": session_snapshots,
+        "commands": control_command_payloads(accepted_commands),
     })

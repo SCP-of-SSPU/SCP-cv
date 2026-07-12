@@ -9,3 +9,8 @@ properties:
   code:
     type: string
     example: invalid_json
+  commands:
+    type: array
+    description: 操作部分失败前已经持久化的命令；调用方仍需按 ID 追踪其终态
+    items:
+      $ref: ./ControlCommandState.yaml

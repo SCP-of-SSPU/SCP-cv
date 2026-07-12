@@ -17,6 +17,15 @@ from typing import Optional
 ALLOWED_MEDIA_ACTIONS = frozenset({"play", "pause", "stop"})
 
 
+def _is_transient_com_error(error: BaseException) -> bool:
+    """延迟复用 Broker 的 HRESULT 判定，避免独立导入本模块时形成循环。"""
+    from scp_cv.player.ppt_broker.com_support import (
+        is_transient_com_error as classify_transient_com_error,
+    )
+
+    return classify_transient_com_error(error)
+
+
 def control_slide_media(
     slideshow_view: Optional[object],
     presentation: Optional[object],
@@ -52,6 +61,7 @@ def control_slide_media(
         getattr(player, normalized_action.capitalize())()
     except Exception as media_error:
         logger.warning("PPT 页面媒体 %s 执行 %s 失败：%s", media_id, action, media_error)
+        raise
 
 
 def resolve_media_player(
@@ -73,7 +83,9 @@ def resolve_media_player(
     ):
         try:
             return slideshow_view.Player(shape_id)
-        except Exception:
+        except Exception as player_error:
+            if _is_transient_com_error(player_error):
+                raise
             continue
     return None
 
@@ -118,7 +130,9 @@ def current_slide_media_shape_ids(
         return []
     try:
         current_slide = presentation.Slides(slideshow_view.CurrentShowPosition)
-    except Exception:
+    except Exception as current_slide_error:
+        if _is_transient_com_error(current_slide_error):
+            raise
         return []
     shape_ids: list[int] = []
     for shape_index in range(1, int(current_slide.Shapes.Count) + 1):
@@ -126,6 +140,8 @@ def current_slide_media_shape_ids(
         try:
             _ = shape.MediaFormat
             shape_ids.append(int(shape.Id))
-        except Exception:
+        except Exception as shape_error:
+            if _is_transient_com_error(shape_error):
+                raise
             continue
     return shape_ids

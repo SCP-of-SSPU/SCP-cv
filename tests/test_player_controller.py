@@ -13,10 +13,16 @@ from unittest.mock import patch
 
 import pytest
 
-from scp_cv.apps.playback.models import MediaSource, PlaybackCommand, PlaybackState, SourceType
+from scp_cv.apps.playback.models import (
+    MediaSource,
+    PlaybackCommand,
+    PlaybackState,
+    SourceType,
+)
 from scp_cv.player.adapters.base import AdapterState
 from scp_cv.player.controller import PlayerController
 from scp_cv.services.playback import RESET_ALL_WINDOWS_ARG, get_or_create_session, get_session_snapshot, open_source
+from tests.player_controller_test_support import _SingleLoopController
 
 
 class _StateAdapter:
@@ -130,46 +136,6 @@ class _WindowStub:
         :return: None
         """
         return
-
-
-class _SingleLoopController(PlayerController):
-    """只执行一轮轮询的控制器替身，用于验证线程边界调度。"""
-
-    def __init__(self) -> None:
-        """
-        初始化测试控制器状态。
-        :return: None
-        """
-        super().__init__()
-        self.checked_windows: list[int] = []
-        self.checked_background_audio = False
-        self.report_requested = False
-
-    @property
-    def registered_window_ids(self) -> list[int]:
-        """返回固定窗口，避免依赖真实播放器窗口注册。"""
-        return [1]
-
-    def _check_and_dispatch_command(self, window_id: int) -> None:
-        """
-        记录被轮询的窗口。
-        :param window_id: 窗口编号
-        :return: None
-        """
-        self.checked_windows.append(window_id)
-
-    def _check_and_dispatch_background_audio_command(self) -> None:
-        """记录背景音频轮询，避免该线程边界测试访问数据库。"""
-        self.checked_background_audio = True
-
-    def _request_adapter_state_report(self) -> None:
-        """记录状态上报请求，并结束轮询。"""
-        self.report_requested = True
-        self._poll_running = False
-
-    def _report_all_adapter_states(self) -> None:
-        """轮询线程不应直接调用真实状态读取。"""
-        raise AssertionError("adapter state must be reported through the Qt signal")
 
 
 def test_poll_loop_requests_state_report_instead_of_reading_adapter_directly() -> None:

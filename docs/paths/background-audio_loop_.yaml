@@ -11,7 +11,7 @@ patch:
           $ref: ../components/schemas/BackgroundAudioLoopRequest.yaml
   responses:
     '200':
-      description: 循环状态已更新
+      description: 循环设置已持久化并接受；最终播放器状态通过 SSE 更新确认
       content:
         application/json:
           schema:

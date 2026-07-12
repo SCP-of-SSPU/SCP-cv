@@ -17,9 +17,9 @@ import pytest
 
 from scp_cv.apps.playback.models import (
     BigScreenMode,
+    ControlCommand,
     MediaSource,
     PlaybackCommand,
-    PlaybackSession,
     PlaybackState,
     RuntimeState,
 )
@@ -30,10 +30,8 @@ from scp_cv.services.playback import (
     control_ppt_media,
     control_playback,
     get_or_create_session,
-    get_session_snapshot,
     navigate_content,
     open_source,
-    reset_ppt_playback,
     set_big_screen_mode,
     stop_current_content,
     update_playback_progress,
@@ -42,85 +40,9 @@ from scp_cv.services.ppt_playback_cache import PPT_PLAYBACK_METADATA_KEY
 from scp_cv.services.video_wall import VideoWallError
 
 
-# ══════════════════════════════════════════════════════════════
-# get_or_create_session
-# ══════════════════════════════════════════════════════════════
-
-@pytest.mark.django_db
-class TestGetOrCreateSession:
-    """测试播放会话的单例获取/创建逻辑。"""
-
-    def test_creates_session_when_none_exists(self) -> None:
-        """数据库为空时应创建新会话。"""
-        assert PlaybackSession.objects.count() == 0
-        session = get_or_create_session(1)
-        assert session.pk is not None
-        assert session.playback_state == PlaybackState.IDLE
-        assert session.window_id == 1
-        assert PlaybackSession.objects.count() == 1
-
-    def test_returns_existing_session(self, playback_session: PlaybackSession) -> None:
-        """已有会话时应复用同一实例。"""
-        session = get_or_create_session(1)
-        assert session.pk == playback_session.pk
-
-    def test_idempotent_calls(self) -> None:
-        """多次调用应返回同一会话。"""
-        first_session = get_or_create_session(1)
-        second_session = get_or_create_session(1)
-        assert first_session.pk == second_session.pk
-        assert PlaybackSession.objects.count() == 1
-
-
-# ══════════════════════════════════════════════════════════════
-# get_session_snapshot
-# ══════════════════════════════════════════════════════════════
-
-@pytest.mark.django_db
-class TestGetSessionSnapshot:
-    """测试会话状态快照的完整性和字段映射。"""
-
-    def test_snapshot_without_source(self) -> None:
-        """无媒体源时快照应包含默认占位值。"""
-        snapshot = get_session_snapshot(1)
-
-        assert snapshot["source_name"] == "无"
-        assert snapshot["source_type_label"] == "无"
-        assert snapshot["playback_state"] == PlaybackState.IDLE
-        assert snapshot["current_slide"] == 0
-        assert snapshot["position_ms"] == 0
-
-    def test_snapshot_with_source(self, media_source_ppt: MediaSource) -> None:
-        """关联源后快照应反映源的信息。"""
-        session = get_or_create_session(1)
-        session.media_source = media_source_ppt
-        session.playback_state = PlaybackState.PLAYING
-        session.current_slide = 3
-        session.total_slides = 10
-        session.save()
-
-        snapshot = get_session_snapshot(1)
-
-        assert snapshot["source_name"] == "测试演示文稿"
-        assert snapshot["source_id"] == media_source_ppt.pk
-        assert snapshot["source_type"] == "ppt"
-        assert snapshot["playback_state"] == PlaybackState.PLAYING
-        assert snapshot["current_slide"] == 3
-        assert snapshot["total_slides"] == 10
-
-    def test_snapshot_contains_all_required_keys(self) -> None:
-        """快照字典应包含所有必要的键。"""
-        snapshot = get_session_snapshot(1)
-        required_keys = {
-            "window_id", "session_id", "source_id", "source_name", "source_type", "source_type_label", "source_uri",
-            "playback_state", "playback_state_label",
-            "display_mode", "display_mode_label",
-            "target_display_label", "spliced_display_label", "is_spliced",
-            "error_message",
-            "current_slide", "total_slides", "position_ms", "duration_ms",
-            "pending_command", "last_updated_at", "volume", "is_muted", "loop_enabled",
-        }
-        assert set(snapshot.keys()) == required_keys
+def _latest_window_command(window_id: int = 1) -> ControlCommand:
+    """返回窗口队列中最后追加的控制命令。"""
+    return ControlCommand.objects.filter(target=f"window:{window_id}").latest("id")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -228,25 +150,28 @@ class TestControlPlayback:
     """测试播放控制指令（play / pause / stop）。"""
 
     def test_play_command(self, media_source_video: MediaSource) -> None:
-        """发送 play 指令应设置正确的 pending_command。"""
+        """发送 play 指令应追加到 OPEN 之后且不覆盖兼容镜像。"""
         open_source(1, media_source_video.pk)
         session = control_playback(1, PlaybackCommand.PLAY)
 
-        assert session.pending_command == PlaybackCommand.PLAY
+        assert session.pending_command == PlaybackCommand.OPEN
+        assert _latest_window_command().command == PlaybackCommand.PLAY
 
     def test_pause_command(self, media_source_video: MediaSource) -> None:
         """发送 pause 指令应设置正确的 pending_command。"""
         open_source(1, media_source_video.pk)
         session = control_playback(1, PlaybackCommand.PAUSE)
 
-        assert session.pending_command == PlaybackCommand.PAUSE
+        assert session.pending_command == PlaybackCommand.OPEN
+        assert _latest_window_command().command == PlaybackCommand.PAUSE
 
     def test_stop_command(self, media_source_video: MediaSource) -> None:
         """发送 stop 指令应设置正确的 pending_command。"""
         open_source(1, media_source_video.pk)
         session = control_playback(1, PlaybackCommand.STOP)
 
-        assert session.pending_command == PlaybackCommand.STOP
+        assert session.pending_command == PlaybackCommand.OPEN
+        assert _latest_window_command().command == PlaybackCommand.STOP
 
     def test_invalid_action_raises(self, media_source_video: MediaSource) -> None:
         """无效的控制动作应抛出 PlaybackError。"""
@@ -274,22 +199,26 @@ class TestNavigateContent:
         open_source(1, media_source_ppt.pk)
         session = navigate_content(1, PlaybackCommand.NEXT)
 
-        assert session.pending_command == PlaybackCommand.NEXT
+        assert session.pending_command == PlaybackCommand.OPEN
+        assert _latest_window_command().command == PlaybackCommand.NEXT
 
     def test_prev_command(self, media_source_ppt: MediaSource) -> None:
         """发送 prev 应设置正确指令。"""
         open_source(1, media_source_ppt.pk)
         session = navigate_content(1, PlaybackCommand.PREV)
 
-        assert session.pending_command == PlaybackCommand.PREV
+        assert session.pending_command == PlaybackCommand.OPEN
+        assert _latest_window_command().command == PlaybackCommand.PREV
 
     def test_goto_with_target_index(self, media_source_ppt: MediaSource) -> None:
         """跳转到指定页码应在 command_args 中记录。"""
         open_source(1, media_source_ppt.pk)
         session = navigate_content(1, PlaybackCommand.GOTO, target_index=5)
 
-        assert session.pending_command == PlaybackCommand.GOTO
-        assert session.command_args["target_index"] == 5
+        assert session.pending_command == PlaybackCommand.OPEN
+        queued = _latest_window_command()
+        assert queued.command == PlaybackCommand.GOTO
+        assert queued.arguments["target_index"] == 5
 
     def test_goto_out_of_range_raises(self, media_source_ppt: MediaSource) -> None:
         """PPT 跳页超过已知页数时应返回明确错误。"""
@@ -328,8 +257,10 @@ class TestNavigateContent:
         open_source(1, media_source_video.pk)
         session = navigate_content(1, PlaybackCommand.SEEK, position_ms=30000)
 
-        assert session.pending_command == PlaybackCommand.SEEK
-        assert session.command_args["position_ms"] == 30000
+        assert session.pending_command == PlaybackCommand.OPEN
+        queued = _latest_window_command()
+        assert queued.command == PlaybackCommand.SEEK
+        assert queued.arguments["position_ms"] == 30000
 
     def test_ppt_rejects_seek(self, media_source_ppt: MediaSource) -> None:
         """PPT 源不应接受 seek 指令。"""
@@ -355,8 +286,9 @@ class TestNavigateContent:
 
         second_session = navigate_content(1, PlaybackCommand.NEXT)
 
-        assert first_session.pending_command == PlaybackCommand.NEXT
+        assert first_session.pending_command == PlaybackCommand.OPEN
         assert second_session.pending_command == PlaybackCommand.NEXT
+
 
     def test_no_source_raises(self) -> None:
         """没有打开源时发送导航指令应抛出 PlaybackError。"""
@@ -374,10 +306,12 @@ class TestControlPptMedia:
         open_source(1, media_source_ppt.pk)
         session = control_ppt_media(1, PlaybackCommand.PLAY, media_id="m1", media_index=2)
 
-        assert session.pending_command == PlaybackCommand.PPT_MEDIA
-        assert session.command_args["media_action"] == PlaybackCommand.PLAY
-        assert session.command_args["media_id"] == "m1"
-        assert session.command_args["media_index"] == 2
+        assert session.pending_command == PlaybackCommand.OPEN
+        queued = _latest_window_command()
+        assert queued.command == PlaybackCommand.PPT_MEDIA
+        assert queued.arguments["media_action"] == PlaybackCommand.PLAY
+        assert queued.arguments["media_id"] == "m1"
+        assert queued.arguments["media_index"] == 2
 
     def test_ppt_media_command_after_powerpoint_open(
         self,
@@ -388,8 +322,10 @@ class TestControlPptMedia:
 
         session = control_ppt_media(1, PlaybackCommand.PLAY, media_id="m1", media_index=1)
 
-        assert session.pending_command == PlaybackCommand.PPT_MEDIA
-        assert session.command_args["media_action"] == PlaybackCommand.PLAY
+        assert session.pending_command == PlaybackCommand.OPEN
+        queued = _latest_window_command()
+        assert queued.command == PlaybackCommand.PPT_MEDIA
+        assert queued.arguments["media_action"] == PlaybackCommand.PLAY
 
     def test_rejects_non_ppt_source(self, media_source_video: MediaSource) -> None:
         """非 PPT 源不应接受 PPT 媒体控制。"""
@@ -397,70 +333,6 @@ class TestControlPptMedia:
 
         with pytest.raises(PlaybackError, match="未打开 PPT"):
             control_ppt_media(1, PlaybackCommand.PLAY, media_id="m1", media_index=1)
-
-
-@pytest.mark.django_db
-class TestPptResetOperations:
-    """测试 PowerPoint-only PPT 重置。"""
-
-    def test_reset_ppt_playback_keeps_current_slide(self, media_source_ppt: MediaSource) -> None:
-        """重置 PPT 放映应收集当前 PPT 窗口并保留页码。"""
-        open_source(1, media_source_ppt.pk)
-        update_playback_progress(1, current_slide=5, total_slides=10)
-        clear_pending_command(1)
-
-        reset_ppt_playback()
-        session = get_or_create_session(1)
-
-        assert session.pending_command == PlaybackCommand.RESET_PPT
-        restart_sessions = session.command_args["restart_sessions"]
-        assert restart_sessions[0]["source_id"] == media_source_ppt.pk
-        assert restart_sessions[0]["target_slide"] == 5
-        assert "reset_token" in session.command_args
-
-    def test_reset_ppt_playback_broadcasts_to_each_active_ppt_window(
-        self,
-        media_source_ppt: MediaSource,
-    ) -> None:
-        """多播放器进程下，每个活跃 PPT 窗口都应收到 reset-ppt 指令。"""
-        open_source(1, media_source_ppt.pk)
-        open_source(2, media_source_ppt.pk)
-        clear_pending_command(1)
-        clear_pending_command(2)
-
-        reset_ppt_playback()
-        session1 = get_or_create_session(1)
-        session2 = get_or_create_session(2)
-
-        assert session1.pending_command == PlaybackCommand.RESET_PPT
-        assert session2.pending_command == PlaybackCommand.RESET_PPT
-        assert session1.command_args["reset_token"] == session2.command_args["reset_token"]
-
-    def test_reset_ppt_playback_uses_ready_playback_cache(
-        self,
-        media_source_ppt: MediaSource,
-        tmp_path: Path,
-    ) -> None:
-        """重置 PPT 放映时重启参数应继续使用放映缓存 URI。"""
-        cached_file = tmp_path / "cached.ppsx"
-        cached_file.write_bytes(b"cached-show")
-        media_source_ppt.metadata = {
-            PPT_PLAYBACK_METADATA_KEY: {
-                "status": "ready",
-                "path": str(cached_file),
-            },
-        }
-        media_source_ppt.save(update_fields=["metadata"])
-        open_source(1, media_source_ppt.pk)
-        update_playback_progress(1, current_slide=2, total_slides=5)
-        clear_pending_command(1)
-
-        reset_ppt_playback()
-        session = get_or_create_session(1)
-        restart_args = session.command_args["restart_sessions"][0]
-
-        assert restart_args["uri"] == str(cached_file)
-        assert restart_args["original_uri"] == media_source_ppt.uri
 
 
 # ══════════════════════════════════════════════════════════════

@@ -44,7 +44,7 @@ class SourceAdapter(ABC):
     媒体源适配器抽象基类。
 
     每种可播放内容类型对应一个子类实现：
-    - PptSourceAdapter：PPT COM 放映
+    - PptBrokerSourceAdapter：通过唯一 PowerPoint Broker 放映 PPT
     - VideoSourceAdapter：QMediaPlayer 本地视频
     - WebRTCStreamAdapter / RtspStreamAdapter：RTSP 流播放
 
@@ -160,6 +160,10 @@ class SourceAdapter(ABC):
         :param muted: 是否静音
         """
         self._logger.debug("适配器 %s 不支持 set_mute", self._adapter_name)
+
+    def resize_output(self, width: int, height: int) -> None:
+        """同步原生渲染输出尺寸；不需要显式同步的 Adapter 默认忽略。"""
+        del width, height
 
     # ═══════════════════ 状态获取 ═══════════════════
 

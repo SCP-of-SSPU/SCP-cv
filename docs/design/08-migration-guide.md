@@ -62,7 +62,7 @@
 | --- | --- |
 | API 清单 | 以 `docs/openapi.yaml` 和 `docs/design/04-api-realtime-grpc.md` 为基础 |
 | 模型清单 | 以 `docs/design/02-data-model.md` 为基础 |
-| 播放器命令清单 | `PlaybackCommand`、`BackgroundAudioCommand`、`command_args` |
+| 播放器命令清单 | `ControlCommand`、`PlaybackCommand`、`BackgroundAudioCommand`、`arguments` 与确认状态 |
 | 现场运行清单 | 显示器、IP、端口、PowerPoint/VLC/MediaMTX |
 
 验收：旧项目所有测试通过，现场关键媒体能播放。
@@ -87,7 +87,7 @@
 | 保留 `run_player` 或等价入口 | 必须在活动 Windows 桌面启动 |
 | 配置新 Django settings | Player 仍需能 import models/services |
 | 验证 DB 连接 | Player 和 Web 后端访问同一状态库 |
-| 验证 pending command | REST 写入后 Player 消费并清空 |
+| 验证持久化命令 | REST 写入后 Player 原子领取并确认终态，连续导航不丢失 |
 | 验证状态回写 | Player 写回后 SSE 能推给前端 |
 
 验收：图片、视频、Web、PPT、直播、背景音频至少各跑通一个源。
@@ -136,10 +136,11 @@
 | --- | --- |
 | `MediaSource` | `source_type`、`uri`、`uploaded_file`、`stream_identifier`、`keep_alive`、`metadata`、临时源字段 |
 | `PptResource` | `(source, page_index)` 唯一、`media_items` schema、speaker notes、slide image |
-| `PlaybackSession` | `window_id` 唯一、pending command、command args、状态和错误写回 |
+| `PlaybackSession` | `window_id` 唯一、兼容命令镜像、状态和错误写回 |
+| `ControlCommand` | 目标内顺序、状态机、批次、取消、消费者身份/心跳、错误与时间戳 |
 | `RuntimeState` | `pk=1` 单例、大屏模式、系统音量 |
 | `Scenario` | tri-state `source_state/big_screen_mode_state/volume_state` |
-| `BackgroundAudioState` | `pk=1` 单例、后台命令总线 |
+| `BackgroundAudioState` | `pk=1` 单例、状态与兼容命令镜像 |
 | `BackgroundAudioPlaylistItem` | 播放列表顺序 |
 | `StreamSource` | MediaMTX 自动发现和在线状态 |
 
@@ -159,7 +160,7 @@
 
 | 问题 | 建议 |
 | --- | --- |
-| pending command 覆盖 | 考虑添加 command version 或队列表 |
+| `ControlCommand` 并发领取 | 保留条件更新、每目标单执行中记录和 `(target, status, id)` 索引 |
 | 高频状态写入 | 对 `last_updated_at` 和窗口 ID 做索引 |
 | SSE 轮询成本 | 可引入 Redis/pubsub，但保留快照格式 |
 | Player 和 Web DB 连接 | 确保播放器进程能访问目标 DB 和配置 |
@@ -173,7 +174,7 @@
 | 响应 | 保留 `success`、`detail`、`code` 和统一快照结构 |
 | 认证 | 可接目标 SSO，但前端仍需要 JSON 401，不要 redirect HTML |
 | CSRF | 如果仍用 Cookie session，保留 `auth/csrf/` 或等价机制 |
-| SSE | 保留 `playback_state` 事件名和 sessions/background_audio payload |
+| SSE | 保留 `playback_state` 事件名和 sessions/background_audio/commands payload |
 | gRPC | 如有中控设备，保持 proto 兼容；如无，至少保留 REST 等价能力 |
 | OpenAPI | 更新 `docs/openapi.yaml` 并让前端类型同步 |
 
@@ -191,7 +192,7 @@
 | 预热认领 | 现场切换性能关键 |
 | 背景音频独立播放器 | 音频源不能占用显示窗口 |
 
-如果目标项目希望替换 DB 轮询为队列，应保留一个兼容层，让旧服务层写入的 `PlaybackCommand` 能被播放器消费。
+如果目标项目希望用消息系统替换 DB 轮询，应保留 `ControlCommand` 的持久结果投影、目标内有序领取、取消和确认合同；`PlaybackSession.pending_command/command_args` 仅作为一个稳定版本的只读兼容镜像。
 
 ## 前端迁移策略
 
@@ -214,7 +215,7 @@
 | 目标项目认证返回 HTML 登录页 | API 客户端 JSON 解析失败 | API namespace 使用 JSON 401 |
 | 目标项目统一静态存储不是本地路径 | 播放器打不开本地文件 | 为播放器提供本地缓存或路径映射 |
 | 目标项目部署在非 Windows | 播放器和 Office 后端不可用 | Web 后端可跨平台，播放器节点仍需 Windows |
-| 单字段命令总线未改进 | 高频操作覆盖 | 迁移时加版本号或队列，但保留兼容写法 |
+| 丢失命令队列确认语义 | 连续操作丢失或 UI 误报成功 | 保留 `ControlCommand` 的顺序、状态、取消、错误和命令 ID 回执 |
 | 组件替换改变移动端流程 | 现场操作效率下降 | 先做真实设备可用性测试 |
 | 删除 gRPC | 中控系统或脚本失效 | 迁移前确认外部消费者 |
 | 忽略 MediaMTX 自动发现 | 直播源不可见 | 保留 `sync_stream_states()` 和 `sync_streams_to_media_sources()` |

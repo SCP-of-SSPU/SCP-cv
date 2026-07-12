@@ -12,6 +12,10 @@ from __future__ import annotations
 import grpc
 
 from scp_cv.grpc_generated.scp_cv.v1 import control_pb2
+from scp_cv.services.command_status import (
+    capture_enqueued_commands,
+    control_command_payloads,
+)
 from scp_cv.services.scenario import (
     ScenarioError,
     activate_scenario,
@@ -23,6 +27,7 @@ from scp_cv.services.scenario import (
 )
 
 from .helpers import (
+    _command_state_to_proto,
     _error_reply,
     _publish_playback_state_event,
     _scenario_dict_to_proto,
@@ -193,19 +198,31 @@ class ScenarioMixin:
                 success=False, message="scenario_id 必须大于 0",
             )
 
-        try:
-            session_snapshots = activate_scenario(int(request.scenario_id))
-            session_protos = [_snapshot_to_proto(s) for s in session_snapshots]
-            _publish_playback_state_event()
-            return control_pb2.ActivateScenarioReply(
-                success=True,
-                message="预案激活成功",
-                sessions=session_protos,
-            )
-        except ScenarioError as act_err:
-            return control_pb2.ActivateScenarioReply(
-                success=False, message=str(act_err),
-            )
+        with capture_enqueued_commands() as accepted_commands:
+            try:
+                session_snapshots = activate_scenario(int(request.scenario_id))
+            except ScenarioError as act_err:
+                command_payloads = control_command_payloads(accepted_commands)
+                _publish_playback_state_event()
+                return control_pb2.ActivateScenarioReply(
+                    success=False,
+                    message=str(act_err),
+                    commands=[
+                        _command_state_to_proto(command)
+                        for command in command_payloads
+                    ],
+                )
+        session_protos = [_snapshot_to_proto(s) for s in session_snapshots]
+        command_payloads = control_command_payloads(accepted_commands)
+        _publish_playback_state_event()
+        return control_pb2.ActivateScenarioReply(
+            success=True,
+            message="预案激活指令已接受",
+            sessions=session_protos,
+            commands=[
+                _command_state_to_proto(command) for command in command_payloads
+            ],
+        )
 
     def CaptureScenario(
         self,

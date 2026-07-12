@@ -1,0 +1,34 @@
+type: object
+required:
+  - id
+  - target
+  - command
+  - status
+  - error_message
+properties:
+  id:
+    type: integer
+    format: int64
+    minimum: 1
+    description: 持久化 ControlCommand 主键；受理响应与后续状态流使用同一 ID
+  target:
+    type: string
+    enum:
+      - window:1
+      - window:2
+      - window:3
+      - window:4
+      - background_audio
+  command:
+    type: string
+  status:
+    type: string
+    enum:
+      - pending
+      - executing
+      - succeeded
+      - failed
+      - cancelled
+  error_message:
+    type: string
+    description: failed 或 cancelled 时的错误或取消原因；其他状态通常为空串

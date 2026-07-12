@@ -13,6 +13,10 @@ import grpc
 from django.conf import settings
 
 from scp_cv.grpc_generated.scp_cv.v1 import control_pb2
+from scp_cv.services.command_status import (
+    capture_enqueued_commands,
+    control_command_payloads,
+)
 from scp_cv.services.playback import (
     PlaybackError,
     control_playback,
@@ -55,9 +59,13 @@ class PlaybackControlMixin:
             return _error_reply("无效的播放控制动作")
 
         try:
-            control_playback(window_id, action)
+            with capture_enqueued_commands() as accepted_commands:
+                control_playback(window_id, action)
             _publish_playback_state_event()
-            return _success_reply(message=f"窗口 {window_id} 已发送 {action} 指令")
+            return _success_reply(
+                message=f"窗口 {window_id} {action} 指令已接受",
+                commands=control_command_payloads(accepted_commands),
+            )
         except PlaybackError as playback_err:
             return _error_reply(str(playback_err))
 
@@ -78,14 +86,18 @@ class PlaybackControlMixin:
             return _error_reply("无效的导航动作")
 
         try:
-            navigate_content(
-                window_id=window_id,
-                action=action,
-                target_index=request.target_index,
-                position_ms=request.position_ms,
-            )
+            with capture_enqueued_commands() as accepted_commands:
+                navigate_content(
+                    window_id=window_id,
+                    action=action,
+                    target_index=request.target_index,
+                    position_ms=request.position_ms,
+                )
             _publish_playback_state_event()
-            return _success_reply(message=f"窗口 {window_id} 已发送 {action} 指令")
+            return _success_reply(
+                message=f"窗口 {window_id} {action} 指令已接受",
+                commands=control_command_payloads(accepted_commands),
+            )
         except PlaybackError as playback_err:
             return _error_reply(str(playback_err))
 
@@ -155,9 +167,13 @@ class PlaybackControlMixin:
         :return: OperationReply
         """
         try:
-            stop_current_content(_DEFAULT_WINDOW_ID)
+            with capture_enqueued_commands() as accepted_commands:
+                stop_current_content(_DEFAULT_WINDOW_ID)
             _publish_playback_state_event()
-            return _success_reply(message="播放已停止")
+            return _success_reply(
+                message=f"窗口 {_DEFAULT_WINDOW_ID} 关闭指令已接受",
+                commands=control_command_payloads(accepted_commands),
+            )
         except PlaybackError as playback_err:
             return _error_reply(str(playback_err))
 
@@ -174,11 +190,14 @@ class PlaybackControlMixin:
         """
         window_id = _extract_window_id(request)
         try:
-            toggle_loop_playback(window_id, request.enabled)
+            with capture_enqueued_commands() as accepted_commands:
+                toggle_loop_playback(window_id, request.enabled)
             state_label = "开启" if request.enabled else "关闭"
             _publish_playback_state_event()
             return _success_reply(
-                message=f"窗口 {window_id} 循环播放已{state_label}",
+                message=f"窗口 {window_id} 循环设置指令已接受",
+                detail=f"请求设置为{state_label}",
+                commands=control_command_payloads(accepted_commands),
             )
         except PlaybackError as playback_err:
             return _error_reply(str(playback_err))
@@ -195,16 +214,15 @@ class PlaybackControlMixin:
         :param context: gRPC 服务上下文
         :return: OperationReply
         """
-        from scp_cv.apps.playback.models import PlaybackCommand as PBCmd
-        from scp_cv.services.playback import VALID_WINDOW_IDS, get_or_create_session
+        from scp_cv.services.playback import request_show_window_ids
 
-        for wid in VALID_WINDOW_IDS:
-            session = get_or_create_session(wid)
-            session.pending_command = PBCmd.SHOW_ID
-            session.command_args = {}
-            session.save(update_fields=["pending_command", "command_args"])
+        with capture_enqueued_commands() as accepted_commands:
+            request_show_window_ids()
         _publish_playback_state_event()
-        return _success_reply(message="窗口 ID 显示指令已下发")
+        return _success_reply(
+            message="窗口 ID 显示指令已接受",
+            commands=control_command_payloads(accepted_commands),
+        )
 
     def GetAllSessionSnapshots(
         self,

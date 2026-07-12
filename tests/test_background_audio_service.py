@@ -20,6 +20,9 @@ from scp_cv.apps.playback.models import (
     BackgroundAudioCommand,
     BackgroundAudioPlaylistItem,
     BackgroundAudioState,
+    ControlCommand,
+    ControlCommandStatus,
+    ControlCommandTarget,
     MediaSource,
     PlaybackState,
 )
@@ -29,6 +32,7 @@ from scp_cv.services.background_audio import (
     play_source,
     remove_playlist_item,
     resume_background_audio,
+    set_background_audio_volume,
     stop_background_audio,
 )
 from scp_cv.services.media import add_uploaded_file
@@ -48,6 +52,24 @@ def test_play_source_adds_playlist_and_opens_audio(media_source_audio: MediaSour
     assert state.pending_command == BackgroundAudioCommand.OPEN
     assert state.command_args["source_id"] == media_source_audio.pk
     assert state.command_args["uri"] == media_source_audio.uri
+
+
+@pytest.mark.django_db
+def test_background_volume_replaces_matching_pending_setting() -> None:
+    """连续调整背景音量时只保留一条尚未领取的音量指令。"""
+    set_background_audio_volume(20)
+
+    set_background_audio_volume(80)
+
+    queued = list(
+        ControlCommand.objects.filter(
+            target=ControlCommandTarget.BACKGROUND_AUDIO,
+            command=BackgroundAudioCommand.SET_VOLUME,
+            status=ControlCommandStatus.PENDING,
+        )
+    )
+    assert len(queued) == 1
+    assert queued[0].arguments == {"volume": 80}
 
 
 @pytest.mark.django_db
@@ -168,8 +190,17 @@ def test_background_audio_play_source_api(media_source_audio: MediaSource) -> No
     )
 
     assert response.status_code == 200
-    payload = response.json()["background_audio"]
+    response_payload = response.json()
+    payload = response_payload["background_audio"]
     assert payload["state"]["source_id"] == media_source_audio.pk
     assert payload["state"]["pending_command"] == BackgroundAudioCommand.OPEN
     assert payload["playlist"][0]["source_id"] == media_source_audio.pk
     assert BackgroundAudioState.get_instance().current_source_id == media_source_audio.pk
+    queued = ControlCommand.objects.get(target=ControlCommandTarget.BACKGROUND_AUDIO)
+    assert response_payload["commands"] == [{
+        "id": queued.pk,
+        "target": ControlCommandTarget.BACKGROUND_AUDIO,
+        "command": BackgroundAudioCommand.OPEN,
+        "status": ControlCommandStatus.PENDING,
+        "error_message": "",
+    }]
