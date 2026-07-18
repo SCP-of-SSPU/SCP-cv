@@ -75,6 +75,8 @@ type config.toml
 uv run python manage.py migrate
 ```
 
+首次登录使用 `config.toml` 中的一次性引导管理员。登录后请立即在“设置 → 账户安全”修改密码；登录页不会再展示默认口令。修改成功后当前浏览器会话保持登录，后续数据库迁移不会覆盖已修改的密码。
+
 第三方运行时按以下约定放置：
 
 - `tools/third_party/mediamtx/mediamtx.exe`：MediaMTX 主程序，配置文件同目录放置。
@@ -158,6 +160,8 @@ uv run python manage.py runall --headless --window1 1 --window2 2 --window3 3 --
 
 `--headless` 默认把窗口 1/2/3/4 分别映射到 Windows 显示器 ID 1/2/3/4；`runall --headless` 会为每个窗口启动独立 PySide 播放器进程，隔离 PowerPoint COM 生命周期，避免多窗口 PPT 串扰。未传 `--gpu` 时使用系统默认 GPU。`--window3` 与兼容别名 `--windows3` 等价。
 如果通过 SSH、OpenSSH 服务或其它非控制台会话远程启动，直接运行 `--headless` 无法访问物理显示器；请使用 `uv run python manage.py runall --headless --service`，系统会在当前登录用户的交互桌面中拉起真实 runall。
+
+控制台顶栏会分别显示“控制链路”和“播放器”状态：前者只表示 SSE 已连接，后者由每个 PySide 播放窗口的数据库心跳判断。只有播放器在线时，才代表控制命令有实际画面执行端。
 
 分进程调试：
 

@@ -69,6 +69,7 @@ REST 和 gRPC 都委托同一服务层。迁移时应避免为 REST 和 gRPC 复
 | POST | `/api/auth/login/` | 用户名密码登录 |
 | POST | `/api/auth/logout/` | 幂等退出 |
 | GET | `/api/auth/me/` | 当前用户 |
+| POST | `/api/auth/change-password/` | 校验当前密码并修改密码，保持当前 session |
 
 ### Media folders and sources
 
@@ -169,7 +170,7 @@ REST 和 gRPC 都委托同一服务层。迁移时应避免为 REST 和 gRPC 复
 - 拒绝把 audio 源打开到显示窗口。
 - PPT 源选择播放缓存 URI，并统一使用 PowerPoint。
 - 设置 session 为 `loading`。
-- 写 `pending_command=open` 和完整 `command_args`。
+- 原子写入 `PlaybackCommandRecord` 持久队列，并同步投影 `pending_command=open` 与完整 `command_args` 供旧客户端兼容。
 
 ### 导航
 

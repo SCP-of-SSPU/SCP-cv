@@ -56,6 +56,8 @@ paths:
     $ref: './paths/auth_logout_.yaml'
   /auth/me/:
     $ref: './paths/auth_me_.yaml'
+  /auth/change-password/:
+    $ref: './paths/auth_change-password_.yaml'
   /folders/:
     $ref: './paths/folders_.yaml'
   /folders/{folder_id}/:

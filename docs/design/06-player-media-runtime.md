@@ -10,7 +10,7 @@
 
 ```text
 Django 服务层
-  -> PlaybackSession.pending_command / command_args
+  -> PlaybackCommandRecord 持久队列（PlaybackSession.pending_command 为兼容投影）
   -> PySide6 PlayerController 轮询
   -> Qt 主线程执行 adapter 命令
   -> AdapterState 写回 PlaybackSession
@@ -67,7 +67,9 @@ Django 服务层
 | `_last_reported_states` | 状态签名去重 |
 | `sig_dispatch_command` | 后台轮询线程到 Qt 主线程的命令信号 |
 
-轮询线程约 0.2 秒一轮，读取 `PlaybackSession.pending_command`。发现命令后会发射 Qt signal，并立即清空 pending command。执行失败不会恢复 pending command，而是通过 `playback_state=error` 和 `error_message` 写回。
+轮询线程约 0.2 秒一轮，按 ID 领取 `PlaybackCommandRecord`。发射 Qt signal 后确认并删除该记录，再把下一条投影到 `PlaybackSession.pending_command`。连续翻页会保序；音量、静音、循环和 Seek 会合并为最新值；OPEN/CLOSE/RESET_PPT 会淘汰旧画面的未执行控制命令。执行失败不会重新入队，而是通过 `playback_state=error` 和 `error_message` 写回；若切源失败并恢复旧 adapter，会同时把会话 source 恢复为实际可见源。
+
+播放器每 2 秒更新其实际托管窗口的 `player_last_seen_at`。REST/SSE 快照以 5 秒 TTL 计算 `player_online`，前端必须把它与 SSE 控制链路状态分别展示，不能用 SSE 在线代替播放器在线。
 
 状态回写由 `_report_all_adapter_states()` 统一执行。它会检查 adapter 是否仍对应当前 session 的 `media_source_id`，并只在状态签名变化时调用 `update_playback_progress()`。
 
