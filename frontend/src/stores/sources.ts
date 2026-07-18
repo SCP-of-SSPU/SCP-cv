@@ -132,7 +132,7 @@ export const useSourceStore = defineStore('sources', {
         this.transientSources = [
           payload.source,
           ...this.transientSources.filter((source) => source.id !== payload.source.id),
-        ];
+        ].slice(0, 8);
       } else if (isVisibleSource(payload.source)) {
         this.sources = [payload.source, ...this.sources];
       }
