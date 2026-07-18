@@ -234,6 +234,10 @@
   font-weight: 600;
 }
 
+.sources-view__on-air {
+  margin-top: 3px;
+}
+
 .sources-view__uri {
   margin: 0;
   font-size: var(--fontSizeBase200);

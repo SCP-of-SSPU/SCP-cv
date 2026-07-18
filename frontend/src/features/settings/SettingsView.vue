@@ -13,8 +13,9 @@ import RuntimeSettingsTab from './tabs/RuntimeSettingsTab.vue';
 import DisplaySettingsTab from './tabs/DisplaySettingsTab.vue';
 import DevicePowerSettingsTab from './tabs/DevicePowerSettingsTab.vue';
 import DevSettingsTab from './tabs/DevSettingsTab.vue';
+import AccountSettingsTab from './tabs/AccountSettingsTab.vue';
 
-type SettingsTab = 'runtime' | 'display' | 'devices' | 'dev';
+type SettingsTab = 'runtime' | 'display' | 'devices' | 'account' | 'dev';
 
 const { t } = useI18n();
 const toast = useToast();
@@ -59,6 +60,9 @@ const portsCaption = computed(() =>
       </n-tab-pane>
       <n-tab-pane name="devices" :tab="t('settings.tabDevices')">
         <DevicePowerSettingsTab />
+      </n-tab-pane>
+      <n-tab-pane name="account" :tab="t('settings.tabAccount')">
+        <AccountSettingsTab />
       </n-tab-pane>
       <n-tab-pane name="dev" :tab="t('settings.tabDev')">
         <DevSettingsTab />

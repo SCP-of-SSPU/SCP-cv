@@ -53,6 +53,10 @@ function changeTarget(value: string): void {
   void router.push(`/display/${value}`);
 }
 
+function handleSourceOpened(): void {
+  if (isMobile.value) mobileTab.value = 'control';
+}
+
 async function switchToDouble(): Promise<void> {
   await runtime.setBigScreenMode('double');
 }
@@ -107,7 +111,7 @@ const segmentValue = computed({
     <template v-else-if="isMobile">
       <n-tabs v-model:value="mobileTab" type="line" :aria-label="t('display.viewSwitchAria')">
         <n-tab-pane name="source" :tab="t('display.tabSource')">
-          <SourcePicker :window-id="currentSession.window_id" />
+          <SourcePicker :window-id="currentSession.window_id" @opened="handleSourceOpened" />
         </n-tab-pane>
         <n-tab-pane name="control" :tab="t('display.tabControl')">
           <PlaybackControl :session="currentSession" />
@@ -117,7 +121,7 @@ const segmentValue = computed({
 
     <template v-else>
       <div class="display-view__columns">
-        <SourcePicker :window-id="currentSession.window_id" />
+        <SourcePicker :window-id="currentSession.window_id" @opened="handleSourceOpened" />
         <n-card class="display-view__playback">
           <PlaybackControl :session="currentSession" />
         </n-card>

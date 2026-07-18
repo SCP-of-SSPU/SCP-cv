@@ -56,7 +56,7 @@ interface PptSlideRailItem {
 const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
-const { isLandscape, isMobile } = useBreakpoint();
+const { isLandscape } = useBreakpoint();
 const runtimeStore = useRuntimeStore();
 const sessionStore = useSessionStore();
 const toast = useToast();
@@ -75,7 +75,6 @@ const windowId = computed(() => Number.parseInt(String(route.params.windowId ?? 
 const session = computed(() => sessionStore.byWindowId(windowId.value));
 const pptSourceId = computed(() => (session.value?.source_type === 'ppt' ? session.value.source_id : null));
 const orientationKey = computed<'landscape' | 'portrait'>(() => (isLandscape.value ? 'landscape' : 'portrait'));
-const isRemoteMode = computed(() => isMobile.value);
 
 const slidesProgress = computed(() => ({
   total: session.value?.total_slides ?? 0,
@@ -322,7 +321,7 @@ async function jumpToSlide(pageIndex: number): Promise<void> {
   }
 }
 
-async function controlSelectedMedia(action: 'play' | 'pause'): Promise<void> {
+async function controlSelectedMedia(action: 'play' | 'pause' | 'stop'): Promise<void> {
   if (!session.value || !selectedMedia.value) {
     if (currentMediaItems.value.length > 1) {
       toast.info(t('pptFocus.pickMediaFirst'));
@@ -405,9 +404,9 @@ function exitFocus(): void {
       </template>
 
       <template v-else>
-        <div class="ppt-focus__layout" :class="{ 'ppt-focus__layout--remote': isRemoteMode }">
+        <div class="ppt-focus__layout">
           <PptSlideRail
-            v-if="isLandscape && !isRemoteMode"
+            v-if="isLandscape"
             class="ppt-focus__slide-rail"
             :items="thumbnailItems"
             :current-page="slidesProgress.current"
@@ -415,7 +414,7 @@ function exitFocus(): void {
             @jump="jumpToSlide"
           />
 
-          <figure v-if="!isRemoteMode" class="ppt-focus__current">
+          <figure class="ppt-focus__current">
             <img v-if="slideImage" :src="slideImage" :alt="t('pptFocus.pageAlt', { n: slidesProgress.current })" />
             <div v-else class="ppt-focus__current-fallback">
               <FIcon name="document_24_regular" />
@@ -424,13 +423,13 @@ function exitFocus(): void {
           </figure>
 
           <aside class="ppt-focus__side">
-            <div v-if="!isRemoteMode" class="ppt-focus__next">
+            <div class="ppt-focus__next">
               <p class="ppt-focus__side-eyebrow">{{ t('pptFocus.nextEyebrow') }}</p>
               <img v-if="nextSlideImage" :src="nextSlideImage" :alt="t('pptFocus.nextAlt')" />
               <div v-else class="ppt-focus__next-fallback">{{ nextSlideNumber ?? '—' }}</div>
             </div>
 
-            <div v-if="!isRemoteMode" class="ppt-focus__progress">
+            <div class="ppt-focus__progress">
               <p class="ppt-focus__side-eyebrow">{{ t('pptFocus.progressEyebrow') }}</p>
               <template v-if="slidesProgress.total > 0">
                 <n-progress type="line" :percentage="slidesProgressPercentage" />
@@ -475,6 +474,10 @@ function exitFocus(): void {
           <n-button type="primary" :disabled="!canControlSelectedMedia" @click="controlSelectedMedia('play')">
             <template #icon><FIcon name="play_24_regular" /></template>
             <span class="ppt-focus__control-label">{{ t('pptFocus.playMedia') }}</span>
+          </n-button>
+          <n-button type="error" :disabled="!canControlSelectedMedia" @click="controlSelectedMedia('stop')">
+            <template #icon><FIcon name="stop_24_regular" /></template>
+            <span class="ppt-focus__control-label">{{ t('pptFocus.stopMedia') }}</span>
           </n-button>
           <n-button @click="nav('next')">
             <template #icon><FIcon name="next_24_regular" /></template>

@@ -27,6 +27,10 @@ export const useSessionStore = defineStore('sessions', {
     sessions: [],
   }),
   getters: {
+    /** 至少一个输出窗口播放器在最近心跳窗口内在线。 */
+    hasOnlinePlayer: (state): boolean => state.sessions.some((session) => session.player_online),
+    /** 当前在线的物理输出窗口数。 */
+    onlinePlayerCount: (state): number => state.sessions.filter((session) => session.player_online).length,
     /** 按 window_id 提供 O(1) 查询。 */
     byWindowId(state): (windowId: number) => SessionSnapshot | undefined {
       const cache = new Map<number, SessionSnapshot>();

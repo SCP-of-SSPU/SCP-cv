@@ -27,12 +27,16 @@ export default {
     primaryNav: '主导航',
     systemMuted: '系统静音',
     sse: {
-      connected: '实时已连接',
+      connected: '控制链路已连接',
       connecting: '建立连接…',
       reconnecting: '断开重连中',
       closed: '连接已关闭',
       reconnectingLong: '正在自动重连',
       connectingLong: '建立连接中',
+    },
+    player: {
+      online: '播放器 {count}/4 在线',
+      offline: '播放器离线',
     },
   },
   screen: {
@@ -133,7 +137,7 @@ export default {
     loginSuccess: '欢迎回来，{name}',
     loginFail: '登录失败',
     sessionExpired: '会话已过期，请重新登录',
-    defaultHint: '默认账号 admin / admin，登录后请尽快修改密码',
+    defaultHint: '首次部署请使用管理员提供的账号登录，并立即在“设置 → 账户”修改初始密码。',
     logoutOk: '已退出登录',
     logoutFail: '退出登录失败',
     logoutAction: '退出登录',

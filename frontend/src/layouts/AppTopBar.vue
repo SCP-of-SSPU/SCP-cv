@@ -10,6 +10,7 @@ import { NTag } from 'naive-ui';
 import EmergencyMenu from './EmergencyMenu.vue';
 import ThemeToggle from './ThemeToggle.vue';
 import { useRuntimeStore } from '@/stores/runtime';
+import { useSessionStore } from '@/stores/sessions';
 
 interface AppTopBarProps {
   scrolled: boolean;
@@ -19,6 +20,7 @@ defineProps<AppTopBarProps>();
 
 const { t } = useI18n();
 const runtime = useRuntimeStore();
+const sessions = useSessionStore();
 
 type NTagType = 'default' | 'primary' | 'info' | 'success' | 'warning' | 'error';
 
@@ -47,6 +49,11 @@ const sseLabel = computed(() => {
       return t('app.sse.closed');
   }
 });
+
+const playerType = computed<NTagType>(() => (sessions.hasOnlinePlayer ? 'success' : 'error'));
+const playerLabel = computed(() => (sessions.hasOnlinePlayer
+  ? t('app.player.online', { count: sessions.onlinePlayerCount })
+  : t('app.player.offline')));
 </script>
 
 <template>
@@ -65,6 +72,9 @@ const sseLabel = computed(() => {
       </n-tag>
       <n-tag :type="sseType" round size="small">
         {{ sseLabel }}
+      </n-tag>
+      <n-tag :type="playerType" round size="small">
+        {{ playerLabel }}
       </n-tag>
       <span v-if="runtime.systemVolume.muted" class="app-shell__mute">{{ t('app.systemMuted') }}</span>
       <ThemeToggle />

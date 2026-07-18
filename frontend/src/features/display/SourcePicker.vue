@@ -3,7 +3,7 @@
  * 显示控制页左侧「切换源」面板：
  *   - 顶部搜索 + 类型筛选 Pill；
  *   - List/Detail 风格列表，点击行直接打开到当前窗口；
- *   - 折叠的「上传并打开」区域：上传后保存到媒体源并立即打开。
+ *   - 折叠的「上传并打开」区域：创建临时源并立即打开，结束后由后端清理。
  */
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -29,6 +29,7 @@ import SourceThumbnail from '../sources/SourceThumbnail.vue';
 import { sourceCategoryLabel } from '../sources/sourcePresentation';
 
 const props = defineProps<{ windowId: number }>();
+const emit = defineEmits<{ (event: 'opened'): void }>();
 
 const { t } = useI18n();
 const sourceStore = useSourceStore();
@@ -43,6 +44,7 @@ const fileToUpload = ref<File | null>(null);
 const fileDisplayName = ref('');
 const uploadProgress = ref(0);
 const uploading = ref(false);
+const switchingSourceId = ref<number | null>(null);
 const uploadError = ref('');
 const fileInputRef = ref<HTMLInputElement | null>(null);
 
@@ -59,12 +61,24 @@ const filteredSources = computed<MediaSourceItem[]>(() => {
   });
 });
 async function selectSource(source: MediaSourceItem): Promise<void> {
+  if (!source.is_available || switchingSourceId.value !== null) {
+    if (!source.is_available) toast.warning(t('sourcePicker.offline'), t('sourcePicker.offlineHint'));
+    return;
+  }
+  switchingSourceId.value = source.id;
   try {
     await sessionStore.openSource(props.windowId, source.id, true);
     toast.success(t('sourcePicker.openedOk', { name: source.name }));
+    emit('opened');
   } catch (error) {
     toast.error(t('sourcePicker.openFail'), error instanceof Error ? error.message : t('common.retry'));
+  } finally {
+    switchingSourceId.value = null;
   }
+}
+
+function isCurrentSource(source: MediaSourceItem): boolean {
+  return sessionStore.byWindowId(props.windowId)?.source_id === source.id;
 }
 
 function onFileSelect(event: Event): void {
@@ -83,7 +97,7 @@ async function uploadAndOpen(): Promise<void> {
   try {
     const result = await sourceStore.upload(fileToUpload.value, {
       name: fileDisplayName.value.trim() || undefined,
-      isTemporary: false,
+      isTemporary: true,
       onProgress: (percent) => {
         uploadProgress.value = percent;
       },
@@ -94,6 +108,7 @@ async function uploadAndOpen(): Promise<void> {
     } else {
       await sessionStore.openSource(props.windowId, result.id, true);
       toast.success(t('sourcePicker.uploadedOpened'), t('sourcePicker.sourceNameDetail', { name: result.name }));
+      emit('opened');
     }
     fileToUpload.value = null;
     fileDisplayName.value = '';
@@ -143,18 +158,31 @@ const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.v
         v-for="source in filteredSources"
         :key="source.id"
         class="source-picker__item"
-        :class="{ 'source-picker__item--unavailable': !source.is_available }"
-        @click="selectSource(source)"
+        :class="{
+          'source-picker__item--unavailable': !source.is_available,
+          'source-picker__item--active': isCurrentSource(source),
+          'source-picker__item--switching': switchingSourceId === source.id,
+        }"
       >
-        <SourceThumbnail :source="source" />
-        <div class="source-picker__meta">
-          <p class="source-picker__name">{{ source.name }}</p>
-          <p class="source-picker__sub">
-            <n-tag :type="source.is_available ? 'default' : 'error'" size="small" round>
-              {{ source.is_available ? sourceCategoryLabel(source) : t('sourcePicker.offline') }}
-            </n-tag>
-          </p>
-        </div>
+        <button
+          type="button"
+          class="source-picker__item-button"
+          :disabled="!source.is_available || switchingSourceId !== null"
+          :aria-current="isCurrentSource(source) ? 'true' : undefined"
+          @click="selectSource(source)"
+        >
+          <SourceThumbnail :source="source" />
+          <div class="source-picker__meta">
+            <p class="source-picker__name">{{ source.name }}</p>
+            <p class="source-picker__sub">
+              <n-tag v-if="isCurrentSource(source)" type="success" size="small" round>{{ t('sourcePicker.onAir') }}</n-tag>
+              <n-tag :type="source.is_available ? 'default' : 'error'" size="small" round>
+                {{ source.is_available ? sourceCategoryLabel(source) : t('sourcePicker.offline') }}
+              </n-tag>
+            </p>
+          </div>
+          <n-spin v-if="switchingSourceId === source.id" :size="18" />
+        </button>
       </li>
     </ul>
 
@@ -225,30 +253,48 @@ const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.v
 }
 
 .source-picker__item {
+  border-radius: var(--borderRadiusMedium);
+  border: 1px solid var(--colorNeutralStroke2);
+  background: var(--colorNeutralBackground1);
+  overflow: hidden;
+}
+
+.source-picker__item-button {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: var(--spacingHorizontalS);
   padding: var(--spacingVerticalS) var(--spacingHorizontalM);
-  border-radius: var(--borderRadiusMedium);
-  border: 1px solid var(--colorNeutralStroke2);
-  background: var(--colorNeutralBackground1);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
   cursor: pointer;
 }
 
-.source-picker__item:hover {
+.source-picker__item:hover:not(.source-picker__item--unavailable) {
   background: var(--colorBrandBackground2);
   border-color: var(--colorBrandStroke1);
 }
 
-.source-picker__item:focus-visible {
+.source-picker__item:has(.source-picker__item-button:focus-visible) {
   outline: none;
   border-color: var(--colorBrandBackground);
+  box-shadow: 0 0 0 2px var(--colorBrandBackground2);
 }
 
 .source-picker__item--unavailable {
   background: var(--colorNeutralBackground3);
-  cursor: not-allowed;
   opacity: 0.7;
+}
+
+.source-picker__item--unavailable .source-picker__item-button {
+  cursor: not-allowed;
+}
+
+.source-picker__item--active {
+  border-color: var(--colorStatusSuccessForeground1);
+  box-shadow: inset 3px 0 0 var(--colorStatusSuccessForeground1);
 }
 
 .source-picker__meta {

@@ -40,6 +40,8 @@ function isVisibleSource(source: MediaSourceItem): boolean {
 
 interface SourceState {
   sources: MediaSourceItem[];
+  /** 当前会话引用但不进入媒体库的临时上传源。 */
+  transientSources: MediaSourceItem[];
   /** 当前选中的类型 Tab；默认 all。 */
   category: SourceCategory;
   /** 名称/URL 即时搜索关键字。 */
@@ -49,10 +51,16 @@ interface SourceState {
 export const useSourceStore = defineStore('sources', {
   state: (): SourceState => ({
     sources: [],
+    transientSources: [],
     category: 'all',
     searchKeyword: '',
   }),
   getters: {
+    findById: (state) => (sourceId: number | null): MediaSourceItem | undefined => (
+      sourceId === null
+        ? undefined
+        : [...state.transientSources, ...state.sources].find((source) => source.id === sourceId)
+    ),
     /** 类型计数：用于侧栏 NavList / Pills 数字徽章。 */
     countByCategory(state): Record<SourceCategory, number> {
       const result: Record<SourceCategory, number> = {
@@ -120,7 +128,12 @@ export const useSourceStore = defineStore('sources', {
       const uploadOptions: UploadOptions = options.onProgress ? { onProgress: options.onProgress } : {};
       const payload = await api.uploadSource(formData, uploadOptions);
       // 仅持久源加入列表；临时源不入列表（避免出现在管理页）。
-      if (!options.isTemporary && isVisibleSource(payload.source)) {
+      if (options.isTemporary && isVisibleSource(payload.source)) {
+        this.transientSources = [
+          payload.source,
+          ...this.transientSources.filter((source) => source.id !== payload.source.id),
+        ];
+      } else if (isVisibleSource(payload.source)) {
         this.sources = [payload.source, ...this.sources];
       }
       return payload.source;

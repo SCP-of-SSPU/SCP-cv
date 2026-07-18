@@ -23,6 +23,7 @@ import {
 } from 'naive-ui';
 
 import FIcon from '@/design-system/FIcon.vue';
+import SourceThumbnail from '@/features/sources/SourceThumbnail.vue';
 import { useToast } from '@/composables/useToast';
 import { useThrottledSlider } from '@/composables/useThrottledSlider';
 import { useSessionStore } from '@/stores/sessions';
@@ -39,6 +40,7 @@ const sessionStore = useSessionStore();
 const sourceStore = useSourceStore();
 
 const category = computed(() => sourceStore.resolveCategory(props.session.source_type));
+const currentSource = computed(() => sourceStore.findById(props.session.source_id) ?? null);
 
 type NTagType = 'default' | 'primary' | 'info' | 'success' | 'warning' | 'error';
 
@@ -119,12 +121,15 @@ const windowVolume = useThrottledSlider(
   },
 );
 
-function onSeek(positionMs: number): void {
-  void call(
-    () => sessionStore.navigate(props.session.window_id, 'seek', 0, positionMs),
-    t('playback.seekFail'),
-  );
-}
+const seekValue = computed(() => Math.min(props.session.duration_ms, Math.max(0, props.session.position_ms)));
+
+const videoSeek = useThrottledSlider(
+  () => seekValue.value,
+  {
+    commit: (positionMs: number) => sessionStore.navigate(props.session.window_id, 'seek', 0, positionMs),
+    onError: (error) => toast.error(t('playback.seekFail'), error instanceof Error ? error.message : t('common.retry')),
+  },
+);
 
 function onClose(): void {
   void call(() => sessionStore.closeSource(props.session.window_id), t('playback.closeFail'));
@@ -148,7 +153,7 @@ async function loadPptResources(): Promise<void> {
 }
 
 watch(
-  () => [category.value, props.session.source_id, props.session.current_slide] as const,
+  () => [category.value, props.session.source_id] as const,
   loadPptResources,
   { immediate: true },
 );
@@ -174,8 +179,6 @@ const pptProgressPercentage = computed(() => {
   if (props.session.total_slides <= 0) return 0;
   return Math.round((props.session.current_slide / props.session.total_slides) * 100);
 });
-
-const seekValue = computed(() => Math.min(props.session.duration_ms, Math.max(0, props.session.position_ms)));
 
 const isPlaying = computed(() => props.session.playback_state === 'playing');
 
@@ -211,17 +214,20 @@ const errorBarDescription = computed(() => {
 <template>
   <div class="playback-control">
     <header class="playback-control__heading">
-      <div>
-        <n-tag :type="stateType" round size="small">
-          {{ session.playback_state_label || session.playback_state }}
-        </n-tag>
-        <h3 class="playback-control__source-name">
-          {{ session.source_name || t('playback.notOpened') }}
-        </h3>
-        <p class="playback-control__caption">
-          {{ session.source_type_label || t('playback.idle') }}
-          <template v-if="session.is_spliced">· {{ session.spliced_display_label || t('playback.spliced') }}</template>
-        </p>
+      <div class="playback-control__identity">
+        <SourceThumbnail v-if="currentSource" :source="currentSource" size="comfortable" />
+        <div>
+          <n-tag :type="stateType" round size="small">
+            {{ session.playback_state_label || session.playback_state }}
+          </n-tag>
+          <h3 class="playback-control__source-name">
+            {{ session.source_name || t('playback.notOpened') }}
+          </h3>
+          <p class="playback-control__caption">
+            {{ session.source_type_label || t('playback.idle') }}
+            <template v-if="session.is_spliced">· {{ session.spliced_display_label || t('playback.spliced') }}</template>
+          </p>
+        </div>
       </div>
       <RouterLink v-if="category === 'ppt' && session.source_id" :to="`/ppt-focus/${session.window_id}`"
         class="playback-control__focus-link">
@@ -229,6 +235,15 @@ const errorBarDescription = computed(() => {
         <span>{{ t('playback.focusLink') }}</span>
       </RouterLink>
     </header>
+
+    <section v-if="currentSource" class="playback-control__monitor" aria-live="polite">
+      <SourceThumbnail :source="currentSource" size="stage" />
+      <div class="playback-control__monitor-copy">
+        <span class="playback-control__monitor-eyebrow">{{ t('playback.currentOutput') }}</span>
+        <strong>{{ currentSource.name }}</strong>
+        <span>{{ t('playback.previewReference') }}</span>
+      </div>
+    </section>
 
     <n-alert v-if="showErrorBar" type="error" :title="errorBarTitle" closable @close="dismissErrorBar">
       <div class="playback-control__alert-body">
@@ -313,13 +328,14 @@ const errorBarDescription = computed(() => {
       </div>
       <div v-if="session.duration_ms > 0" class="playback-control__row playback-control__row--seek">
         <n-slider
-          :value="seekValue"
+          :value="videoSeek.value.value"
           :min="0"
           :max="session.duration_ms"
           :step="1000"
           :aria-label="t('playback.seekAria')"
           class="playback-control__seek"
-          @update:value="onSeek"
+          @update:value="videoSeek.handleInput"
+          @dragend="videoSeek.handleChange(videoSeek.value.value)"
         />
         <span class="playback-control__progress-label">
           {{ formatDuration(session.position_ms) }} / {{ formatDuration(session.duration_ms) }}
@@ -375,167 +391,4 @@ const errorBarDescription = computed(() => {
   </div>
 </template>
 
-<style scoped>
-.playback-control {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacingVerticalL);
-}
-
-.playback-control__heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--spacingHorizontalL);
-}
-
-.playback-control__source-name {
-  margin: var(--spacingVerticalXS) 0 0;
-  font-size: var(--fontSizeBase600);
-  line-height: var(--lineHeightBase600);
-  font-weight: 600;
-}
-
-.playback-control__caption {
-  margin: var(--spacingVerticalXS) 0 0;
-  color: var(--colorNeutralForeground2);
-  font-size: var(--fontSizeBase200);
-}
-
-.playback-control__focus-link {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacingHorizontalXS);
-  padding: var(--spacingVerticalS) var(--spacingHorizontalM);
-  border-radius: var(--borderRadiusMedium);
-  background: var(--colorBrandBackground2);
-  color: var(--colorBrandForeground1);
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.playback-control__focus-link:hover {
-  background: var(--colorBrandBackground);
-  color: #ffffff;
-}
-
-.playback-control__section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacingVerticalM);
-  padding: var(--spacingVerticalL);
-  border-radius: var(--borderRadiusLarge);
-  background: var(--colorNeutralBackground2);
-  border: 1px solid var(--colorNeutralStroke2);
-}
-
-.playback-control__row {
-  display: flex;
-  align-items: center;
-  gap: var(--spacingHorizontalM);
-  flex-wrap: wrap;
-}
-
-.playback-control__jump {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacingHorizontalS);
-  flex: 0 0 auto;
-}
-
-.playback-control__jump :deep(.n-input) {
-  width: 96px;
-}
-
-.playback-control__row--progress,
-.playback-control__row--seek {
-  align-items: center;
-  flex-wrap: nowrap;
-}
-
-.playback-control__progress,
-.playback-control__seek {
-  flex: 1 1 auto;
-}
-
-.playback-control__progress-label {
-  font-variant-numeric: tabular-nums;
-  color: var(--colorNeutralForeground2);
-  flex-shrink: 0;
-}
-
-.playback-control__switch {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacingHorizontalS);
-}
-
-.playback-control__media-title {
-  margin: 0;
-  font-size: var(--fontSizeBase400);
-  font-weight: 600;
-}
-
-.playback-control__media-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacingVerticalXS);
-}
-
-.playback-control__media-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacingHorizontalM);
-  padding: var(--spacingVerticalS) var(--spacingHorizontalM);
-  background: var(--colorNeutralBackground1);
-  border: 1px solid var(--colorNeutralStroke2);
-  border-radius: var(--borderRadiusMedium);
-}
-
-.playback-control__media-name {
-  flex: 1 1 auto;
-  font-weight: 500;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.playback-control__media-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacingHorizontalXS);
-}
-
-.playback-control__uri {
-  margin: 0;
-  font-family: var(--fontFamilyMonospace);
-  color: var(--colorNeutralForeground2);
-  word-break: break-all;
-}
-
-.playback-control__field-label {
-  flex: 0 0 96px;
-  font-weight: 600;
-}
-
-@media (max-width: 767px) {
-  .playback-control__heading {
-    flex-direction: column;
-    gap: var(--spacingVerticalS);
-  }
-
-  .playback-control__row {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .playback-control__field-label {
-    flex: 0 0 auto;
-  }
-}
-</style>
+<style scoped src="./PlaybackControl.css"></style>

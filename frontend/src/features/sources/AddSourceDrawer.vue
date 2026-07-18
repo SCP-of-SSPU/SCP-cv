@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * 添加源 Drawer / Sheet：仅暴露「上传文件」「网页」两个 Tab，并统一提供预热开关。
- * 两颗按钮分别表达「上传但不保存」与「上传并保存」。
+ * 文件上传统一保存为可管理媒体源；临时上传只在显示控制页“上传并打开”使用。
  */
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -93,7 +93,7 @@ function triggerFilePicker(): void {
   fileInputEl.value?.click();
 }
 
-async function uploadFile(persist: boolean): Promise<void> {
+async function uploadFile(): Promise<void> {
   if (!fileToUpload.value) {
     errorMessage.value = t('sources.add.pickFileFirst');
     return;
@@ -104,13 +104,13 @@ async function uploadFile(persist: boolean): Promise<void> {
   try {
     const result = await sourceStore.upload(fileToUpload.value, {
       name: fileDisplayName.value.trim() || undefined,
-      isTemporary: !persist,
+      isTemporary: false,
       preheatEnabled: filePreheatEnabled.value,
       onProgress: (percent) => {
         uploadProgress.value = percent;
       },
     });
-    toast.success(persist ? t('sources.add.uploadedSaved') : t('sources.add.uploadedNoSave'), t('sources.add.sourceNameDetail', { name: result.name }));
+    toast.success(t('sources.add.uploadedSaved'), t('sources.add.sourceNameDetail', { name: result.name }));
     emit('added');
     reset();
     close();
@@ -198,12 +198,8 @@ async function addWebSource(): Promise<void> {
         <div class="add-source__actions">
           <n-button :disabled="uploading" @click="close">{{ t('common.cancel') }}</n-button>
           <template v-if="activeTab === 'file'">
-            <n-button :disabled="uploading || !fileToUpload"
-              :loading="uploading && uploadProgress < 100" @click="() => uploadFile(false)">
-              {{ t('sources.add.uploadNoSave') }}
-            </n-button>
             <n-button type="primary" :disabled="uploading || !fileToUpload" :loading="uploading"
-              @click="() => uploadFile(true)">
+              @click="uploadFile">
               {{ t('sources.add.uploadSave') }}
             </n-button>
           </template>

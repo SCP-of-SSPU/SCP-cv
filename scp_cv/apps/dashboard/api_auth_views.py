@@ -15,6 +15,8 @@ import json
 from typing import Any
 
 from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.http import HttpRequest, JsonResponse
 from django.middleware.csrf import get_token
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
@@ -124,3 +126,24 @@ def me_api(request: HttpRequest) -> JsonResponse:
     if not user.is_authenticated:
         return _json({"detail": "未登录", "code": "unauthorized"}, status=401)
     return _json({"user": _user_payload(user)})
+
+
+@require_POST
+def change_password_api(request: HttpRequest) -> JsonResponse:
+    """校验旧密码并修改当前用户密码，成功后保持现有登录会话。"""
+    user = request.user
+    if not user.is_authenticated:
+        return _json({"detail": "未登录", "code": "unauthorized"}, status=401)
+    data = _parse_body(request)
+    current_password = str(data.get("current_password") or "")
+    new_password = str(data.get("new_password") or "")
+    if not user.check_password(current_password):
+        return _json({"detail": "当前密码错误", "code": "invalid_password"}, status=400)
+    try:
+        validate_password(new_password, user=user)
+    except ValidationError as validation_error:
+        return _json({"detail": "；".join(validation_error.messages), "code": "weak_password"}, status=400)
+    user.set_password(new_password)
+    user.save(update_fields=["password"])
+    login(request, user)
+    return _json({"detail": "密码已修改"})

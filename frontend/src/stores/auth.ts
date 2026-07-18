@@ -79,6 +79,9 @@ export const useAuthStore = defineStore('auth', {
         this.user = null;
       }
     },
+    async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+      await api.changePassword({ current_password: currentPassword, new_password: newPassword });
+    },
     /**
      * 由 401 全局回调触发的本地清场（不调网络）。
      * @return void

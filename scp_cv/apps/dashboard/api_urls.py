@@ -19,6 +19,7 @@ urlpatterns = [
     path("auth/login/", api_auth_views.login_api, name="auth_login"),
     path("auth/logout/", api_auth_views.logout_api, name="auth_logout"),
     path("auth/me/", api_auth_views.me_api, name="auth_me"),
+    path("auth/change-password/", api_auth_views.change_password_api, name="auth_change_password"),
     path("folders/", api_views.folders_api, name="folders"),
     path("folders/<int:folder_id>/", api_views.folder_detail_api, name="folder_detail"),
     path("sources/", api_views.list_sources_api, name="list_sources"),

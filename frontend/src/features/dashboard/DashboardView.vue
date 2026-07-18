@@ -23,9 +23,11 @@ import { useThrottledSlider } from '@/composables/useThrottledSlider';
 import { useToast } from '@/composables/useToast';
 import { useRuntimeStore } from '@/stores/runtime';
 import { useDeviceStore } from '@/stores/devices';
+import { useSessionStore } from '@/stores/sessions';
 
 const { t } = useI18n();
 const runtime = useRuntimeStore();
+const sessionStore = useSessionStore();
 const device = useDeviceStore();
 const toast = useToast();
 const dialog = useDialog();
@@ -85,7 +87,10 @@ const heroSubtitle = computed(() => {
       : runtime.sseStatus === 'connecting'
         ? t('app.sse.connectingLong')
         : t('app.sse.closed');
-  return `${runtime.bigScreenLabel} · ${sse}`;
+  const player = sessionStore.hasOnlinePlayer
+    ? t('app.player.online', { count: sessionStore.onlinePlayerCount })
+    : t('app.player.offline');
+  return `${runtime.bigScreenLabel} · ${sse} · ${player}`;
 });
 
 async function powerOnSplice(): Promise<void> {

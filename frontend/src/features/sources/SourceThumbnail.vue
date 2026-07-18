@@ -12,7 +12,7 @@ import { sourceCategoryIcon } from './sourcePresentation';
 
 const props = withDefaults(defineProps<{
   source: MediaSourceItem;
-  size?: 'compact' | 'comfortable';
+  size?: 'compact' | 'comfortable' | 'stage';
 }>(), {
   size: 'compact',
 });
@@ -71,6 +71,16 @@ function markFailed(): void {
 .source-thumbnail--comfortable {
   width: 48px;
   height: 36px;
+}
+
+.source-thumbnail--stage {
+  width: min(100%, 320px);
+  aspect-ratio: 16 / 9;
+  border-radius: var(--borderRadiusMedium);
+}
+
+.source-thumbnail--stage .source-thumbnail__icon {
+  font-size: 3rem;
 }
 
 .source-thumbnail--media {

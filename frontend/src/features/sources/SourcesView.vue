@@ -87,6 +87,10 @@ async function refresh(): Promise<void> {
 }
 
 async function openToWindow(source: MediaSourceItem, windowId: number): Promise<void> {
+  if (!source.is_available) {
+    toast.warning(t('sources.offline'), t('sources.unavailableCard'));
+    return;
+  }
   try {
     await sessionStore.openSource(windowId, source.id, true);
     toast.success(t('sources.openedOk', { id: windowId, name: source.name }));
@@ -159,6 +163,7 @@ function buildRowMenu(source: MediaSourceItem): DropdownOption[] {
         type: 'group',
         label: t('sources.openToWindow'),
         key: 'open-group',
+        disabled: !source.is_available,
         children: [1, 2, 3, 4].map((windowId) => ({
           label: t('sources.window', { id: windowId }),
           key: `open-${windowId}`,
@@ -193,6 +198,15 @@ function buildRowMenu(source: MediaSourceItem): DropdownOption[] {
       },
     },
   ];
+}
+
+function activeWindowLabel(sourceId: number): string {
+  const windows = sessionStore.sessions
+    .filter((session) => session.source_id === sourceId)
+    .map((session) => session.window_id)
+    .sort((left, right) => left - right)
+    .join('、');
+  return windows ? t('sources.onAirWindows', { windows }) : '';
 }
 
 function setCategory(value: SourceCategory): void {
@@ -311,6 +325,9 @@ const categoryModel = computed({
                       <SourceThumbnail :source="source" size="comfortable" />
                       <div>
                         <p class="sources-view__name">{{ source.name }}</p>
+                        <n-tag v-if="activeWindowLabel(source.id)" type="success" round size="small" class="sources-view__on-air">
+                          {{ activeWindowLabel(source.id) }}
+                        </n-tag>
                         <p v-if="source.uri" class="sources-view__uri">{{ source.uri }}</p>
                       </div>
                     </div>
@@ -363,6 +380,9 @@ const categoryModel = computed({
                 </template>
                 <div class="sources-view__card-meta">
                   <n-tag :type="sourceCategoryTone(source)" round size="small">{{ sourceCategoryLabel(source) }}</n-tag>
+                  <n-tag v-if="activeWindowLabel(source.id)" type="success" round size="small">
+                    {{ activeWindowLabel(source.id) }}
+                  </n-tag>
                   <span v-if="source.file_size">{{ formatBytes(source.file_size) }}</span>
                   <span>{{ formatRelativeTime(source.created_at) }}</span>
                 </div>

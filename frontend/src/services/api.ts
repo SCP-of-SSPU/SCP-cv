@@ -64,6 +64,8 @@ export interface SessionSnapshot {
   position_ms: number;
   duration_ms: number;
   pending_command: string;
+  player_online: boolean;
+  player_last_seen_at: string;
   last_updated_at: string;
   volume: number;
   is_muted: boolean;
@@ -429,6 +431,8 @@ export const api = {
     requestJson<{ user: AuthUser }>('/api/auth/login/', { method: 'POST', body: JSON.stringify(payload) }),
   logout: () => requestJson<{ detail: string }>('/api/auth/logout/', { method: 'POST' }),
   fetchMe: () => requestJson<{ user: AuthUser }>('/api/auth/me/'),
+  changePassword: (payload: { current_password: string; new_password: string }) =>
+    requestJson<{ detail: string }>('/api/auth/change-password/', { method: 'POST', body: JSON.stringify(payload) }),
   listFolders: () => requestJson<{ success: boolean; folders: MediaFolderItem[] }>('/api/folders/'),
   createFolder: (payload: { name: string; parent_id?: number | null }) => requestJson<{ success: boolean; folder: MediaFolderItem }>('/api/folders/', { method: 'POST', body: JSON.stringify(payload) }),
   updateFolder: (folderId: number, payload: { name?: string; parent_id?: number | null }) => requestJson<{ success: boolean; folder: MediaFolderItem }>(`/api/folders/${folderId}/`, { method: 'PATCH', body: JSON.stringify(payload) }),
