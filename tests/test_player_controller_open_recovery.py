@@ -606,6 +606,7 @@ def test_handle_open_keeps_previous_ppt_when_factory_fails(monkeypatch: pytest.M
     assert window.topmost == [True]
 
 
+@pytest.mark.django_db
 def test_handle_open_keeps_previous_ppt_when_window_handle_missing(monkeypatch: pytest.MonkeyPatch) -> None:
     """窗口句柄不可用时不应提前关闭旧 PPT，且应释放新 adapter。"""
     controller = PlayerController()

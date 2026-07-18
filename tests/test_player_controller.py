@@ -16,7 +16,12 @@ import pytest
 from scp_cv.apps.playback.models import MediaSource, PlaybackCommand, PlaybackState, SourceType
 from scp_cv.player.adapters.base import AdapterState
 from scp_cv.player.controller import PlayerController
-from scp_cv.services.playback import RESET_ALL_WINDOWS_ARG, get_or_create_session, get_session_snapshot, open_source
+from scp_cv.services.playback import (
+    RESET_ALL_WINDOWS_ARG,
+    get_or_create_session,
+    get_session_snapshot,
+    open_source,
+)
 
 
 class _StateAdapter:
@@ -162,6 +167,10 @@ class _SingleLoopController(PlayerController):
         """记录背景音频轮询，避免该线程边界测试访问数据库。"""
         self.checked_background_audio = True
 
+    def _touch_player_heartbeats_if_due(self) -> None:
+        """该线程边界测试不访问数据库。"""
+        return
+
     def _request_adapter_state_report(self) -> None:
         """记录状态上报请求，并结束轮询。"""
         self.report_requested = True
@@ -177,7 +186,7 @@ def test_poll_loop_requests_state_report_instead_of_reading_adapter_directly() -
     controller = _SingleLoopController()
     controller._poll_running = True
 
-    with patch("scp_cv.player.controller.time.sleep", return_value=None):
+    with patch("scp_cv.player.controller_polling.time.sleep", return_value=None):
         controller._poll_loop(interval_seconds=0)
 
     assert controller.checked_windows == [1]

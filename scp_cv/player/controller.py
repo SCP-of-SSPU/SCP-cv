@@ -24,7 +24,6 @@ from __future__ import annotations
 import itertools
 import logging
 import threading
-import time
 from typing import Callable, Optional
 
 from PySide6.QtCore import QObject, QRect, Signal, Slot
@@ -32,11 +31,12 @@ from PySide6.QtCore import QObject, QRect, Signal, Slot
 from scp_cv.player.adapters import SourceAdapter
 from scp_cv.player.background_audio_handlers import BackgroundAudioHandlersMixin
 from scp_cv.player.controller_handlers import PlayerCommandHandlersMixin
+from scp_cv.player.controller_polling import PlayerPollingMixin
 
 logger = logging.getLogger(__name__)
 
 
-class PlayerController(PlayerCommandHandlersMixin, BackgroundAudioHandlersMixin, QObject):
+class PlayerController(PlayerPollingMixin, PlayerCommandHandlersMixin, BackgroundAudioHandlersMixin, QObject):
     """
     多窗口播放器控制器。
 
@@ -102,6 +102,7 @@ class PlayerController(PlayerCommandHandlersMixin, BackgroundAudioHandlersMixin,
         # 轮询线程
         self._poll_thread: Optional[threading.Thread] = None
         self._poll_running = False
+        self._last_player_heartbeat_monotonic = 0.0
 
         # 每个窗口上一次已上报状态，避免轮询线程无变化时频繁写库。
         self._last_reported_states: dict[int, tuple[str, int, int, int, int]] = {}
@@ -376,66 +377,6 @@ class PlayerController(PlayerCommandHandlersMixin, BackgroundAudioHandlersMixin,
             except (RuntimeError, TypeError):
                 pass
 
-    # ═══════════════════ 轮询逻辑 ═══════════════════
-
-    def _poll_loop(self, interval_seconds: float) -> None:
-        """
-        DB 轮询主循环：遍历所有已注册窗口，读取 pending_command → 发射信号。
-        :param interval_seconds: 轮询间隔
-        """
-        import django
-        django.setup()
-
-        while self._poll_running:
-            try:
-                # 轮询所有已注册窗口的指令
-                for window_id in self.registered_window_ids:
-                    self._check_and_dispatch_command(window_id)
-                if self._enable_background_audio:
-                    self._check_and_dispatch_background_audio_command()
-                # COM 和 Qt 状态读取必须回到适配器创建时所在的 Qt 主线程。
-                self._request_adapter_state_report()
-            except Exception as poll_error:
-                logger.error("轮询处理异常：%s", poll_error)
-            time.sleep(interval_seconds)
-
-    def _request_adapter_state_report(self) -> None:
-        """请求 Qt 主线程上报适配器状态，避免跨线程访问 COM/Qt 对象。"""
-        with self._state_report_lock:
-            if self._state_report_pending:
-                return
-            self._state_report_pending = True
-        self.sig_report_states.emit()
-
-    def _check_and_dispatch_command(self, window_id: int) -> None:
-        """
-        读取指定窗口 DB 中的待执行指令，通过信号发射到 Qt 主线程。
-        :param window_id: 窗口编号
-        """
-        from scp_cv.apps.playback.models import PlaybackCommand, PlaybackSession
-
-        session = PlaybackSession.objects.filter(window_id=window_id).first()
-        if session is None:
-            return
-
-        pending = session.pending_command
-        if not pending or pending == PlaybackCommand.NONE:
-            return
-
-        command_args = dict(session.command_args or {})
-
-        logger.info(
-            "窗口 %d 轮询检测到指令：%s，参数=%s，发射到主线程",
-            window_id, pending, command_args,
-        )
-
-        # 通过 Qt 信号将指令调度到主线程执行（携带 window_id）
-        self.sig_dispatch_command.emit(window_id, pending, dict(command_args))
-
-        # 立即清除 DB 中的 pending_command
-        from scp_cv.services.playback import clear_pending_command
-        clear_pending_command(window_id)
-
     @Slot(int, str, dict)
     def _execute_command_on_main_thread(
         self,
@@ -518,61 +459,3 @@ class PlayerController(PlayerCommandHandlersMixin, BackgroundAudioHandlersMixin,
                 return True
             self._last_reset_all_token = reset_token
         return False
-
-    @Slot()
-    def _report_all_adapter_states(self) -> None:
-        """在 Qt 主线程读取所有活跃适配器状态并回写到 DB。"""
-        from scp_cv.services.playback import update_playback_progress
-
-        try:
-            for window_id, adapter in self._adapters.items():
-                if adapter is None or not adapter.is_open:
-                    continue
-                if not self._adapter_matches_current_session(window_id):
-                    logger.debug("窗口 %d adapter 源已过期，跳过本次状态上报", window_id)
-                    continue
-                try:
-                    adapter_state = adapter.get_state()
-                except Exception as state_error:
-                    logger.warning("窗口 %d 读取适配器状态失败：%s", window_id, state_error)
-                    continue
-                state_signature = (
-                    adapter_state.playback_state,
-                    adapter_state.error_message,
-                    adapter_state.current_slide,
-                    adapter_state.total_slides,
-                    adapter_state.position_ms,
-                    adapter_state.duration_ms,
-                )
-                if state_signature == self._last_reported_states.get(window_id):
-                    continue
-
-                update_playback_progress(
-                    window_id=window_id,
-                    playback_state=adapter_state.playback_state,
-                    error_message=adapter_state.error_message,
-                    current_slide=adapter_state.current_slide,
-                    total_slides=adapter_state.total_slides,
-                    position_ms=adapter_state.position_ms,
-                    duration_ms=adapter_state.duration_ms,
-                )
-                self._last_reported_states[window_id] = state_signature
-            if self._enable_background_audio:
-                self._report_background_audio_state()
-        finally:
-            with self._state_report_lock:
-                self._state_report_pending = False
-
-    def _adapter_matches_current_session(self, window_id: int) -> bool:
-        """
-        判断 adapter 是否仍对应当前会话源。
-        :param window_id: 窗口编号
-        :return: True 表示允许该 adapter 状态写回数据库
-        """
-        expected_source_id = self._adapter_source_ids.get(window_id)
-        if expected_source_id is None:
-            return True
-
-        from scp_cv.apps.playback.models import PlaybackSession
-        session = PlaybackSession.objects.filter(window_id=window_id).only("media_source_id").first()
-        return session is not None and session.media_source_id == expected_source_id

@@ -23,8 +23,6 @@ from scp_cv.apps.playback.models import (
     PlaybackState,
     SourceType,
 )
-from scp_cv.services.background_audio_payloads import get_background_audio_snapshot
-
 logger = logging.getLogger(__name__)
 
 

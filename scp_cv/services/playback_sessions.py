@@ -10,13 +10,16 @@
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 
+from django.utils import timezone
 from scp_cv.apps.playback.models import PlaybackSession, PlaybackState
 
 logger = logging.getLogger(__name__)
 
 # 有效的窗口编号范围（1-4 对应四个输出显示器）
 VALID_WINDOW_IDS = frozenset({1, 2, 3, 4})
+PLAYER_HEARTBEAT_TTL_SECONDS = 5
 
 
 class PlaybackError(Exception):
@@ -64,6 +67,11 @@ def get_session_snapshot(window_id: int) -> dict[str, object]:
     :return: 包含会话所有状态字段的字典
     """
     session = get_or_create_session(window_id)
+    heartbeat_deadline = timezone.now() - timedelta(seconds=PLAYER_HEARTBEAT_TTL_SECONDS)
+    player_online = bool(
+        session.player_last_seen_at
+        and session.player_last_seen_at >= heartbeat_deadline
+    )
 
     # 关联源信息按“无源”场景填充占位，前端可直接渲染而不需要二次判空。
     source_name = "无"
@@ -97,6 +105,8 @@ def get_session_snapshot(window_id: int) -> dict[str, object]:
         "position_ms": session.position_ms,
         "duration_ms": session.duration_ms,
         "pending_command": session.pending_command,
+        "player_online": player_online,
+        "player_last_seen_at": session.player_last_seen_at.isoformat() if session.player_last_seen_at else "",
         "last_updated_at": session.last_updated_at.isoformat() if session.last_updated_at else "",
         "volume": session.volume,
         "is_muted": session.is_muted,
@@ -110,3 +120,15 @@ def get_all_sessions_snapshot() -> list[dict[str, object]]:
     :return: 四个窗口的会话快照列表
     """
     return [get_session_snapshot(window_id) for window_id in sorted(VALID_WINDOW_IDS)]
+
+
+def touch_player_heartbeats(window_ids: list[int] | tuple[int, ...]) -> None:
+    """批量刷新播放器当前实际托管窗口的在线心跳。"""
+    normalized_ids = sorted({int(window_id) for window_id in window_ids if int(window_id) in VALID_WINDOW_IDS})
+    if not normalized_ids:
+        return
+    for window_id in normalized_ids:
+        get_or_create_session(window_id)
+    PlaybackSession.objects.filter(window_id__in=normalized_ids).update(
+        player_last_seen_at=timezone.now(),
+    )

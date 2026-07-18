@@ -83,6 +83,7 @@ class PlayerCommandHandlersMixin(PptOpenFlowMixin, PlayerWindowHelpersMixin):
                     previous_source_type,
                     previous_source_id,
                 )
+                self._update_session_error(window_id, "播放器窗口不可用")
                 logger.warning("窗口 %d 没有可用句柄，跳过 OPEN", window_id)
                 return
 
@@ -671,6 +672,13 @@ class PlayerCommandHandlersMixin(PptOpenFlowMixin, PlayerWindowHelpersMixin):
         from scp_cv.apps.playback.models import PlaybackSession
         session = PlaybackSession.objects.filter(window_id=window_id).first()
         if session is not None:
+            update_fields = ["playback_state", "error_message", "last_updated_at"]
+            visible_source_id = self._adapter_source_ids.get(window_id)
+            if visible_source_id is not None and session.media_source_id != visible_source_id:
+                # 新源打开失败时 _restore_previous_adapter 已恢复旧画面；会话必须同步
+                # 指回实际可见的旧源，否则前端会控制一个并未显示的源。
+                session.media_source_id = visible_source_id
+                update_fields.append("media_source")
             session.playback_state = "error"
             session.error_message = error_message
-            session.save(update_fields=["playback_state", "error_message", "last_updated_at"])
+            session.save(update_fields=update_fields)

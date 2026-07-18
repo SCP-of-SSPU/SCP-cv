@@ -401,11 +401,10 @@ def show_window_ids(request: HttpRequest) -> JsonResponse:
     :param request: HTTP 请求（POST）
     :return: JSON 响应
     """
+    from scp_cv.services.playback_commands import enqueue_playback_command
     for wid in VALID_WINDOW_IDS:
         session = get_or_create_session(wid)
-        session.pending_command = PlaybackCommand.SHOW_ID
-        session.command_args = {}
-        session.save(update_fields=["pending_command", "command_args"])
+        enqueue_playback_command(session, PlaybackCommand.SHOW_ID)
     return JsonResponse({"success": True})
 
 

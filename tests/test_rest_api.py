@@ -14,7 +14,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from unittest.mock import patch
 
-from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 
 import pytest
@@ -176,8 +175,14 @@ def test_reset_all_sessions_api_sets_windows_idle(media_source_ppt: MediaSource)
 
 
 @pytest.mark.django_db
-def test_shutdown_system_api_requests_close_and_marks_signal(media_source_ppt: MediaSource) -> None:
+def test_shutdown_system_api_requests_close_and_marks_signal(
+    media_source_ppt: MediaSource,
+    settings,
+    tmp_path: Path,
+) -> None:
     """POST /api/system/shutdown/ 应写入关闭信号并返回待机态会话。"""
+    settings.LOG_DIR = tmp_path / "logs"
+    settings.LOG_DIR.mkdir(parents=True, exist_ok=True)
     client = Client()
     signal_path = Path(settings.LOG_DIR) / "runall.shutdown"
     signal_path.write_text("", encoding="utf-8")

@@ -59,7 +59,11 @@ from scp_cv.services.playback import (
 )
 from scp_cv.services.volume import VolumeError, get_system_volume, set_system_volume
 
-_SYSTEM_SHUTDOWN_SIGNAL = Path(settings.LOG_DIR) / "runall.shutdown"
+def _system_shutdown_signal_path() -> Path:
+    """按当前 settings 解析关闭信号，允许测试隔离到临时目录。"""
+    signal_path = Path(settings.LOG_DIR) / "runall.shutdown"
+    signal_path.parent.mkdir(parents=True, exist_ok=True)
+    return signal_path
 
 
 @require_GET
@@ -323,11 +327,10 @@ def show_window_ids_api(request: HttpRequest) -> JsonResponse:
     :return: 操作后的会话状态
     """
     def apply_show_id() -> None:
+        from scp_cv.services.playback_commands import enqueue_playback_command
         for window_id in VALID_WINDOW_IDS:
             session = get_or_create_session(window_id)
-            session.pending_command = PlaybackCommand.SHOW_ID
-            session.command_args = {}
-            session.save(update_fields=["pending_command", "command_args"])
+            enqueue_playback_command(session, PlaybackCommand.SHOW_ID)
 
     return mutate_playback(apply_show_id)
 
@@ -392,7 +395,7 @@ def shutdown_system_api(request: HttpRequest) -> JsonResponse:
     :return: 当前会话状态
     """
     request_all_windows_close()
-    _SYSTEM_SHUTDOWN_SIGNAL.write_text("shutdown\n", encoding="utf-8")
+    _system_shutdown_signal_path().write_text("shutdown\n", encoding="utf-8")
     return json_response({
         "success": True,
         "sessions": get_all_sessions_snapshot(),

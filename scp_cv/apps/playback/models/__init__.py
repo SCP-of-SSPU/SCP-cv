@@ -21,7 +21,7 @@ from .enums import (
 )
 from .background_audio import BackgroundAudioPlaylistItem, BackgroundAudioState
 from .media import MediaFolder, MediaSource, PptResource
-from .session import PlaybackSession
+from .session import PlaybackCommandRecord, PlaybackSession
 from .scenario_models import Scenario
 from .runtime import RuntimeState
 
@@ -34,6 +34,7 @@ __all__ = [
     "MediaFolder",
     "MediaSource",
     "PlaybackCommand",
+    "PlaybackCommandRecord",
     "PlaybackMode",
     "PlaybackSession",
     "PlaybackState",

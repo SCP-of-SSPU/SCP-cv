@@ -120,6 +120,11 @@ class PlaybackSession(models.Model):
         blank=True,
         verbose_name="指令参数",
     )
+    player_last_seen_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="播放器最后心跳",
+    )
 
     # ── 时间戳 ──
     last_updated_at = models.DateTimeField(
@@ -135,3 +140,31 @@ class PlaybackSession(models.Model):
     def __str__(self) -> str:
         source_label = self.media_source.name if self.media_source else "无"
         return f"窗口{self.window_id} / {source_label} / {self.get_playback_state_display()}"
+
+
+class PlaybackCommandRecord(models.Model):
+    """按写入顺序持久化的播放器指令，避免单槽 pending_command 丢失操作。"""
+
+    session = models.ForeignKey(
+        PlaybackSession,
+        on_delete=models.CASCADE,
+        related_name="command_queue",
+        verbose_name="播放会话",
+    )
+    command = models.CharField(
+        max_length=32,
+        choices=PlaybackCommand.choices,
+        verbose_name="播放指令",
+    )
+    command_args = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name="指令参数",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
+
+    class Meta:
+        ordering = ["id"]
+        indexes = [models.Index(fields=["session", "id"], name="playback_cmd_session_idx")]
+        verbose_name = "播放指令队列项"
+        verbose_name_plural = "播放指令队列项"

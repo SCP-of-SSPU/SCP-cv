@@ -38,6 +38,7 @@ from scp_cv.services.playback import (
     stop_current_content,
     update_playback_progress,
 )
+from scp_cv.services.playback_sessions import touch_player_heartbeats
 from scp_cv.services.ppt_playback_cache import PPT_PLAYBACK_METADATA_KEY
 from scp_cv.services.video_wall import VideoWallError
 
@@ -90,6 +91,16 @@ class TestGetSessionSnapshot:
         assert snapshot["current_slide"] == 0
         assert snapshot["position_ms"] == 0
 
+    def test_player_online_requires_recent_player_heartbeat(self) -> None:
+        """SSE 在线不能冒充播放器在线；只有播放器心跳后窗口才应在线。"""
+        assert get_session_snapshot(1)["player_online"] is False
+
+        touch_player_heartbeats([1])
+
+        snapshot = get_session_snapshot(1)
+        assert snapshot["player_online"] is True
+        assert snapshot["player_last_seen_at"]
+
     def test_snapshot_with_source(self, media_source_ppt: MediaSource) -> None:
         """关联源后快照应反映源的信息。"""
         session = get_or_create_session(1)
@@ -118,7 +129,8 @@ class TestGetSessionSnapshot:
             "target_display_label", "spliced_display_label", "is_spliced",
             "error_message",
             "current_slide", "total_slides", "position_ms", "duration_ms",
-            "pending_command", "last_updated_at", "volume", "is_muted", "loop_enabled",
+            "pending_command", "player_online", "player_last_seen_at",
+            "last_updated_at", "volume", "is_muted", "loop_enabled",
         }
         assert set(snapshot.keys()) == required_keys
 
