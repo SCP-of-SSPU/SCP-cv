@@ -6,7 +6,7 @@ export default {
   settings: {
     brandEyebrow: 'SCP-cv',
     brandTitle: '播放控制台 · v{version}',
-    ports: 'REST :8000 · gRPC :50051 · MediaMTX :8890/9997 · Vite :{port}',
+    ports: 'REST :{backendPort} · gRPC :50051 · MediaMTX :8890/9997 · Vite :{frontendPort}',
     openLogs: '打开 logs/',
     openLogsAria: '桌面壳层未启用',
     report: '上报问题',

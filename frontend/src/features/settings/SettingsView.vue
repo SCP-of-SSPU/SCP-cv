@@ -8,6 +8,7 @@ import { useI18n } from 'vue-i18n';
 import { NButton, NTabPane, NTabs } from 'naive-ui';
 
 import FIcon from '@/design-system/FIcon.vue';
+import { getConnectionPorts } from '@/services/api';
 import { useToast } from '@/composables/useToast';
 import RuntimeSettingsTab from './tabs/RuntimeSettingsTab.vue';
 import DisplaySettingsTab from './tabs/DisplaySettingsTab.vue';
@@ -22,8 +23,9 @@ const toast = useToast();
 
 const activeTab = ref<SettingsTab>('runtime');
 const version = '1.0.0';
+const connectionPorts = getConnectionPorts();
 const portsCaption = computed(() =>
-  t('settings.ports', { port: import.meta.env.VITE_FRONTEND_PORT || '5173' }),
+  t('settings.ports', connectionPorts),
 );
 </script>
 

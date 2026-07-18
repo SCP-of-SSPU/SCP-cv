@@ -278,6 +278,21 @@ export function buildBackendUrl(path: string): string {
   return resolveBackendBase() + normalizedPath;
 }
 
+export function getConnectionPorts(): { backendPort: string; frontendPort: string } {
+  const configuredTarget = String(import.meta.env.VITE_BACKEND_TARGET || '').trim();
+  let backendPort = DEFAULT_BACKEND_PORT;
+  if (configuredTarget) {
+    try {
+      const configuredUrl = new URL(configuredTarget);
+      backendPort = configuredUrl.port || (configuredUrl.protocol === 'https:' ? '443' : '80');
+    } catch {
+      // 配置格式错误由实际 API 请求暴露；端口摘要保留默认值，避免设置页自身崩溃。
+    }
+  }
+  const frontendPort = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
+  return { backendPort, frontendPort };
+}
+
 function buildNonJsonError(statusCode: number, responseText: string): Error {
   const normalizedText = responseText.trim().replace(/\s+/g, ' ');
   const previewText = normalizedText.slice(0, 120) || t('api.emptyResponse');
