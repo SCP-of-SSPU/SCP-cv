@@ -58,9 +58,10 @@ RESET_ALL_WINDOWS_ARG = "reset_all_windows"
 RESET_TOKEN_ARG = "reset_token"
 
 
-def reset_all_sessions_to_idle() -> list[PlaybackSession]:
+def reset_all_sessions_to_idle(*, rebuild_players: bool = True) -> list[PlaybackSession]:
     """
-    将所有播放窗口重置为待机状态，并请求播放器重建窗口。
+    将所有播放窗口重置为待机状态。
+    :param rebuild_players: 是否向已运行播放器下发窗口重建指令；runall 启动前应为 False
     :return: 重置后的会话列表
     """
     reset_sessions: list[PlaybackSession] = []
@@ -70,9 +71,12 @@ def reset_all_sessions_to_idle() -> list[PlaybackSession]:
         session.save()
         clear_playback_command_queue(session)
         reset_sessions.append(session)
-    apply_runtime_audio_policy()
-    _request_player_windows_rebuild()
-    logger.info("已将所有窗口重置为待机状态，并请求播放器重建窗口")
+    if rebuild_players:
+        apply_runtime_audio_policy()
+        _request_player_windows_rebuild()
+        logger.info("已将所有窗口重置为待机状态，并请求播放器重建窗口")
+    else:
+        logger.info("启动前已将所有窗口和遗留指令重置为待机状态")
     return reset_sessions
 
 

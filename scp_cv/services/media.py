@@ -371,6 +371,9 @@ def sync_streams_to_media_sources() -> dict[str, int]:
                 uri=srt_url,
                 stream_identifier=stream.stream_identifier,
                 is_available=True,
+                # 自动发现的直播流生命周期短，默认不建立常驻 libVLC 连接。
+                # 用户仍可在媒体源设置中显式开启预热。
+                keep_alive=False,
             )
             counts["created"] += 1
         else:

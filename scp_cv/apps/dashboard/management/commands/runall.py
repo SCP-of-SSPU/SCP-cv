@@ -526,7 +526,9 @@ class Command(BaseCommand):
         from scp_cv.services.playback import reset_all_sessions_to_idle
 
         try:
-            reset_all_sessions_to_idle()
+            # 播放器尚未启动；只清理会话与遗留队列，避免它先预热再消费
+            # 一条启动前生成的 reset，造成直播预连接刚建立就被拆除。
+            reset_all_sessions_to_idle(rebuild_players=False)
             self._reset_startup_state_done = True
             self.stdout.write(self.style.SUCCESS("启动前已将所有窗口重置为待机状态"))
         except Exception as reset_error:

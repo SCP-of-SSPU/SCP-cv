@@ -19,6 +19,7 @@ from scp_cv.apps.playback.models import (
     BigScreenMode,
     MediaSource,
     PlaybackCommand,
+    PlaybackCommandRecord,
     PlaybackSession,
     PlaybackState,
     RuntimeState,
@@ -34,6 +35,7 @@ from scp_cv.services.playback import (
     navigate_content,
     open_source,
     reset_ppt_playback,
+    reset_all_sessions_to_idle,
     set_big_screen_mode,
     stop_current_content,
     update_playback_progress,
@@ -72,6 +74,21 @@ class TestGetOrCreateSession:
         assert first_session.pk == second_session.pk
         assert PlaybackSession.objects.count() == 1
 
+
+@pytest.mark.django_db
+def test_startup_reset_does_not_queue_runtime_rebuild() -> None:
+    """runall 启动前没有播放器可重建，不应遗留会在预热后立即执行的 reset 指令。"""
+    session = get_or_create_session(1)
+    session.pending_command = PlaybackCommand.PLAY
+    session.command_args = {"stale": True}
+    session.save()
+
+    reset_all_sessions_to_idle(rebuild_players=False)
+
+    assert PlaybackCommandRecord.objects.count() == 0
+    assert set(PlaybackSession.objects.values_list("pending_command", flat=True)) == {
+        PlaybackCommand.NONE,
+    }
 
 # ══════════════════════════════════════════════════════════════
 # get_session_snapshot

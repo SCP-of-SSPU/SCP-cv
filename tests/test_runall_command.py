@@ -518,12 +518,12 @@ def test_reset_startup_state_uses_internal_service(monkeypatch: Any) -> None:
     reset_calls: list[str] = []
     command = runall.Command()
 
-    def fake_reset_all_sessions_to_idle() -> None:
+    def fake_reset_all_sessions_to_idle(*, rebuild_players: bool = True) -> None:
         """
         记录服务层重置调用。
         :return: None
         """
-        reset_calls.append("reset")
+        reset_calls.append(f"reset:{rebuild_players}")
 
     monkeypatch.setattr(
         "scp_cv.services.playback.reset_all_sessions_to_idle",
@@ -532,7 +532,7 @@ def test_reset_startup_state_uses_internal_service(monkeypatch: Any) -> None:
 
     command._reset_startup_state()
 
-    assert reset_calls == ["reset"]
+    assert reset_calls == ["reset:False"]
     assert command._reset_startup_state_done is True
     assert command._startup_reset_failed is False
 

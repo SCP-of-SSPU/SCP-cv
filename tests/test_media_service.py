@@ -534,6 +534,7 @@ class TestSyncStreamsToMediaSources:
         created_source = MediaSource.objects.get(stream_identifier="test-stream")
         assert created_source.source_type == SourceType.SRT_STREAM
         assert created_source.is_available is True
+        assert created_source.keep_alive is False
         assert created_source.uri == "srt://127.0.0.1:8890?streamid=read:test-stream&latency=50"
 
     @patch("scp_cv.services.mediamtx.get_srt_read_url", return_value="srt://127.0.0.1:8890?streamid=read:test-stream&latency=50")
