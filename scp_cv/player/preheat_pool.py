@@ -164,18 +164,16 @@ class PlayerPreheatPool:
 
     def preheat_ppt_source(self, source_id: int = 0, uri: str = "") -> None:
         """
-        预热 PowerPoint 应用或指定 PPT 文件。
+        预热共享 PowerPoint 应用。
+        PowerPoint 实际为进程级单例 COM 服务器；多个文件级 Presentation
+        长期并存时，一个放映关闭会使其它代理断开，因此这里只保留应用级预热。
         注入 COM 工作线程时在后台执行，避免冷启动阻塞主线程。
-        :param source_id: 可选媒体源 ID，用于文件级预热
-        :param uri: 可选 PPT 文件路径，用于文件级预热
+        :param source_id: 保留的兼容参数
+        :param uri: 保留的兼容参数
         :return: None
         """
-        if source_id > 0 and uri:
-            preheat_job = lambda: self._ppt_apps.preheat_source(source_id, uri)  # noqa: E731
-            description = f"预热 PPT 文件 source_id={source_id}"
-        else:
-            preheat_job = self._ppt_apps.preheat
-            description = "预热 PowerPoint 应用"
+        preheat_job = self._ppt_apps.preheat
+        description = "预热 PowerPoint 应用"
         # getattr 兜底：测试可能绕过 __init__ 构造预热池实例
         worker = getattr(self, "_ppt_com_worker", None)
         if worker is None or getattr(worker, "is_current_thread", False):

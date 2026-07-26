@@ -195,16 +195,18 @@ class _FakeQUrl:
         return f"local:{uri}"
 
 
-def test_preheat_source_uses_file_level_powerpoint_preheat() -> None:
-    """PPT 源预热应携带 source_id/uri，进入 PowerPoint 文件级预热路径。"""
+def test_ppt_sources_share_application_level_preheat() -> None:
+    """PowerPoint 是进程级单例；多个 PPT 源只能共享应用级预热，不能长期持有文件 COM 代理。"""
     ppt_apps = _PptAppsStub()
     pool = object.__new__(PlayerPreheatPool)
     pool._ppt_apps = ppt_apps
+    pool._ppt_com_worker = None
 
     pool.preheat_source(12, SourceType.PPT, "C:/demo/source.pptx")
+    pool.preheat_source(13, SourceType.PPT, "C:/demo/other.pptx")
 
-    assert ppt_apps.preheat_source_calls == [(12, "C:/demo/source.pptx")]
-    assert ppt_apps.preheat_calls == 0
+    assert ppt_apps.preheat_source_calls == []
+    assert ppt_apps.preheat_calls == 2
 
 
 def test_image_preheat_is_file_level_and_requires_exact_uri(
