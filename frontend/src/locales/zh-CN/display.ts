@@ -6,6 +6,7 @@ export default {
   display: {
     bigTitle: '大屏',
     bigSubtitle: '单屏模式下的大屏主输出',
+    bigLeftSubtitle: '双屏模式下的大屏左输出',
     bigRightTitle: '大屏右',
     bigRightSubtitle: '仅在双屏模式下可控',
     tvLeftTitle: '电视左',

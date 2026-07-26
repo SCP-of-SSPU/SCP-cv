@@ -17,6 +17,7 @@ export default {
     colSize: '大小',
     colUpdated: '更新时间',
     colActions: '操作',
+    rowActionsAria: '{name} 的操作菜单',
     offline: '离线',
     onAirWindows: '正在窗口 {windows} 播出',
     unavailableCard: '当前不可用，请检查源文件或推流状态。',

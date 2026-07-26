@@ -115,10 +115,9 @@ class PlayerCommandHandlersMixin(PptOpenFlowMixin, PlayerWindowHelpersMixin):
                 # 先把旧 close 排入共享 COM worker，再排新 open，利用 FIFO
                 # 保证旧 SlideShow 退出后才运行新 SlideShowSettings.Run。
                 previous_adapter.close()
-                if previous_source_id:
-                    self._schedule_reheat_source_if_enabled(
-                        window_id, int(previous_source_id)
-                    )
+                # PPT→PPT 期间不能并发重建预热 Application；新适配器必须在旧
+                # Application 完全退休后 DispatchEx。普通离场仍由关闭流程在空闲
+                # 窗口上延迟重建预热。
                 # 旧适配器已经进入最终关闭流程，失败时不能再映射回来。
                 previous_adapter = None
                 previous_source_type = None

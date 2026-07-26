@@ -20,6 +20,7 @@ from scp_cv.player.adapters.ppt_constants import (
 )
 from scp_cv.player.adapters.ppt_media import candidate_media_shape_ids
 from scp_cv.player.adapters.ppt_window import configure_windowed_slideshow
+from scp_cv.player.preheat_types import PreheatedPptApplication
 
 
 class _PresentationStub:
@@ -729,10 +730,10 @@ def test_close_com_resources_keeps_external_powerpoint_app_running() -> None:
     assert adapter._owns_ppt_app is False
 
 
-def test_close_com_resources_returns_owned_app_to_preheat_pool(
+def test_close_com_resources_retires_owned_app_instead_of_reusing_proxy(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """启用 PPT 预热时，切源关闭应回收 PowerPoint 应用而不是同步退出 Office。"""
+    """启用 PPT 预热时，离场也必须退休当前 Application 代理。"""
     adapter = PptSourceAdapter()
     presentation = _PresentationStub()
     ppt_app = _PptAppStub()
@@ -755,13 +756,32 @@ def test_close_com_resources_returns_owned_app_to_preheat_pool(
 
     assert close_calls == [(909, adapter._embed_owner_token)]
     assert presentation.close_called is True
+    assert ppt_app.quit_called is True
+    assert pool.returned_items == []
+
+
+def test_close_com_resources_drops_external_preheated_proxy_without_quitting() -> None:
+    """外部 PowerPoint 提供的预热代理应退休，但不得退出用户进程。"""
+    adapter = PptSourceAdapter()
+    presentation = _PresentationStub()
+    ppt_app = _PptAppStub()
+    pool = _ReturnedPptPoolStub()
+    adapter._presentation = presentation
+    adapter._ppt_app = ppt_app
+    adapter._preheat_enabled = True
+    adapter._preheat_pool = pool
+    adapter._preheated_app = PreheatedPptApplication(
+        "powerpoint",
+        ppt_app,
+        "PowerPoint.Application",
+        spawned_process=False,
+    )
+
+    adapter._close_com_resources()
+
+    assert presentation.close_called is True
     assert ppt_app.quit_called is False
-    assert pool.returned_items
-    returned_item = pool.returned_items[0]
-    assert returned_item.app is ppt_app
-    assert returned_item.prog_id == "PowerPoint.Application"
-    # 非本系统拉起的 PowerPoint 不再被最小化或隐藏窗口
-    assert ppt_app.WindowState == 0
+    assert pool.returned_items == []
 
 
 def test_powerpoint_adapter_uses_powerpoint_com_prog_id_candidates() -> None:

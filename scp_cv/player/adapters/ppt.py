@@ -426,10 +426,16 @@ class PptSourceAdapter(
             self._set_powerpoint_alerts(_PP_ALERTS_ALL)
             if self._ppt_app is not None:
                 if self._preheated_app is not None:
-                    self._return_preheated_application()
-                elif self._owns_ppt_app:
-                    if not self._return_owned_application_to_preheat_pool():
+                    # PowerPoint 是进程级 COM 服务器。放映退出后，原 Application
+                    # 代理可能被 Office 一并断开；把它放回预热池会让下一次打开拿到
+                    # “对象没有连接到服务器”的失效代理。借出的系统预热实例若由本
+                    # 系统拉起则退出进程，否则只退休当前代理，避免影响用户文档。
+                    if bool(getattr(self._preheated_app, "spawned_process", False)):
                         self._quit_ppt_application_if_idle()
+                elif self._owns_ppt_app:
+                    # 适配器自建的 Application 同样不得跨放映复用。下一次打开会
+                    # DispatchEx 一个新代理；空闲预热由控制器在离场后另行重建。
+                    self._quit_ppt_application_if_idle()
             self._ppt_app = None
             self._owns_ppt_app = False
             self._ppt_process_id = 0
@@ -442,34 +448,6 @@ class PptSourceAdapter(
 
         self._total_slides = 0
         self._is_paused = False
-
-    def _return_owned_application_to_preheat_pool(self) -> bool:
-        """
-        将当前适配器创建的空闲 PowerPoint 应用移交给预热池，减少切源时退出 Office 的卡顿。
-        :return: True 表示已移交，调用方不应再 Quit 该应用
-        """
-        if (
-            not self._preheat_enabled
-            or self._preheat_pool is None
-            or self._ppt_app is None
-        ):
-            return False
-        return_application = getattr(self._preheat_pool, "return_ppt_application", None)
-        if not callable(return_application):
-            return False
-        if self._spawned_ppt_process:
-            conceal_ppt_editor_window(self._ppt_app, self._logger)
-        return_application(
-            PreheatedPptApplication(
-                "powerpoint",
-                self._ppt_app,
-                self._active_com_prog_id,
-                process_id=self._ppt_process_id,
-                spawned_process=self._spawned_ppt_process,
-            )
-        )
-        self._owns_ppt_app = False
-        return True
 
     # ═══════════════════ 快速切源 ═══════════════════
 
@@ -549,4 +527,3 @@ class PptSourceAdapter(
         finally:
             with self._state_cache_lock:
                 self._state_refresh_pending = False
-

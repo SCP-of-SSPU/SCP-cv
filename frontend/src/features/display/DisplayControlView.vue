@@ -38,6 +38,18 @@ const currentSession = computed(() => {
   return sessionStore.byWindowId(targetMeta.value.windowId);
 });
 
+const targetCaption = computed(() => {
+  if (targetMeta.value?.windowId === 1) {
+    return runtime.isDoubleScreen
+      ? t('display.bigLeftSubtitle')
+      : t('display.bigSubtitle');
+  }
+  return targetMeta.value?.subtitle
+    || (currentSession.value
+      ? t('display.currentSource', { name: currentSession.value.source_name || t('display.idle') })
+      : t('display.loadingSession'));
+});
+
 const blocksForSingleMode = computed(
   () => targetMeta.value?.doubleScreenOnly && !runtime.isDoubleScreen,
 );
@@ -83,7 +95,7 @@ const segmentValue = computed({
       <p class="display-view__eyebrow">{{ t('display.windowEyebrow', { id: targetMeta?.windowId ?? '?' }) }}</p>
       <h2 class="display-view__title">{{ targetMeta?.title ?? t('display.windowUnknown') }}{{ t('display.titleSuffix') }}</h2>
       <p class="display-view__caption">
-        {{ targetMeta?.subtitle || (currentSession ? t('display.currentSource', { name: currentSession.source_name || t('display.idle') }) : t('display.loadingSession')) }}
+        {{ targetCaption }}
       </p>
     </header>
 

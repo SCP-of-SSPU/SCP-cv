@@ -323,7 +323,8 @@ const errorBarDescription = computed(() => {
         </n-button>
         <div class="playback-control__switch">
           <span>{{ t('playback.loop') }}</span>
-          <n-switch :value="session.loop_enabled" @update:value="onLoopToggle" />
+          <n-switch :value="session.loop_enabled" :aria-label="t('playback.loop')"
+            @update:value="onLoopToggle" />
         </div>
       </div>
       <div v-if="session.duration_ms > 0" class="playback-control__row playback-control__row--seek">
@@ -336,6 +337,7 @@ const errorBarDescription = computed(() => {
           class="playback-control__seek"
           @update:value="videoSeek.handleInput"
           @dragend="videoSeek.handleChange(videoSeek.value.value)"
+          @keyup="videoSeek.handleChange(videoSeek.value.value)"
         />
         <span class="playback-control__progress-label">
           {{ formatDuration(session.position_ms) }} / {{ formatDuration(session.duration_ms) }}
@@ -371,6 +373,7 @@ const errorBarDescription = computed(() => {
           class="playback-control__seek"
           @update:value="windowVolume.handleInput"
           @dragend="windowVolume.handleChange(windowVolume.value.value)"
+          @keyup="windowVolume.handleChange(windowVolume.value.value)"
         />
       </div>
       <div class="playback-control__row">
@@ -378,6 +381,7 @@ const errorBarDescription = computed(() => {
           <span>{{ t('playback.windowMute') }}</span>
           <n-switch
             :value="session.is_muted"
+            :aria-label="t('playback.windowMute')"
             :disabled="category === 'audio' || category === 'image' || category === 'web'"
             @update:value="onMuteToggle"
           />

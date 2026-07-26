@@ -278,7 +278,7 @@ def test_ppt_adapter_reuses_preheated_presentation(monkeypatch: MonkeyPatch) -> 
     assert preheat_pool.take_calls == [(7, uri)]
     assert app.Presentations.calls == []
     assert opened_total_slides == 6
-    assert preheat_pool.returned_items == [item]
+    assert preheat_pool.returned_items == []
     assert item.presentation is None
     assert app.quit_called is False
 

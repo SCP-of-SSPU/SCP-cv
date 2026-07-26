@@ -2,7 +2,7 @@
 /**
  * 背景音乐控制台：展示全局音频状态、播放列表和可加入的音频源。
  */
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
   NButton,
@@ -19,6 +19,7 @@ import SourceThumbnail from '@/features/sources/SourceThumbnail.vue';
 import FIcon from '@/design-system/FIcon.vue';
 import { useDialog } from '@/composables/useDialog';
 import { useToast } from '@/composables/useToast';
+import { useThrottledSlider } from '@/composables/useThrottledSlider';
 import { formatBytes } from '@/design-system/utils';
 import { formatDuration, type BackgroundAudioPlaylistItem, type MediaSourceItem } from '@/services/api';
 import { useBackgroundAudioStore } from '@/stores/backgroundAudio';
@@ -32,7 +33,6 @@ const dialog = useDialog();
 
 const drawerOpen = ref(false);
 const busyAction = ref('');
-const volumeModel = ref(70);
 
 const currentState = computed(() => audioStore.state);
 const playlist = computed(() => audioStore.playlist);
@@ -49,13 +49,18 @@ const statusLabel = computed(() => {
 });
 const playlistCaption = computed(() => t('backgroundAudio.playlistCount', { n: playlist.value.length }));
 const sourceCaption = computed(() => t('backgroundAudio.sourceCount', { n: audioSources.value.length }));
+const playPauseAria = computed(() => audioStore.isPlaying
+  ? t('backgroundAudio.pause')
+  : t('backgroundAudio.play'));
 
-watch(
-  () => currentState.value?.volume,
-  (volume) => {
-    if (typeof volume === 'number') volumeModel.value = volume;
+const backgroundVolume = useThrottledSlider(
+  () => currentState.value?.volume ?? 70,
+  {
+    commit: (value: number) => audioStore.setVolume(value),
+    onError: (error) => {
+      toast.error(t('backgroundAudio.actionFail'), error instanceof Error ? error.message : t('common.retry'));
+    },
   },
-  { immediate: true },
 );
 
 onMounted(() => {
@@ -126,9 +131,6 @@ function setMute(muted: boolean): Promise<void> {
   return runAction('mute', () => audioStore.setMute(muted));
 }
 
-function commitVolume(): Promise<void> {
-  return runAction('volume', () => audioStore.setVolume(volumeModel.value));
-}
 </script>
 
 <template>
@@ -174,13 +176,16 @@ function commitVolume(): Promise<void> {
         </div>
 
         <div class="background-audio__controls">
-          <n-button circle secondary @click="() => runAction('prev', () => audioStore.control('prev'))">
+          <n-button circle secondary :aria-label="t('backgroundAudio.previous')"
+            @click="() => runAction('prev', () => audioStore.control('prev'))">
             <template #icon><FIcon name="previous_24_regular" /></template>
           </n-button>
-          <n-button circle type="primary" size="large" :loading="busyAction === 'play-toggle'" @click="playOrPause">
+          <n-button circle type="primary" size="large" :aria-label="playPauseAria"
+            :loading="busyAction === 'play-toggle'" @click="playOrPause">
             <template #icon><FIcon :name="audioStore.isPlaying ? 'pause_24_filled' : 'play_24_filled'" /></template>
           </n-button>
-          <n-button circle secondary @click="() => runAction('next', () => audioStore.control('next'))">
+          <n-button circle secondary :aria-label="t('backgroundAudio.next')"
+            @click="() => runAction('next', () => audioStore.control('next'))">
             <template #icon><FIcon name="next_24_regular" /></template>
           </n-button>
           <n-button secondary @click="() => runAction('stop', () => audioStore.control('stop'))">
@@ -192,15 +197,26 @@ function commitVolume(): Promise<void> {
         <div class="background-audio__mix-row">
           <label>
             <span>{{ t('backgroundAudio.loop') }}</span>
-            <n-switch :value="currentState?.loop_enabled ?? true" @update:value="setLoop" />
+            <n-switch :value="currentState?.loop_enabled ?? true" :aria-label="t('backgroundAudio.loop')"
+              @update:value="setLoop" />
           </label>
           <label>
             <span>{{ t('backgroundAudio.mute') }}</span>
-            <n-switch :value="currentState?.is_muted ?? false" @update:value="setMute" />
+            <n-switch :value="currentState?.is_muted ?? false" :aria-label="t('backgroundAudio.mute')"
+              @update:value="setMute" />
           </label>
           <div class="background-audio__volume">
             <span>{{ t('backgroundAudio.volume') }}</span>
-            <n-slider v-model:value="volumeModel" :min="0" :max="100" :step="1" @dragend="commitVolume" />
+            <n-slider
+              :value="backgroundVolume.value.value"
+              :min="0"
+              :max="100"
+              :step="1"
+              :aria-label="t('backgroundAudio.volume')"
+              @update:value="backgroundVolume.handleInput"
+              @dragend="backgroundVolume.handleChange(backgroundVolume.value.value)"
+              @keyup="backgroundVolume.handleChange(backgroundVolume.value.value)"
+            />
           </div>
         </div>
       </n-card>

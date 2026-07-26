@@ -298,13 +298,18 @@
 
 @media (max-width: 767px) {
   .sources-view__toolbar {
-    top: 96px;
+    position: static;
     flex-direction: column;
     align-items: stretch;
   }
 
+  .sources-view__mobile-pills {
+    top: 0;
+  }
+
   .sources-view__actions {
     flex-wrap: nowrap;
+    min-width: 0;
   }
 
   .sources-view__actions :deep(.f-input) {

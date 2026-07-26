@@ -243,7 +243,7 @@ def test_ppt_to_ppt_switch_closes_previous_slideshow_before_opening_next(
     })
 
     assert events == ["previous_close", "next_open"]
-    assert reheated == [(1, 77)]
+    assert reheated == []
     assert controller._adapters[1] is new_adapter
 
 

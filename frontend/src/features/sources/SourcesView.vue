@@ -347,7 +347,7 @@ const categoryModel = computed({
                       :options="buildRowMenu(source)"
                       @select="handleMenuSelect"
                     >
-                      <n-button quaternary circle>
+                      <n-button quaternary circle :aria-label="t('sources.rowActionsAria', { name: source.name })">
                         <template #icon><FIcon name="more_horizontal_20_regular" /></template>
                       </n-button>
                     </n-dropdown>
@@ -373,7 +373,7 @@ const categoryModel = computed({
                     :options="buildRowMenu(source)"
                     @select="handleMenuSelect"
                   >
-                    <n-button quaternary circle>
+                    <n-button quaternary circle :aria-label="t('sources.rowActionsAria', { name: source.name })">
                       <template #icon><FIcon name="more_horizontal_24_regular" /></template>
                     </n-button>
                   </n-dropdown>

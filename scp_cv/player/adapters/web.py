@@ -18,7 +18,13 @@ from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
 from scp_cv.player.adapters.base import AdapterState, SourceAdapter
-from scp_cv.player.web_preheat import WebPreheatPool
+from scp_cv.player.web_preheat import (
+    WebPreheatPool,
+    _LOAD_STATE_ERROR,
+    _LOAD_STATE_LOADING,
+    _LOAD_STATE_PROPERTY,
+    _LOAD_STATE_SUCCESS,
+)
 from scp_cv.services.media import normalize_web_url
 
 logger = logging.getLogger(__name__)
@@ -45,6 +51,7 @@ class WebSourceAdapter(SourceAdapter):
         self._parent_widget: Optional[QWidget] = None
         self._has_error: bool = False
         self._error_message: str = ""
+        self._is_loading: bool = False
         # 标记容器是否由外部显式注入（而非通过句柄查找）
         self._container_injected: bool = False
         self._source_id: int = 0
@@ -90,6 +97,7 @@ class WebSourceAdapter(SourceAdapter):
         self._url = normalized_url
         self._has_error = False
         self._error_message = ""
+        self._is_loading = True
 
         # 如果未通过 set_parent_container() 注入，则回退到句柄查找
         if not self._container_injected:
@@ -111,12 +119,13 @@ class WebSourceAdapter(SourceAdapter):
         if self._web_view is None:
             self._web_view = QWebEngineView(self._parent_widget)
             self._parent_widget.layout().addWidget(self._web_view)
+            self._web_view.loadFinished.connect(self._on_load_finished)
             self._web_view.setUrl(QUrl(normalized_url))
+        else:
+            self._web_view.loadFinished.connect(self._on_load_finished)
+            self._apply_preheated_load_state(self._web_view)
 
         self._configure_web_view_interaction(self._web_view)
-
-        # 监听加载完成事件
-        self._web_view.loadFinished.connect(self._on_load_finished)
 
         self._web_view.show()
         # 将焦点设置到 web view 以接收键盘事件
@@ -212,12 +221,26 @@ class WebSourceAdapter(SourceAdapter):
         网页加载完成回调。
         :param load_success: 加载是否成功
         """
+        self._is_loading = False
         if load_success:
+            self._has_error = False
+            self._error_message = ""
             self._logger.info("网页加载完成：%s", self._url)
         else:
             self._has_error = True
             self._error_message = f"网页加载失败：{self._url}，请确认地址、协议和局域网可达性"
             self._logger.error(self._error_message)
+
+    def _apply_preheated_load_state(self, web_view: QWebEngineView) -> None:
+        """恢复预热阶段已经结束的网页加载状态。"""
+        load_state = web_view.property(_LOAD_STATE_PROPERTY)
+        if load_state == _LOAD_STATE_SUCCESS:
+            self._is_loading = False
+            return
+        if load_state == _LOAD_STATE_ERROR:
+            self._on_load_finished(False)
+            return
+        self._is_loading = load_state in (None, "", _LOAD_STATE_LOADING)
 
     def close(self) -> None:
         """关闭网页并释放资源。"""
@@ -245,6 +268,7 @@ class WebSourceAdapter(SourceAdapter):
         self._url = ""
         self._has_error = False
         self._error_message = ""
+        self._is_loading = False
         self._mark_closed()
         self._logger.info("网页已关闭")
 
@@ -253,6 +277,9 @@ class WebSourceAdapter(SourceAdapter):
     def play(self) -> None:
         """刷新网页（恢复播放语义映射为刷新）。"""
         if self._web_view is not None:
+            self._has_error = False
+            self._error_message = ""
+            self._is_loading = True
             self._web_view.reload()
             self._logger.debug("网页已刷新")
 
@@ -278,6 +305,9 @@ class WebSourceAdapter(SourceAdapter):
                 playback_state="error",
                 error_message=self._error_message,
             )
+
+        if self._web_view is not None and self._is_loading:
+            return AdapterState(playback_state="loading")
 
         if self._web_view is not None:
             return AdapterState(playback_state="playing")

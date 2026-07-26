@@ -26,6 +26,7 @@ export default {
     skipToMain: '跳到主内容',
     primaryNav: '主导航',
     systemMuted: '系统静音',
+    systemMutedCompact: '静音',
     sse: {
       connected: '控制链路已连接',
       connecting: '建立连接…',

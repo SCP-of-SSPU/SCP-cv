@@ -20,6 +20,10 @@ from PySide6.QtWidgets import QVBoxLayout, QWidget
 from scp_cv.services.media_web import normalize_web_url
 
 logger = logging.getLogger(__name__)
+_LOAD_STATE_PROPERTY = "scpCvPreheatLoadState"
+_LOAD_STATE_LOADING = "loading"
+_LOAD_STATE_SUCCESS = "success"
+_LOAD_STATE_ERROR = "error"
 
 
 @dataclass
@@ -71,7 +75,12 @@ class WebPreheatPool:
         view = QWebEngineView(self._host)
         view.hide()
         self._host.layout().addWidget(view)
-        view.loadFinished.connect(self._on_load_finished)
+        view.setProperty(_LOAD_STATE_PROPERTY, _LOAD_STATE_LOADING)
+        view.loadFinished.connect(
+            lambda load_success, target=view: self._on_load_finished(
+                target, load_success
+            )
+        )
         view.setUrl(QUrl(normalized_url))
         self._items[source_id] = PreheatedWebView(source_id=source_id, url=normalized_url, view=view)
         logger.info("网页源已开始预热：source_id=%d, url=%s", source_id, normalized_url)
@@ -132,13 +141,18 @@ class WebPreheatPool:
         self._items.clear()
         self._host.deleteLater()
 
-    @Slot(bool)
-    def _on_load_finished(self, load_success: bool) -> None:
+    @Slot(object, bool)
+    def _on_load_finished(self, view: QWebEngineView, load_success: bool) -> None:
         """
         记录预热视图加载结果。
+        :param view: 完成加载的预热视图
         :param load_success: 加载是否成功
         :return: None
         """
+        view.setProperty(
+            _LOAD_STATE_PROPERTY,
+            _LOAD_STATE_SUCCESS if load_success else _LOAD_STATE_ERROR,
+        )
         logger.info("网页预热加载完成：success=%s", load_success)
 
     @staticmethod

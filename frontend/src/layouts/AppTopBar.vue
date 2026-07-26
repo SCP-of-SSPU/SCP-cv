@@ -76,7 +76,10 @@ const playerLabel = computed(() => (sessions.hasOnlinePlayer
       <n-tag :type="playerType" round size="small">
         {{ playerLabel }}
       </n-tag>
-      <span v-if="runtime.systemVolume.muted" class="app-shell__mute">{{ t('app.systemMuted') }}</span>
+      <span v-if="runtime.systemVolume.muted" class="app-shell__mute">
+        <span class="app-shell__mute-full">{{ t('app.systemMuted') }}</span>
+        <span class="app-shell__mute-compact">{{ t('app.systemMutedCompact') }}</span>
+      </span>
       <ThemeToggle />
       <EmergencyMenu />
     </div>
