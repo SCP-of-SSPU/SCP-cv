@@ -268,8 +268,26 @@ class PptSourceAdapter(
         if self._preheated_app is not None:
             self._ppt_app = self._preheated_app.app
             self._active_com_prog_id = self._preheated_app.prog_id
-            self._logger.info("已复用预热 %s COM 应用：%s", self._app_label, self._active_com_prog_id)
-        else:
+            try:
+                # PowerPoint 是进程级 COM 服务器；其它播放窗口关闭放映后，
+                # 本进程预热池里的 Application 代理可能已被 Office 断开。
+                # 在接管前验证最先需要的集合，失效时直接退休并重新 DispatchEx。
+                self._ppt_app.Presentations
+            except Exception as stale_error:
+                self._logger.warning(
+                    "预热 %s COM 应用已失效，重新创建：%s",
+                    self._app_label,
+                    stale_error,
+                )
+                self._preheated_app = None
+                self._ppt_app = None
+            else:
+                self._logger.info(
+                    "已复用预热 %s COM 应用：%s",
+                    self._app_label,
+                    self._active_com_prog_id,
+                )
+        if self._ppt_app is None:
             self._ppt_app = self._dispatch_ppt_application(win32com.client)
             self._owns_ppt_app = True
         self._ppt_process_id = read_ppt_app_process_id(

@@ -324,6 +324,45 @@ def test_ppt_adapter_reopens_stale_preheated_presentation(
     assert len(app.Presentations.calls) == 1
 
 
+def test_ppt_adapter_reconnects_when_preheated_application_is_stale(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """并行放映关闭一路后，失效的预热 Application 不应阻断该路重新打开。"""
+
+    class _StalePptApp:
+        DisplayAlerts = 2
+
+        @property
+        def Presentations(self) -> object:
+            raise RuntimeError("PowerPoint.Application.Presentations")
+
+    uri = "C:/demo/source.pptx"
+    fresh_presentation = _PresentationStub()
+    fresh_app = _PptAppStub(fresh_presentation)
+    _pythoncom_stub, win32_client_stub = _install_com_stubs(monkeypatch, fresh_app)
+    item = PreheatedPptApplication(
+        "powerpoint",
+        _StalePptApp(),
+        POWERPOINT_COM_PROG_IDS[0],
+    )
+    preheat_pool = _PreheatPoolStub(item)
+    adapter = PptSourceAdapter()
+    adapter.set_preheat_context(7, True, preheat_pool)
+    monkeypatch.setattr(ppt.os.path, "isfile", lambda _uri: True)
+    monkeypatch.setattr(
+        ppt,
+        "snapshot_candidate_process_ids_for_prog_ids",
+        lambda *_args, **_kwargs: set(),
+    )
+    monkeypatch.setattr(ppt, "read_ppt_app_process_id", lambda *_args, **_kwargs: 0)
+
+    adapter.open(uri, window_handle=1001, autoplay=False)
+
+    assert adapter._total_slides == 6
+    assert win32_client_stub.calls == [POWERPOINT_COM_PROG_IDS[0]]
+    assert len(fresh_app.Presentations.calls) == 1
+
+
 def test_quit_ppt_app_if_idle_skips_when_presentations_open() -> None:
     """PowerPoint 仍有打开的演示文稿时，预热清理不得退出应用。"""
     from scp_cv.player.preheat_ppt import quit_ppt_app_if_idle
