@@ -14,6 +14,7 @@ import {
 } from 'naive-ui';
 
 import FIcon from '@/design-system/FIcon.vue';
+import { sliderAriaLabel as vSliderAriaLabel } from '@/design-system/sliderAriaLabel';
 import BigScreenModeButtons from '@/features/runtime/BigScreenModeButtons.vue';
 import { useThrottledSlider } from '@/composables/useThrottledSlider';
 import { useToast } from '@/composables/useToast';
@@ -112,6 +113,7 @@ async function resetAll(): Promise<void> {
 
     <n-card :title="t('settings.systemVolume')">
       <n-slider
+        v-slider-aria-label="t('settings.systemVolumeAria')"
         :value="volume.value.value"
         :min="0"
         :max="100"

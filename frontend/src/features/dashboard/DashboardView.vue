@@ -17,6 +17,7 @@ import {
 } from 'naive-ui';
 
 import FIcon from '@/design-system/FIcon.vue';
+import { sliderAriaLabel as vSliderAriaLabel } from '@/design-system/sliderAriaLabel';
 import BigScreenModeButtons from '@/features/runtime/BigScreenModeButtons.vue';
 import { useDialog } from '@/composables/useDialog';
 import { useThrottledSlider } from '@/composables/useThrottledSlider';
@@ -166,6 +167,7 @@ const hasDeviceError = computed(() =>
           <span class="dashboard__eyebrow">{{ t('dashboard.volumeEyebrow') }}</span>
         </template>
         <n-slider
+          v-slider-aria-label="t('dashboard.volumeAria')"
           :value="volume.value.value"
           :min="0"
           :max="100"

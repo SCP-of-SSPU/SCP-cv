@@ -17,6 +17,7 @@ import {
 import AddSourceDrawer from '@/features/sources/AddSourceDrawer.vue';
 import SourceThumbnail from '@/features/sources/SourceThumbnail.vue';
 import FIcon from '@/design-system/FIcon.vue';
+import { sliderAriaLabel as vSliderAriaLabel } from '@/design-system/sliderAriaLabel';
 import { useDialog } from '@/composables/useDialog';
 import { useToast } from '@/composables/useToast';
 import { useThrottledSlider } from '@/composables/useThrottledSlider';
@@ -208,6 +209,7 @@ function setMute(muted: boolean): Promise<void> {
           <div class="background-audio__volume">
             <span>{{ t('backgroundAudio.volume') }}</span>
             <n-slider
+              v-slider-aria-label="t('backgroundAudio.volume')"
               :value="backgroundVolume.value.value"
               :min="0"
               :max="100"

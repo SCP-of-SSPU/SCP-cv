@@ -23,6 +23,7 @@ import {
 } from 'naive-ui';
 
 import FIcon from '@/design-system/FIcon.vue';
+import { sliderAriaLabel as vSliderAriaLabel } from '@/design-system/sliderAriaLabel';
 import SourceThumbnail from '@/features/sources/SourceThumbnail.vue';
 import { useToast } from '@/composables/useToast';
 import { useThrottledSlider } from '@/composables/useThrottledSlider';
@@ -329,6 +330,7 @@ const errorBarDescription = computed(() => {
       </div>
       <div v-if="session.duration_ms > 0" class="playback-control__row playback-control__row--seek">
         <n-slider
+          v-slider-aria-label="t('playback.seekAria')"
           :value="videoSeek.value.value"
           :min="0"
           :max="session.duration_ms"
@@ -365,6 +367,7 @@ const errorBarDescription = computed(() => {
       <div class="playback-control__row">
         <span class="playback-control__field-label">{{ t('playback.windowVolume') }}</span>
         <n-slider
+          v-slider-aria-label="t('playback.windowVolumeAria')"
           :value="windowVolume.value.value"
           :min="0"
           :max="100"
