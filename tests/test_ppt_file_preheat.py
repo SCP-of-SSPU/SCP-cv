@@ -283,6 +283,47 @@ def test_ppt_adapter_reuses_preheated_presentation(monkeypatch: MonkeyPatch) -> 
     assert app.quit_called is False
 
 
+def test_ppt_adapter_reopens_stale_preheated_presentation(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """其它放映关闭后文件级 COM Presentation 可能失效，此时应在暖应用中重新打开文件。"""
+
+    class _StaleSlides:
+        @property
+        def Count(self) -> int:
+            raise RuntimeError("Open.Slides")
+
+    uri = "C:/demo/source.pptx"
+    stale_presentation = _PresentationStub()
+    stale_presentation.Slides = _StaleSlides()
+    fresh_presentation = _PresentationStub()
+    app = _PptAppStub(fresh_presentation)
+    _install_com_stubs(monkeypatch, app)
+    item = PreheatedPptApplication(
+        "powerpoint",
+        app,
+        POWERPOINT_COM_PROG_IDS[0],
+        source_id=7,
+        uri=uri,
+        presentation=stale_presentation,
+    )
+    preheat_pool = _PreheatPoolStub(item)
+    adapter = PptSourceAdapter()
+    adapter.set_preheat_context(7, True, preheat_pool)
+    adapter._file_path = uri
+    monkeypatch.setattr(
+        ppt,
+        "snapshot_candidate_process_ids_for_prog_ids",
+        lambda *_args, **_kwargs: set(),
+    )
+    monkeypatch.setattr(ppt, "read_ppt_app_process_id", lambda *_args, **_kwargs: 0)
+
+    adapter._init_com_and_open(uri, autoplay=False)
+
+    assert adapter._total_slides == 6
+    assert len(app.Presentations.calls) == 1
+
+
 def test_quit_ppt_app_if_idle_skips_when_presentations_open() -> None:
     """PowerPoint 仍有打开的演示文稿时，预热清理不得退出应用。"""
     from scp_cv.player.preheat_ppt import quit_ppt_app_if_idle

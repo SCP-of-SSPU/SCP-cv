@@ -42,6 +42,21 @@ class PptPreheatMixin:
             return None
         presentation = item.presentation
         item.presentation = None
+        try:
+            slide_count = int(presentation.Slides.Count)
+            if slide_count <= 0:
+                raise RuntimeError("预热演示文稿没有可用幻灯片")
+        except Exception as stale_error:
+            # PowerPoint 是进程级 COM 服务器。关闭同进程中的另一场放映后，
+            # 文件级预热保存的 Presentation 代理可能已断开；应用本身仍可复用，
+            # 因而丢弃旧代理并让调用方在暖应用中重新 Open 当前文件。
+            self._logger.warning(
+                "文件级预热 %s Presentation 已失效，将重新打开：source_id=%d, error=%s",
+                self._app_label,
+                item.source_id,
+                stale_error,
+            )
+            return None
         self._logger.info("已复用文件级预热 %s Presentation：source_id=%d", self._app_label, item.source_id)
         return presentation
 
