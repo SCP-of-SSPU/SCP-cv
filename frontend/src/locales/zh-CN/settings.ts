@@ -19,6 +19,8 @@ export default {
     tabAccount: '账户',
     tabDev: '开发',
     accountTitle: '管理员密码',
+    sessionTitle: '当前会话',
+    sessionHint: '退出后需要重新登录才能访问播放控制台。',
     accountSignedIn: '当前登录：{username}',
     currentPassword: '当前密码',
     newPassword: '新密码',

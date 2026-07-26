@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 import { NAlert, NButton, NCard, NFormItem, NInput } from 'naive-ui';
 
 import { useToast } from '@/composables/useToast';
 import { useAuthStore } from '@/stores/auth';
 
 const { t } = useI18n();
+const router = useRouter();
 const auth = useAuthStore();
 const toast = useToast();
 
@@ -14,6 +16,7 @@ const currentPassword = ref('');
 const newPassword = ref('');
 const confirmPassword = ref('');
 const saving = ref(false);
+const loggingOut = ref(false);
 const errorMessage = ref('');
 const canSave = computed(() => Boolean(currentPassword.value && newPassword.value && confirmPassword.value) && !saving.value);
 
@@ -36,6 +39,19 @@ async function save(): Promise<void> {
     saving.value = false;
   }
 }
+
+async function logout(): Promise<void> {
+  loggingOut.value = true;
+  try {
+    await auth.logout();
+    toast.success(t('auth.logoutOk'));
+    await router.replace('/login');
+  } catch (error) {
+    toast.error(t('auth.logoutFail'), error instanceof Error ? error.message : t('common.retry'));
+  } finally {
+    loggingOut.value = false;
+  }
+}
 </script>
 
 <template>
@@ -54,6 +70,13 @@ async function save(): Promise<void> {
       <n-alert v-if="errorMessage" type="error" :title="t('settings.passwordChangeFail')">{{ errorMessage }}</n-alert>
       <n-button type="primary" :disabled="!canSave" :loading="saving" @click="save">
         {{ t('settings.changePassword') }}
+      </n-button>
+    </n-card>
+
+    <n-card :title="t('settings.sessionTitle')">
+      <p class="settings-view__hint">{{ t('settings.sessionHint') }}</p>
+      <n-button secondary :loading="loggingOut" @click="logout">
+        {{ t('auth.logoutAction') }}
       </n-button>
     </n-card>
   </section>
