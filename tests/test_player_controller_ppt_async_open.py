@@ -202,10 +202,55 @@ def test_async_ppt_open_success_registers_adapter_after_completion(
     assert window.calls == ["black", "show", "raise", "ppt_container", "video", "show", "raise"]
 
 
-def test_async_ppt_open_failure_restores_previous_adapter(
+def test_ppt_to_ppt_switch_closes_previous_slideshow_before_opening_next(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """打开失败时应释放新适配器、恢复旧适配器并写入错误状态。"""
+    """PowerPoint 单实例不能可靠并行 Run；PPT 切 PPT 必须先关闭旧放映再打开新放映。"""
+    events: list[str] = []
+    previous_adapter = _AsyncPptAdapter()
+    new_adapter = _AsyncPptAdapter()
+    controller, _window, _states, _errors = _make_controller(monkeypatch, new_adapter)
+    controller._adapters[1] = previous_adapter  # type: ignore[assignment]
+    controller._adapter_source_types[1] = "ppt"
+    controller._adapter_source_ids[1] = 77
+
+    previous_adapter.close = lambda: events.append("previous_close")  # type: ignore[method-assign]
+
+    def open_next(
+        uri: str,
+        window_handle: int,
+        autoplay: bool = True,
+        start_slide: int = 0,
+        on_finished: Optional[Callable[[Optional[BaseException]], None]] = None,
+    ) -> None:
+        events.append("next_open")
+        if on_finished is not None:
+            on_finished(None)
+
+    new_adapter.open_async = open_next  # type: ignore[method-assign]
+    reheated: list[tuple[int, int]] = []
+    monkeypatch.setattr(
+        controller,
+        "_schedule_reheat_source_if_enabled",
+        lambda window_id, source_id: reheated.append((window_id, source_id)),
+    )
+
+    controller._handle_open(1, {
+        "source_id": 8,
+        "source_type": "ppt",
+        "uri": "C:/demo/next.pptx",
+        "autoplay": True,
+    })
+
+    assert events == ["previous_close", "next_open"]
+    assert reheated == [(1, 77)]
+    assert controller._adapters[1] is new_adapter
+
+
+def test_async_ppt_to_ppt_open_failure_does_not_restore_closed_previous_adapter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PPT 切 PPT 已先关闭旧放映；新源失败时应保持黑屏并明确上报错误。"""
     previous_adapter = _AsyncPptAdapter()
     new_adapter = _AsyncPptAdapter(finish_immediately=True, error=RuntimeError("ppt broken"))
     controller, window, states, errors = _make_controller(monkeypatch, new_adapter)
@@ -222,9 +267,9 @@ def test_async_ppt_open_failure_restores_previous_adapter(
 
     assert new_adapter.closed is True
     assert previous_adapter.detached is True
-    assert previous_adapter.restored is True
-    assert controller._adapters[1] is previous_adapter
-    assert controller._adapter_source_ids[1] == 77
+    assert previous_adapter.closed is True
+    assert previous_adapter.restored is False
+    assert controller._adapters == {}
     assert controller._pending_ppt_opens == {}
     assert states == [(1, "loading")]
     assert errors == [(1, "ppt broken")]

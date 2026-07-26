@@ -52,6 +52,9 @@ class PlayerCommandHandlersMixin(PptOpenFlowMixin, PlayerWindowHelpersMixin):
         source_id = int(command_args.get("source_id") or 0)
         preheat_enabled = bool(command_args.get("preheat_enabled", False))
         target_slide = int(command_args.get("target_slide") or 0)
+        is_web_source = source_type == "web"
+        is_ppt_source = source_type == "ppt"
+        is_stream_source = _is_stream_source(source_type)
 
         if not source_type or not uri:
             logger.warning("窗口 %d：OPEN 指令缺少 source_type 或 uri", window_id)
@@ -64,9 +67,6 @@ class PlayerCommandHandlersMixin(PptOpenFlowMixin, PlayerWindowHelpersMixin):
         if previous_source_type == "ppt":
             self._detach_ppt_for_fast_switch(previous_adapter)
 
-        is_web_source = source_type == "web"
-        is_ppt_source = source_type == "ppt"
-        is_stream_source = _is_stream_source(source_type)
         adapter = None
 
         try:
@@ -106,6 +106,23 @@ class PlayerCommandHandlersMixin(PptOpenFlowMixin, PlayerWindowHelpersMixin):
                 uri,
                 window,
             )
+            if (
+                is_ppt_source
+                and previous_source_type == "ppt"
+                and previous_adapter is not None
+            ):
+                # PowerPoint 的放映窗口在同一 COM 服务器中不能可靠并存。
+                # 先把旧 close 排入共享 COM worker，再排新 open，利用 FIFO
+                # 保证旧 SlideShow 退出后才运行新 SlideShowSettings.Run。
+                previous_adapter.close()
+                if previous_source_id:
+                    self._schedule_reheat_source_if_enabled(
+                        window_id, int(previous_source_id)
+                    )
+                # 旧适配器已经进入最终关闭流程，失败时不能再映射回来。
+                previous_adapter = None
+                previous_source_type = None
+                previous_source_id = None
             if is_ppt_source:
                 set_com_worker = getattr(adapter, "set_com_worker", None)
                 if callable(set_com_worker):

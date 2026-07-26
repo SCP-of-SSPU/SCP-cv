@@ -395,7 +395,7 @@ def test_handle_open_detaches_previous_ppt_before_new_source(
 def test_handle_open_detaches_previous_ppt_before_reopening_ppt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """PPT 切 PPT 时应先隐藏旧嵌入子窗口，新 PPT 可见后再调度关闭旧 PPT。"""
+    """PPT 切 PPT 时应先隐藏并关闭旧放映，再打开新 PPT。"""
     controller = PlayerController()
     previous_adapter = _OpenAdapter()
     new_adapter = _OpenAdapter()
@@ -437,8 +437,8 @@ def test_handle_open_detaches_previous_ppt_before_reopening_ppt(
         "autoplay": True,
     })
 
-    assert calls == ["previous_detach", "new_open", "scheduled_close"]
-    assert previous_adapter.closed is False
+    assert calls == ["previous_detach", "new_open"]
+    assert previous_adapter.closed is True
     assert controller._adapters[1] is new_adapter
     assert window.calls == [
         "black",
