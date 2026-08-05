@@ -1,7 +1,8 @@
 #!/user/bin/env python
 # -*- coding: UTF-8 -*-
 '''
-PDF 演示文稿播放适配器，使用 QtPdf 渲染，不依赖 PowerPoint COM。
+PDF 演示文稿播放适配器，使用 QtPdf 渲染 QImage 并自绘显示。
+不依赖 QPdfView，避免灰框、滚动条和页面留白。
 @Project : SCP-cv
 @File : pdf.py
 @Author : Qintsg
@@ -13,9 +14,9 @@ import logging
 import os
 from typing import Optional
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
+from PySide6.QtGui import QImage, QPainter
 from PySide6.QtPdf import QPdfDocument
-from PySide6.QtPdfWidgets import QPdfView
 from PySide6.QtWidgets import QWidget
 
 from scp_cv.player.adapters.base import AdapterState, SourceAdapter
@@ -23,12 +24,75 @@ from scp_cv.player.adapters.base import AdapterState, SourceAdapter
 logger = logging.getLogger(__name__)
 
 
+class _PdfPageWidget(QWidget):
+    """只负责把当前页 QImage 按宽高比绘制到黑色背景上。"""
+
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        """
+        初始化页面控件。
+        :param parent: 父级窗口
+        :return: None
+        """
+        super().__init__(parent)
+        self._image = QImage()
+        self._on_resize: object | None = None
+        self.setAutoFillBackground(True)
+        self.setStyleSheet("background-color: #000000; border: none;")
+
+    def set_page_image(self, image: QImage) -> None:
+        """
+        设置当前页图像并触发重绘。
+        :param image: 渲染后的页面图像
+        :return: None
+        """
+        self._image = image
+        self.update()
+
+    def set_resize_callback(self, callback: object) -> None:
+        """
+        注入窗口尺寸变化回调，用于按新尺寸重新渲染 PDF 页。
+        :param callback: 无参可调用对象
+        :return: None
+        """
+        self._on_resize = callback
+
+    def resizeEvent(self, event: object) -> None:
+        """
+        窗口尺寸变化时通知适配器重新渲染。
+        :param event: resize 事件
+        :return: None
+        """
+        super().resizeEvent(event)
+        callback = self._on_resize
+        if callable(callback):
+            callback()
+
+    def paintEvent(self, event: object) -> None:
+        """
+        绘制当前 PDF 页，保持宽高比并居中。
+        :param event: paint 事件
+        :return: None
+        """
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), Qt.GlobalColor.black)
+        if self._image.isNull():
+            return
+        scaled = self._image.scaled(
+            self.size(),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        offset_x = (self.width() - scaled.width()) // 2
+        offset_y = (self.height() - scaled.height()) // 2
+        painter.drawImage(offset_x, offset_y, scaled)
+
+
 class PdfSourceAdapter(SourceAdapter):
     """
     PDF 演示文稿显示适配器。
 
-    使用 QtPdf 的 QPdfDocument + QPdfView 渲染 PDF 页面，
-    嵌入 PlayerWindow 的视频容器中全屏显示，支持翻页和跳页。
+    使用 QPdfDocument.render() 渲染当前页为 QImage，
+    再交给自绘控件全屏显示，无滚动、无灰框、无页面留白。
     """
 
     def __init__(self) -> None:
@@ -38,7 +102,7 @@ class PdfSourceAdapter(SourceAdapter):
         """
         super().__init__(adapter_name="pdf")
         self._document: Optional[QPdfDocument] = None
-        self._view: Optional[QPdfView] = None
+        self._view: Optional[_PdfPageWidget] = None
         self._parent_widget: Optional[QWidget] = None
         self._file_path: str = ""
         self._current_page: int = 0
@@ -70,14 +134,9 @@ class PdfSourceAdapter(SourceAdapter):
             document.close()
             raise RuntimeError("无法获取渲染容器")
 
-        view = QPdfView(self._parent_widget)
-        view.setDocument(document)
-        view.setPageMode(QPdfView.PageMode.SinglePage)
-        view.setZoomMode(QPdfView.ZoomMode.FitInView)
-        view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        view.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        view = _PdfPageWidget(self._parent_widget)
         view.setGeometry(self._parent_widget.rect())
+        view.set_resize_callback(self._render_current_page)
         view.show()
 
         self._document = document
@@ -86,6 +145,8 @@ class PdfSourceAdapter(SourceAdapter):
         self._current_page = 0
         if autoplay:
             self.goto_item(1)
+        else:
+            self._render_current_page()
 
         self._mark_open()
         self._logger.info("PDF 已打开：%s（%d 页）", uri, self._total_pages)
@@ -138,18 +199,13 @@ class PdfSourceAdapter(SourceAdapter):
 
     def goto_item(self, index: int) -> None:
         """
-        跳转到指定页（1-based）。
+        跳转到指定页（1-based）并重新渲染。
         :param index: 目标页码
         """
         if self._view is None or self._document is None or self._total_pages <= 0:
             return
-        page_index = max(1, min(int(index), self._total_pages)) - 1
-        navigator = self._view.pageNavigator()
-        try:
-            navigator.jump(page_index)
-        except TypeError:
-            navigator.jump(page_index, self._view.rect().topLeft())
-        self._current_page = page_index
+        self._current_page = max(1, min(int(index), self._total_pages)) - 1
+        self._render_current_page()
 
     def get_state(self) -> AdapterState:
         """
@@ -163,6 +219,21 @@ class PdfSourceAdapter(SourceAdapter):
                 total_slides=self._total_pages,
             )
         return AdapterState(playback_state="idle")
+
+    def _render_current_page(self) -> None:
+        """
+        按当前控件尺寸渲染当前 PDF 页。
+        :return: None
+        """
+        if self._view is None or self._document is None:
+            return
+        target_size = self._view.size()
+        if target_size.isEmpty():
+            target_size = self._parent_widget.rect().size() if self._parent_widget is not None else QSize(1920, 1080)
+        render_width = max(1, int(target_size.width() * self._view.devicePixelRatioF()))
+        render_height = max(1, int(target_size.height() * self._view.devicePixelRatioF()))
+        image = self._document.render(self._current_page, QSize(render_width, render_height))
+        self._view.set_page_image(image)
 
     @staticmethod
     def _find_widget_by_handle(window_handle: int) -> Optional[QWidget]:

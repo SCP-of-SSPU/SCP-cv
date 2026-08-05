@@ -56,6 +56,9 @@ class ManagedProcess:
     log_handle: BinaryIO | None = None
 
 
+_FRONTEND_MAX_RESTARTS = 3
+
+
 class Command(BaseCommand):
     help = "一键启动所有服务：MediaMTX + gRPC-Web + Django + Vue 前端 + PySide6 播放器"
 
@@ -77,6 +80,8 @@ class Command(BaseCommand):
         self._startup_reset_message = ""
         self._backend_port = 8000
         self._process_log_dir = Path(settings.LOG_DIR)
+        self._frontend_restart_count = 0
+        self._frontend_options: dict[str, object] = {}
 
     def add_arguments(self, parser: object) -> None:
         """
@@ -138,6 +143,12 @@ class Command(BaseCommand):
             if frontend_port > 0
             else resolve_frontend_port(Path(settings.BASE_DIR) / "frontend")
         )
+        self._frontend_options = {
+            "frontend_host": frontend_host,
+            "frontend_port": frontend_port,
+            "backend_host": backend_host,
+            "backend_port": backend_port,
+        }
         frontend_display_port = frontend_wait_port
         frontend_uses_env_port = frontend_port <= 0
         if frontend_uses_env_port:
@@ -282,6 +293,12 @@ class Command(BaseCommand):
         command_args = [npm_path, "run", "dev", "--", "--host", host]
         if port > 0:
             command_args.extend(["--port", str(port)])
+        self._frontend_options = {
+            "frontend_host": host,
+            "frontend_port": port,
+            "backend_host": backend_host,
+            "backend_port": backend_port,
+        }
         self._spawn(
             "Vue 前端",
             command_args,
@@ -460,6 +477,24 @@ class Command(BaseCommand):
                     if managed_process.log_handle is not None:
                         managed_process.log_handle.close()
                     self._processes.remove(managed_process)
+                    if (
+                        managed_process.name == "Vue 前端"
+                        and not self._shutting_down
+                        and self._frontend_restart_count < _FRONTEND_MAX_RESTARTS
+                    ):
+                        self._frontend_restart_count += 1
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"Vue 前端异常退出，自动重启（第 {self._frontend_restart_count}/{_FRONTEND_MAX_RESTARTS} 次）"
+                            )
+                        )
+                        self._start_frontend(
+                            str(self._frontend_options.get("frontend_host", "127.0.0.1")),
+                            int(self._frontend_options.get("frontend_port", 0) or 0),
+                            str(self._frontend_options.get("backend_host", "127.0.0.1")),
+                            int(self._frontend_options.get("backend_port", 8000)),
+                        )
+                        continue
                     if managed_process.required:
                         self._cleanup_processes()
                         return

@@ -453,36 +453,35 @@ function exitFocus(): void {
         </div>
 
         <div class="ppt-focus__controls" :aria-label="t('pptFocus.controlsAria')">
-          <n-alert v-if="isPdfMode" type="info" :title="t('pptFocus.pdfModeHint')" :closable="false" class="ppt-focus__pdf-hint" />
-          <template v-else>
-          <div class="ppt-focus__media-picker">
-            <n-select
-              v-model:value="selectedMediaKey"
-              :options="currentMediaOptions"
-              :placeholder="mediaSelectPlaceholder"
-              :disabled="isMediaPickerDisabled"
-              :filterable="currentMediaOptions.length >= 10"
-              :aria-label="t('pptFocus.mediaAria')"
-              size="large"
-            />
-          </div>
+          <template v-if="!isPdfMode">
+            <div class="ppt-focus__media-picker">
+              <n-select
+                v-model:value="selectedMediaKey"
+                :options="currentMediaOptions"
+                :placeholder="mediaSelectPlaceholder"
+                :disabled="isMediaPickerDisabled"
+                :filterable="currentMediaOptions.length >= 10"
+                :aria-label="t('pptFocus.mediaAria')"
+                size="large"
+              />
+            </div>
+            <n-button :disabled="!canControlSelectedMedia" @click="controlSelectedMedia('pause')">
+              <template #icon><FIcon name="pause_24_regular" /></template>
+              <span class="ppt-focus__control-label">{{ t('pptFocus.pauseMedia') }}</span>
+            </n-button>
+            <n-button type="primary" :disabled="!canControlSelectedMedia" @click="controlSelectedMedia('play')">
+              <template #icon><FIcon name="play_24_regular" /></template>
+              <span class="ppt-focus__control-label">{{ t('pptFocus.playMedia') }}</span>
+            </n-button>
+            <n-button type="error" :disabled="!canControlSelectedMedia" @click="controlSelectedMedia('stop')">
+              <template #icon><FIcon name="stop_24_regular" /></template>
+              <span class="ppt-focus__control-label">{{ t('pptFocus.stopMedia') }}</span>
+            </n-button>
+          </template>
           <n-button @click="nav('prev')">
             <template #icon><FIcon name="previous_24_regular" /></template>
             <span class="ppt-focus__control-label">{{ t('pptFocus.prevPage') }}</span>
           </n-button>
-          <n-button :disabled="!canControlSelectedMedia" @click="controlSelectedMedia('pause')">
-            <template #icon><FIcon name="pause_24_regular" /></template>
-            <span class="ppt-focus__control-label">{{ t('pptFocus.pauseMedia') }}</span>
-          </n-button>
-          <n-button type="primary" :disabled="!canControlSelectedMedia" @click="controlSelectedMedia('play')">
-            <template #icon><FIcon name="play_24_regular" /></template>
-            <span class="ppt-focus__control-label">{{ t('pptFocus.playMedia') }}</span>
-          </n-button>
-          <n-button type="error" :disabled="!canControlSelectedMedia" @click="controlSelectedMedia('stop')">
-            <template #icon><FIcon name="stop_24_regular" /></template>
-            <span class="ppt-focus__control-label">{{ t('pptFocus.stopMedia') }}</span>
-          </n-button>
-          </template>
           <n-button @click="nav('next')">
             <template #icon><FIcon name="next_24_regular" /></template>
             <span class="ppt-focus__control-label">{{ t('pptFocus.nextPage') }}</span>

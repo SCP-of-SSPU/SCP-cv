@@ -30,7 +30,7 @@ def source_preview_payload(source: MediaSource) -> dict[str, str]:
     if source.source_type == SourceType.PPT:
         preview_url = first_ppt_slide_preview_url(source)
         preview_kind = "image" if preview_url else "icon"
-        preview_label = "PPT 第一页缩略图" if preview_url else "PPT 暂无缩略图"
+        preview_label = "演示文稿第一页缩略图" if preview_url else "演示文稿暂无缩略图"
     elif source.source_type == SourceType.IMAGE and _source_file_is_readable(source):
         preview_url = f"/api/sources/{source.pk}/preview/"
         preview_kind = "image"
@@ -57,12 +57,14 @@ def first_ppt_slide_preview_url(source: MediaSource) -> str:
     if source.source_type != SourceType.PPT:
         return ""
     resources = list(source.ppt_resources.all())
-    if not resources:
-        _ppt_resources.prepare_ppt_source_resources(source)
+    first_resource = next((resource for resource in resources if resource.page_index == 1), None)
+    if not first_resource or not first_resource.slide_image:
+        # 旧源或 PDF/PPT 预览生成失败的源：懒补齐/懒修复后再读第一页。
+        _ppt_resources.list_ppt_resources(source.pk)
         # 若调用方用了 prefetch，补齐资源后需要清掉旧缓存再读取第一页。
         getattr(source, "_prefetched_objects_cache", {}).pop("ppt_resources", None)
         resources = list(source.ppt_resources.all())
-    first_resource = next((resource for resource in resources if resource.page_index == 1), None)
+        first_resource = next((resource for resource in resources if resource.page_index == 1), None)
     return first_resource.slide_image if first_resource and first_resource.slide_image else ""
 
 

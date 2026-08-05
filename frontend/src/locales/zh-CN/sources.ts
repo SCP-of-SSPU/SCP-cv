@@ -72,7 +72,7 @@ export default {
     },
     add: {
       title: '添加媒体源',
-      desc: '仅支持上传文件或注册网页 URL；直播源由推流端自动注入。',
+      desc: '上传文件或注册网页 URL',
       tabFile: '上传文件',
       tabWeb: '网页',
       typeAria: '添加源类型',
@@ -96,6 +96,8 @@ export default {
       uploadSave: '上传并保存',
       addWeb: '添加网页',
       uploadedSaved: '已上传并保存',
+      uploading: '正在上传…',
+      processing: '上传完成，正在处理…',
       sourceNameDetail: '源名称：{name}',
       pickFileFirst: '请先选择要上传的文件',
       uploadFail: '上传失败，请稍后重试',

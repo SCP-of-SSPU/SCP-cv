@@ -6,7 +6,6 @@
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
-  NAlert,
   NButton,
   NDrawer,
   NDrawerContent,
@@ -44,6 +43,7 @@ const webName = ref('');
 const webPreheatEnabled = ref(true);
 const uploadProgress = ref(0);
 const uploading = ref(false);
+const uploadPhase = ref<'uploading' | 'processing'>('uploading');
 const errorMessage = ref('');
 
 const fileLabel = computed(() => fileToUpload.value?.name ?? t('sources.add.noFile'));
@@ -65,6 +65,17 @@ const isOpen = computed({
   set: (value: boolean) => emit('update:open', value),
 });
 
+const uploadStatusText = computed(() =>
+  uploadPhase.value === 'processing'
+    ? t('sources.add.processing')
+    : t('sources.add.uploading'),
+);
+
+function handleUploadProgress(percent: number): void {
+  uploadProgress.value = percent >= 99 ? 100 : percent;
+  uploadPhase.value = percent >= 99 ? 'processing' : 'uploading';
+}
+
 function close(): void {
   emit('update:open', false);
 }
@@ -78,6 +89,7 @@ function reset(): void {
   webPreheatEnabled.value = true;
   uploadProgress.value = 0;
   uploading.value = false;
+  uploadPhase.value = 'uploading';
   errorMessage.value = '';
   activeTab.value = 'file';
 }
@@ -99,6 +111,7 @@ async function uploadFile(): Promise<void> {
     return;
   }
   uploading.value = true;
+  uploadPhase.value = 'uploading';
   uploadProgress.value = 0;
   errorMessage.value = '';
   try {
@@ -106,9 +119,7 @@ async function uploadFile(): Promise<void> {
       name: fileDisplayName.value.trim() || undefined,
       isTemporary: false,
       preheatEnabled: filePreheatEnabled.value,
-      onProgress: (percent) => {
-        uploadProgress.value = percent;
-      },
+      onProgress: handleUploadProgress,
     });
     toast.success(t('sources.add.uploadedSaved'), t('sources.add.sourceNameDetail', { name: result.name }));
     emit('added');
@@ -118,6 +129,7 @@ async function uploadFile(): Promise<void> {
     errorMessage.value = error instanceof Error ? error.message : t('sources.add.uploadFail');
   } finally {
     uploading.value = false;
+    uploadPhase.value = 'uploading';
   }
 }
 
@@ -150,41 +162,46 @@ async function addWebSource(): Promise<void> {
 
       <n-tabs v-model:value="activeTab" type="line" :aria-label="t('sources.add.typeAria')">
         <n-tab-pane name="file" :tab="t('sources.add.tabFile')">
-          <n-form-item :label="t('sources.add.file')" required :feedback="t('sources.add.fileHint')">
-            <label class="add-source__file">
-              <input ref="fileInputEl" type="file" class="visually-hidden" :disabled="uploading"
-                accept=".pdf,.pptx,.ppt,.pps,.ppsx,.pptm,.ppsm,.pot,.potx,.potm,.odp,.mp4,.mkv,.avi,.mov,.wmv,.flv,.webm,.m4v,.mp3,.wav,.flac,.aac,.ogg,.wma,.m4a,.png,.jpg,.jpeg,.gif,.bmp,.webp,.svg"
-                @change="onFileSelect" />
-              <span class="add-source__file-info">
-                <FIcon name="arrow_upload_24_regular" />
-                <span>{{ fileLabel }}</span>
-                <span v-if="fileSize" class="add-source__file-size">{{ fileSize }}</span>
-              </span>
-              <n-button @click="triggerFilePicker">{{ t('sources.add.chooseFile') }}</n-button>
-            </label>
+          <n-form-item :label="t('sources.add.file')" required>
+            <div class="add-source__file-row">
+              <label class="add-source__file">
+                <input ref="fileInputEl" type="file" class="visually-hidden" :disabled="uploading"
+                  accept=".pdf,.pptx,.ppt,.pps,.ppsx,.pptm,.ppsm,.pot,.potx,.potm,.odp,.mp4,.mkv,.avi,.mov,.wmv,.flv,.webm,.m4v,.mp3,.wav,.flac,.aac,.ogg,.wma,.m4a,.png,.jpg,.jpeg,.gif,.bmp,.webp,.svg"
+                  @change="onFileSelect" />
+                <span class="add-source__file-info">
+                  <FIcon name="arrow_upload_24_regular" />
+                  <span>{{ fileLabel }}</span>
+                  <span v-if="fileSize" class="add-source__file-size">{{ fileSize }}</span>
+                </span>
+                <n-button @click="triggerFilePicker">{{ t('sources.add.chooseFile') }}</n-button>
+              </label>
+              <p class="add-source__pdf-hint">{{ t('sources.add.pdfSuggestion') }}</p>
+            </div>
           </n-form-item>
-          <n-alert type="info" :title="t('sources.add.pdfSuggestion')" :closable="false" />
-          <n-form-item :label="t('sources.add.displayName')" :feedback="t('sources.add.displayNameHint')">
+          <n-form-item :label="t('sources.add.displayName')">
             <n-input v-model:value="fileDisplayName" :placeholder="t('sources.add.displayNamePlaceholder')" />
           </n-form-item>
-          <n-form-item :label="t('sources.add.preheat')" :feedback="t('sources.add.preheatHint')">
+          <n-form-item :label="t('sources.add.preheat')">
             <n-switch v-model:value="filePreheatEnabled">
               <template #checked>{{ t('sources.add.preheatSwitch') }}</template>
               <template #unchecked>{{ t('sources.add.preheatSwitch') }}</template>
             </n-switch>
           </n-form-item>
 
-          <n-progress v-if="uploading" type="line" :percentage="uploadProgress" />
+          <template v-if="uploading">
+            <n-progress type="line" :percentage="uploadProgress" :show-indicator="false" />
+            <p class="add-source__upload-state">{{ uploadStatusText }}</p>
+          </template>
         </n-tab-pane>
 
         <n-tab-pane name="web" :tab="t('sources.add.tabWeb')">
-          <n-form-item :label="t('sources.add.url')" required :feedback="t('sources.add.urlHint')">
+          <n-form-item :label="t('sources.add.url')" required>
             <n-input v-model:value="webUrl" placeholder="https://" :aria-label="t('sources.add.url')" />
           </n-form-item>
-          <n-form-item :label="t('sources.add.webName')" :feedback="t('sources.add.webNameHint')">
+          <n-form-item :label="t('sources.add.webName')">
             <n-input v-model:value="webName" :placeholder="t('sources.add.webNamePlaceholder')" />
           </n-form-item>
-          <n-form-item :label="t('sources.add.preheat')" :feedback="t('sources.add.preheatHint')">
+          <n-form-item :label="t('sources.add.preheat')">
             <n-switch v-model:value="webPreheatEnabled">
               <template #checked>{{ t('sources.add.preheatSwitch') }}</template>
               <template #unchecked>{{ t('sources.add.preheatSwitch') }}</template>
@@ -238,6 +255,27 @@ async function addWebSource(): Promise<void> {
   border-color: var(--colorBrandStroke1);
 }
 
+.add-source__file-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacingHorizontalM);
+  width: 100%;
+}
+
+.add-source__file-row .add-source__file {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.add-source__pdf-hint {
+  flex: 0 0 auto;
+  margin: 0;
+  max-width: 220px;
+  color: var(--colorBrandForeground1);
+  font-size: var(--fontSizeBase200);
+  line-height: var(--lineHeightBase200);
+}
+
 .add-source__file-info {
   display: inline-flex;
   align-items: center;
@@ -260,6 +298,12 @@ async function addWebSource(): Promise<void> {
   width: 100%;
 }
 
+.add-source__upload-state {
+  margin: 0;
+  color: var(--colorNeutralForeground2);
+  font-size: var(--fontSizeBase200);
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -276,6 +320,15 @@ async function addWebSource(): Promise<void> {
   .add-source__file {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .add-source__file-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .add-source__pdf-hint {
+    max-width: none;
   }
 }
 </style>

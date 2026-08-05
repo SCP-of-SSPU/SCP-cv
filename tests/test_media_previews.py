@@ -39,6 +39,42 @@ def test_ppt_source_uses_first_slide_preview(media_source_ppt: MediaSource) -> N
 
 
 @pytest.mark.django_db
+def test_ppt_source_repairs_missing_first_preview(
+    media_source_ppt: MediaSource,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    已存在资源但第一页预览缺失时，媒体源列表应懒修复缩略图。
+    :param media_source_ppt: PPT 源测试对象
+    :param monkeypatch: pytest monkeypatch 工具
+    :return: None
+    """
+    replace_ppt_resources(media_source_ppt.pk, [{
+        "page_index": 1,
+        "slide_image": "",
+    }])
+
+    def fake_list_ppt_resources(source_id: int) -> list[object]:
+        """模拟懒修复：补齐第一页预览图。"""
+        replace_ppt_resources(source_id, [{
+            "page_index": 1,
+            "slide_image": "/media/ppt_previews/1/slide-1.png",
+        }])
+        return []
+
+    monkeypatch.setattr(
+        "scp_cv.services.media_previews._ppt_resources.list_ppt_resources",
+        fake_list_ppt_resources,
+    )
+
+    source = list_media_sources(source_type=SourceType.PPT)[0]
+
+    assert source["preview_url"] == "/media/ppt_previews/1/slide-1.png"
+    assert source["thumbnail_url"] == "/media/ppt_previews/1/slide-1.png"
+    assert source["preview_kind"] == "image"
+
+
+@pytest.mark.django_db
 def test_file_sources_use_inline_preview_endpoint(tmp_path: Path) -> None:
     """
     图片和视频源应返回可嵌入前端缩略位的预览端点。

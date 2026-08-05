@@ -44,6 +44,7 @@ const fileToUpload = ref<File | null>(null);
 const fileDisplayName = ref('');
 const uploadProgress = ref(0);
 const uploading = ref(false);
+const uploadPhase = ref<'uploading' | 'processing'>('uploading');
 const switchingSourceId = ref<number | null>(null);
 const uploadError = ref('');
 const fileInputRef = ref<HTMLInputElement | null>(null);
@@ -60,6 +61,19 @@ const filteredSources = computed<MediaSourceItem[]>(() => {
     return hay.includes(keyword);
   });
 });
+
+const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.value.length }));
+const uploadStatusText = computed(() =>
+  uploadPhase.value === 'processing'
+    ? t('sourcePicker.processing')
+    : t('sourcePicker.uploading'),
+);
+
+function handleUploadProgress(percent: number): void {
+  uploadProgress.value = percent >= 99 ? 100 : percent;
+  uploadPhase.value = percent >= 99 ? 'processing' : 'uploading';
+}
+
 async function selectSource(source: MediaSourceItem): Promise<void> {
   if (!source.is_available || switchingSourceId.value !== null) {
     if (!source.is_available) toast.warning(t('sourcePicker.offline'), t('sourcePicker.offlineHint'));
@@ -92,15 +106,14 @@ async function uploadAndOpen(): Promise<void> {
     return;
   }
   uploading.value = true;
+  uploadPhase.value = 'uploading';
   uploadProgress.value = 0;
   uploadError.value = '';
   try {
     const result = await sourceStore.upload(fileToUpload.value, {
       name: fileDisplayName.value.trim() || undefined,
       isTemporary: true,
-      onProgress: (percent) => {
-        uploadProgress.value = percent;
-      },
+      onProgress: handleUploadProgress,
     });
     if (result.source_type === 'audio') {
       await backgroundAudioStore.playSource(result.id);
@@ -118,10 +131,37 @@ async function uploadAndOpen(): Promise<void> {
   } finally {
     uploading.value = false;
     uploadProgress.value = 0;
+    uploadPhase.value = 'uploading';
   }
 }
 
-const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.value.length }));
+async function uploadOnly(): Promise<void> {
+  if (!fileToUpload.value) {
+    uploadError.value = t('sourcePicker.pickFileFirst');
+    return;
+  }
+  uploading.value = true;
+  uploadPhase.value = 'uploading';
+  uploadProgress.value = 0;
+  uploadError.value = '';
+  try {
+    const result = await sourceStore.upload(fileToUpload.value, {
+      name: fileDisplayName.value.trim() || undefined,
+      isTemporary: false,
+      onProgress: handleUploadProgress,
+    });
+    toast.success(t('sourcePicker.uploadedSaved'), t('sourcePicker.sourceNameDetail', { name: result.name }));
+    fileToUpload.value = null;
+    fileDisplayName.value = '';
+    if (fileInputRef.value) fileInputRef.value.value = '';
+  } catch (error) {
+    uploadError.value = error instanceof Error ? error.message : t('sourcePicker.uploadFail');
+  } finally {
+    uploading.value = false;
+    uploadProgress.value = 0;
+    uploadPhase.value = 'uploading';
+  }
+}
 </script>
 
 <template>
@@ -190,29 +230,37 @@ const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.v
       @toggle="expanded = ($event.target as HTMLDetailsElement).open">
       <summary class="source-picker__upload-summary">
         <FIcon name="arrow_upload_24_regular" />
-        <span>{{ t('sourcePicker.uploadAndOpen') }}</span>
+        <span>{{ t('sourcePicker.uploadNew') }}</span>
       </summary>
       <div class="source-picker__upload-body">
-        <n-form-item :label="t('sourcePicker.file')" required :feedback="t('sourcePicker.fileHint')">
-          <label class="source-picker__file">
-            <input ref="fileInputRef" type="file" class="visually-hidden" :disabled="uploading"
-              accept=".pdf,.pptx,.ppt,.pps,.ppsx,.pptm,.ppsm,.pot,.potx,.potm,.odp,.mp4,.mkv,.avi,.mov,.wmv,.flv,.webm,.m4v,.mp3,.wav,.flac,.aac,.ogg,.wma,.m4a,.png,.jpg,.jpeg,.gif,.bmp,.webp,.svg"
-              @change="onFileSelect" />
-            <span>{{ fileToUpload ? fileToUpload.name : t('sourcePicker.noFile') }}</span>
-            <n-button @click="() => fileInputRef?.click()">
-              {{ t('sourcePicker.chooseFile') }}
-            </n-button>
-          </label>
+        <n-form-item :label="t('sourcePicker.file')" required>
+          <div class="source-picker__file-row">
+            <label class="source-picker__file">
+              <input ref="fileInputRef" type="file" class="visually-hidden" :disabled="uploading"
+                accept=".pdf,.pptx,.ppt,.pps,.ppsx,.pptm,.ppsm,.pot,.potx,.potm,.odp,.mp4,.mkv,.avi,.mov,.wmv,.flv,.webm,.m4v,.mp3,.wav,.flac,.aac,.ogg,.wma,.m4a,.png,.jpg,.jpeg,.gif,.bmp,.webp,.svg"
+                @change="onFileSelect" />
+              <span>{{ fileToUpload ? fileToUpload.name : t('sourcePicker.noFile') }}</span>
+              <n-button @click="() => fileInputRef?.click()">
+                {{ t('sourcePicker.chooseFile') }}
+              </n-button>
+            </label>
+            <p class="source-picker__pdf-hint">{{ t('sourcePicker.pdfSuggestion') }}</p>
+          </div>
         </n-form-item>
-        <n-alert type="info" :title="t('sourcePicker.pdfSuggestion')" :closable="false" />
-        <n-form-item :label="t('sourcePicker.displayName')" :feedback="t('sourcePicker.displayNameHint')">
+        <n-form-item :label="t('sourcePicker.displayName')">
           <n-input v-model:value="fileDisplayName" :placeholder="t('sourcePicker.displayNamePlaceholder')" />
         </n-form-item>
         <p v-if="uploadError" class="source-picker__upload-error">{{ uploadError }}</p>
-        <n-progress v-if="uploading" type="line" :percentage="uploadProgress" />
+        <template v-if="uploading">
+          <n-progress type="line" :percentage="uploadProgress" :show-indicator="false" />
+          <p class="source-picker__upload-state">{{ uploadStatusText }}</p>
+        </template>
 
         <div class="source-picker__upload-actions">
-          <n-button type="primary" block :disabled="uploading || !fileToUpload" :loading="uploading"
+          <n-button :disabled="uploading || !fileToUpload" :loading="uploading" @click="uploadOnly">
+            {{ t('sourcePicker.uploadOnly') }}
+          </n-button>
+          <n-button type="primary" :disabled="uploading || !fileToUpload" :loading="uploading"
             @click="uploadAndOpen">
             {{ t('sourcePicker.uploadOpen') }}
           </n-button>
@@ -221,7 +269,7 @@ const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.v
     </details>
 
     <p v-if="uploading && !expanded" class="source-picker__upload-state">
-      <n-spin :size="16" /> {{ t('sourcePicker.uploading') }}
+      <n-spin :size="16" /> {{ uploadStatusText }}
     </p>
   </n-card>
 </template>
@@ -359,6 +407,27 @@ const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.v
   background: var(--colorNeutralBackground1);
 }
 
+.source-picker__file-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacingHorizontalM);
+  width: 100%;
+}
+
+.source-picker__file-row .source-picker__file {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.source-picker__pdf-hint {
+  flex: 0 0 auto;
+  margin: 0;
+  max-width: 220px;
+  color: var(--colorBrandForeground1);
+  font-size: var(--fontSizeBase200);
+  line-height: var(--lineHeightBase200);
+}
+
 .source-picker__file > span {
   flex: 1 1 auto;
   color: var(--colorNeutralForeground2);
@@ -371,6 +440,17 @@ const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.v
 .source-picker__upload-actions {
   display: flex;
   gap: var(--spacingHorizontalS);
+}
+
+@media (max-width: 767px) {
+  .source-picker__file-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .source-picker__pdf-hint {
+    max-width: none;
+  }
 }
 
 .source-picker__upload-error {

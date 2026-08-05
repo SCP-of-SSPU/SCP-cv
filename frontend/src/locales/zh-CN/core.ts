@@ -115,6 +115,8 @@ export default {
     emptyResponse: '空响应',
     nonJson: '服务返回非 JSON 响应（HTTP {code}）：{preview}',
     requestFail: '请求失败：{status}',
+    connectionLost: '服务连接已断开，请检查前端/后端服务是否仍在运行',
+    timeout: '请求超时，请稍后重试',
     parseFail: '响应解析失败',
     uploadNetFail: '上传失败：网络连接异常',
     uploadAborted: '上传已取消',

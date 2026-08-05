@@ -30,7 +30,7 @@ import { useThrottledSlider } from '@/composables/useThrottledSlider';
 import { useSessionStore } from '@/stores/sessions';
 import { useSourceStore } from '@/stores/sources';
 import { formatDuration } from '@/design-system/utils';
-import { api, type PptResourceItem, type SessionSnapshot } from '@/services/api';
+import { api, buildBackendUrl, type PptResourceItem, type SessionSnapshot } from '@/services/api';
 import { usePlaybackErrorGate } from './usePlaybackErrorGate';
 
 const props = defineProps<{ session: SessionSnapshot }>();
@@ -163,6 +163,10 @@ watch(
 const currentResource = computed(() =>
   pptResources.value.find((res) => res.page_index === props.session.current_slide),
 );
+const currentPagePreviewUrl = computed(() => {
+  if (category.value !== 'ppt' || !currentResource.value?.slide_image) return '';
+  return buildBackendUrl(currentResource.value.slide_image);
+});
 
 async function pptMediaAction(mediaId: string, mediaIndex: number, action: string): Promise<void> {
   try {
@@ -245,7 +249,7 @@ const errorBarDescription = computed(() => {
     </header>
 
     <section v-if="currentSource" class="playback-control__monitor" aria-live="polite">
-      <SourceThumbnail :source="currentSource" size="stage" />
+      <SourceThumbnail :source="currentSource" size="stage" :image-url="currentPagePreviewUrl" />
       <div class="playback-control__monitor-copy">
         <span class="playback-control__monitor-eyebrow">{{ t('playback.currentOutput') }}</span>
         <strong>{{ currentSource.name }}</strong>
@@ -290,8 +294,6 @@ const errorBarDescription = computed(() => {
       <n-alert v-if="pptError" type="error" :title="t('playback.pptLoadFail')">
         {{ pptError }}
       </n-alert>
-
-      <n-alert v-if="isPdfMode" type="info" :title="t('playback.staticPdfHint')" :closable="false" />
 
       <div v-if="!isPdfMode && currentResource && currentResource.media_items.length > 0" class="playback-control__media">
         <h4 class="playback-control__media-title">{{ t('playback.currentMedia') }}</h4>

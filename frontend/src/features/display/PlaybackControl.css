@@ -9,6 +9,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--spacingHorizontalL);
+  flex-wrap: wrap;
 }
 
 .playback-control__identity {
@@ -78,6 +79,8 @@
   display: inline-flex;
   align-items: center;
   gap: var(--spacingHorizontalXS);
+  flex-shrink: 0;
+  white-space: nowrap;
   padding: var(--spacingVerticalS) var(--spacingHorizontalM);
   border-radius: var(--borderRadiusMedium);
   background: var(--colorBrandBackground2);
