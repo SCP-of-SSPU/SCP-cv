@@ -49,7 +49,10 @@ from scp_cv.services.playback_window_controls import (
     set_window_volume as set_window_volume,
     toggle_loop_playback as toggle_loop_playback,
 )
-from scp_cv.services.ppt_playback_cache import resolve_ppt_playback_uri
+from scp_cv.services.slides_pdf import (
+    get_slides_playback_mode,
+    resolve_slide_playback_uri,
+)
 from scp_cv.services.video_wall import VideoWallError, apply_big_screen_mode as apply_video_wall_mode
 
 logger = logging.getLogger(__name__)
@@ -184,7 +187,7 @@ def open_source(
         and session.media_source.is_temporary
         and previous_source_id != source.pk
     )
-    playback_uri = resolve_ppt_playback_uri(source) if source.source_type == SourceType.PPT else source.uri
+    playback_uri = resolve_slide_playback_uri(source) if source.source_type == SourceType.PPT else source.uri
     # 先关闭当前内容
     _reset_playback_fields(session)
 
@@ -202,6 +205,7 @@ def open_source(
     }
     if source.source_type == SourceType.PPT:
         command_args["original_uri"] = source.uri
+        command_args["adapter_kind"] = get_slides_playback_mode(source)
         if target_slide > 0:
             command_args["target_slide"] = int(target_slide)
     if previous_source_is_temporary:
@@ -357,13 +361,14 @@ def _ppt_restart_args(session: PlaybackSession) -> dict[str, object]:
     source = session.media_source
     if source is None:
         return {}
-    playback_uri = resolve_ppt_playback_uri(source) if source.source_type == SourceType.PPT else source.uri
+    playback_uri = resolve_slide_playback_uri(source) if source.source_type == SourceType.PPT else source.uri
     return {
         "window_id": session.window_id,
         "source_id": source.pk,
         "source_type": source.source_type,
         "uri": playback_uri,
         "original_uri": source.uri,
+        "adapter_kind": get_slides_playback_mode(source),
         "autoplay": True,
         "volume": session.volume,
         "muted": session.is_muted,

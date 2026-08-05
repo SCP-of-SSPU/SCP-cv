@@ -152,7 +152,9 @@ async function addWebSource(): Promise<void> {
         <n-tab-pane name="file" :tab="t('sources.add.tabFile')">
           <n-form-item :label="t('sources.add.file')" required :feedback="t('sources.add.fileHint')">
             <label class="add-source__file">
-              <input ref="fileInputEl" type="file" class="visually-hidden" :disabled="uploading" @change="onFileSelect" />
+              <input ref="fileInputEl" type="file" class="visually-hidden" :disabled="uploading"
+                accept=".pdf,.pptx,.ppt,.pps,.ppsx,.pptm,.ppsm,.pot,.potx,.potm,.odp,.mp4,.mkv,.avi,.mov,.wmv,.flv,.webm,.m4v,.mp3,.wav,.flac,.aac,.ogg,.wma,.m4a,.png,.jpg,.jpeg,.gif,.bmp,.webp,.svg"
+                @change="onFileSelect" />
               <span class="add-source__file-info">
                 <FIcon name="arrow_upload_24_regular" />
                 <span>{{ fileLabel }}</span>
@@ -161,6 +163,7 @@ async function addWebSource(): Promise<void> {
               <n-button @click="triggerFilePicker">{{ t('sources.add.chooseFile') }}</n-button>
             </label>
           </n-form-item>
+          <n-alert type="info" :title="t('sources.add.pdfSuggestion')" :closable="false" />
           <n-form-item :label="t('sources.add.displayName')" :feedback="t('sources.add.displayNameHint')">
             <n-input v-model:value="fileDisplayName" :placeholder="t('sources.add.displayNamePlaceholder')" />
           </n-form-item>

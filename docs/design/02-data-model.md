@@ -82,7 +82,7 @@
 | SRT | `srt://host:port?streamid=...` |
 | RTSP | `rtsp://host:8554/<stream_identifier>` |
 | custom stream | libVLC 可读取的自定义 URL |
-| PPT | 原始 PPT 路径，播放时可由 `resolve_ppt_playback_uri()` 替换为 `.ppsx/.pps` 缓存 |
+| PPT | 原始 PPT 路径，播放时可由 `resolve_slide_playback_uri()` 替换为 PDF 或 `.ppsx/.pps` 缓存 |
 
 迁移到多主机或容器后，必须重新设计 `uri` 的可访问性。当前系统假设 Django、播放器和媒体文件在同一 Windows 主机上。
 

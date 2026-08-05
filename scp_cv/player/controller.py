@@ -80,6 +80,8 @@ class PlayerController(PlayerPollingMixin, PlayerCommandHandlersMixin, Backgroun
         self._adapters: dict[int, SourceAdapter] = {}
         # 适配器源类型记录：window_id → source_type
         self._adapter_source_types: dict[int, str] = {}
+        # 适配器放映模式记录：window_id → pdf / powerpoint / ""
+        self._adapter_kinds: dict[int, str] = {}
         # 适配器源 ID 记录：切源竞态中用于阻断旧 adapter 状态写回新会话。
         self._adapter_source_ids: dict[int, int] = {}
         # 统一预热池：由 Qt 主线程创建和使用，避免切源时重复冷启动。
@@ -238,7 +240,7 @@ class PlayerController(PlayerPollingMixin, PlayerCommandHandlersMixin, Backgroun
         """
         from scp_cv.apps.playback.models import MediaSource
         from scp_cv.apps.playback.models import SourceType
-        from scp_cv.services.ppt_playback_cache import resolve_ppt_playback_uri
+        from scp_cv.services.slides_pdf import resolve_slide_playback_uri
 
         preheat_pool = self._ensure_preheat_pool()
         for source in MediaSource.objects.filter(
@@ -248,7 +250,7 @@ class PlayerController(PlayerPollingMixin, PlayerCommandHandlersMixin, Backgroun
         ).only("id", "source_type", "uri", "metadata"):
             if source.source_type == SourceType.AUDIO and not self._enable_background_audio:
                 continue
-            preheat_uri = resolve_ppt_playback_uri(source) if source.source_type == SourceType.PPT else source.uri
+            preheat_uri = resolve_slide_playback_uri(source) if source.source_type == SourceType.PPT else source.uri
             preheat_pool.preheat_source(
                 source.pk,
                 source.source_type,

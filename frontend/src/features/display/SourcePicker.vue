@@ -196,6 +196,7 @@ const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.v
         <n-form-item :label="t('sourcePicker.file')" required :feedback="t('sourcePicker.fileHint')">
           <label class="source-picker__file">
             <input ref="fileInputRef" type="file" class="visually-hidden" :disabled="uploading"
+              accept=".pdf,.pptx,.ppt,.pps,.ppsx,.pptm,.ppsm,.pot,.potx,.potm,.odp,.mp4,.mkv,.avi,.mov,.wmv,.flv,.webm,.m4v,.mp3,.wav,.flac,.aac,.ogg,.wma,.m4a,.png,.jpg,.jpeg,.gif,.bmp,.webp,.svg"
               @change="onFileSelect" />
             <span>{{ fileToUpload ? fileToUpload.name : t('sourcePicker.noFile') }}</span>
             <n-button @click="() => fileInputRef?.click()">
@@ -203,6 +204,7 @@ const totalLabel = computed(() => t('sourcePicker.count', { n: filteredSources.v
             </n-button>
           </label>
         </n-form-item>
+        <n-alert type="info" :title="t('sourcePicker.pdfSuggestion')" :closable="false" />
         <n-form-item :label="t('sourcePicker.displayName')" :feedback="t('sourcePicker.displayNameHint')">
           <n-input v-model:value="fileDisplayName" :placeholder="t('sourcePicker.displayNamePlaceholder')" />
         </n-form-item>

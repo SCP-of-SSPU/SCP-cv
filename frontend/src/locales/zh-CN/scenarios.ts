@@ -39,7 +39,7 @@ export default {
       namePlaceholder: '例如：早会方案',
       remark: '备注',
       remarkHint: '可选；写明预案适用的场景或时间',
-      remarkPlaceholder: '例如：用于晨会现场，使用单屏 + 主屏 PPT',
+      remarkPlaceholder: '例如：用于晨会现场，使用单屏 + 主屏演示文稿',
       bigScreenMode: '大屏模式',
       bigScreenHint: '保持表示不修改运行态；选择后将切换到对应模式',
       systemVolume: '系统音量',

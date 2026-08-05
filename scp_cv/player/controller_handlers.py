@@ -54,6 +54,11 @@ class PlayerCommandHandlersMixin(PptOpenFlowMixin, PlayerWindowHelpersMixin):
         target_slide = int(command_args.get("target_slide") or 0)
         is_web_source = source_type == "web"
         is_ppt_source = source_type == "ppt"
+        adapter_kind = str(command_args.get("adapter_kind") or "")
+        if is_ppt_source and not adapter_kind:
+            adapter_kind = "pdf" if uri.lower().endswith(".pdf") else "powerpoint"
+        is_pdf_source = is_ppt_source and adapter_kind == "pdf"
+        is_powerpoint_source = is_ppt_source and adapter_kind == "powerpoint"
         is_stream_source = _is_stream_source(source_type)
 
         if not source_type or not uri:
@@ -63,14 +68,16 @@ class PlayerCommandHandlersMixin(PptOpenFlowMixin, PlayerWindowHelpersMixin):
         previous_adapter = self._adapters.pop(window_id, None)
         previous_source_type = self._adapter_source_types.pop(window_id, None)
         previous_source_id = self._adapter_source_ids.pop(window_id, None)
+        previous_adapter_kind = self._adapter_kinds.pop(window_id, None)
+        if previous_source_type == "ppt" and not previous_adapter_kind:
+            # 旧版播放器没有放映模式记录；演示文稿此前统一走 PowerPoint。
+            previous_adapter_kind = "powerpoint"
         self._last_reported_states.pop(window_id, None)
-        if previous_source_type == "ppt":
-            self._detach_ppt_for_fast_switch(previous_adapter)
 
         adapter = None
 
         try:
-            adapter = create_adapter(source_type)
+            adapter = create_adapter(adapter_kind if is_ppt_source else source_type)
             window_handle = self.get_window_handle(window_id)
             if window_handle == 0:
                 try:
@@ -82,10 +89,49 @@ class PlayerCommandHandlersMixin(PptOpenFlowMixin, PlayerWindowHelpersMixin):
                     previous_adapter,
                     previous_source_type,
                     previous_source_id,
+                    previous_adapter_kind,
                 )
                 self._update_session_error(window_id, "播放器窗口不可用")
                 logger.warning("窗口 %d 没有可用句柄，跳过 OPEN", window_id)
                 return
+
+            if is_powerpoint_source:
+                # PowerPoint 是进程级单实例：打开新的完整放映前，先完整关闭其它窗口
+                # 正在放映的 PowerPoint，并等待 COM 资源真正释放，避免旧 HWND 竞态。
+                for other_window_id in list(self._adapters.keys()):
+                    if self._adapter_kinds.get(other_window_id) != "powerpoint":
+                        continue
+                    other_adapter = self._adapters.pop(other_window_id, None)
+                    other_source_type = self._adapter_source_types.pop(other_window_id, None)
+                    other_source_id = self._adapter_source_ids.pop(other_window_id, None)
+                    self._adapter_kinds.pop(other_window_id, None)
+                    self._last_reported_states.pop(other_window_id, None)
+                    self._close_powerpoint_adapter_sync(
+                        other_window_id,
+                        other_adapter,
+                        other_source_type,
+                        other_source_id,
+                        reset_session=True,
+                    )
+                if (
+                    previous_adapter is not None
+                    and previous_source_type == "ppt"
+                    and previous_adapter_kind == "powerpoint"
+                ):
+                    self._close_powerpoint_adapter_sync(
+                        window_id,
+                        previous_adapter,
+                        previous_source_type,
+                        previous_source_id,
+                        reset_session=False,
+                    )
+                    previous_adapter = None
+                    previous_source_type = None
+                    previous_source_id = None
+                    previous_adapter_kind = None
+            elif previous_source_type == "ppt":
+                # PDF 演示文稿不占用 PowerPoint 槽位，按普通旧适配器延后关闭。
+                self._detach_ppt_for_fast_switch(previous_adapter)
 
             window = self.get_window(window_id)
             if window is not None:
@@ -106,41 +152,29 @@ class PlayerCommandHandlersMixin(PptOpenFlowMixin, PlayerWindowHelpersMixin):
                 uri,
                 window,
             )
-            if (
-                is_ppt_source
-                and previous_source_type == "ppt"
-                and previous_adapter is not None
-            ):
-                # PowerPoint 的放映窗口在同一 COM 服务器中不能可靠并存。
-                # 先把旧 close 排入共享 COM worker，再排新 open，利用 FIFO
-                # 保证旧 SlideShow 退出后才运行新 SlideShowSettings.Run。
-                previous_adapter.close()
-                # PPT→PPT 期间不能并发重建预热 Application；新适配器必须在旧
-                # Application 完全退休后 DispatchEx。普通离场仍由关闭流程在空闲
-                # 窗口上延迟重建预热。
-                # 旧适配器已经进入最终关闭流程，失败时不能再映射回来。
-                previous_adapter = None
-                previous_source_type = None
-                previous_source_id = None
             if is_ppt_source:
                 set_com_worker = getattr(adapter, "set_com_worker", None)
                 if callable(set_com_worker):
                     set_com_worker(self._ppt_com_worker)
-                open_async = getattr(adapter, "open_async", None)
-                if callable(open_async):
-                    # PPT 慢操作走 COM 工作线程，完成后经信号回主线程收尾。
-                    self._begin_ppt_open_async(
-                        window_id,
-                        adapter,
-                        window_handle,
-                        command_args,
-                        previous_adapter,
-                        previous_source_type,
-                        previous_source_id,
-                    )
-                    return
+                if is_powerpoint_source:
+                    open_async = getattr(adapter, "open_async", None)
+                    if callable(open_async):
+                        # PowerPoint 慢操作走 COM 工作线程，完成后经信号回主线程收尾。
+                        self._begin_ppt_open_async(
+                            window_id,
+                            adapter,
+                            window_handle,
+                            command_args,
+                            previous_adapter,
+                            previous_source_type,
+                            previous_source_id,
+                            previous_adapter_kind,
+                        )
+                        return
             adapter.open(uri=uri, window_handle=window_handle, autoplay=autoplay)
-            if is_ppt_source and target_slide > 0:
+            if is_ppt_source and target_slide > 0 and not is_pdf_source:
+                adapter.goto_item(target_slide)
+            elif is_pdf_source and target_slide > 0:
                 adapter.goto_item(target_slide)
             adapter.set_volume(int(command_args.get("volume", 100)))
             adapter.set_mute(bool(command_args.get("muted", False)))
@@ -155,19 +189,26 @@ class PlayerCommandHandlersMixin(PptOpenFlowMixin, PlayerWindowHelpersMixin):
                 previous_adapter,
                 previous_source_type,
                 previous_source_id,
+                previous_adapter_kind,
             )
-            if previous_adapter is None and is_ppt_source:
+            if previous_adapter is None and is_powerpoint_source:
                 self._restore_player_window_to_black(window_id)
             raise
         self._adapters[window_id] = adapter
         self._adapter_source_types[window_id] = source_type
+        self._adapter_kinds[window_id] = adapter_kind if is_ppt_source else ""
         if source_id > 0:
             self._adapter_source_ids[window_id] = source_id
 
         if window is not None:
             if is_web_source:
                 window.show_web_container()
-            elif is_ppt_source:
+            elif is_pdf_source:
+                window.show_video_container()
+                window.show()
+                self._set_player_window_topmost(window, True)
+                window.raise_()
+            elif is_powerpoint_source:
                 self._show_ppt_container(window_id)
             else:
                 window.show_video_container()
@@ -258,6 +299,7 @@ class PlayerCommandHandlersMixin(PptOpenFlowMixin, PlayerWindowHelpersMixin):
             self._close_adapter(adapter_window_id, reheat=False)
         self._adapter_source_types.clear()
         self._adapter_source_ids.clear()
+        self._adapter_kinds.clear()
         self._last_reported_states.clear()
 
         if self._preheat_pool is not None:
@@ -442,6 +484,7 @@ class PlayerCommandHandlersMixin(PptOpenFlowMixin, PlayerWindowHelpersMixin):
         self._close_detached_adapter(window_id, adapter, source_type, source_id, restore_window, reheat)
         self._adapter_source_types.pop(window_id, None)
         self._adapter_source_ids.pop(window_id, None)
+        self._adapter_kinds.pop(window_id, None)
         self._last_reported_states.pop(window_id, None)
 
     def _close_detached_adapter(
@@ -468,11 +511,53 @@ class PlayerCommandHandlersMixin(PptOpenFlowMixin, PlayerWindowHelpersMixin):
                 adapter.close()
             except Exception as close_error:
                 logger.warning("关闭窗口 %d 适配器异常：%s", window_id, close_error)
-        if reheat and source_id and self._should_reheat_closed_source(window_id, int(source_id)):
-            if source_type == "ppt":
-                self._schedule_reheat_source_if_enabled(window_id, int(source_id))
-            else:
-                self._reheat_source_if_enabled(int(source_id))
+        if source_type == "ppt":
+            # 本轮已停用 PowerPoint 预热；保留统一预热池扩展点，后续按预建窗口模型恢复。
+            logger.debug("窗口 %d 演示文稿离场，跳过后台预热", window_id)
+        elif reheat and source_id and self._should_reheat_closed_source(window_id, int(source_id)):
+            self._reheat_source_if_enabled(int(source_id))
+
+    def _close_powerpoint_adapter_sync(
+        self,
+        window_id: int,
+        adapter: object | None,
+        source_type: str | None,
+        source_id: int | None,
+        reset_session: bool,
+    ) -> None:
+        """
+        完整关闭指定窗口的 PowerPoint 适配器并等待资源释放。
+        :param window_id: 窗口编号
+        :param adapter: PowerPoint 适配器
+        :param source_type: 旧源类型
+        :param source_id: 旧源 ID
+        :param reset_session: 是否将会话重置为 idle
+        :return: None
+        """
+        if adapter is not None:
+            try:
+                close_and_wait = getattr(adapter, "close_and_wait", None)
+                if callable(close_and_wait):
+                    close_and_wait()
+                else:
+                    adapter.close()
+            except Exception as close_error:
+                logger.warning("完整关闭窗口 %d PowerPoint 适配器异常：%s", window_id, close_error)
+        window = self.get_window(window_id)
+        if window is not None:
+            window.show_black_screen()
+            window.show()
+            self._set_player_window_topmost(window, True)
+            window.raise_()
+        if reset_session:
+            self._reset_window_session_to_idle(window_id)
+        if source_id:
+            try:
+                from scp_cv.services.media import delete_temporary_source_if_unused
+                delete_temporary_source_if_unused(int(source_id))
+            except Exception:
+                pass
+        logger.info("窗口 %d PowerPoint 已完整关闭", window_id)
 
     @staticmethod
     def _should_reheat_closed_source(window_id: int, source_id: int) -> bool:
@@ -506,6 +591,7 @@ class PlayerCommandHandlersMixin(PptOpenFlowMixin, PlayerWindowHelpersMixin):
         adapter: object | None,
         source_type: str | None,
         source_id: int | None,
+        adapter_kind: str | None = None,
     ) -> None:
         """
         新源打开失败时恢复旧适配器映射和窗口可见性。
@@ -513,12 +599,14 @@ class PlayerCommandHandlersMixin(PptOpenFlowMixin, PlayerWindowHelpersMixin):
         :param adapter: 旧适配器
         :param source_type: 旧源类型
         :param source_id: 旧源 ID
+        :param adapter_kind: 旧适配器放映模式
         :return: None
         """
         if adapter is None or source_type is None:
             return
         self._adapters[window_id] = adapter
         self._adapter_source_types[window_id] = source_type
+        self._adapter_kinds[window_id] = adapter_kind or ""
         if source_id is not None:
             self._adapter_source_ids[window_id] = source_id
         window = self.get_window(window_id)
@@ -651,8 +739,8 @@ class PlayerCommandHandlersMixin(PptOpenFlowMixin, PlayerWindowHelpersMixin):
             return
         preheat_uri = source.uri
         if source.source_type == "ppt":
-            from scp_cv.services.ppt_playback_cache import resolve_ppt_playback_uri
-            preheat_uri = resolve_ppt_playback_uri(source)
+            from scp_cv.services.slides_pdf import resolve_slide_playback_uri
+            preheat_uri = resolve_slide_playback_uri(source)
         self._ensure_preheat_pool().preheat_source(
             source.pk,
             source.source_type,

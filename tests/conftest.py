@@ -23,6 +23,12 @@ _TEST_PASSWORD = "admin"
 
 
 @pytest.fixture(autouse=True)
+def _disable_slides_pdf_auto_convert(settings) -> None:
+    """单元测试默认不触发 PowerPoint COM 的演示文稿 PDF 自动导出。"""
+    settings.SLIDES_PDF_AUTO_CONVERT = False
+
+
+@pytest.fixture(autouse=True)
 def _ensure_test_admin(request: pytest.FixtureRequest) -> None:
     """
     若用例需要数据库（标记 django_db / 间接依赖 db 夹具），自动播种 admin 用户

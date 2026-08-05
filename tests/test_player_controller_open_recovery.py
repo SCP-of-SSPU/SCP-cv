@@ -196,16 +196,50 @@ def test_handle_open_ignores_legacy_ppt_backend_option(monkeypatch: pytest.Monke
         "muted": True,
     })
 
-    assert created_options == {"source_type": "ppt"}
+    assert created_options == {"source_type": "powerpoint"}
     assert adapter.open_args == {"uri": "C:/demo/demo.pptx", "window_handle": 2001, "autoplay": True}
     assert adapter.goto_items == [4]
     assert adapter.volumes == [88]
     assert adapter.mutes == [True]
     assert controller._adapters[1] is adapter
     assert controller._adapter_source_ids[1] == 7
+    assert controller._adapter_kinds[1] == "powerpoint"
     assert states == [(1, "playing")]
     assert window.calls == ["black", "show", "raise", "ppt_container", "video", "show", "raise"]
     assert window.topmost == [True, True]
+
+
+def test_handle_open_routes_pdf_demo_to_pdf_adapter(monkeypatch: pytest.MonkeyPatch) -> None:
+    """PDF 演示文稿应创建 PDF 适配器并记录 pdf 放映模式。"""
+    controller = PlayerController()
+    adapter = _OpenAdapter()
+    window = _WindowStub()
+    created_types: list[str] = []
+
+    def create_adapter_stub(source_type: str, **_adapter_options: object) -> _OpenAdapter:
+        """记录适配器类型。"""
+        created_types.append(source_type)
+        return adapter
+
+    monkeypatch.setattr(
+        "scp_cv.player.controller_handlers.create_adapter",
+        create_adapter_stub,
+    )
+    monkeypatch.setattr(controller, "get_window_handle", lambda _window_id: 2001)
+    monkeypatch.setattr(controller, "get_window", lambda _window_id: window)
+    monkeypatch.setattr(controller, "_cleanup_temporary_source", lambda _command_args: None)
+    monkeypatch.setattr(controller, "_update_session_state", lambda _window_id, _state: None)
+
+    controller._handle_open(1, {
+        "source_id": 7,
+        "source_type": "ppt",
+        "uri": "C:/demo/slides.pdf",
+        "autoplay": True,
+    })
+
+    assert created_types == ["pdf"]
+    assert controller._adapters[1] is adapter
+    assert controller._adapter_kinds[1] == "pdf"
 
 
 def test_handle_open_keeps_ppt_container_visible_when_autoplay_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -413,7 +447,12 @@ def test_handle_open_detaches_previous_ppt_before_reopening_ppt(
         calls.append("new_open")
         new_adapter.open_args = {"uri": uri, "window_handle": window_handle, "autoplay": autoplay}
 
-    previous_adapter.detach_for_fast_switch = lambda: calls.append("previous_detach")  # type: ignore[method-assign]
+    def close_previous() -> None:
+        """记录旧放映完整关闭。"""
+        calls.append("previous_close")
+        previous_adapter.closed = True
+
+    previous_adapter.close = close_previous  # type: ignore[method-assign]
     new_adapter.open = open_new  # type: ignore[method-assign]
     controller._adapters[1] = previous_adapter  # type: ignore[assignment]
     controller._adapter_source_types[1] = "ppt"
@@ -437,10 +476,13 @@ def test_handle_open_detaches_previous_ppt_before_reopening_ppt(
         "autoplay": True,
     })
 
-    assert calls == ["previous_detach", "new_open"]
+    assert calls == ["previous_close", "new_open"]
     assert previous_adapter.closed is True
     assert controller._adapters[1] is new_adapter
     assert window.calls == [
+        "black",
+        "show",
+        "raise",
         "black",
         "show",
         "raise",
@@ -449,7 +491,53 @@ def test_handle_open_detaches_previous_ppt_before_reopening_ppt(
         "show",
         "raise",
     ]
-    assert window.topmost == [True, True]
+    assert window.topmost == [True, True, True]
+
+
+@pytest.mark.django_db
+def test_open_powerpoint_closes_other_window_slot_before_open(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """打开新 PowerPoint 前应完整关闭另一窗口已放映的 PowerPoint。"""
+    controller = PlayerController()
+    window1_adapter = _OpenAdapter()
+    window1_adapter.closed = False
+    window2_adapter = _OpenAdapter()
+    close_calls: list[int] = []
+
+    def close_window1() -> None:
+        """记录窗口 1 完整关闭。"""
+        close_calls.append(1)
+        window1_adapter.closed = True
+
+    window1_adapter.close = close_window1  # type: ignore[method-assign]
+    controller._adapters[1] = window1_adapter  # type: ignore[assignment]
+    controller._adapter_source_types[1] = "ppt"
+    controller._adapter_source_ids[1] = 77
+    controller._adapter_kinds[1] = "powerpoint"
+
+    monkeypatch.setattr(
+        "scp_cv.player.controller_handlers.create_adapter",
+        lambda *_args, **_kwargs: window2_adapter,
+    )
+    monkeypatch.setattr(controller, "get_window_handle", lambda _window_id: 2001)
+    monkeypatch.setattr(controller, "get_window", lambda _window_id: None)
+    monkeypatch.setattr(controller, "_cleanup_temporary_source", lambda _command_args: None)
+    monkeypatch.setattr(controller, "_update_session_state", lambda _window_id, _state: None)
+
+    controller._handle_open(2, {
+        "source_id": 8,
+        "source_type": "ppt",
+        "uri": "C:/demo/next.pptx",
+        "autoplay": True,
+        "adapter_kind": "powerpoint",
+    })
+
+    assert close_calls == [1]
+    assert window1_adapter.closed is True
+    assert 1 not in controller._adapters
+    assert controller._adapters[2] is window2_adapter
+    assert controller._adapter_kinds[2] == "powerpoint"
 
 
 def test_schedule_close_detached_adapter_delays_ppt_close(
@@ -597,7 +685,6 @@ def test_handle_open_keeps_previous_ppt_when_factory_fails(monkeypatch: pytest.M
         })
 
     assert previous_adapter.closed is False
-    assert previous_adapter.detached_for_fast_switch is True
     assert previous_adapter.restored_after_failed_switch is True
     assert controller._adapters[1] is previous_adapter
     assert controller._adapter_source_types[1] == "ppt"
@@ -629,7 +716,6 @@ def test_handle_open_keeps_previous_ppt_when_window_handle_missing(monkeypatch: 
     })
 
     assert previous_adapter.closed is False
-    assert previous_adapter.detached_for_fast_switch is True
     assert previous_adapter.restored_after_failed_switch is True
     assert new_adapter.closed is True
     assert controller._adapters[1] is previous_adapter

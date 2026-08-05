@@ -28,6 +28,8 @@ export interface MediaSourceItem {
    */
   preheat_enabled: boolean;
   keep_alive: boolean;
+  /** 演示文稿播放模式：pdf / powerpoint；其它类型为空字符串。 */
+  playback_mode: string;
   preview_url: string;
   thumbnail_url: string;
   preview_kind: 'icon' | 'image' | 'video';
@@ -51,6 +53,8 @@ export interface SessionSnapshot {
   source_type: string;
   source_type_label: string;
   source_uri: string;
+  /** 演示文稿播放模式：pdf / powerpoint；其它类型为空字符串。 */
+  playback_mode: string;
   playback_state: string;
   playback_state_label: string;
   error_message: string;

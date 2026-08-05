@@ -398,6 +398,24 @@ class PptSourceAdapter(
         self._mark_closed()
         self._submit_com_command("关闭", self._close_on_com_thread)
 
+    def close_and_wait(self) -> None:
+        """
+        完整关闭 PPT 放映并等待 COM 资源释放完成。
+        PowerPoint 唯一槽位切换前必须调用，确保旧放映完全退出后再打开新放映。
+        :return: None
+        """
+        self._mark_closed()
+        worker = self._com_worker
+        if worker is None or getattr(worker, "is_current_thread", False):
+            self._close_on_com_thread()
+            return
+        worker.submit_and_wait(
+            f"{self._app_label} 完整关闭",
+            self._close_on_com_thread,
+            timeout_seconds=_SYNC_OPEN_WAIT_TIMEOUT_SECONDS,
+        )
+        self._mark_closed()
+
     def _close_on_com_thread(self) -> None:
         """
         在 COM 线程执行资源释放。

@@ -119,7 +119,7 @@
 
 - `VALID_WINDOW_IDS` 来自 `playback_sessions`，当前固定为 1-4。
 - `SourceType.AUDIO` 不允许打开到四个显示窗口，只能走背景音乐。
-- PPT 打开会优先使用 `resolve_ppt_playback_uri()` 返回的 `.ppsx/.pps` 播放缓存，并统一交给 PowerPoint。
+- PPT 打开会优先使用 `resolve_slide_playback_uri()`：静态演示文稿/PDF 返回 PDF 并交给 QtPdf 适配器；动态演示文稿返回 `.ppsx/.pps` 并交给 PowerPoint。
 - 关闭时如旧源是临时源，会通过 `cleanup_source_id` 触发清理。
 - 运行态静音策略不是前端 UI 规则，而是后端写入每个 session 的业务规则。
 
@@ -145,7 +145,7 @@
 迁移注意：
 
 - 上传文件保存到 `media/uploads/%Y%m%d/`。
-- PPT 源创建后会调用 `prepare_ppt_source_resources()` 和 `prepare_ppt_playback_cache()`。
+- PPT 源创建后会调用 `prepare_ppt_source_resources()`、`prepare_ppt_playback_cache()` 和 `prepare_slides_pdf()`；静态 OOXML 自动导出 PDF。
 - 删除 PPT 源时必须清理 `media/ppt_previews/<source_id>/` 和 `media/ppt_playback/<source_id>/`。
 - 流媒体源的可用性来自 MediaMTX 同步，不应由前端手动维护。
 

@@ -14,6 +14,7 @@ from datetime import timedelta
 
 from django.utils import timezone
 from scp_cv.apps.playback.models import PlaybackSession, PlaybackState
+from scp_cv.services.slides_pdf import get_slides_playback_mode
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +85,10 @@ def get_session_snapshot(window_id: int) -> dict[str, object]:
         source_type_label = session.media_source.get_source_type_display()
         source_uri = session.media_source.uri
 
+    playback_mode = ""
+    if session.media_source is not None:
+        playback_mode = get_slides_playback_mode(session.media_source)
+
     return {
         "window_id": session.window_id,
         "session_id": session.pk,
@@ -92,6 +97,7 @@ def get_session_snapshot(window_id: int) -> dict[str, object]:
         "source_type": source_type,
         "source_type_label": source_type_label,
         "source_uri": source_uri,
+        "playback_mode": playback_mode,
         "playback_state": session.playback_state,
         "playback_state_label": session.get_playback_state_display(),
         "error_message": session.error_message,

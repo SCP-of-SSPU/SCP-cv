@@ -50,6 +50,9 @@ def prepare_ppt_playback_cache(
         return {}
 
     metadata = dict(source.metadata or {})
+    if Path(source.uri).suffix.lower() == ".pdf":
+        # PDF 已由演示文稿 PDF 播放缓存服务管理，不再生成 PowerPoint show 缓存。
+        return metadata
     try:
         payload = _build_playback_cache_payload(source, preferred_backend, force)
     except Exception as cache_error:

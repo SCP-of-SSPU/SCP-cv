@@ -30,6 +30,7 @@ class _PendingPptOpen:
     previous_adapter: object | None
     previous_source_type: str | None
     previous_source_id: int | None
+    previous_adapter_kind: str | None = None
     superseded: bool = False
     adapter_disposed: bool = False
     deferred: list[tuple[str, dict[str, object]]] = field(default_factory=list)
@@ -52,6 +53,7 @@ class PptOpenFlowMixin:
         previous_adapter: object | None,
         previous_source_type: str | None,
         previous_source_id: int | None,
+        previous_adapter_kind: str | None = None,
     ) -> None:
         """
         发起 PPT 后台打开：注册在途请求并投递 open_async。
@@ -72,6 +74,7 @@ class PptOpenFlowMixin:
             previous_adapter=previous_adapter,
             previous_source_type=previous_source_type,
             previous_source_id=previous_source_id,
+            previous_adapter_kind=previous_adapter_kind,
         )
         self._pending_ppt_opens[window_id] = entry
         self._update_session_state(window_id, "loading")
@@ -143,6 +146,7 @@ class PptOpenFlowMixin:
         source_id = int(command_args.get("source_id") or 0)
         self._adapters[window_id] = entry.adapter
         self._adapter_source_types[window_id] = "ppt"
+        self._adapter_kinds[window_id] = "powerpoint"
         if source_id > 0:
             self._adapter_source_ids[window_id] = source_id
         self._show_ppt_container(window_id)
@@ -185,6 +189,7 @@ class PptOpenFlowMixin:
             entry.previous_adapter,
             entry.previous_source_type,
             entry.previous_source_id,
+            entry.previous_adapter_kind,
         )
         if entry.previous_adapter is None:
             self._restore_player_window_to_black(window_id)

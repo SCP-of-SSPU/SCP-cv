@@ -89,11 +89,11 @@ def test_close_detached_adapter_skips_reheat_when_same_source_still_active(
 
 
 @pytest.mark.django_db
-def test_close_detached_adapter_reheats_after_source_reaches_idle(
+def test_close_detached_adapter_skips_ppt_reheat_after_source_reaches_idle(
     media_source_ppt: MediaSource,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """PPT 会话空闲后，关闭旧适配器应延迟恢复后台预热。"""
+    """PPT 预热已停用；会话空闲后关闭旧适配器不应再调度延迟预热。"""
     adapter = _ClosableAdapter()
     controller = PlayerController()
     reheated_source_ids: list[int] = []
@@ -123,11 +123,7 @@ def test_close_detached_adapter_reheats_after_source_reaches_idle(
 
     assert adapter.closed is True
     assert reheated_source_ids == []
-    assert len(scheduled_callbacks) == 1
-
-    scheduled_callbacks[0]()
-
-    assert reheated_source_ids == [media_source_ppt.pk]
+    assert scheduled_callbacks == []
 
 
 @pytest.mark.django_db
@@ -135,7 +131,7 @@ def test_delayed_ppt_reheat_skips_when_same_source_reopens(
     media_source_ppt: MediaSource,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """延迟预热回调执行前同源重新进入 LOADING 时不应抢跑预热。"""
+    """PPT 预热已停用；同源重开场景下不再有延迟预热回调。"""
     adapter = _ClosableAdapter()
     controller = PlayerController()
     reheated_source_ids: list[int] = []
@@ -163,8 +159,8 @@ def test_delayed_ppt_reheat_skips_when_same_source_reopens(
         reheat=True,
     )
     open_source(1, media_source_ppt.pk)
-    scheduled_callbacks[0]()
 
+    assert scheduled_callbacks == []
     assert reheated_source_ids == []
 
 

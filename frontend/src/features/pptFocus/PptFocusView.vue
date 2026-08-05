@@ -74,6 +74,7 @@ const resourcePollAttempts = ref(0);
 const windowId = computed(() => Number.parseInt(String(route.params.windowId ?? '0'), 10));
 const session = computed(() => sessionStore.byWindowId(windowId.value));
 const pptSourceId = computed(() => (session.value?.source_type === 'ppt' ? session.value.source_id : null));
+const isPdfMode = computed(() => session.value?.playback_mode === 'pdf');
 const orientationKey = computed<'landscape' | 'portrait'>(() => (isLandscape.value ? 'landscape' : 'portrait'));
 
 const slidesProgress = computed(() => ({
@@ -452,6 +453,8 @@ function exitFocus(): void {
         </div>
 
         <div class="ppt-focus__controls" :aria-label="t('pptFocus.controlsAria')">
+          <n-alert v-if="isPdfMode" type="info" :title="t('pptFocus.pdfModeHint')" :closable="false" class="ppt-focus__pdf-hint" />
+          <template v-else>
           <div class="ppt-focus__media-picker">
             <n-select
               v-model:value="selectedMediaKey"
@@ -479,6 +482,7 @@ function exitFocus(): void {
             <template #icon><FIcon name="stop_24_regular" /></template>
             <span class="ppt-focus__control-label">{{ t('pptFocus.stopMedia') }}</span>
           </n-button>
+          </template>
           <n-button @click="nav('next')">
             <template #icon><FIcon name="next_24_regular" /></template>
             <span class="ppt-focus__control-label">{{ t('pptFocus.nextPage') }}</span>

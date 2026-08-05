@@ -41,6 +41,7 @@ const sessionStore = useSessionStore();
 const sourceStore = useSourceStore();
 
 const category = computed(() => sourceStore.resolveCategory(props.session.source_type));
+const isPdfMode = computed(() => props.session.playback_mode === 'pdf');
 const currentSource = computed(() => sourceStore.findById(props.session.source_id) ?? null);
 
 type NTagType = 'default' | 'primary' | 'info' | 'success' | 'warning' | 'error';
@@ -227,6 +228,12 @@ const errorBarDescription = computed(() => {
           <p class="playback-control__caption">
             {{ session.source_type_label || t('playback.idle') }}
             <template v-if="session.is_spliced">· {{ session.spliced_display_label || t('playback.spliced') }}</template>
+            <n-tag v-if="category === 'ppt' && session.playback_mode === 'pdf'" type="info" round size="small">
+              {{ t('playback.pdfBadge') }}
+            </n-tag>
+            <n-tag v-else-if="category === 'ppt' && session.playback_mode === 'powerpoint'" type="warning" round size="small">
+              {{ t('playback.powerpointBadge') }}
+            </n-tag>
           </p>
         </div>
       </div>
@@ -284,7 +291,9 @@ const errorBarDescription = computed(() => {
         {{ pptError }}
       </n-alert>
 
-      <div v-if="currentResource && currentResource.media_items.length > 0" class="playback-control__media">
+      <n-alert v-if="isPdfMode" type="info" :title="t('playback.staticPdfHint')" :closable="false" />
+
+      <div v-if="!isPdfMode && currentResource && currentResource.media_items.length > 0" class="playback-control__media">
         <h4 class="playback-control__media-title">{{ t('playback.currentMedia') }}</h4>
         <ul class="playback-control__media-list">
           <li v-for="media in currentResource.media_items" :key="media.id" class="playback-control__media-item">

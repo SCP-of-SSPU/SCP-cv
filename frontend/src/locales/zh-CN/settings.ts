@@ -89,7 +89,7 @@ export default {
     envVars: '环境变量',
     envVarsHint: '前端读 frontend/.env 中的 VITE_FRONTEND_PORT 与 VITE_BACKEND_TARGET；根目录 .env 用于后端与 MediaMTX。',
     physicalSmokeTitle: '物理 4 屏冒烟测试',
-    physicalSmokeHint: '会真实执行图片、视频、背景音乐、网页、PPT、SRT、RTSP 和自定义流播放链路，测试结束后执行重置。',
+    physicalSmokeHint: '会真实执行图片、视频、背景音乐、网页、演示文稿、SRT、RTSP 和自定义流播放链路，测试结束后执行重置。',
     physicalSmokeTimeoutHint: '后端最多播放 9 分钟，前端会额外等待重置完成；执行期间不要切换会场播放内容。',
     physicalSmokeStart: '开始 4 屏冒烟测试',
     physicalSmokeRunning: '正在测试 4 屏播放…',

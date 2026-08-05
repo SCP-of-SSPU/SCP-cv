@@ -266,7 +266,6 @@ def test_async_ppt_to_ppt_open_failure_does_not_restore_closed_previous_adapter(
     })
 
     assert new_adapter.closed is True
-    assert previous_adapter.detached is True
     assert previous_adapter.closed is True
     assert previous_adapter.restored is False
     assert controller._adapters == {}

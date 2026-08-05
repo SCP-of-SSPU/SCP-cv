@@ -79,7 +79,9 @@ class PlayerPreheatPool:
             elif str(source_type).endswith("_stream"):
                 self._preheat_stream(source_id, uri, force)
             elif source_type == SourceType.PPT:
-                self.preheat_ppt_source(source_id, uri)
+                # PPT 预热本轮已停用：PowerPoint 播放改为按需单槽位启动，
+                # PDF 播放无需预热。保留 preheat_ppt_source 作为后续扩展入口。
+                logger.debug("演示文稿预热已停用：source_id=%d", source_id)
         except Exception as preheat_error:
             logger.warning(
                 "媒体源预热失败：source_id=%d, type=%s, error=%s",
@@ -164,23 +166,13 @@ class PlayerPreheatPool:
 
     def preheat_ppt_source(self, source_id: int = 0, uri: str = "") -> None:
         """
-        预热共享 PowerPoint 应用。
-        PowerPoint 实际为进程级单例 COM 服务器；多个文件级 Presentation
-        长期并存时，一个放映关闭会使其它代理断开，因此这里只保留应用级预热。
-        注入 COM 工作线程时在后台执行，避免冷启动阻塞主线程。
+        预热共享 PowerPoint 应用（当前已停用，保留扩展入口）。
+        后续如需恢复，应按“预建隐藏窗口/资源槽，切换时直接接管”的模型实现。
         :param source_id: 保留的兼容参数
         :param uri: 保留的兼容参数
         :return: None
         """
-        preheat_job = self._ppt_apps.preheat
-        description = "预热 PowerPoint 应用"
-        # getattr 兜底：测试可能绕过 __init__ 构造预热池实例
-        worker = getattr(self, "_ppt_com_worker", None)
-        if worker is None or getattr(worker, "is_current_thread", False):
-            preheat_job()
-            return
-        # 预热走低优先级：前台打开/关闭等指令可插队，不被预热队列挡住
-        worker.submit(description, preheat_job, low_priority=True)
+        logger.debug("PowerPoint 预热已停用：source_id=%d", source_id)
 
     def take_ppt_application(self, source_id: int = 0, uri: str = "") -> PreheatedPptApplication | None:
         """

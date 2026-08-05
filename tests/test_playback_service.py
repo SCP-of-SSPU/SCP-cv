@@ -148,6 +148,7 @@ class TestGetSessionSnapshot:
             "current_slide", "total_slides", "position_ms", "duration_ms",
             "pending_command", "player_online", "player_last_seen_at",
             "last_updated_at", "volume", "is_muted", "loop_enabled",
+            "playback_mode",
         }
         assert set(snapshot.keys()) == required_keys
 

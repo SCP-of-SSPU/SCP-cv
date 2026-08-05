@@ -211,6 +211,8 @@ PPT_PLAYBACK_EXPORT_TIMEOUT_SECONDS = env.float(
     "PPT_PLAYBACK_EXPORT_TIMEOUT_SECONDS",
     default=180.0,
 )
+# 新上传演示文稿是否自动检测静态内容并导出 PDF；关闭后统一走 PowerPoint 模式。
+SLIDES_PDF_AUTO_CONVERT = env.bool("SLIDES_PDF_AUTO_CONVERT", default=True)
 
 LOGGING = {
     "version": 1,

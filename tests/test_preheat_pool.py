@@ -195,8 +195,8 @@ class _FakeQUrl:
         return f"local:{uri}"
 
 
-def test_ppt_sources_share_application_level_preheat() -> None:
-    """PowerPoint 是进程级单例；多个 PPT 源只能共享应用级预热，不能长期持有文件 COM 代理。"""
+def test_ppt_preheat_is_disabled_but_keeps_extension_entry() -> None:
+    """演示文稿预热本轮停用；preheat_source 不应再启动 PowerPoint，但入口保留。"""
     ppt_apps = _PptAppsStub()
     pool = object.__new__(PlayerPreheatPool)
     pool._ppt_apps = ppt_apps
@@ -206,7 +206,7 @@ def test_ppt_sources_share_application_level_preheat() -> None:
     pool.preheat_source(13, SourceType.PPT, "C:/demo/other.pptx")
 
     assert ppt_apps.preheat_source_calls == []
-    assert ppt_apps.preheat_calls == 2
+    assert ppt_apps.preheat_calls == 0
 
 
 def test_image_preheat_is_file_level_and_requires_exact_uri(

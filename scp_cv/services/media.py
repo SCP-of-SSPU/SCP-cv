@@ -16,6 +16,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Optional
 
+from django.conf import settings
 from django.core.files.uploadedfile import UploadedFile
 from django.utils import timezone
 
@@ -26,6 +27,7 @@ from scp_cv.apps.playback.models import (
 )
 from scp_cv.services import ppt_playback_cache as _ppt_playback_cache
 from scp_cv.services import ppt_resources as _ppt_resources
+from scp_cv.services import slides_pdf as _slides_pdf
 from scp_cv.services.media_folders import (
     create_folder as create_folder,
     delete_folder as delete_folder,
@@ -106,6 +108,7 @@ def add_uploaded_file(
     media_source.save()
     _prepare_ppt_source_resources(media_source)
     _prepare_ppt_playback_cache(media_source)
+    _prepare_slides_pdf(media_source)
 
     logger.info("通过上传添加媒体源「%s」（%s）→ %s", display_name, source_type, media_source.uri)
     return media_source
@@ -159,6 +162,7 @@ def add_local_path(
     )
     _prepare_ppt_source_resources(media_source)
     _prepare_ppt_playback_cache(media_source)
+    _prepare_slides_pdf(media_source)
 
     logger.info("通过本地路径添加媒体源「%s」（%s）→ %s", display_name, source_type, resolved_path)
     return media_source
@@ -225,6 +229,7 @@ def delete_media_source(media_source_id: int) -> None:
     from scp_cv.services.background_audio import handle_media_source_deleted
     handle_media_source_deleted(source.pk)
     _ppt_playback_cache.cleanup_ppt_playback_cache(source.pk)
+    _slides_pdf.cleanup_slides_pdf(source.pk)
 
     # 删除关联的上传文件
     if source.uploaded_file:
@@ -277,6 +282,17 @@ def _prepare_ppt_playback_cache(source: MediaSource) -> None:
     :return: None
     """
     _ppt_playback_cache.prepare_ppt_playback_cache(source)
+
+
+def _prepare_slides_pdf(source: MediaSource) -> None:
+    """
+    为新上传的演示文稿建立 PDF 播放模式元数据。
+    :param source: 已保存的演示文稿源
+    :return: None
+    """
+    if not getattr(settings, "SLIDES_PDF_AUTO_CONVERT", True):
+        return
+    _slides_pdf.prepare_slides_pdf(source)
 
 
 def _export_ppt_slide_previews(file_path: Path, source_id: int) -> list[str]:

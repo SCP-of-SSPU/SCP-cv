@@ -15,7 +15,7 @@ from django.db import models
 class SourceType(models.TextChoices):
     """统一媒体源类型枚举，覆盖所有可播放内容。"""
 
-    PPT = "ppt", "PPT 演示文稿"
+    PPT = "ppt", "演示文稿"
     VIDEO = "video", "视频"
     AUDIO = "audio", "音频"
     IMAGE = "image", "图片"

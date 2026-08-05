@@ -44,6 +44,7 @@ class TestDetectSourceType:
 
     @pytest.mark.parametrize("file_path,expected_type", [
         ("demo.pptx", SourceType.PPT),
+        ("demo.pdf", SourceType.PPT),
         ("macro.pptm", SourceType.PPT),
         ("SLIDE.PPT", SourceType.PPT),
         ("show.ppsx", SourceType.PPT),
@@ -254,7 +255,7 @@ class TestListMediaSources:
             "id", "source_type", "name", "uri", "is_available", "stream_identifier", "created_at",
             "folder_id", "original_filename", "file_size", "mime_type", "is_temporary",
             "expires_at", "metadata", "keep_alive", "preheat_enabled", "preview_url",
-            "thumbnail_url", "preview_kind", "preview_label",
+            "thumbnail_url", "preview_kind", "preview_label", "playback_mode",
         }
         assert set(sources[0].keys()) == expected_keys
 
