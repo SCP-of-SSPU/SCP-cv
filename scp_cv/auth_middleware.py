@@ -24,6 +24,7 @@ _PUBLIC_PATHS = (
     "/api/auth/logout/",
     "/api/auth/csrf/",
     "/api/auth/me/",
+    "/api/auth/status/",
 )
 
 # 需要鉴权保护的业务前缀。/api/ 是 SPA 主入口，其余 dashboard 旧路径同样涉及

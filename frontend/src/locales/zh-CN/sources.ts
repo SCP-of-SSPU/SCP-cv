@@ -8,6 +8,7 @@ export default {
     countOnly: '共 {n} 项',
     countWithSize: '共 {n} 项 · 占用 {size}',
     searchPlaceholder: '搜索源名称或 URL',
+    searchEmpty: '没有找到匹配的源，请调整关键词或筛选条件。',
     refreshAria: '刷新源列表',
     addSource: '添加源',
     sourceTypeAria: '源类型',

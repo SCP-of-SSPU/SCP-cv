@@ -128,6 +128,19 @@ def me_api(request: HttpRequest) -> JsonResponse:
     return _json({"user": _user_payload(user)})
 
 
+@require_GET
+def status_api(request: HttpRequest) -> JsonResponse:
+    """
+    返回当前登录态，未登录时返回 200 而不是 401，避免浏览器控制台产生噪声。
+    :param request: HTTP 请求
+    :return: {"authenticated": bool, "user": 用户信息或 None}
+    """
+    user = request.user
+    if not user.is_authenticated:
+        return _json({"authenticated": False, "user": None})
+    return _json({"authenticated": True, "user": _user_payload(user)})
+
+
 @require_POST
 def change_password_api(request: HttpRequest) -> JsonResponse:
     """校验旧密码并修改当前用户密码，成功后保持现有登录会话。"""

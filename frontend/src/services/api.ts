@@ -457,6 +457,7 @@ export const api = {
     requestJson<{ user: AuthUser }>('/api/auth/login/', { method: 'POST', body: JSON.stringify(payload) }),
   logout: () => requestJson<{ detail: string }>('/api/auth/logout/', { method: 'POST' }),
   fetchMe: () => requestJson<{ user: AuthUser }>('/api/auth/me/'),
+  fetchAuthStatus: () => requestJson<{ authenticated: boolean; user: AuthUser | null }>('/api/auth/status/'),
   changePassword: (payload: { current_password: string; new_password: string }) =>
     requestJson<{ detail: string }>('/api/auth/change-password/', { method: 'POST', body: JSON.stringify(payload) }),
   listFolders: () => requestJson<{ success: boolean; folders: MediaFolderItem[] }>('/api/folders/'),

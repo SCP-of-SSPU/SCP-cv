@@ -294,7 +294,7 @@ const categoryModel = computed({
           </template>
 
           <template v-else-if="sourceStore.filtered.length === 0">
-            <n-empty :description="activeCategoryDef.emptyHint">
+            <n-empty :description="sourceStore.searchKeyword.trim() ? t('sources.searchEmpty') : activeCategoryDef.emptyHint">
               <template #icon>
                 <FIcon name="library_24_regular" />
               </template>
