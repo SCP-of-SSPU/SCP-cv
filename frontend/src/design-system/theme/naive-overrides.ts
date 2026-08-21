@@ -17,24 +17,39 @@ import type { GlobalThemeOverrides } from 'naive-ui';
 import type { Theme } from '@fluentui/tokens';
 import { webDarkTheme, webLightTheme } from '@fluentui/tokens';
 
+/** Qingyuan 品牌色：青雾点睛，浅色主题 */
+const QINGYUAN_BRAND_LIGHT = {
+  primary: '#478384',
+  primaryHover: '#5c9a9b',
+  primaryPressed: '#356263',
+};
+
+/** Qingyuan 品牌色：青雾点睛，暗色主题 */
+const QINGYUAN_BRAND_DARK = {
+  primary: '#5c9a9b',
+  primaryHover: '#7fb0b1',
+  primaryPressed: '#478384',
+};
+
 /**
- * 从 Fluent Theme 派生 Naive GlobalThemeOverrides。
+ * 从 Fluent Theme 派生 Naive GlobalThemeOverrides，并叠加 Qingyuan 品牌色。
  * @param t Fluent 主题对象（webLightTheme / webDarkTheme / 自定义品牌主题）
+ * @param brand Qingyuan 品牌色覆盖
  * @return Naive UI 全局主题覆盖配置
  */
-function buildOverrides(t: Theme): GlobalThemeOverrides {
+function buildOverrides(t: Theme, brand: { primary: string; primaryHover: string; primaryPressed: string }): GlobalThemeOverrides {
   return {
     common: {
-      // 品牌色：主操作与高亮态的核心通路
-      primaryColor: t.colorBrandBackground,
-      primaryColorHover: t.colorBrandBackgroundHover,
-      primaryColorPressed: t.colorBrandBackgroundPressed,
-      primaryColorSuppl: t.colorBrandBackgroundHover,
+      // 品牌色：Qingyuan 青雾点睛
+      primaryColor: brand.primary,
+      primaryColorHover: brand.primaryHover,
+      primaryColorPressed: brand.primaryPressed,
+      primaryColorSuppl: brand.primaryHover,
 
-      // 状态色：警示 / 错误 / 成功 / 信息
-      infoColor: t.colorBrandBackground,
-      infoColorHover: t.colorBrandBackgroundHover,
-      infoColorPressed: t.colorBrandBackgroundPressed,
+      // 状态色：信息色沿用品牌青；其余保持 Fluent 语义色
+      infoColor: brand.primary,
+      infoColorHover: brand.primaryHover,
+      infoColorPressed: brand.primaryPressed,
       successColor: t.colorStatusSuccessForeground1,
       successColorHover: t.colorStatusSuccessForeground1,
       successColorPressed: t.colorStatusSuccessForeground1,
@@ -158,8 +173,8 @@ function buildOverrides(t: Theme): GlobalThemeOverrides {
     },
     Tabs: {
       tabFontWeightActive: String(t.fontWeightSemibold),
-      tabTextColorActiveLine: t.colorBrandForeground1,
-      barColor: t.colorBrandBackground,
+      tabTextColorActiveLine: brand.primary,
+      barColor: brand.primary,
     },
     Alert: {
       borderRadius: t.borderRadiusMedium,
@@ -173,20 +188,20 @@ function buildOverrides(t: Theme): GlobalThemeOverrides {
     },
     Switch: {
       railColor: t.colorNeutralStroke1,
-      railColorActive: t.colorBrandBackground,
+      railColorActive: brand.primary,
     },
     Checkbox: {
       borderRadius: t.borderRadiusSmall,
-      colorChecked: t.colorBrandBackground,
+      colorChecked: brand.primary,
     },
     Radio: {
-      buttonColorActive: t.colorBrandBackground,
+      buttonColorActive: brand.primary,
       buttonTextColorActive: t.colorNeutralBackground1,
     },
     Slider: {
-      fillColor: t.colorBrandBackground,
-      fillColorHover: t.colorBrandBackgroundHover,
-      handleColor: t.colorBrandBackground,
+      fillColor: brand.primary,
+      fillColorHover: brand.primaryHover,
+      handleColor: brand.primary,
     },
     Tooltip: {
       borderRadius: t.borderRadiusMedium,
@@ -194,7 +209,7 @@ function buildOverrides(t: Theme): GlobalThemeOverrides {
       textColor: t.colorNeutralBackground1,
     },
     Progress: {
-      fillColor: t.colorBrandBackground,
+      fillColor: brand.primary,
       railColor: t.colorNeutralStroke2,
     },
     Empty: {
@@ -215,8 +230,8 @@ function buildOverrides(t: Theme): GlobalThemeOverrides {
   };
 }
 
-/** Light 主题下的 Naive UI 覆盖。 */
-export const fluentLightOverrides: GlobalThemeOverrides = buildOverrides(webLightTheme);
+/** Light 主题下的 Naive UI 覆盖（叠加 Qingyuan 青色品牌色）。 */
+export const fluentLightOverrides: GlobalThemeOverrides = buildOverrides(webLightTheme, QINGYUAN_BRAND_LIGHT);
 
-/** Dark 主题下的 Naive UI 覆盖。 */
-export const fluentDarkOverrides: GlobalThemeOverrides = buildOverrides(webDarkTheme);
+/** Dark 主题下的 Naive UI 覆盖（叠加 Qingyuan 青色品牌色）。 */
+export const fluentDarkOverrides: GlobalThemeOverrides = buildOverrides(webDarkTheme, QINGYUAN_BRAND_DARK);

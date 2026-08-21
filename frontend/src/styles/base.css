@@ -126,6 +126,95 @@
 
   /* iOS 视口高度兜底（由 useAppHeight composable 写入实际值） */
   --app-height: 100vh;
+
+  /*
+   * Qingyuan 设计系统品牌色覆盖（清源）。
+   * 以墨蓝为骨、青雾点睛：低饱和暖灰中性色 + 单一青色强调。
+   * 这些覆盖在 Fluent 2 令牌之上生效，仅改变品牌色相，不破坏令牌体系。
+   */
+  /* 品牌青色（操作色） */
+  --colorBrandBackground: #478384;
+  --colorBrandBackgroundHover: #5c9a9b;
+  --colorBrandBackgroundPressed: #356263;
+  --colorBrandBackgroundSelected: #478384;
+  --colorBrandBackgroundStatic: #478384;
+  --colorBrandForeground1: #478384;
+  --colorBrandForeground2: #356263;
+  --colorBrandForeground2Hover: #356263;
+  --colorBrandForeground2Pressed: #2a4e4f;
+  --colorBrandStroke1: #478384;
+  --colorBrandStroke2: #6fa3a4;
+  --colorBrandStroke2Hover: #5c9a9b;
+  --colorBrandBackground2: #e9f0f0;
+  --colorBrandBackground2Hover: #d4e4e4;
+  --colorBrandBackground2Pressed: #b8d2d3;
+  --colorCompoundBrandBackground: #478384;
+  --colorCompoundBrandBackgroundHover: #5c9a9b;
+  --colorCompoundBrandBackgroundPressed: #356263;
+  --colorCompoundBrandForeground1: #478384;
+  --colorCompoundBrandForeground1Hover: #5c9a9b;
+  --colorCompoundBrandForeground1Pressed: #356263;
+  --colorCompoundBrandStroke: #478384;
+  --colorCompoundBrandStrokeHover: #5c9a9b;
+  --colorCompoundBrandStrokePressed: #356263;
+}
+
+/* 暗色主题下的 Qingyuan 品牌色覆盖 */
+:root[data-theme='dark'] {
+  --colorBrandBackground: #5c9a9b;
+  --colorBrandBackgroundHover: #7fb0b1;
+  --colorBrandBackgroundPressed: #478384;
+  --colorBrandBackgroundSelected: #5c9a9b;
+  --colorBrandBackgroundStatic: #5c9a9b;
+  --colorBrandForeground1: #7fb0b1;
+  --colorBrandForeground2: #a8cfcf;
+  --colorBrandForeground2Hover: #a8cfcf;
+  --colorBrandForeground2Pressed: #7fb0b1;
+  --colorBrandStroke1: #5c9a9b;
+  --colorBrandStroke2: #1e3233;
+  --colorBrandStroke2Hover: #1e3233;
+  --colorBrandBackground2: #1e3233;
+  --colorBrandBackground2Hover: #2a4546;
+  --colorBrandBackground2Pressed: #142425;
+  --colorCompoundBrandBackground: #5c9a9b;
+  --colorCompoundBrandBackgroundHover: #7fb0b1;
+  --colorCompoundBrandBackgroundPressed: #478384;
+  --colorCompoundBrandForeground1: #5c9a9b;
+  --colorCompoundBrandForeground1Hover: #7fb0b1;
+  --colorCompoundBrandForeground1Pressed: #478384;
+  --colorCompoundBrandStroke: #5c9a9b;
+  --colorCompoundBrandStrokeHover: #7fb0b1;
+  --colorCompoundBrandStrokePressed: #478384;
+}
+
+/* 跟随系统暗色时的 Qingyuan 品牌色覆盖 */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --colorBrandBackground: #5c9a9b;
+    --colorBrandBackgroundHover: #7fb0b1;
+    --colorBrandBackgroundPressed: #478384;
+    --colorBrandBackgroundSelected: #5c9a9b;
+    --colorBrandBackgroundStatic: #5c9a9b;
+    --colorBrandForeground1: #7fb0b1;
+    --colorBrandForeground2: #a8cfcf;
+    --colorBrandForeground2Hover: #a8cfcf;
+    --colorBrandForeground2Pressed: #7fb0b1;
+    --colorBrandStroke1: #5c9a9b;
+    --colorBrandStroke2: #1e3233;
+    --colorBrandStroke2Hover: #1e3233;
+    --colorBrandBackground2: #1e3233;
+    --colorBrandBackground2Hover: #2a4546;
+    --colorBrandBackground2Pressed: #142425;
+    --colorCompoundBrandBackground: #5c9a9b;
+    --colorCompoundBrandBackgroundHover: #7fb0b1;
+    --colorCompoundBrandBackgroundPressed: #478384;
+    --colorCompoundBrandForeground1: #5c9a9b;
+    --colorCompoundBrandForeground1Hover: #7fb0b1;
+    --colorCompoundBrandForeground1Pressed: #478384;
+    --colorCompoundBrandStroke: #5c9a9b;
+    --colorCompoundBrandStrokeHover: #7fb0b1;
+    --colorCompoundBrandStrokePressed: #478384;
+  }
 }
 
 *,
