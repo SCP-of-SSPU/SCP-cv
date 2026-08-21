@@ -134,7 +134,7 @@ function close(): void {
         <n-form-item :label="t('sources.editDrawer.preheat')" :feedback="t('sources.editDrawer.preheatHint')">
           <n-switch v-model:value="draftPreheatEnabled" :disabled="saving">
             <template #checked>{{ t('sources.editDrawer.preheatSwitch') }}</template>
-            <template #unchecked>{{ t('sources.editDrawer.preheatSwitch') }}</template>
+            <template #unchecked>{{ t('sources.editDrawer.preheatSwitchOff') }}</template>
           </n-switch>
         </n-form-item>
 

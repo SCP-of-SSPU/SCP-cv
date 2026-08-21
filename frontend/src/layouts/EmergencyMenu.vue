@@ -71,6 +71,22 @@ async function onShutdown(): Promise<void> {
   }
 }
 
+async function onRestartAll(): Promise<void> {
+  const confirmed = await dialog.danger({
+    title: t('emergency.restartAllTitle'),
+    description: t('emergency.restartAllDesc'),
+    confirmLabel: t('emergency.restartAllConfirm'),
+    cancelLabel: t('common.cancel'),
+  });
+  if (!confirmed) return;
+  try {
+    const result = await session.restartAll();
+    toast.warning(t('emergency.restartAllOk'), result.detail ?? t('emergency.restartAllSent'));
+  } catch (error) {
+    toast.error(t('emergency.restartAllFail'), error instanceof Error ? error.message : t('common.retry'));
+  }
+}
+
 function renderIcon(name: FluentIconName) {
   return () => h(FIcon, { name, size: 18 });
 }
@@ -87,6 +103,12 @@ const options: DropdownOption[] = [
     ],
   },
   { type: 'divider', key: 'divider-1' },
+  {
+    label: t('emergency.restartAll'),
+    key: 'restart-all',
+    icon: renderIcon('arrow_repeat_all_24_regular'),
+    props: { onClick: onRestartAll },
+  },
   {
     label: t('emergency.shutdown'),
     key: 'shutdown',

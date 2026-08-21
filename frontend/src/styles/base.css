@@ -24,6 +24,7 @@
   --color-background-glass-strong: var(--colorNeutralBackground1);
   --color-background-disabled: var(--colorNeutralBackgroundDisabled);
   --color-background-inverse: var(--colorNeutralBackgroundInverted);
+  --colorNeutralBackgroundCanvas: var(--colorNeutralBackground2);
 
   /* 文本 */
   --color-text-inverse: var(--colorNeutralForegroundInverted);

@@ -87,6 +87,13 @@ export default {
     shutdownOk: '系统关闭中',
     shutdownSent: '已发送关闭指令',
     shutdownFail: '关闭失败',
+    restartAll: '重启全部服务',
+    restartAllTitle: '重启全部服务？',
+    restartAllDesc: '将关闭并重新启动前端、后端、播放器窗口、MediaMTX 等全部服务。重启期间控制台短暂不可用，约 10-30 秒后自动恢复。继续前请确认现场无正在使用的演讲。',
+    restartAllConfirm: '确认重启',
+    restartAllOk: '系统重启中',
+    restartAllSent: '已发送重启指令',
+    restartAllFail: '重启失败',
   },
   more: {
     title: '更多',

@@ -6,6 +6,7 @@
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
+  NAlert,
   NButton,
   NDrawer,
   NDrawerContent,
@@ -184,7 +185,7 @@ async function addWebSource(): Promise<void> {
           <n-form-item :label="t('sources.add.preheat')">
             <n-switch v-model:value="filePreheatEnabled">
               <template #checked>{{ t('sources.add.preheatSwitch') }}</template>
-              <template #unchecked>{{ t('sources.add.preheatSwitch') }}</template>
+              <template #unchecked>{{ t('sources.add.preheatSwitchOff') }}</template>
             </n-switch>
           </n-form-item>
 
@@ -204,7 +205,7 @@ async function addWebSource(): Promise<void> {
           <n-form-item :label="t('sources.add.preheat')">
             <n-switch v-model:value="webPreheatEnabled">
               <template #checked>{{ t('sources.add.preheatSwitch') }}</template>
-              <template #unchecked>{{ t('sources.add.preheatSwitch') }}</template>
+              <template #unchecked>{{ t('sources.add.preheatSwitchOff') }}</template>
             </n-switch>
           </n-form-item>
         </n-tab-pane>

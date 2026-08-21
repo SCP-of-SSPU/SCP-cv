@@ -113,5 +113,10 @@ export const useSessionStore = defineStore('sessions', {
       this.applyRemoteSessions(payload.sessions);
       return { detail: payload.detail };
     },
+    async restartAll(): Promise<{ detail?: string }> {
+      const payload = await api.restartAll();
+      this.applyRemoteSessions(payload.sessions);
+      return { detail: payload.detail };
+    },
   },
 });

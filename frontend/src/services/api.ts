@@ -508,6 +508,7 @@ export const api = {
     }),
   }, PHYSICAL_SMOKE_TIMEOUT_MS),
   shutdownSystem: () => requestJson<ApiStatePayload & { detail?: string }>('/api/system/shutdown/', { method: 'POST' }),
+  restartAll: () => requestJson<ApiStatePayload & { detail?: string }>('/api/system/restart/', { method: 'POST' }),
   setLoop: (windowId: number, enabled: boolean) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/loop/`, { method: 'PATCH', body: JSON.stringify({ enabled }) }),
   setWindowVolume: (windowId: number, volume: number) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/volume/`, { method: 'PATCH', body: JSON.stringify({ volume }) }),
   setWindowMute: (windowId: number, muted: boolean) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/mute/`, { method: 'PATCH', body: JSON.stringify({ muted }) }),
