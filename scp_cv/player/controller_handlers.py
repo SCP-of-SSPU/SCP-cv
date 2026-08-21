@@ -745,7 +745,7 @@ class PlayerCommandHandlersMixin(PptOpenFlowMixin, PlayerWindowHelpersMixin):
             source.pk,
             source.source_type,
             preheat_uri,
-            force=source.source_type != "web",
+            force=True,
         )
 
     def _update_session_state(self, window_id: int, playback_state: str) -> None:

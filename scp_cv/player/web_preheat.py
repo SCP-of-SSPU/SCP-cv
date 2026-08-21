@@ -45,11 +45,20 @@ class WebPreheatPool:
     def __init__(self) -> None:
         """
         初始化隐藏宿主容器。
+
+        宿主窗口保持可见但移到屏幕外，确保 Chromium 维持合成表面：
+        如果直接 hide()，QWebEngineView 在隐藏状态下可能延迟或停止
+        绘制，认领后 show() 时会出现"状态显示 playing 但画面空白"。
+        将宿主放到屏幕外并保持可见，可以让预热页面保持已渲染状态，
+        认领后只需 reparent 即可立即呈现。
         :return: None
         """
         self._host = QWidget()
         self._host.setObjectName("WebPreheatHost")
-        self._host.hide()
+        # 将宿主移到屏幕外，保持可见以维持 Chromium 合成。
+        self._host.move(-10000, -10000)
+        self._host.resize(1, 1)
+        self._host.show()
         host_layout = QVBoxLayout(self._host)
         host_layout.setContentsMargins(0, 0, 0, 0)
         host_layout.setSpacing(0)
@@ -73,7 +82,6 @@ class WebPreheatPool:
             self._dispose_view(existing.view)
 
         view = QWebEngineView(self._host)
-        view.hide()
         self._host.layout().addWidget(view)
         view.setProperty(_LOAD_STATE_PROPERTY, _LOAD_STATE_LOADING)
         view.loadFinished.connect(
@@ -106,6 +114,13 @@ class WebPreheatPool:
             self._dispose_view(item.view)
             return None
         self._detach_from_current_parent(item.view)
+        # 预热池在创建时连接的 loadFinished 回调属于池内部状态记录；
+        # 认领后由适配器接管加载状态，断开池回调避免认领后的 reload
+        # 同时触发池回调和适配器回调（双重触发）。
+        try:
+            item.view.loadFinished.disconnect()
+        except (RuntimeError, TypeError):
+            pass
         item.view.setParent(parent_widget)
         if parent_widget.layout() is not None:
             parent_widget.layout().addWidget(item.view)
@@ -127,7 +142,6 @@ class WebPreheatPool:
         self._detach_from_current_parent(view)
         view.setParent(self._host)
         self._host.layout().addWidget(view)
-        view.hide()
         self._items[source_id] = PreheatedWebView(source_id=source_id, url=normalized_url, view=view)
         logger.info("网页预热视图已回收：source_id=%d, url=%s", source_id, normalized_url)
 

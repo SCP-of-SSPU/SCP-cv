@@ -124,6 +124,12 @@ class WebSourceAdapter(SourceAdapter):
         else:
             self._web_view.loadFinished.connect(self._on_load_finished)
             self._apply_preheated_load_state(self._web_view)
+            # 预热视图在隐藏状态下完成加载，认领后重新挂载到可见容器。
+            # Chromium 在 reparent + show 后可能延迟首帧绘制，这里主动
+            # 触发几何更新和重绘，加速表面呈现，避免"状态显示 playing 但画面空白"。
+            self._web_view.show()
+            self._web_view.updateGeometry()
+            self._web_view.update()
 
         self._configure_web_view_interaction(self._web_view)
 
