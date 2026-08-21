@@ -21,8 +21,8 @@ import { sliderAriaLabel as vSliderAriaLabel } from '@/design-system/sliderAriaL
 import { useDialog } from '@/composables/useDialog';
 import { useToast } from '@/composables/useToast';
 import { useThrottledSlider } from '@/composables/useThrottledSlider';
-import { formatBytes } from '@/design-system/utils';
-import { formatDuration, type BackgroundAudioPlaylistItem, type MediaSourceItem } from '@/services/api';
+import { formatBytes, formatDuration } from '@/design-system/utils';
+import { type BackgroundAudioPlaylistItem, type MediaSourceItem } from '@/services/api';
 import { useBackgroundAudioStore } from '@/stores/backgroundAudio';
 import { useSourceStore } from '@/stores/sources';
 
