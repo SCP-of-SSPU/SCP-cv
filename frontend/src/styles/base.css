@@ -231,9 +231,9 @@ body,
   min-height: 100%;
   background: var(--colorNeutralBackgroundCanvas);
   color: var(--colorNeutralForeground1);
-  font-family: var(--fontFamilyBase);
-  font-size: var(--fontSizeBase300);
-  line-height: var(--lineHeightBase300);
+  font-family: 'MiSans', 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
   font-weight: var(--fontWeightRegular);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
