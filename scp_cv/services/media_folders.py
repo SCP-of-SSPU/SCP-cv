@@ -75,10 +75,13 @@ def update_folder(folder_id: int, name: Optional[str] = None, parent_id: Optiona
     return folder
 
 
-def delete_folder(folder_id: int) -> None:
+def delete_folder(folder_id: int, delete_contents: bool = False) -> None:
     """
-    删除文件夹，其中的源自动归到根目录。
+    删除文件夹。
+
     :param folder_id: 文件夹 ID
+    :param delete_contents: True 时删除文件夹内的全部媒体源（含物理文件），
+        False 时将源移到根目录（SET_NULL），子文件夹递归删除。
     :raises MediaError: 文件夹不存在时
     """
     try:
@@ -87,7 +90,19 @@ def delete_folder(folder_id: int) -> None:
         raise MediaError(f"文件夹 id={folder_id} 不存在") from not_found
     # 删除文件夹前先收集完整子树，避免级联删除导致源记录失去归档入口。
     descendant_ids = _collect_folder_tree_ids(folder)
-    MediaSource.objects.filter(folder_id__in=descendant_ids).update(folder=None)
+    if delete_contents:
+        from scp_cv.services.media import delete_media_source
+        sources_in_tree = MediaSource.objects.filter(folder_id__in=descendant_ids)
+        for source in sources_in_tree:
+            delete_media_source(source.pk)
+        logger.info(
+            "删除文件夹「%s」及其内部 %d 个源",
+            folder.name,
+            sources_in_tree.count(),
+        )
+    else:
+        MediaSource.objects.filter(folder_id__in=descendant_ids).update(folder=None)
+        logger.info("删除文件夹「%s」，内部源已移至根目录", folder.name)
     folder_name = folder.name
     folder.delete()
     logger.info("删除文件夹「%s」", folder_name)

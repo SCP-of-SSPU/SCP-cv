@@ -12,6 +12,7 @@ import {
   NAlert,
   NButton,
   NCard,
+  NCheckbox,
   NDropdown,
   NEmpty,
   NInput,
@@ -52,6 +53,10 @@ const editingSource = ref<MediaSourceItem | null>(null);
 const newFolderDialogOpen = ref(false);
 const newFolderName = ref('');
 const creatingFolder = ref(false);
+const deleteFolderTarget = ref<MediaFolderItem | null>(null);
+const deleteFolderContents = ref(false);
+const deletingFolder = ref(false);
+const deleteFolderDialogOpen = ref(false);
 
 function startEdit(source: MediaSourceItem): void {
   editingSource.value = source;
@@ -291,17 +296,24 @@ async function renameFolder(folder: MediaFolderItem): Promise<void> {
 }
 
 async function deleteFolderConfirm(folder: MediaFolderItem): Promise<void> {
-  const confirmed = await dialog.danger({
-    title: t('sources.deleteFolderTitle', { name: folder.name }),
-    description: t('sources.deleteFolderDesc'),
-    confirmLabel: t('sources.deleteFolderOk'),
-  });
-  if (!confirmed) return;
+  deleteFolderTarget.value = folder;
+  deleteFolderContents.value = false;
+  deleteFolderDialogOpen.value = true;
+}
+
+async function executeFolderDelete(): Promise<void> {
+  const folder = deleteFolderTarget.value;
+  if (folder === null) return;
+  deletingFolder.value = true;
   try {
-    await sourceStore.deleteFolder(folder.id);
+    await sourceStore.deleteFolder(folder.id, deleteFolderContents.value);
     toast.success(t('sources.folderDeletedOk'));
+    deleteFolderDialogOpen.value = false;
+    deleteFolderTarget.value = null;
   } catch (error) {
     toast.error(t('sources.folderFail'), error instanceof Error ? error.message : t('common.retry'));
+  } finally {
+    deletingFolder.value = false;
   }
 }
 
@@ -560,6 +572,25 @@ async function moveSourceToFolder(source: MediaSourceItem, folderId: number | nu
         </n-card>
       </section>
     </div>
+
+    <!-- 删除文件夹确认对话框 -->
+    <n-modal v-model:show="deleteFolderDialogOpen" preset="dialog"
+      :title="t('sources.deleteFolderTitle', { name: deleteFolderTarget?.name ?? '' })"
+      :positive-text="t('sources.deleteFolderOk')"
+      :negative-text="t('common.cancel')"
+      :positive-button-props="{ type: 'error', loading: deletingFolder }"
+      @positive-click="executeFolderDelete"
+      @negative-click="deleteFolderTarget = null">
+      <p style="margin: 0 0 var(--spacingVerticalS); color: var(--colorNeutralForeground2);">
+        {{ t('sources.deleteFolderDesc') }}
+      </p>
+      <n-checkbox v-model:checked="deleteFolderContents">
+        {{ t('sources.deleteFolderContentsCheckbox') }}
+      </n-checkbox>
+      <n-alert v-if="deleteFolderContents" type="warning" :closable="false" style="margin-top: var(--spacingVerticalS);">
+        {{ t('sources.deleteFolderContentsWarn') }}
+      </n-alert>
+    </n-modal>
 
     <!-- 新建文件夹对话框 -->
     <n-modal v-model:show="newFolderDialogOpen" preset="dialog" :title="t('sources.newFolder')"

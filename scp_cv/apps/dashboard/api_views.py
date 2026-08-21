@@ -195,8 +195,15 @@ def folder_detail_api(request: HttpRequest, folder_id: int) -> JsonResponse:
     :return: 操作结果
     """
     if request.method == "DELETE":
+        # 支持 DELETE body 中的 delete_contents 选项，也兼容 query param。
+        delete_contents = False
+        body_result = _body_or_error(request)
+        if body_result[1] is None:
+            delete_contents = bool(body_result[0].get("delete_contents", False))
+        elif request.GET.get("delete_contents", "").lower() in ("true", "1", "yes"):
+            delete_contents = True
         try:
-            delete_folder(int(folder_id))
+            delete_folder(int(folder_id), delete_contents=delete_contents)
         except MediaError as media_error:
             return _error_response(str(media_error), code="media_error", status=404)
         return _json_response({"success": True})

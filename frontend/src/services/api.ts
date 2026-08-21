@@ -463,7 +463,7 @@ export const api = {
   listFolders: () => requestJson<{ success: boolean; folders: MediaFolderItem[] }>('/api/folders/'),
   createFolder: (payload: { name: string; parent_id?: number | null }) => requestJson<{ success: boolean; folder: MediaFolderItem }>('/api/folders/', { method: 'POST', body: JSON.stringify(payload) }),
   updateFolder: (folderId: number, payload: { name?: string; parent_id?: number | null }) => requestJson<{ success: boolean; folder: MediaFolderItem }>(`/api/folders/${folderId}/`, { method: 'PATCH', body: JSON.stringify(payload) }),
-  deleteFolder: (folderId: number) => requestJson<{ success: boolean }>(`/api/folders/${folderId}/`, { method: 'DELETE' }),
+  deleteFolder: (folderId: number, deleteContents?: boolean) => requestJson<{ success: boolean }>(`/api/folders/${folderId}/`, { method: 'DELETE', body: deleteContents ? JSON.stringify({ delete_contents: true }) : undefined }),
   listSources: (sourceType = '', folderId: number | null = null) => requestJson<{ success: boolean; sources: MediaSourceItem[] }>(`/api/sources/${sourceQuery(sourceType, folderId)}`),
   uploadSource: (formData: FormData, options?: UploadOptions) => uploadFormData<{ success: boolean; source: MediaSourceItem }>('/api/sources/upload/', formData, options),
   addLocalSource: (payload: { path: string; name?: string; folder_id?: number | null }) => requestJson<{ success: boolean; source: MediaSourceItem }>('/api/sources/local/', { method: 'POST', body: JSON.stringify(payload) }),

@@ -158,10 +158,10 @@ export const useSourceStore = defineStore('sources', {
         folder.id === folderId ? { ...folder, name: payload.folder.name } : folder,
       );
     },
-    async deleteFolder(folderId: number): Promise<void> {
-      await api.deleteFolder(folderId);
+    async deleteFolder(folderId: number, deleteContents: boolean = false): Promise<void> {
+      await api.deleteFolder(folderId, deleteContents);
       this.folders = this.folders.filter((folder) => folder.id !== folderId);
-      // 删除文件夹后其下源变为无文件夹（SET_NULL），刷新列表。
+      // 删除文件夹后其下源变为无文件夹（SET_NULL）或被删除，刷新列表。
       if (this.currentFolderId === folderId) {
         const parent = this.folders.find((folder) => folder.id === folderId)?.parent_id ?? null;
         this.currentFolderId = parent;
