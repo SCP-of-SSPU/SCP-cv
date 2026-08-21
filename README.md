@@ -62,7 +62,7 @@ uv python install
 uv sync
 
 # 安装前端依赖
-npm ci --prefix frontend
+pnpm install --prefix frontend
 
 # 准备本地环境变量
 copy .env.example .env
@@ -170,7 +170,7 @@ uv run python manage.py runall --headless --window1 1 --window2 2 --window3 3 --
 uv run python manage.py runserver
 
 # Vue 控制台
-npm --prefix frontend run dev
+pnpm --prefix frontend run dev
 
 # PySide6 播放器
 uv run python manage.py run_player
@@ -201,8 +201,8 @@ uv run python manage.py run_player --headless --only-window 2 --window2 2
 uv run python manage.py check
 uv run python manage.py makemigrations --check --dry-run
 uv run pytest tests/ -v
-npm --prefix frontend run typecheck
-npm --prefix frontend run build
+pnpm --prefix frontend run typecheck
+pnpm --prefix frontend run build
 ```
 
 ## 清除运行数据

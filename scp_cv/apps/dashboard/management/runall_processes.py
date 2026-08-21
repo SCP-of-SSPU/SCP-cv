@@ -64,6 +64,7 @@ def build_child_environment(
     process_env.setdefault("PYTHONUTF8", "1")
     process_env.setdefault("PYTHONIOENCODING", "utf-8")
     process_env.setdefault("npm_config_yes", "true")
+    process_env.setdefault("PNPM_CONFIG_CONFIRM", "true")
     for env_key in list(process_env):
         if env_key.startswith(env_remove_prefixes):
             process_env.pop(env_key, None)

@@ -307,11 +307,11 @@ class Command(BaseCommand):
         """
         import shutil
 
-        npm_path = shutil.which("npm")
+        pnpm_path = shutil.which("pnpm") or shutil.which("npm")
         frontend_dir = Path(settings.BASE_DIR) / "frontend"
-        if npm_path is None or not frontend_dir.exists():
+        if pnpm_path is None or not frontend_dir.exists():
             self.stderr.write(
-                self.style.WARNING("未找到 npm 或 frontend/，跳过 Vue 前端")
+                self.style.WARNING("未找到 pnpm/npm 或 frontend/，跳过 Vue 前端")
             )
             return
         extra_env: dict[str, str] | None = None
@@ -323,7 +323,7 @@ class Command(BaseCommand):
             extra_env = {
                 "VITE_BACKEND_TARGET": f"http://{backend_target_host}:{backend_port}"
             }
-        command_args = [npm_path, "run", "dev", "--", "--host", host]
+        command_args = [pnpm_path, "run", "dev", "--", "--host", host]
         if port > 0:
             command_args.extend(["--port", str(port)])
         self._frontend_options = {

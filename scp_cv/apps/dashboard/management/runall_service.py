@@ -166,6 +166,7 @@ def _interactive_launcher_script(
         "set PYTHONUTF8=1",
         "set PYTHONIOENCODING=utf-8",
         "set npm_config_yes=true",
+        "set PNPM_CONFIG_CONFIRM=true",
         f'cd /d "{project_dir}"',
         f'{command_line} >> "{service_log_path}" 2>&1',
         "",
