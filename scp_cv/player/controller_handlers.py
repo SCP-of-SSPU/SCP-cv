@@ -741,11 +741,13 @@ class PlayerCommandHandlersMixin(PptOpenFlowMixin, PlayerWindowHelpersMixin):
         if source.source_type == "ppt":
             from scp_cv.services.slides_pdf import resolve_slide_playback_uri
             preheat_uri = resolve_slide_playback_uri(source)
+        # Web 源保留预热视图（可能持有 cookies/登录态），不强制重建；
+        # 其它源类型强制重建以确保预热资源最新。
         self._ensure_preheat_pool().preheat_source(
             source.pk,
             source.source_type,
             preheat_uri,
-            force=True,
+            force=source.source_type != "web",
         )
 
     def _update_session_state(self, window_id: int, playback_state: str) -> None:

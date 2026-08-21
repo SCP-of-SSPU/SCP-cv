@@ -34,6 +34,12 @@ class _WebViewStub:
     def setFocus(self) -> None:
         return None
 
+    def updateGeometry(self) -> None:
+        return None
+
+    def update(self) -> None:
+        return None
+
 
 class _LayoutStub:
     def addWidget(self, _widget: object) -> None:
