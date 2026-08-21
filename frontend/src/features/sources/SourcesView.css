@@ -157,6 +157,94 @@
   min-width: 0;
 }
 
+.sources-view__folder-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-s);
+  padding: var(--spacing-s) var(--spacing-m);
+  border-bottom: 1px solid var(--colorNeutralStroke2);
+  flex-wrap: wrap;
+}
+
+.sources-view__breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.sources-view__breadcrumb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xxs) var(--spacing-xs);
+  border: none;
+  background: transparent;
+  color: var(--colorNeutralForeground2);
+  font: inherit;
+  font-size: var(--fontSizeBase200);
+  border-radius: var(--borderRadiusSmall);
+  cursor: pointer;
+  transition: background var(--durationFaster) var(--curveEasyEase);
+}
+
+.sources-view__breadcrumb-item:hover {
+  background: var(--colorNeutralBackground2);
+  color: var(--colorNeutralForeground1);
+}
+
+.sources-view__breadcrumb-item--active {
+  color: var(--colorNeutralForeground1);
+  font-weight: 600;
+}
+
+.sources-view__breadcrumb-sep {
+  color: var(--colorNeutralForeground4);
+  flex-shrink: 0;
+}
+
+.sources-view__folders {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--spacing-s);
+  padding: var(--spacing-m);
+  border-bottom: 1px solid var(--colorNeutralStroke2);
+}
+
+.sources-view__folder-card {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-s);
+  padding: var(--spacing-m);
+  background: var(--color-background-card);
+  border: 1px solid var(--colorNeutralStroke2);
+  border-radius: var(--borderRadiusLarge);
+  cursor: pointer;
+  transition: background var(--durationFaster) var(--curveEasyEase),
+    border-color var(--durationFaster) var(--curveEasyEase);
+}
+
+.sources-view__folder-card:hover {
+  background: var(--colorNeutralBackground2);
+  border-color: var(--colorBrandStroke1);
+}
+
+.sources-view__folder-card:focus-visible {
+  outline: var(--strokeWidthThick) solid var(--colorBrandStroke1);
+  outline-offset: 2px;
+}
+
+.sources-view__folder-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
 .sources-view__skeletons {
   display: flex;
   flex-direction: column;

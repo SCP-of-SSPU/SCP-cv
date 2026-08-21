@@ -82,6 +82,9 @@ export default {
     reopenOk: '已重新打开当前源',
     reopenOkDetail: '请等待播放器握手完成',
     reopenFail: '重新打开源失败',
+    refresh: '刷新',
+    refreshOk: '已刷新',
+    refreshFail: '刷新失败',
   },
   sourcePicker: {
     title: '切换源',

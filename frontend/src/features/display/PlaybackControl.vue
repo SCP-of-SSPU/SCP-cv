@@ -198,6 +198,16 @@ async function reopenCurrentSource(): Promise<void> {
   }
 }
 
+async function refreshWebSource(): Promise<void> {
+  if (!props.session.source_id) return;
+  try {
+    await sessionStore.control(props.session.window_id, 'play');
+    toast.info(t('playback.refreshOk'));
+  } catch (error) {
+    toast.error(t('playback.refreshFail'), error instanceof Error ? error.message : t('common.retry'));
+  }
+}
+
 const { showErrorBar, dismissErrorBar } = usePlaybackErrorGate({
   session: () => props.session,
   category: () => category.value,
@@ -361,6 +371,10 @@ const errorBarDescription = computed(() => {
     <section v-else-if="category === 'image' || category === 'web'" class="playback-control__section">
       <p v-if="session.source_uri" class="playback-control__uri">{{ session.source_uri }}</p>
       <p v-else class="playback-control__uri">{{ t('playback.uriMissing') }}</p>
+      <n-button v-if="category === 'web'" size="small" :disabled="!session.source_id" @click="refreshWebSource">
+        <template #icon><FIcon name="arrow_clockwise_24_regular" /></template>
+        {{ t('playback.refresh') }}
+      </n-button>
     </section>
 
     <section v-else-if="category === 'stream'" class="playback-control__section">
@@ -368,6 +382,10 @@ const errorBarDescription = computed(() => {
         {{ session.source_uri ? t('playback.live') : t('playback.notStreaming') }}
       </n-tag>
       <p v-if="session.source_uri" class="playback-control__uri">{{ session.source_uri }}</p>
+      <n-button size="small" :disabled="!session.source_id" @click="refreshWebSource">
+        <template #icon><FIcon name="arrow_clockwise_24_regular" /></template>
+        {{ t('playback.refresh') }}
+      </n-button>
     </section>
 
     <section v-else class="playback-control__section">

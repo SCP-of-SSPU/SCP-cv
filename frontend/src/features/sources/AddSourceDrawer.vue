@@ -22,7 +22,7 @@ import FIcon from '@/design-system/FIcon.vue';
 import { useToast } from '@/composables/useToast';
 import { useSourceStore } from '@/stores/sources';
 
-const props = defineProps<{ open: boolean }>();
+const props = defineProps<{ open: boolean; folderId?: number | null }>();
 const emit = defineEmits<{
   (event: 'update:open', value: boolean): void;
   (event: 'added'): void;
@@ -120,6 +120,7 @@ async function uploadFile(): Promise<void> {
       name: fileDisplayName.value.trim() || undefined,
       isTemporary: false,
       preheatEnabled: filePreheatEnabled.value,
+      folderId: props.folderId,
       onProgress: handleUploadProgress,
     });
     toast.success(t('sources.add.uploadedSaved'), t('sources.add.sourceNameDetail', { name: result.name }));
@@ -143,7 +144,7 @@ async function addWebSource(): Promise<void> {
   uploading.value = true;
   errorMessage.value = '';
   try {
-    await sourceStore.addWebSource(url, webName.value.trim() || undefined, webPreheatEnabled.value);
+    await sourceStore.addWebSource(url, webName.value.trim() || undefined, webPreheatEnabled.value, props.folderId ?? null);
     toast.success(t('sources.add.webAddedOk'));
     emit('added');
     reset();

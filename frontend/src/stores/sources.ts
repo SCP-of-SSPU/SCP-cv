@@ -1,15 +1,14 @@
 /*
- * 媒体源 Store：列表、按类型筛选、上传、删除。
+ * 媒体源 Store：列表、按类型筛选、上传、删除、文件夹管理。
  *
- * 设计稿 §4.4：
- *   - 不再支持「文件夹」概念；
+ *   - 文件夹支持层级组织，可创建、重命名、删除和移动源；
  *   - 直播源聚合 srt_stream / rtsp_stream / custom_stream 三种 source_type；
  *   - UI 只暴露「上传文件 / 网页」两种添加入口；
  *   - audio 源作为背景音乐入口展示，不再复用窗口播放控制。
  */
 import { defineStore } from 'pinia';
 
-import { api, type MediaSourceItem, type MediaSourceUpdate, type UploadOptions } from '@/services/api';
+import { api, type MediaFolderItem, type MediaSourceItem, type MediaSourceUpdate, type UploadOptions } from '@/services/api';
 
 /** UI 可视的源大类；与后端 source_type 不一一映射，直播由前端聚合。 */
 export type SourceCategory = 'all' | 'ppt' | 'video' | 'audio' | 'image' | 'web' | 'stream';
@@ -46,6 +45,10 @@ interface SourceState {
   category: SourceCategory;
   /** 名称/URL 即时搜索关键字。 */
   searchKeyword: string;
+  /** 全部文件夹列表（扁平）。 */
+  folders: MediaFolderItem[];
+  /** 当前浏览的文件夹 ID；null 表示根目录。 */
+  currentFolderId: number | null;
 }
 
 export const useSourceStore = defineStore('sources', {
@@ -54,6 +57,8 @@ export const useSourceStore = defineStore('sources', {
     transientSources: [],
     category: 'all',
     searchKeyword: '',
+    folders: [],
+    currentFolderId: null,
   }),
   getters: {
     findById: (state) => (sourceId: number | null): MediaSourceItem | undefined => (
@@ -105,6 +110,22 @@ export const useSourceStore = defineStore('sources', {
     totalBytes(state): number {
       return state.sources.reduce((acc, source) => acc + (source.file_size || 0), 0);
     },
+    /** 当前文件夹下的子文件夹列表。 */
+    childFolders(state): MediaFolderItem[] {
+      return state.folders
+        .filter((folder) => folder.parent_id === state.currentFolderId)
+        .sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'));
+    },
+    /** 当前文件夹的面包屑路径（从根到当前）。 */
+    folderBreadcrumbs(state): MediaFolderItem[] {
+      const crumbs: MediaFolderItem[] = [];
+      let current = state.folders.find((folder) => folder.id === state.currentFolderId);
+      while (current) {
+        crumbs.unshift(current);
+        current = state.folders.find((folder) => folder.id === current!.parent_id);
+      }
+      return crumbs;
+    },
   },
   actions: {
     setCategory(category: SourceCategory): void {
@@ -114,17 +135,54 @@ export const useSourceStore = defineStore('sources', {
       this.searchKeyword = keyword;
     },
     async refresh(): Promise<void> {
-      const payload = await api.listSources('', null);
+      const [sourcePayload, folderPayload] = await Promise.all([
+        api.listSources('', this.currentFolderId),
+        api.listFolders(),
+      ]);
       // 背景音乐功能启用后，audio 源保留在列表中并进入独立大类。
-      this.sources = payload.sources.filter(isVisibleSource);
+      this.sources = sourcePayload.sources.filter(isVisibleSource);
+      this.folders = folderPayload.folders;
+    },
+    /** 切换到指定文件夹；null 返回根目录。 */
+    setCurrentFolder(folderId: number | null): void {
+      this.currentFolderId = folderId;
+    },
+    async createFolder(name: string, parentId: number | null = null): Promise<MediaFolderItem> {
+      const payload = await api.createFolder({ name, parent_id: parentId });
+      this.folders = [...this.folders, payload.folder];
+      return payload.folder;
+    },
+    async renameFolder(folderId: number, name: string): Promise<void> {
+      const payload = await api.updateFolder(folderId, { name });
+      this.folders = this.folders.map((folder) =>
+        folder.id === folderId ? { ...folder, name: payload.folder.name } : folder,
+      );
+    },
+    async deleteFolder(folderId: number): Promise<void> {
+      await api.deleteFolder(folderId);
+      this.folders = this.folders.filter((folder) => folder.id !== folderId);
+      // 删除文件夹后其下源变为无文件夹（SET_NULL），刷新列表。
+      if (this.currentFolderId === folderId) {
+        const parent = this.folders.find((folder) => folder.id === folderId)?.parent_id ?? null;
+        this.currentFolderId = parent;
+      }
+      await this.refresh();
+    },
+    async moveSource(sourceId: number, folderId: number | null): Promise<MediaSourceItem> {
+      const payload = await api.moveSource(sourceId, folderId);
+      this.sources = this.sources.map((item) =>
+        item.id === sourceId ? { ...item, folder_id: payload.source.folder_id } : item,
+      );
+      return payload.source;
     },
     /** 上传源；支持「上传但不保存（is_temporary）」/「上传并保存」两种语义。 */
-    async upload(file: File, options: { name?: string; isTemporary?: boolean; preheatEnabled?: boolean; onProgress?: (percent: number) => void }): Promise<MediaSourceItem> {
+    async upload(file: File, options: { name?: string; isTemporary?: boolean; preheatEnabled?: boolean; folderId?: number | null; onProgress?: (percent: number) => void }): Promise<MediaSourceItem> {
       const formData = new FormData();
       formData.append('file', file);
       if (options.name) formData.append('name', options.name);
       if (options.isTemporary) formData.append('is_temporary', 'true');
       if (options.preheatEnabled !== undefined) formData.append('preheat_enabled', String(options.preheatEnabled));
+      if (options.folderId !== undefined && options.folderId !== null) formData.append('folder_id', String(options.folderId));
       const uploadOptions: UploadOptions = options.onProgress ? { onProgress: options.onProgress } : {};
       const payload = await api.uploadSource(formData, uploadOptions);
       // 仅持久源加入列表；临时源不入列表（避免出现在管理页）。
@@ -143,9 +201,10 @@ export const useSourceStore = defineStore('sources', {
      * @param url 网页地址或 ip:port
      * @param name 显示名称；省略时后端用 URL 截前 80 字符作名称
      * @param preheatEnabled 启动时是否预热网页源（默认 true）
+     * @param folderId 目标文件夹 ID；null 为根目录
      */
-    async addWebSource(url: string, name?: string, preheatEnabled: boolean = true): Promise<MediaSourceItem> {
-      const payload = await api.addWebSource({ url, name, preheat_enabled: preheatEnabled });
+    async addWebSource(url: string, name?: string, preheatEnabled: boolean = true, folderId: number | null = null): Promise<MediaSourceItem> {
+      const payload = await api.addWebSource({ url, name, preheat_enabled: preheatEnabled, folder_id: folderId });
       // 网页源不会是 audio，直接前置即可。
       this.sources = [payload.source, ...this.sources];
       return payload.source;
