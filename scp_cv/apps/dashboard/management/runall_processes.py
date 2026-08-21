@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import BinaryIO
 
 import psutil
+from psutil import Error as PsutilError
 
 
 def create_runall_log_dir(log_dir: Path, started_at: datetime | None = None) -> Path:
@@ -157,3 +158,58 @@ def terminate_process_tree(process_id: int) -> None:
         alive_process.kill()
     if alive_processes:
         psutil.wait_procs(alive_processes, timeout=3)
+
+
+# 重启时额外清理的残留进程名（小写匹配）
+_RESIDUAL_PROCESS_NAMES = frozenset({
+    "powershell.exe",
+    "powershell_ise.exe",
+    "mediamtx.exe",
+    "run_player.exe",
+})
+
+
+def cleanup_residual_processes(current_pid: int, parent_pid: int | None = None) -> list[int]:
+    """
+    清理非 runall 管理的残留进程，用于系统重启前兜底。
+    会终止残留的 PowerShell、MediaMTX 和播放器进程，
+    但不终止当前 runall 进程及其父进程。
+    :param current_pid: 当前 runall 进程 PID
+    :param parent_pid: 父进程 PID（如通过 --service 启动时）
+    :return: 被终止的进程 PID 列表
+    """
+    terminated: list[int] = []
+    protected_pids = {current_pid}
+    if parent_pid is not None:
+        protected_pids.add(parent_pid)
+
+    for proc in psutil.process_iter(["pid", "ppid", "name"]):
+        try:
+            proc_name = str(proc.info.get("name") or "").lower()
+            proc_pid = int(proc.info.get("pid") or 0)
+            if proc_pid in protected_pids:
+                continue
+            if proc_name not in _RESIDUAL_PROCESS_NAMES:
+                continue
+            # 保护父进程链
+            ppid = int(proc.info.get("ppid") or 0)
+            if ppid in protected_pids:
+                protected_pids.add(proc_pid)
+                continue
+            proc.terminate()
+            terminated.append(proc_pid)
+        except (PsutilError, ValueError):
+            continue
+
+    if terminated:
+        _, alive = psutil.wait_procs(
+            [psutil.Process(pid) for pid in terminated if psutil.pid_exists(pid)],
+            timeout=5,
+        )
+        for alive_proc in alive:
+            try:
+                alive_proc.kill()
+            except PsutilError:
+                pass
+        psutil.wait_procs(alive, timeout=3)
+    return terminated

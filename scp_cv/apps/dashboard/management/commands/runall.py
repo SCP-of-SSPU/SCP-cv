@@ -31,6 +31,7 @@ from scp_cv.apps.dashboard.management.runall_frontend import (
     resolve_frontend_port,
 )
 from scp_cv.apps.dashboard.management.runall_processes import (
+    cleanup_residual_processes,
     connect_host,
     create_runall_log_dir,
     open_process_log,
@@ -216,8 +217,15 @@ class Command(BaseCommand):
     def _restart_self(self) -> None:
         """
         清理完成后以相同参数重新拉起 runall，实现系统级重启。
+        重启前额外清理非 runall 管理的残留 PowerShell、MediaMTX 和播放器进程。
         :return: None
         """
+        parent_pid = os.getppid() if os.name == "nt" else None
+        terminated = cleanup_residual_processes(os.getpid(), parent_pid)
+        if terminated:
+            self.stdout.write(self.style.WARNING(
+                f"已清理 {len(terminated)} 个残留进程：{terminated}"
+            ))
         service_command = [sys.executable] + sys.argv
         self.stdout.write(self.style.SUCCESS("正在重新启动全部服务…"))
         subprocess.Popen(
