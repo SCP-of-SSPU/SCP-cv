@@ -12,6 +12,7 @@ Django 管理命令：一键启动 SCP-cv 所有本地服务。
 from __future__ import annotations
 
 import atexit
+import os
 import signal
 import subprocess
 import sys
@@ -73,7 +74,10 @@ class Command(BaseCommand):
         self._processes: list[ManagedProcess] = []
         self._shutting_down = False
         self._shutdown_signal_path = Path(settings.LOG_DIR) / "runall.shutdown"
+        self._restart_signal_path = Path(settings.LOG_DIR) / "runall.restart"
         self._last_shutdown_signal_mtime = 0.0
+        self._last_restart_signal_mtime = 0.0
+        self._restart_requested = False
         self._reset_startup_state_done = False
         self._request_shutdown_reason = ""
         self._startup_reset_failed = False
@@ -205,6 +209,27 @@ class Command(BaseCommand):
             )
         )
         self._monitor_processes()
+
+        if self._restart_requested:
+            self._restart_self()
+
+    def _restart_self(self) -> None:
+        """
+        清理完成后以相同参数重新拉起 runall，实现系统级重启。
+        :return: None
+        """
+        service_command = [sys.executable] + sys.argv
+        self.stdout.write(self.style.SUCCESS("正在重新启动全部服务…"))
+        subprocess.Popen(
+            service_command,
+            cwd=str(Path(settings.BASE_DIR)),
+            close_fds=True,
+            creationflags=(
+                subprocess.CREATE_NEW_PROCESS_GROUP
+                | subprocess.DETACHED_PROCESS
+                | subprocess.CREATE_NO_WINDOW
+            ) if os.name == "nt" else 0,
+        )
 
     def _start_mediamtx(self) -> None:
         """启动 MediaMTX 子进程。"""
@@ -529,15 +554,20 @@ class Command(BaseCommand):
         self._processes.clear()
 
     def _prepare_shutdown_signal_file(self) -> None:
-        """初始化系统关闭请求信号文件。"""
+        """初始化系统关闭和重启请求信号文件。"""
         self._shutdown_signal_path.write_text("", encoding="utf-8")
         self._last_shutdown_signal_mtime = self._shutdown_signal_path.stat().st_mtime
+        self._restart_signal_path.write_text("", encoding="utf-8")
+        self._last_restart_signal_mtime = self._restart_signal_path.stat().st_mtime
 
     def _consume_shutdown_request(self) -> str:
         """
-        检查前端发出的系统关闭请求。
+        检查前端发出的系统关闭或重启请求。
         :return: 关闭原因描述；未请求时返回空字符串
         """
+        restart_reason = self._consume_restart_request()
+        if restart_reason:
+            return restart_reason
         try:
             stat_result = self._shutdown_signal_path.stat()
         except OSError:
@@ -551,6 +581,27 @@ class Command(BaseCommand):
             marker = ""
         if marker:
             return "收到前端系统关闭请求，正在停止所有服务…"
+        return ""
+
+    def _consume_restart_request(self) -> str:
+        """
+        检查前端发出的系统重启请求。
+        :return: 重启原因描述；未请求时返回空字符串
+        """
+        try:
+            stat_result = self._restart_signal_path.stat()
+        except OSError:
+            return ""
+        if stat_result.st_mtime <= self._last_restart_signal_mtime:
+            return ""
+        self._last_restart_signal_mtime = stat_result.st_mtime
+        try:
+            marker = self._restart_signal_path.read_text(encoding="utf-8").strip()
+        except OSError:
+            marker = ""
+        if marker:
+            self._restart_requested = True
+            return "收到前端系统重启请求，正在停止所有服务后重新启动…"
         return ""
 
     def _reset_startup_state(self) -> None:

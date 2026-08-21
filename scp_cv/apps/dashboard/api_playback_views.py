@@ -66,6 +66,13 @@ def _system_shutdown_signal_path() -> Path:
     return signal_path
 
 
+def _system_restart_signal_path() -> Path:
+    """按当前 settings 解析重启信号，允许测试隔离到临时目录。"""
+    signal_path = Path(settings.LOG_DIR) / "runall.restart"
+    signal_path.parent.mkdir(parents=True, exist_ok=True)
+    return signal_path
+
+
 @require_GET
 def list_sessions_api(request: HttpRequest) -> JsonResponse:
     """
@@ -400,6 +407,25 @@ def shutdown_system_api(request: HttpRequest) -> JsonResponse:
         "success": True,
         "sessions": get_all_sessions_snapshot(),
         "detail": "系统关闭请求已发送",
+    })
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def restart_all_api(request: HttpRequest) -> JsonResponse:
+    """
+    请求 runall 主控进程按统一清理流程关闭后重新启动全部服务。
+    会关闭前端、后端（Django）、播放器窗口、MediaMTX 等全部子进程，
+    然后以相同参数重新拉起 runall。
+    :param request: HTTP 请求
+    :return: 当前会话状态
+    """
+    request_all_windows_close()
+    _system_restart_signal_path().write_text("restart\n", encoding="utf-8")
+    return json_response({
+        "success": True,
+        "sessions": get_all_sessions_snapshot(),
+        "detail": "系统重启请求已发送",
     })
 
 

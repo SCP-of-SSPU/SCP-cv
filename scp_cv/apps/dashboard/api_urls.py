@@ -58,6 +58,7 @@ urlpatterns = [
     path("playback/reset-ppt/", api_playback_views.reset_ppt_playback_api, name="reset_ppt_playback"),
     path("playback/physical-smoke/", api_playback_views.physical_smoke_api, name="physical_smoke"),
     path("system/shutdown/", api_playback_views.shutdown_system_api, name="shutdown_system"),
+    path("system/restart/", api_playback_views.restart_all_api, name="restart_all"),
     path("displays/", api_playback_views.list_displays_api, name="list_displays"),
     path("displays/select/", api_playback_views.select_display_api, name="select_display"),
     path("devices/", api_views.list_devices_api, name="list_devices"),
