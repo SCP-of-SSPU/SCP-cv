@@ -15,7 +15,7 @@ from collections.abc import Callable
 from typing import Optional
 
 _POWERPOINT_OPERATION_RETRIES = 3
-_POWERPOINT_RETRY_DELAY_SECONDS = 0.8
+_POWERPOINT_RETRY_DELAY_SECONDS = 0.3
 
 
 class PptComSessionMixin:
@@ -53,7 +53,7 @@ class PptComSessionMixin:
 
     def _open_presentation_for_slideshow(self, file_path: str) -> object:
         """
-        以可配置放映设置但不显示编辑窗口的方式打开演示文稿副本。
+        以只读、不显示编辑窗口的方式打开演示文稿，避免文件锁冲突。
         :param file_path: PPT 文件路径
         :return: Presentation COM 对象
         """
@@ -65,13 +65,13 @@ class PptComSessionMixin:
             try:
                 return presentations.Open(
                     file_path,
-                    ReadOnly=False,
-                    Untitled=True,
+                    ReadOnly=True,
+                    Untitled=False,
                     WithWindow=False,
                 )
             except Exception as keyword_error:
                 try:
-                    return presentations.Open(file_path, False, True, False)
+                    return presentations.Open(file_path, True, False, False)
                 except Exception as positional_error:
                     raise RuntimeError(
                         f"{self._app_label} 打开演示文稿失败："

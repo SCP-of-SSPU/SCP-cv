@@ -570,7 +570,7 @@ def test_start_slideshow_embeds_window_into_pyside_container(monkeypatch: Monkey
 
 
 def test_open_presentation_for_slideshow_uses_editable_untitled_copy() -> None:
-    """PowerPoint 只读打开时不能设置 SlideShowSettings，应打开可编辑临时副本。"""
+    """PowerPoint 应以只读方式打开演示文稿，避免文件锁冲突。"""
     adapter = PptSourceAdapter()
     ppt_app = _PptAppWithPresentationsStub()
     adapter._ppt_app = ppt_app
@@ -579,7 +579,7 @@ def test_open_presentation_for_slideshow_uses_editable_untitled_copy() -> None:
 
     assert isinstance(presentation, _PresentationStub)
     assert ppt_app.Presentations.keyword_calls == [
-        {"ReadOnly": False, "Untitled": True, "WithWindow": False},
+        {"ReadOnly": True, "Untitled": False, "WithWindow": False},
     ]
 
 

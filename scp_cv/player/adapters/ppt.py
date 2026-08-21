@@ -49,9 +49,10 @@ from scp_cv.player.adapters.ppt_preheat import PptPreheatMixin
 from scp_cv.player.preheat_types import PreheatedPptApplication
 from scp_cv.ppt_com import POWERPOINT_COM_PROG_IDS
 
-_SLIDESHOW_HWND_TIMEOUT_SECONDS = 12.0
+_SLIDESHOW_HWND_TIMEOUT_SECONDS = 8.0
 _SLIDESHOW_HWND_POLL_INTERVAL_SECONDS = 0.05
 _SYNC_OPEN_WAIT_TIMEOUT_SECONDS = 90.0
+_SYNC_CLOSE_WAIT_TIMEOUT_SECONDS = 30.0
 
 
 class PptSourceAdapter(
@@ -412,7 +413,7 @@ class PptSourceAdapter(
         worker.submit_and_wait(
             f"{self._app_label} 完整关闭",
             self._close_on_com_thread,
-            timeout_seconds=_SYNC_OPEN_WAIT_TIMEOUT_SECONDS,
+            timeout_seconds=_SYNC_CLOSE_WAIT_TIMEOUT_SECONDS,
         )
         self._mark_closed()
 
