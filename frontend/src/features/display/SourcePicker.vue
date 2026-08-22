@@ -181,14 +181,16 @@ async function uploadOnly(): Promise<void> {
       </template>
     </n-input>
 
-    <n-tabs v-model:value="filterValue" type="segment" :aria-label="t('sourcePicker.filterAria')">
-      <n-tab-pane name="all" :tab="t('sourcePicker.filter.all')" />
-      <n-tab-pane name="ppt" :tab="t('sourcePicker.filter.ppt')" />
-      <n-tab-pane name="video" :tab="t('sourcePicker.filter.video')" />
-      <n-tab-pane name="image" :tab="t('sourcePicker.filter.image')" />
-      <n-tab-pane name="web" :tab="t('sourcePicker.filter.web')" />
-      <n-tab-pane name="stream" :tab="t('sourcePicker.filter.stream')" />
-    </n-tabs>
+    <div class="source-picker__filter-scroll">
+      <n-tabs v-model:value="filterValue" type="segment" :aria-label="t('sourcePicker.filterAria')">
+        <n-tab-pane name="all" :tab="t('sourcePicker.filter.all')" />
+        <n-tab-pane name="ppt" :tab="t('sourcePicker.filter.ppt')" />
+        <n-tab-pane name="video" :tab="t('sourcePicker.filter.video')" />
+        <n-tab-pane name="image" :tab="t('sourcePicker.filter.image')" />
+        <n-tab-pane name="web" :tab="t('sourcePicker.filter.web')" />
+        <n-tab-pane name="stream" :tab="t('sourcePicker.filter.stream')" />
+      </n-tabs>
+    </div>
 
     <ul class="source-picker__list">
       <li v-if="filteredSources.length === 0" class="source-picker__empty">
@@ -277,6 +279,28 @@ async function uploadOnly(): Promise<void> {
 <style scoped>
 .source-picker {
   height: 100%;
+}
+
+.source-picker__filter-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  margin: 0 calc(-1 * var(--spacingHorizontalS));
+  padding: 0 var(--spacingHorizontalS);
+}
+
+.source-picker__filter-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.source-picker__filter-scroll :deep(.n-tabs-nav) {
+  flex-shrink: 0;
+}
+
+.source-picker__filter-scroll :deep(.n-tabs-tab) {
+  white-space: nowrap;
+  padding: 4px 10px;
+  font-size: 13px;
 }
 
 .source-picker__count {

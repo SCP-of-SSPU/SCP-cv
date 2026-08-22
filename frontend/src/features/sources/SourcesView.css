@@ -350,10 +350,27 @@
   top: 92px;
   z-index: var(--z-sticky);
   background: color-mix(in srgb, var(--colorNeutralBackgroundCanvas) 86%, transparent);
-  padding: var(--spacing-xs) 0;
+  padding: var(--spacing-xs) var(--spacing-s);
   border-bottom: 1px solid color-mix(in srgb, var(--colorNeutralStroke2) 60%, transparent);
   -webkit-backdrop-filter: blur(14px) saturate(1.1);
   backdrop-filter: blur(14px) saturate(1.1);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.sources-view__mobile-pills::-webkit-scrollbar {
+  display: none;
+}
+
+.sources-view__mobile-pills :deep(.n-tabs-nav) {
+  flex-shrink: 0;
+}
+
+.sources-view__mobile-pills :deep(.n-tabs-tab) {
+  white-space: nowrap;
+  padding: 4px 10px;
+  font-size: 13px;
 }
 
 .sources-view__cards {
