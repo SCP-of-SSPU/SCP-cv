@@ -12,6 +12,7 @@ import { NAlert, NButton, NCard, NForm, NFormItem, NInput } from 'naive-ui';
 
 import { useToast } from '@/composables/useToast';
 import { useAuthStore } from '@/stores/auth';
+import FIcon from '@/design-system/FIcon.vue';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -51,7 +52,12 @@ async function submit(): Promise<void> {
 
 <template>
   <main class="login-view">
-    <n-card class="login-view__card" :title="t('auth.pageTitle')">
+    <div class="login-view__brand">
+      <span class="login-view__brand-mark" aria-hidden="true">
+        <FIcon name="tv_24_regular" :size="28" />
+      </span>
+    </div>
+    <n-card class="login-view__card" :title="t('auth.pageTitle')" content-style="padding: 28px; overflow: visible;">
       <p class="login-view__subtitle">{{ t('auth.pageSubtitle') }}</p>
       <n-form @submit.prevent="submit">
         <n-form-item :label="t('auth.username')" required>
@@ -97,16 +103,38 @@ async function submit(): Promise<void> {
 <style scoped>
 .login-view {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-block-size: 100dvh;
+  min-height: 100vh;
+  min-height: 100dvh;
   padding: var(--spacingVerticalXXL) var(--spacingHorizontalL);
-  background: linear-gradient(140deg, var(--colorBrandBackground2) 0%, var(--colorNeutralBackground1) 70%);
+  background: var(--colorBrandBackground2);
+  background-image: radial-gradient(ellipse at 50% 30%,
+    var(--colorBrandBackground2) 0%,
+    var(--colorNeutralBackground2) 60%,
+    var(--colorNeutralBackground1) 100%);
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+.login-view__brand {
+  margin-bottom: var(--spacingVerticalL);
+}
+
+.login-view__brand-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--borderRadius3XLarge);
+  background: var(--colorBrandBackground);
+  color: var(--colorNeutralForegroundOnBrand);
 }
 
 .login-view__card {
-  width: min(420px, 100%);
-  box-shadow: var(--shadow16);
+  width: min(460px, 100%);
+  box-shadow: var(--shadow28);
 }
 
 .login-view__subtitle {
@@ -124,6 +152,8 @@ async function submit(): Promise<void> {
   margin: var(--spacingVerticalL) 0 0;
   color: var(--colorNeutralForeground3);
   font-size: var(--fontSizeBase200);
-  text-align: center;
+  text-align: left;
+  line-height: 1.65;
+  max-width: 380px;
 }
 </style>

@@ -161,59 +161,59 @@
 
 /* 暗色主题下的 Qingyuan 品牌色覆盖 */
 :root[data-theme='dark'] {
-  --colorBrandBackground: #5c9a9b;
-  --colorBrandBackgroundHover: #7fb0b1;
-  --colorBrandBackgroundPressed: #478384;
-  --colorBrandBackgroundSelected: #5c9a9b;
-  --colorBrandBackgroundStatic: #5c9a9b;
-  --colorBrandForeground1: #7fb0b1;
+  --colorBrandBackground: #6ba8a9;
+  --colorBrandBackgroundHover: #82bdbd;
+  --colorBrandBackgroundPressed: #5c9a9b;
+  --colorBrandBackgroundSelected: #6ba8a9;
+  --colorBrandBackgroundStatic: #6ba8a9;
+  --colorBrandForeground1: #82bdbd;
   --colorBrandForeground2: #a8cfcf;
   --colorBrandForeground2Hover: #a8cfcf;
-  --colorBrandForeground2Pressed: #7fb0b1;
-  --colorBrandStroke1: #5c9a9b;
+  --colorBrandForeground2Pressed: #82bdbd;
+  --colorBrandStroke1: #6ba8a9;
   --colorBrandStroke2: #1e3233;
-  --colorBrandStroke2Hover: #1e3233;
+  --colorBrandStroke2Hover: #2a4546;
   --colorBrandBackground2: #1e3233;
   --colorBrandBackground2Hover: #2a4546;
   --colorBrandBackground2Pressed: #142425;
-  --colorCompoundBrandBackground: #5c9a9b;
-  --colorCompoundBrandBackgroundHover: #7fb0b1;
-  --colorCompoundBrandBackgroundPressed: #478384;
-  --colorCompoundBrandForeground1: #5c9a9b;
-  --colorCompoundBrandForeground1Hover: #7fb0b1;
-  --colorCompoundBrandForeground1Pressed: #478384;
-  --colorCompoundBrandStroke: #5c9a9b;
-  --colorCompoundBrandStrokeHover: #7fb0b1;
-  --colorCompoundBrandStrokePressed: #478384;
+  --colorCompoundBrandBackground: #6ba8a9;
+  --colorCompoundBrandBackgroundHover: #82bdbd;
+  --colorCompoundBrandBackgroundPressed: #5c9a9b;
+  --colorCompoundBrandForeground1: #6ba8a9;
+  --colorCompoundBrandForeground1Hover: #82bdbd;
+  --colorCompoundBrandForeground1Pressed: #5c9a9b;
+  --colorCompoundBrandStroke: #6ba8a9;
+  --colorCompoundBrandStrokeHover: #82bdbd;
+  --colorCompoundBrandStrokePressed: #5c9a9b;
 }
 
 /* 跟随系统暗色时的 Qingyuan 品牌色覆盖 */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --colorBrandBackground: #5c9a9b;
-    --colorBrandBackgroundHover: #7fb0b1;
-    --colorBrandBackgroundPressed: #478384;
-    --colorBrandBackgroundSelected: #5c9a9b;
-    --colorBrandBackgroundStatic: #5c9a9b;
-    --colorBrandForeground1: #7fb0b1;
+    --colorBrandBackground: #6ba8a9;
+    --colorBrandBackgroundHover: #82bdbd;
+    --colorBrandBackgroundPressed: #5c9a9b;
+    --colorBrandBackgroundSelected: #6ba8a9;
+    --colorBrandBackgroundStatic: #6ba8a9;
+    --colorBrandForeground1: #82bdbd;
     --colorBrandForeground2: #a8cfcf;
     --colorBrandForeground2Hover: #a8cfcf;
-    --colorBrandForeground2Pressed: #7fb0b1;
-    --colorBrandStroke1: #5c9a9b;
+    --colorBrandForeground2Pressed: #82bdbd;
+    --colorBrandStroke1: #6ba8a9;
     --colorBrandStroke2: #1e3233;
-    --colorBrandStroke2Hover: #1e3233;
+    --colorBrandStroke2Hover: #2a4546;
     --colorBrandBackground2: #1e3233;
     --colorBrandBackground2Hover: #2a4546;
     --colorBrandBackground2Pressed: #142425;
-    --colorCompoundBrandBackground: #5c9a9b;
-    --colorCompoundBrandBackgroundHover: #7fb0b1;
-    --colorCompoundBrandBackgroundPressed: #478384;
-    --colorCompoundBrandForeground1: #5c9a9b;
-    --colorCompoundBrandForeground1Hover: #7fb0b1;
-    --colorCompoundBrandForeground1Pressed: #478384;
-    --colorCompoundBrandStroke: #5c9a9b;
-    --colorCompoundBrandStrokeHover: #7fb0b1;
-    --colorCompoundBrandStrokePressed: #478384;
+    --colorCompoundBrandBackground: #6ba8a9;
+    --colorCompoundBrandBackgroundHover: #82bdbd;
+    --colorCompoundBrandBackgroundPressed: #5c9a9b;
+    --colorCompoundBrandForeground1: #6ba8a9;
+    --colorCompoundBrandForeground1Hover: #82bdbd;
+    --colorCompoundBrandForeground1Pressed: #5c9a9b;
+    --colorCompoundBrandStroke: #6ba8a9;
+    --colorCompoundBrandStrokeHover: #82bdbd;
+    --colorCompoundBrandStrokePressed: #5c9a9b;
   }
 }
 

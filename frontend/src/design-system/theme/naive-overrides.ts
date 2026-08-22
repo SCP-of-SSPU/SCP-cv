@@ -26,9 +26,9 @@ const QINGYUAN_BRAND_LIGHT = {
 
 /** Qingyuan 品牌色：青雾点睛，暗色主题 */
 const QINGYUAN_BRAND_DARK = {
-  primary: '#5c9a9b',
-  primaryHover: '#7fb0b1',
-  primaryPressed: '#478384',
+  primary: '#6ba8a9',
+  primaryHover: '#82bdbd',
+  primaryPressed: '#5c9a9b',
 };
 
 /**
@@ -149,6 +149,9 @@ function buildOverrides(t: Theme, brand: { primary: string; primaryHover: string
       heightMedium: '32px',
       heightLarge: '40px',
       heightSmall: '24px',
+      borderFocus: `1px solid ${brand.primary}`,
+      borderHover: `1px solid ${brand.primaryHover}`,
+      boxShadowFocus: `0 0 0 2px ${brand.primary}33`,
     },
     Dialog: {
       borderRadius: t.borderRadiusXLarge,
