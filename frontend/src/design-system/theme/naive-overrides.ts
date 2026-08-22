@@ -146,8 +146,8 @@ function buildOverrides(t: Theme, brand: { primary: string; primaryHover: string
     },
     Input: {
       borderRadius: t.borderRadiusMedium,
-      heightMedium: '32px',
-      heightLarge: '40px',
+      heightMedium: '36px',
+      heightLarge: '44px',
       heightSmall: '24px',
       borderFocus: `1px solid ${brand.primary}`,
       borderHover: `1px solid ${brand.primaryHover}`,

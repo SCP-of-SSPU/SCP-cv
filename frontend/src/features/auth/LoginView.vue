@@ -20,7 +20,7 @@ const router = useRouter();
 const toast = useToast();
 const auth = useAuthStore();
 
-const username = ref('admin');
+const username = ref('');
 const password = ref('');
 const submitting = ref(false);
 const errorMessage = ref('');
@@ -57,7 +57,9 @@ async function submit(): Promise<void> {
         <FIcon name="tv_24_regular" :size="28" />
       </span>
     </div>
-    <n-card class="login-view__card" :title="t('auth.pageTitle')" content-style="padding: 28px; overflow: visible;">
+    <n-card class="login-view__card" :title="t('auth.pageTitle')"
+      content-style="padding: 28px; padding-top: 8px; overflow: visible;"
+      header-style="padding-bottom: 4px;">
       <p class="login-view__subtitle">{{ t('auth.pageSubtitle') }}</p>
       <n-form @submit.prevent="submit">
         <n-form-item :label="t('auth.username')" required>
@@ -146,6 +148,8 @@ async function submit(): Promise<void> {
 
 .login-view__submit {
   margin-top: var(--spacingVerticalM);
+  height: 44px;
+  font-size: 16px;
 }
 
 .login-view__hint {
@@ -155,5 +159,18 @@ async function submit(): Promise<void> {
   text-align: left;
   line-height: 1.65;
   max-width: 380px;
+}
+
+@media (max-width: 767px) {
+  .login-view__submit {
+    height: 48px;
+    margin-top: var(--spacingVerticalS);
+  }
+}
+
+/* 收紧 Naive UI 卡片标题与内容间距 */
+.login-view__card :deep(.n-card-header__main) {
+  font-size: 20px;
+  font-weight: 600;
 }
 </style>
