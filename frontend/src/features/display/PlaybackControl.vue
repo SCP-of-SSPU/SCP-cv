@@ -47,6 +47,7 @@ const currentSource = computed(() => sourceStore.findById(props.session.source_i
 type NTagType = 'default' | 'primary' | 'info' | 'success' | 'warning' | 'error';
 
 const stateType = computed<NTagType>(() => {
+  if (!props.session.source_id) return 'default';
   switch (props.session.playback_state) {
     case 'playing':
       return 'success';
@@ -234,13 +235,13 @@ const errorBarDescription = computed(() => {
         <SourceThumbnail v-if="currentSource" :source="currentSource" size="comfortable" />
         <div>
           <n-tag :type="stateType" round size="small">
-            {{ session.playback_state_label || session.playback_state }}
+            {{ session.source_id ? (session.playback_state_label || session.playback_state) : t('playback.idle') }}
           </n-tag>
           <h3 class="playback-control__source-name">
-            {{ session.source_name || t('playback.notOpened') }}
+            {{ session.source_id ? (session.source_name || t('playback.notOpened')) : t('playback.noSource') }}
           </h3>
           <p class="playback-control__caption">
-            {{ session.source_type_label || t('playback.idle') }}
+            {{ session.source_id ? (session.source_type_label || t('playback.idle')) : t('playback.noSource') }}
             <template v-if="session.is_spliced">· {{ session.spliced_display_label || t('playback.spliced') }}</template>
             <n-tag v-if="category === 'ppt' && session.playback_mode === 'pdf'" type="info" round size="small">
               {{ t('playback.pdfBadge') }}
@@ -401,7 +402,7 @@ const errorBarDescription = computed(() => {
           :min="0"
           :max="100"
           :aria-label="t('playback.windowVolumeAria')"
-          :disabled="category === 'audio' || category === 'image' || category === 'web'"
+          :disabled="!session.source_id || category === 'audio' || category === 'image' || category === 'web'"
           class="playback-control__seek"
           @update:value="windowVolume.handleInput"
           @dragend="windowVolume.handleChange(windowVolume.value.value)"
@@ -414,11 +415,11 @@ const errorBarDescription = computed(() => {
           <n-switch
             :value="session.is_muted"
             :aria-label="t('playback.windowMute')"
-            :disabled="category === 'audio' || category === 'image' || category === 'web'"
+            :disabled="!session.source_id || category === 'audio' || category === 'image' || category === 'web'"
             @update:value="onMuteToggle"
           />
         </div>
-        <n-button type="error" :disabled="!session.source_id" @click="onClose">
+        <n-button v-if="session.source_id" type="error" @click="onClose">
           <template #icon><FIcon name="dismiss_24_regular" /></template>
           {{ t('playback.closeDisplay') }}
         </n-button>

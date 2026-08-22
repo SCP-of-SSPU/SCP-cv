@@ -81,17 +81,20 @@ const muteToggle = computed({
 });
 
 const heroSubtitle = computed(() => {
-  const sse = runtime.sseStatus === 'connected'
-    ? t('app.sse.connected')
-    : runtime.sseStatus === 'reconnecting'
-      ? t('app.sse.reconnectingLong')
-      : runtime.sseStatus === 'connecting'
-        ? t('app.sse.connectingLong')
-        : t('app.sse.closed');
-  const player = sessionStore.hasOnlinePlayer
-    ? t('app.player.online', { count: sessionStore.onlinePlayerCount })
-    : t('app.player.offline');
-  return `${runtime.bigScreenLabel} · ${sse} · ${player}`;
+  return t('dashboard.heroCaption');
+});
+
+const sseLabel = computed(() => {
+  switch (runtime.sseStatus) {
+    case 'connected':
+      return t('app.sse.connected');
+    case 'connecting':
+      return t('app.sse.connecting');
+    case 'reconnecting':
+      return t('app.sse.reconnecting');
+    default:
+      return t('app.sse.closed');
+  }
 });
 
 async function powerOnSplice(): Promise<void> {
@@ -137,8 +140,19 @@ const hasDeviceError = computed(() =>
   <div class="dashboard">
     <section class="dashboard__hero" :aria-label="t('dashboard.overview')">
       <p class="dashboard__hero-eyebrow">{{ t('dashboard.heroEyebrow') }}</p>
-      <h2 class="dashboard__hero-title">{{ heroSubtitle }}</h2>
-      <p class="dashboard__hero-caption">{{ t('dashboard.heroCaption') }}</p>
+      <h2 class="dashboard__hero-title">{{ t('nav.dashboard') }}</h2>
+      <p class="dashboard__hero-caption">{{ heroSubtitle }}</p>
+      <div class="dashboard__hero-status">
+        <n-tag :type="runtime.sseStatus === 'connected' ? 'success' : 'warning'" round size="small">
+          {{ sseLabel }}
+        </n-tag>
+        <n-tag :type="sessionStore.hasOnlinePlayer ? 'success' : 'error'" round size="small">
+          {{ sessionStore.hasOnlinePlayer ? t('app.player.online', { count: sessionStore.onlinePlayerCount }) : t('app.player.offline') }}
+        </n-tag>
+        <n-tag :type="runtime.isDoubleScreen ? 'info' : 'default'" round size="small">
+          {{ runtime.bigScreenLabel }}
+        </n-tag>
+      </div>
     </section>
 
     <n-alert v-if="hasDeviceError" type="error" :title="t('dashboard.deviceErrorTitle')">
@@ -227,8 +241,8 @@ const hasDeviceError = computed(() =>
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: var(--spacingVerticalS);
-  padding: var(--spacingVerticalXXL) var(--spacingHorizontalXXXL);
+  gap: var(--spacingVerticalXS);
+  padding: var(--spacingVerticalXL) var(--spacingHorizontalXXXL);
   border-radius: var(--borderRadius2XLarge);
   background: linear-gradient(135deg, var(--colorBrandBackground2) 0%, var(--colorNeutralBackground1) 100%);
   border: 1px solid var(--colorNeutralStroke2);
@@ -239,13 +253,13 @@ const hasDeviceError = computed(() =>
 .dashboard__hero::after {
   content: '';
   position: absolute;
-  right: -120px;
-  bottom: -120px;
-  width: 320px;
-  height: 320px;
+  right: -100px;
+  bottom: -100px;
+  width: 240px;
+  height: 240px;
   border-radius: var(--borderRadiusCircular);
   background: radial-gradient(circle at center,
-      color-mix(in srgb, var(--colorBrandBackground) 24%, transparent) 0%,
+      color-mix(in srgb, var(--colorBrandBackground) 18%, transparent) 0%,
       transparent 70%);
   pointer-events: none;
 }
@@ -255,8 +269,8 @@ const hasDeviceError = computed(() =>
   z-index: 1;
   margin: 0;
   font-size: var(--fontSizeBase200);
-  letter-spacing: 0.16em;
-  font-weight: 700;
+  letter-spacing: 0.12em;
+  font-weight: 600;
   color: var(--colorBrandForeground1);
   text-transform: uppercase;
 }
@@ -265,8 +279,8 @@ const hasDeviceError = computed(() =>
   position: relative;
   z-index: 1;
   margin: 0;
-  font-size: var(--fontSizeHero800);
-  line-height: var(--lineHeightHero800);
+  font-size: var(--fontSizeHero700);
+  line-height: var(--lineHeightHero700);
   font-weight: 600;
   color: var(--colorNeutralForeground1);
 }
@@ -276,7 +290,17 @@ const hasDeviceError = computed(() =>
   z-index: 1;
   margin: 0;
   color: var(--colorNeutralForeground2);
+  font-size: var(--fontSizeBase200);
   max-width: 720px;
+}
+
+.dashboard__hero-status {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacingHorizontalS);
+  margin-top: var(--spacingVerticalM);
 }
 
 .dashboard__grid {

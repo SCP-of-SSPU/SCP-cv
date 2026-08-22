@@ -44,10 +44,10 @@ const targetCaption = computed(() => {
       ? t('display.bigLeftSubtitle')
       : t('display.bigSubtitle');
   }
-  return targetMeta.value?.subtitle
-    || (currentSession.value
-      ? t('display.currentSource', { name: currentSession.value.source_name || t('display.idle') })
-      : t('display.loadingSession'));
+  if (!currentSession.value || !currentSession.value.source_id) {
+    return t('display.idle');
+  }
+  return t('display.currentSource', { name: currentSession.value.source_name || t('display.idle') });
 });
 
 const blocksForSingleMode = computed(

@@ -178,18 +178,22 @@ function setMute(muted: boolean): Promise<void> {
 
         <div class="background-audio__controls">
           <n-button circle secondary :aria-label="t('backgroundAudio.previous')"
+            :disabled="playlist.length === 0 || !!busyAction"
             @click="() => runAction('prev', () => audioStore.control('prev'))">
             <template #icon><FIcon name="previous_24_regular" /></template>
           </n-button>
           <n-button circle type="primary" size="large" :aria-label="playPauseAria"
+            :disabled="playlist.length === 0"
             :loading="busyAction === 'play-toggle'" @click="playOrPause">
             <template #icon><FIcon :name="audioStore.isPlaying ? 'pause_24_filled' : 'play_24_filled'" /></template>
           </n-button>
           <n-button circle secondary :aria-label="t('backgroundAudio.next')"
+            :disabled="playlist.length === 0 || !!busyAction"
             @click="() => runAction('next', () => audioStore.control('next'))">
             <template #icon><FIcon name="next_24_regular" /></template>
           </n-button>
-          <n-button secondary @click="() => runAction('stop', () => audioStore.control('stop'))">
+          <n-button secondary :disabled="playlist.length === 0 || !!busyAction"
+            @click="() => runAction('stop', () => audioStore.control('stop'))">
             <template #icon><FIcon name="stop_24_regular" /></template>
             {{ t('backgroundAudio.stop') }}
           </n-button>

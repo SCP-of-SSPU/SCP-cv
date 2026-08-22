@@ -13,12 +13,12 @@
   align-items: flex-end;
   justify-content: space-between;
   gap: var(--spacing-l);
-  padding: var(--spacing-xl);
+  padding: var(--spacing-l);
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--colorBrandStroke1) 36%, var(--colorNeutralStroke2));
   border-radius: var(--borderRadiusXLarge);
   background:
-    radial-gradient(circle at 16% 22%, color-mix(in srgb, var(--colorBrandBackground) 28%, transparent), transparent 28%),
+    radial-gradient(circle at 16% 22%, color-mix(in srgb, var(--colorBrandBackground) 20%, transparent), transparent 28%),
     linear-gradient(135deg, color-mix(in srgb, var(--colorNeutralBackgroundInverted) 88%, #0b1220), #111827 52%, #071017);
   color: var(--colorNeutralForegroundInverted, #fff);
   box-shadow: var(--shadow-card);
@@ -29,10 +29,10 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: 0.18;
+  opacity: 0.12;
   background-image:
-    linear-gradient(90deg, transparent 0 96%, rgba(255,255,255,0.24) 96% 100%),
-    linear-gradient(0deg, transparent 0 96%, rgba(255,255,255,0.16) 96% 100%);
+    linear-gradient(90deg, transparent 0 96%, rgba(255,255,255,0.2) 96% 100%),
+    linear-gradient(0deg, transparent 0 96%, rgba(255,255,255,0.12) 96% 100%);
   background-size: 34px 34px;
 }
 
@@ -44,24 +44,25 @@
 
 .background-audio__eyebrow {
   display: inline-flex;
-  margin-bottom: var(--spacing-s);
+  margin-bottom: var(--spacing-xs);
   font-size: var(--fontSizeBase200);
-  letter-spacing: 0.18em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--colorBrandForegroundInverted, #fff) 76%, transparent);
+  color: color-mix(in srgb, var(--colorBrandForegroundInverted, #fff) 80%, transparent);
 }
 
 .background-audio__hero h2 {
   margin: 0;
-  font-size: clamp(2rem, 6vw, 4.5rem);
-  line-height: 1.05;
-  font-weight: 700;
+  font-size: var(--fontSizeHero700);
+  line-height: 1.2;
+  font-weight: 600;
 }
 
 .background-audio__hero p {
   max-width: 620px;
-  margin: var(--spacing-s) 0 0;
-  color: color-mix(in srgb, var(--colorNeutralForegroundInverted, #fff) 72%, transparent);
+  margin: var(--spacing-xs) 0 0;
+  color: color-mix(in srgb, var(--colorNeutralForegroundInverted, #fff) 80%, transparent);
+  font-size: var(--fontSizeBase200);
 }
 
 .background-audio__hero-actions {

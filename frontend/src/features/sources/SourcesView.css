@@ -115,10 +115,10 @@
 }
 
 .sources-view__nav-item--active {
-  background: var(--colorBrandBackgroundSelected);
+  background: var(--colorBrandBackground2);
   color: var(--colorBrandForeground1);
   font-weight: 600;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--colorBrandBackground) 18%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--colorBrandBackground) 24%, transparent);
 }
 
 .sources-view__nav-item::before {
@@ -151,6 +151,7 @@
 
 .sources-view__nav-item--active .sources-view__nav-badge {
   color: var(--colorBrandForeground1);
+  font-weight: 600;
 }
 
 .sources-view__main {
