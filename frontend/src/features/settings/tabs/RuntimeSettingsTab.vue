@@ -112,15 +112,19 @@ async function resetAll(): Promise<void> {
     </n-card>
 
     <n-card :title="t('settings.systemVolume')">
-      <n-slider
-        v-slider-aria-label="t('settings.systemVolumeAria')"
-        :value="volume.value.value"
-        :min="0"
-        :max="100"
-        :aria-label="t('settings.systemVolumeAria')"
-        @update:value="volume.handleInput"
-        @dragend="volume.handleChange(volume.value.value)"
-      />
+      <div class="settings-view__volume-row">
+        <n-slider
+          v-slider-aria-label="t('settings.systemVolumeAria')"
+          :value="volume.value.value"
+          :min="0"
+          :max="100"
+          :aria-label="t('settings.systemVolumeAria')"
+          :disabled="runtime.systemVolume.muted"
+          @update:value="volume.handleInput"
+          @dragend="volume.handleChange(volume.value.value)"
+        />
+        <span class="settings-view__volume-value">{{ runtime.systemVolume.muted ? '—' : volume.value.value + '%' }}</span>
+      </div>
       <div class="settings-view__row">
         <span>{{ t('settings.enableSystemMute') }}</span>
         <n-switch v-model:value="muteToggle" />
@@ -142,7 +146,9 @@ async function resetAll(): Promise<void> {
         {{ t('settings.reconnect') }}
       </n-button>
     </n-card>
+  </section>
 
+  <section class="settings-view__danger-zone">
     <n-card :title="t('settings.emergencyTools')">
       <n-button type="error" @click="resetAll">
         <template #icon><FIcon name="arrow_reset_24_regular" /></template>

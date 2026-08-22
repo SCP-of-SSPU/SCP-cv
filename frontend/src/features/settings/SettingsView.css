@@ -78,6 +78,14 @@
   gap: var(--spacing-l);
 }
 
+.settings-view__danger-zone {
+  margin-top: var(--spacing-l);
+}
+
+.settings-view__danger-zone :deep(.n-card) {
+  border-color: color-mix(in srgb, var(--colorStatusDangerBorder1) 40%, var(--colorNeutralStroke2));
+}
+
 .settings-view__display {
   display: flex;
   flex-direction: column;
@@ -162,6 +170,22 @@
   align-items: center;
   gap: var(--spacing-s);
   flex-wrap: wrap;
+}
+
+.settings-view__volume-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacingHorizontalM);
+}
+
+.settings-view__volume-value {
+  min-width: 48px;
+  text-align: right;
+  font-size: var(--fontSizeBase200);
+  font-weight: 600;
+  color: var(--colorNeutralForeground2);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
 }
 
 .settings-view__hint {
