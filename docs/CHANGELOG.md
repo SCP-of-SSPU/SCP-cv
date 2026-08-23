@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## 2026-08-23
+
+### 播放独占、安全与运维修复
+
+- PowerPoint 动态演示文稿改为跨播放器进程全局单槽位；打开新放映前关闭旧窗口并等待操作系统槽位释放，PDF 演示文稿不占用槽位。
+- “重启全部服务”只清理工作目录、命令行或可执行路径可确认属于 SCP-cv 的残留进程，不再按进程名终止 PowerShell。
+- `/media/` 文件纳入登录态保护；“本机路径”媒体源在登记、下载和预览时均校验允许根，项目上传目录始终可读，并可通过 `LOCAL_MEDIA_ALLOWED_ROOTS` 扩展。
+- OpenAPI 补齐登录态探测、系统重启、文件夹删除参数与 `playback_mode`；Node 依赖和文档统一使用 pnpm 锁文件。
+- 修复设置危险区无效 CSS 选择器，并为关机/重启动作增加 loading、disabled 与防重复请求状态。
+- 验证：后端全量 `398 passed`，Django check、迁移检查、Ruff、前端 typecheck/生产构建、Redocly 与 pnpm frozen install 通过。
+
 ## 2026-08-05
 
 ### 播放器与前端体验修复

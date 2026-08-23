@@ -22,6 +22,10 @@ const dialog = useDialog();
 const toast = useToast();
 const systemActionPending = ref(false);
 
+/**
+ * 重置全部播放窗口。
+ * :return: Promise 完成时表示请求已处理
+ */
 async function onResetAll(): Promise<void> {
   try {
     await session.resetAll();
@@ -31,6 +35,10 @@ async function onResetAll(): Promise<void> {
   }
 }
 
+/**
+ * 确认后重置当前 PowerPoint 放映。
+ * :return: Promise 完成时表示请求已处理或用户已取消
+ */
 async function onResetPptPlayback(): Promise<void> {
   const confirmed = await dialog.danger({
     title: t('emergency.resetPptTitle'),
@@ -47,6 +55,10 @@ async function onResetPptPlayback(): Promise<void> {
   }
 }
 
+/**
+ * 在物理输出窗口显示窗口编号。
+ * :return: Promise 完成时表示请求已处理
+ */
 async function onShowWindowIds(): Promise<void> {
   try {
     await session.showWindowIds();
@@ -56,6 +68,10 @@ async function onShowWindowIds(): Promise<void> {
   }
 }
 
+/**
+ * 确认后请求关闭全部服务。
+ * :return: Promise 完成时表示请求已处理或用户已取消
+ */
 async function onShutdown(): Promise<void> {
   if (systemActionPending.value) return;
   const confirmed = await dialog.danger({
@@ -76,6 +92,10 @@ async function onShutdown(): Promise<void> {
   }
 }
 
+/**
+ * 确认后请求重启全部服务，并阻止重复系统动作。
+ * :return: Promise 完成时表示请求已处理或用户已取消
+ */
 async function onRestartAll(): Promise<void> {
   if (systemActionPending.value) return;
   const confirmed = await dialog.danger({
@@ -96,6 +116,11 @@ async function onRestartAll(): Promise<void> {
   }
 }
 
+/**
+ * 构造下拉菜单使用的 Fluent 图标渲染函数。
+ * :param name: 设计系统图标名称
+ * :return: Naive UI 图标渲染函数
+ */
 function renderIcon(name: FluentIconName): () => ReturnType<typeof h> {
   return () => h(FIcon, { name, size: 18 });
 }
@@ -128,6 +153,12 @@ const options = computed<DropdownOption[]>(() => [
   },
 ]);
 
+/**
+ * 执行下拉选项绑定的动作。
+ * :param _key: Naive UI 选项键，本处理器不使用
+ * :param option: 被选择的下拉选项
+ * :return: None
+ */
 function handleSelect(_key: string, option: DropdownOption): void {
   if (systemActionPending.value) return;
   const handler = (option.props as { onClick?: () => void } | undefined)?.onClick;
