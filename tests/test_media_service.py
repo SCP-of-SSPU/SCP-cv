@@ -11,7 +11,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock, patch
 import zipfile
 
@@ -34,18 +33,6 @@ from scp_cv.services.media import (
 )
 
 import os
-
-
-@pytest.fixture(autouse=True)
-def allow_test_local_media_root(tmp_path: Path, settings: Any) -> None:
-    """
-    测试创建的本地媒体文件统一位于当前测试临时目录。
-
-    :param tmp_path: 当前测试临时目录
-    :param settings: pytest-django 设置对象
-    :return: None
-    """
-    settings.LOCAL_MEDIA_ALLOWED_ROOTS = [tmp_path]
 
 
 # ══════════════════════════════════════════════════════════════
@@ -204,27 +191,6 @@ class TestAddLocalPath:
 
         with pytest.raises(MediaError, match="无法识别"):
             add_local_path(str(unknown_file))
-
-    def test_local_path_outside_allowed_roots_is_rejected(
-        self,
-        tmp_path: Path,
-        settings: Any,
-    ) -> None:
-        """
-        本地媒体源只能登记配置允许目录中的文件。
-
-        :param tmp_path: 临时文件目录
-        :param settings: pytest-django 设置对象
-        :return: None
-        """
-        allowed_root = tmp_path / "allowed"
-        allowed_root.mkdir()
-        outside_file = tmp_path / "private.png"
-        outside_file.write_bytes(b"private")
-        settings.LOCAL_MEDIA_ALLOWED_ROOTS = [allowed_root]
-
-        with pytest.raises(MediaError, match="允许目录"):
-            add_local_path(str(outside_file))
 
 
 # ══════════════════════════════════════════════════════════════

@@ -13,4 +13,8 @@ get:
           schema:
             $ref: ../components/schemas/AuthStatusResponse.yaml
     '405':
-      $ref: ../components/responses/ErrorResponse.yaml
+      description: 请求方法不是 GET
+      content:
+        text/html:
+          schema:
+            type: string

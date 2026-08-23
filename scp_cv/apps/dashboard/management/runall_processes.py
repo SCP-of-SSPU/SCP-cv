@@ -185,6 +185,7 @@ def cleanup_residual_processes(
     :return: 被终止的进程 PID 列表
     """
     terminated: list[int] = []
+    terminated_processes: list[psutil.Process] = []
     protected_pids = {current_pid}
     if parent_pid is not None:
         protected_pids.add(parent_pid)
@@ -199,12 +200,13 @@ def cleanup_residual_processes(
                 continue
             proc.terminate()
             terminated.append(proc_pid)
+            terminated_processes.append(proc)
         except (PsutilError, ValueError):
             continue
 
     if terminated:
         _, alive = psutil.wait_procs(
-            [psutil.Process(pid) for pid in terminated if psutil.pid_exists(pid)],
+            terminated_processes,
             timeout=5,
         )
         for alive_proc in alive:

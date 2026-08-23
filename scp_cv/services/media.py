@@ -39,6 +39,7 @@ from scp_cv.services.media_types import (
     detect_source_type,
     guess_mime_type as _guess_mime_type,
 )
+from scp_cv.services.media_paths import validate_local_media_path
 from scp_cv.services.media_previews import get_source_preview_file_info as get_source_preview_file_info
 from scp_cv.services.media_queries import (
     list_media_sources as list_media_sources,
@@ -135,7 +136,7 @@ def add_local_path(
 
     if not resolved_path.is_file():
         raise MediaError(f"文件不存在：{resolved_path}")
-    _validate_local_media_path(resolved_path)
+    validate_local_media_path(resolved_path)
 
     if source_type is None:
         source_type = detect_source_type(str(resolved_path))
@@ -167,29 +168,6 @@ def add_local_path(
 
     logger.info("通过本地路径添加媒体源「%s」（%s）→ %s", display_name, source_type, resolved_path)
     return media_source
-
-
-def _validate_local_media_path(file_path: Path) -> None:
-    """
-    校验本地媒体文件位于显式允许的目录中。
-
-    :param file_path: 已解析的本地文件绝对路径
-    :return: None
-    :raises MediaError: 文件不属于任一允许目录
-    """
-    configured_roots = getattr(
-        settings,
-        "LOCAL_MEDIA_ALLOWED_ROOTS",
-        [Path(settings.MEDIA_ROOT)],
-    )
-    allowed_roots = [Path(root).expanduser().resolve() for root in configured_roots]
-    if any(file_path == root or file_path.is_relative_to(root) for root in allowed_roots):
-        return
-    readable_roots = "、".join(str(root) for root in allowed_roots) or "未配置"
-    raise MediaError(
-        f"本地文件不在允许目录中：{file_path}；请将文件放入 {readable_roots}，"
-        "或配置 LOCAL_MEDIA_ALLOWED_ROOTS"
-    )
 
 
 def move_source(source_id: int, folder_id: Optional[int] = None) -> MediaSource:
@@ -231,12 +209,16 @@ def get_source_download_info(source_id: int) -> tuple[str, str, str]:
         raise MediaError(f"媒体源 id={source_id} 不存在") from not_found
 
     file_path = source.uri
-    if not file_path or not os.path.isfile(file_path):
+    if not file_path:
+        raise MediaError("源文件不存在，无法下载")
+    resolved_path = Path(file_path).resolve()
+    validate_local_media_path(resolved_path)
+    if not resolved_path.is_file():
         raise MediaError("源文件不存在，无法下载")
 
-    file_name = source.original_filename or os.path.basename(file_path)
+    file_name = source.original_filename or resolved_path.name
     mime_type = source.mime_type or _guess_mime_type(file_name)
-    return file_path, file_name, mime_type
+    return str(resolved_path), file_name, mime_type
 
 
 def delete_media_source(media_source_id: int) -> None:

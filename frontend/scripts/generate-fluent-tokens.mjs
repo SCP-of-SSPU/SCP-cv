@@ -9,7 +9,7 @@
  *   - @media (prefers-color-scheme: dark) :root:not([data-theme='light'])
  *     在用户未显式选 light 时跟随系统暗色偏好。
  *
- * 重新同步 Fluent 升级时只需 `npm run gen:fluent-tokens` 重跑一次。
+ * 重新同步 Fluent 升级时只需 `pnpm run gen:fluent-tokens` 重跑一次。
  */
 import pkg from '@fluentui/tokens';
 const { webLightTheme, webDarkTheme } = pkg;
@@ -41,7 +41,7 @@ const header = `/*
  *
  * 由 scripts/generate-fluent-tokens.mjs 从 @fluentui/tokens 自动生成，
  * 请勿手工编辑本文件——若要调整令牌值，升级 @fluentui/tokens 后重跑：
- *   npm run gen:fluent-tokens
+ *   pnpm run gen:fluent-tokens
  *
  * 组件样式只允许 var(--<token>) 引用本文件中的令牌，
  * 禁止裸色值 / 裸 px / 裸 font-size（DESIGN.md §8）。

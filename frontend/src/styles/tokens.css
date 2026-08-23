@@ -3,7 +3,7 @@
  *
  * 由 scripts/generate-fluent-tokens.mjs 从 @fluentui/tokens 自动生成，
  * 请勿手工编辑本文件——若要调整令牌值，升级 @fluentui/tokens 后重跑：
- *   npm run gen:fluent-tokens
+ *   pnpm run gen:fluent-tokens
  *
  * 组件样式只允许 var(--<token>) 引用本文件中的令牌，
  * 禁止裸色值 / 裸 px / 裸 font-size（DESIGN.md §8）。

@@ -15,11 +15,26 @@ pytest 全局夹具。
 '''
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Any
+
 import pytest
 
 
 _TEST_USERNAME = "admin"
 _TEST_PASSWORD = "admin"
+
+
+@pytest.fixture(autouse=True)
+def _allow_test_local_media_root(tmp_path: Path, settings: Any) -> None:
+    """
+    允许测试使用各自隔离的临时目录作为本地媒体根目录。
+
+    :param tmp_path: 当前测试隔离目录
+    :param settings: pytest-django 设置对象
+    :return: None
+    """
+    settings.LOCAL_MEDIA_ALLOWED_ROOTS = [tmp_path, Path(settings.MEDIA_ROOT)]
 
 
 @pytest.fixture(autouse=True)

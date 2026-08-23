@@ -14,6 +14,7 @@ from pathlib import Path
 
 from scp_cv.apps.playback.models import MediaSource, SourceType
 from scp_cv.services import ppt_resources as _ppt_resources
+from scp_cv.services.media_paths import validate_local_media_path
 from scp_cv.services.media_types import MediaError, guess_mime_type
 
 
@@ -93,4 +94,10 @@ def _source_file_is_readable(source: MediaSource) -> bool:
     :return: 文件路径存在且可读时返回 True
     """
     source_path = Path(source.uri) if source.uri and source.is_available else None
-    return bool(source_path and source_path.is_file() and os.access(source_path, os.R_OK))
+    if source_path is None:
+        return False
+    try:
+        resolved_path = validate_local_media_path(source_path)
+    except MediaError:
+        return False
+    return resolved_path.is_file() and os.access(resolved_path, os.R_OK)

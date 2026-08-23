@@ -147,7 +147,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/AuthStatusResponse'
         '405':
-          $ref: '#/components/responses/ErrorResponse'
+          description: 请求方法不是 GET
+          content:
+            text/html:
+              schema:
+                type: string
   /auth/change-password/:
     post:
       tags:
