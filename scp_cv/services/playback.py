@@ -42,6 +42,7 @@ from scp_cv.services.playback_commands import (
     clear_playback_command_queue,
     enqueue_playback_command,
 )
+from scp_cv.services.playback_powerpoint import close_other_powerpoint_sessions
 from scp_cv.services.playback_window_controls import (
     is_muted_by_runtime as _is_muted_by_runtime,
     runtime_muted_windows as _runtime_muted_windows,
@@ -180,6 +181,12 @@ def open_source(
     if source.source_type == SourceType.AUDIO:
         raise PlaybackError("音频源只能通过背景音乐模块播放")
 
+    if (
+        source.source_type == SourceType.PPT
+        and get_slides_playback_mode(source) == "powerpoint"
+    ):
+        close_other_powerpoint_sessions(window_id)
+
     session = get_or_create_session(window_id)
     previous_source_id = session.media_source_id
     previous_source_is_temporary = bool(
@@ -227,7 +234,12 @@ def reset_ppt_playback() -> list[PlaybackSession]:
     updated_sessions: list[PlaybackSession] = []
     for window_id in sorted(VALID_WINDOW_IDS):
         session = get_or_create_session(window_id)
-        if session.media_source is None or session.media_source.source_type != SourceType.PPT:
+        if (
+            session.media_source is None
+            or session.media_source.source_type != SourceType.PPT
+            or get_slides_playback_mode(session.media_source) != "powerpoint"
+            or session.playback_state == PlaybackState.IDLE
+        ):
             continue
         restart_args = _ppt_restart_args(session)
         restart_sessions.append(restart_args)
@@ -241,14 +253,16 @@ def reset_ppt_playback() -> list[PlaybackSession]:
         clear_playback_command_queue(session)
         updated_sessions.append(session)
 
+    if not restart_sessions:
+        logger.info("当前没有需要重置的 PowerPoint 放映")
+        return updated_sessions
+
     reset_token = _new_reset_token("ppt")
     target_window_ids = {
         int(restart_args.get("window_id") or 0)
         for restart_args in restart_sessions
         if int(restart_args.get("window_id") or 0) > 0
     }
-    if not target_window_ids:
-        target_window_ids = {min(VALID_WINDOW_IDS)}
     for target_window_id in sorted(target_window_ids):
         session = get_or_create_session(target_window_id)
         enqueue_playback_command(session, PlaybackCommand.RESET_PPT, {

@@ -201,6 +201,47 @@ class TestOpenSource:
 
         assert session.command_args["target_slide"] == 4
 
+    def test_open_powerpoint_closes_other_powerpoint_window(
+        self,
+        media_source_ppt: MediaSource,
+    ) -> None:
+        """跨播放器进程打开 PowerPoint 前应先关闭其它 PowerPoint 窗口。"""
+        open_source(1, media_source_ppt.pk)
+
+        target_session = open_source(2, media_source_ppt.pk)
+        previous_session = get_or_create_session(1)
+
+        assert previous_session.pending_command == PlaybackCommand.CLOSE
+        assert previous_session.playback_state == PlaybackState.IDLE
+        assert target_session.pending_command == PlaybackCommand.OPEN
+
+    def test_open_pdf_slides_keeps_other_powerpoint_window(
+        self,
+        media_source_ppt: MediaSource,
+        tmp_path: Path,
+    ) -> None:
+        """
+        PDF 演示文稿不占用 PowerPoint 槽位，不应关闭其它 PowerPoint 窗口。
+
+        :param media_source_ppt: PowerPoint 媒体源
+        :param tmp_path: PDF 测试文件目录
+        :return: None
+        """
+        open_source(1, media_source_ppt.pk)
+        pdf_path = tmp_path / "slides.pdf"
+        pdf_path.write_bytes(b"%PDF-1.4")
+        pdf_source = MediaSource.objects.create(
+            source_type="ppt",
+            name="PDF 演示文稿",
+            uri=str(pdf_path),
+            metadata={"playback_mode": "pdf"},
+        )
+
+        open_source(2, pdf_source.pk)
+        previous_session = get_or_create_session(1)
+
+        assert previous_session.pending_command == PlaybackCommand.OPEN
+
     def test_open_with_autoplay_false(self, media_source_video: MediaSource) -> None:
         """autoplay=False 时指令参数应反映。"""
         session = open_source(1, media_source_video.pk, autoplay=False)
@@ -448,11 +489,11 @@ class TestPptResetOperations:
         assert restart_sessions[0]["target_slide"] == 5
         assert "reset_token" in session.command_args
 
-    def test_reset_ppt_playback_broadcasts_to_each_active_ppt_window(
+    def test_reset_ppt_playback_only_targets_current_powerpoint_window(
         self,
         media_source_ppt: MediaSource,
     ) -> None:
-        """多播放器进程下，每个活跃 PPT 窗口都应收到 reset-ppt 指令。"""
+        """全局单槽位切换后只应重置当前仍活跃的 PowerPoint 窗口。"""
         open_source(1, media_source_ppt.pk)
         open_source(2, media_source_ppt.pk)
         clear_pending_command(1)
@@ -462,9 +503,9 @@ class TestPptResetOperations:
         session1 = get_or_create_session(1)
         session2 = get_or_create_session(2)
 
-        assert session1.pending_command == PlaybackCommand.RESET_PPT
+        assert session1.pending_command == PlaybackCommand.NONE
         assert session2.pending_command == PlaybackCommand.RESET_PPT
-        assert session1.command_args["reset_token"] == session2.command_args["reset_token"]
+        assert "reset_token" in session2.command_args
 
     def test_reset_ppt_playback_uses_ready_playback_cache(
         self,
@@ -491,6 +532,30 @@ class TestPptResetOperations:
 
         assert restart_args["uri"] == str(cached_file)
         assert restart_args["original_uri"] == media_source_ppt.uri
+
+    def test_reset_ppt_playback_ignores_pdf_slides(self, tmp_path: Path) -> None:
+        """
+        PowerPoint 重置不得关闭或重开 PDF 演示文稿。
+
+        :param tmp_path: PDF 测试文件目录
+        :return: None
+        """
+        pdf_path = tmp_path / "slides.pdf"
+        pdf_path.write_bytes(b"%PDF-1.4")
+        pdf_source = MediaSource.objects.create(
+            source_type="ppt",
+            name="PDF 演示文稿",
+            uri=str(pdf_path),
+            metadata={"playback_mode": "pdf"},
+        )
+        open_source(1, pdf_source.pk)
+        clear_pending_command(1)
+
+        reset_ppt_playback()
+        session = get_or_create_session(1)
+
+        assert session.pending_command == PlaybackCommand.NONE
+        assert session.playback_state == PlaybackState.LOADING
 
 
 # ══════════════════════════════════════════════════════════════

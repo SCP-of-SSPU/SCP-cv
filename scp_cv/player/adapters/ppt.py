@@ -45,6 +45,7 @@ from scp_cv.player.adapters.ppt_process import (
     record_spawned_ppt_process,
     snapshot_candidate_process_ids_for_prog_ids,
 )
+from scp_cv.player.powerpoint_slot import PowerPointSlot
 from scp_cv.player.adapters.ppt_preheat import PptPreheatMixin
 from scp_cv.player.preheat_types import PreheatedPptApplication
 from scp_cv.ppt_com import POWERPOINT_COM_PROG_IDS
@@ -53,6 +54,7 @@ _SLIDESHOW_HWND_TIMEOUT_SECONDS = 8.0
 _SLIDESHOW_HWND_POLL_INTERVAL_SECONDS = 0.05
 _SYNC_OPEN_WAIT_TIMEOUT_SECONDS = 90.0
 _SYNC_CLOSE_WAIT_TIMEOUT_SECONDS = 30.0
+_POWERPOINT_SLOT_WAIT_TIMEOUT_SECONDS = 45.0
 
 
 class PptSourceAdapter(
@@ -76,6 +78,7 @@ class PptSourceAdapter(
         app_label: str = "PowerPoint",
         com_prog_ids: Optional[Iterable[str]] = None,
         slideshow_class_names: Optional[Iterable[str]] = None,
+        powerpoint_slot: PowerPointSlot | None = None,
     ) -> None:
         super().__init__(adapter_name=adapter_name)
         self._app_label = app_label
@@ -83,6 +86,7 @@ class PptSourceAdapter(
         self._slideshow_class_names = (
             frozenset(slideshow_class_names) if slideshow_class_names else None
         )
+        self._powerpoint_slot = powerpoint_slot or PowerPointSlot()
         self._active_com_prog_id = ""
         self._ppt_app: Optional[object] = None  # PPT 应用 COM 对象
         self._presentation: Optional[object] = None  # Presentation 对象
@@ -242,11 +246,20 @@ class PptSourceAdapter(
         :param start_slide: 起始页码（1-based）
         :return: None
         """
-        with self._com_lock:
-            self._init_com_and_open(uri, autoplay, start_slide)
-        self._mark_open()
-        self._refresh_cached_state()
-        self._logger.info("PPT 已打开：%s（%d 页）", uri, self._total_slides)
+        self._powerpoint_slot.acquire(_POWERPOINT_SLOT_WAIT_TIMEOUT_SECONDS)
+        try:
+            with self._com_lock:
+                self._init_com_and_open(uri, autoplay, start_slide)
+            self._mark_open()
+            self._refresh_cached_state()
+            self._logger.info("PPT 已打开：%s（%d 页）", uri, self._total_slides)
+        except BaseException:
+            with self._com_lock:
+                try:
+                    self._close_com_resources()
+                finally:
+                    self._powerpoint_slot.release()
+            raise
 
     def _init_com_and_open(self, file_path: str, autoplay: bool, start_slide: int = 1) -> None:
         """
@@ -423,7 +436,10 @@ class PptSourceAdapter(
         :return: None
         """
         with self._com_lock:
-            self._close_com_resources()
+            try:
+                self._close_com_resources()
+            finally:
+                self._powerpoint_slot.release()
         # close 任务可能排在在途 open 任务之后执行（取消场景），
         # open 末尾的 _mark_open 会翻转状态，这里复位为最终关闭态。
         self._mark_closed()

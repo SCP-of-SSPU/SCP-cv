@@ -10,6 +10,8 @@ PPT 播放适配器单元测试，覆盖 PowerPoint COM 状态读取容错。
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from pytest import MonkeyPatch
 
 from scp_cv.player.adapters import ppt
@@ -62,6 +64,28 @@ class _PptAppStub:
 
     def Quit(self) -> None:
         self.quit_called = True
+
+
+class _PowerPointSlotStub:
+    """记录 PPT 适配器取得与释放跨进程槽位。"""
+
+    def __init__(self) -> None:
+        """初始化槽位调用记录。"""
+        self.acquire_timeouts: list[float] = []
+        self.release_count = 0
+
+    def acquire(self, timeout_seconds: float) -> None:
+        """
+        记录取得槽位请求。
+
+        :param timeout_seconds: 最长等待秒数
+        :return: None
+        """
+        self.acquire_timeouts.append(timeout_seconds)
+
+    def release(self) -> None:
+        """记录槽位释放。"""
+        self.release_count += 1
 
 
 class _PresentationsOpenStub:
@@ -176,6 +200,33 @@ class _StateFailingSlideShowView:
         """
         self.next_called = True
         self.current_position += 1
+
+
+def test_adapter_holds_powerpoint_slot_until_close(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """
+    PPT 适配器应在公开 open/close 生命周期内持续持有全局槽位。
+
+    :param tmp_path: 临时 PPT 文件目录
+    :param monkeypatch: pytest monkeypatch fixture
+    :return: None
+    """
+    ppt_path = tmp_path / "demo.pptx"
+    ppt_path.write_bytes(b"ppt")
+    slot = _PowerPointSlotStub()
+    adapter = PptSourceAdapter(powerpoint_slot=slot)
+    monkeypatch.setattr(adapter, "_init_com_and_open", lambda *_args: None)
+
+    adapter.open(str(ppt_path), window_handle=1)
+
+    assert len(slot.acquire_timeouts) == 1
+    assert slot.release_count == 0
+
+    adapter.close()
+
+    assert slot.release_count == 1
 
 
 class _ClickCapableSlideShowView:
