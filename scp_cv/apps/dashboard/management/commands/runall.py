@@ -217,11 +217,15 @@ class Command(BaseCommand):
     def _restart_self(self) -> None:
         """
         清理完成后以相同参数重新拉起 runall，实现系统级重启。
-        重启前额外清理非 runall 管理的残留 PowerShell、MediaMTX 和播放器进程。
+        重启前额外清理可确认属于当前项目的残留运行时进程。
         :return: None
         """
         parent_pid = os.getppid() if os.name == "nt" else None
-        terminated = cleanup_residual_processes(os.getpid(), parent_pid)
+        terminated = cleanup_residual_processes(
+            os.getpid(),
+            parent_pid,
+            Path(settings.BASE_DIR),
+        )
         if terminated:
             self.stdout.write(self.style.WARNING(
                 f"已清理 {len(terminated)} 个残留进程：{terminated}"
@@ -265,19 +269,21 @@ class Command(BaseCommand):
         """
         import shutil
 
-        npx_path = shutil.which("npx")
-        if npx_path is None:
-            self.stderr.write(self.style.WARNING("未找到 npx，跳过 gRPC-Web 代理"))
+        pnpm_path = shutil.which("pnpm")
+        if pnpm_path is None:
+            self.stderr.write(self.style.WARNING("未找到 pnpm，跳过 gRPC-Web 代理"))
             return
         grpc_port = int(getattr(settings, "GRPC_PORT", 50051))
         self._spawn(
             "gRPC-Web 代理",
             [
-                npx_path,
-                "@grpc-web/proxy",
+                pnpm_path,
+                "exec",
+                "proxy",
                 f"--target=http://127.0.0.1:{grpc_port}",
                 f"--listen={listen_port}",
             ],
+            cwd=Path(settings.BASE_DIR),
             required=False,
         )
 

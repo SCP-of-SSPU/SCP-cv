@@ -161,22 +161,27 @@ def terminate_process_tree(process_id: int) -> None:
         psutil.wait_procs(alive_processes, timeout=3)
 
 
-# 重启时额外清理的残留进程名（小写匹配）
-_RESIDUAL_PROCESS_NAMES = frozenset({
-    "powershell.exe",
-    "powershell_ise.exe",
-    "mediamtx.exe",
-    "run_player.exe",
+_PROJECT_MANAGE_COMMANDS = frozenset({
+    "run_player",
+    "runserver",
+    "grpcrunaioserver",
 })
 
 
-def cleanup_residual_processes(current_pid: int, parent_pid: int | None = None) -> list[int]:
+def cleanup_residual_processes(
+    current_pid: int,
+    parent_pid: int | None,
+    project_dir: Path,
+) -> list[int]:
     """
-    清理非 runall 管理的残留进程，用于系统重启前兜底。
-    会终止残留的 PowerShell、MediaMTX 和播放器进程，
-    但不终止当前 runall 进程及其父进程。
+    清理非 runall 管理但可确认属于当前项目的残留进程。
+
+    归属判定同时检查工作目录、可执行文件路径和命令行；不再按进程名清理
+    PowerShell，避免终止用户终端或其它系统任务。
+
     :param current_pid: 当前 runall 进程 PID
     :param parent_pid: 父进程 PID（如通过 --service 启动时）
+    :param project_dir: SCP-cv 项目根目录
     :return: 被终止的进程 PID 列表
     """
     terminated: list[int] = []
@@ -184,18 +189,13 @@ def cleanup_residual_processes(current_pid: int, parent_pid: int | None = None) 
     if parent_pid is not None:
         protected_pids.add(parent_pid)
 
-    for proc in psutil.process_iter(["pid", "ppid", "name"]):
+    resolved_project_dir = project_dir.resolve()
+    for proc in psutil.process_iter(["pid", "ppid", "name", "cmdline", "cwd", "exe"]):
         try:
-            proc_name = str(proc.info.get("name") or "").lower()
             proc_pid = int(proc.info.get("pid") or 0)
             if proc_pid in protected_pids:
                 continue
-            if proc_name not in _RESIDUAL_PROCESS_NAMES:
-                continue
-            # 保护父进程链
-            ppid = int(proc.info.get("ppid") or 0)
-            if ppid in protected_pids:
-                protected_pids.add(proc_pid)
+            if not _is_project_residual_process(proc.info, resolved_project_dir):
                 continue
             proc.terminate()
             terminated.append(proc_pid)
@@ -214,3 +214,52 @@ def cleanup_residual_processes(current_pid: int, parent_pid: int | None = None) 
                 pass
         psutil.wait_procs(alive, timeout=3)
     return terminated
+
+
+def _is_project_residual_process(
+    process_info: dict[str, object],
+    project_dir: Path,
+) -> bool:
+    """
+    判断进程是否是可安全清理的 SCP-cv 残留子进程。
+
+    :param process_info: ``psutil.process_iter`` 返回的进程信息
+    :param project_dir: 已解析的项目根目录
+    :return: True 表示进程归属明确且属于已知运行时类型
+    """
+    process_name = str(process_info.get("name") or "").casefold()
+    command_parts = [str(part) for part in process_info.get("cmdline") or []]
+    normalized_command = " ".join(command_parts).casefold()
+    working_dir = _optional_resolved_path(process_info.get("cwd"))
+    executable = _optional_resolved_path(process_info.get("exe"))
+    works_in_project = working_dir is not None and working_dir.is_relative_to(project_dir)
+    executable_in_project = executable is not None and executable.is_relative_to(project_dir)
+
+    if process_name == "mediamtx.exe":
+        return executable_in_project
+
+    if process_name in {"python.exe", "pythonw.exe", "python", "python3"}:
+        if not works_in_project or "manage.py" not in normalized_command:
+            return False
+        return any(command in command_parts for command in _PROJECT_MANAGE_COMMANDS)
+
+    if process_name in {"node.exe", "node"}:
+        return works_in_project and (
+            "vite" in normalized_command
+            or "@grpc-web/proxy" in normalized_command
+            or "@grpc-web+proxy" in normalized_command
+        )
+    return False
+
+
+def _optional_resolved_path(raw_path: object) -> Path | None:
+    """
+    将 psutil 的可选路径字段转换为绝对路径。
+
+    :param raw_path: cwd 或 exe 字段
+    :return: 解析后的路径；空值返回 None
+    """
+    path_text = str(raw_path or "").strip()
+    if not path_text:
+        return None
+    return Path(path_text).resolve()
