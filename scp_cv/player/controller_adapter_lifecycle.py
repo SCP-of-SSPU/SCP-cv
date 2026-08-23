@@ -32,6 +32,7 @@ class PlayerAdapterLifecycleMixin:
         :param window_id: 窗口编号
         :param restore_window: PPT 关闭后是否恢复 PySide 黑屏窗口
         :param reheat: 关闭后是否按源配置重新预热
+        :return: None
         """
         adapter = self._adapters.pop(window_id, None)
         source_type = self._adapter_source_types.get(window_id)
@@ -339,6 +340,7 @@ class PlayerAdapterLifecycleMixin:
         更新指定窗口会话播放状态。
         :param window_id: 窗口编号
         :param playback_state: 新的播放状态值
+        :return: None
         """
         from scp_cv.apps.playback.models import PlaybackSession
 
@@ -358,6 +360,7 @@ class PlayerAdapterLifecycleMixin:
         更新指定窗口会话为错误状态。
         :param window_id: 窗口编号
         :param error_message: 错误描述
+        :return: None
         """
         logger.error("窗口 %d 播放会话错误：%s", window_id, error_message)
         from scp_cv.apps.playback.models import PlaybackSession

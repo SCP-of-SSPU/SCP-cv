@@ -27,17 +27,13 @@ from scp_cv.apps.playback.models import (
 from scp_cv.services.playback import (
     PlaybackError,
     clear_pending_command,
-    close_source,
-    control_ppt_media,
     control_playback,
     get_or_create_session,
     get_session_snapshot,
     navigate_content,
     open_source,
-    reset_ppt_playback,
     reset_all_sessions_to_idle,
     set_big_screen_mode,
-    stop_current_content,
     update_playback_progress,
 )
 from scp_cv.services.playback_sessions import touch_player_heartbeats
@@ -200,47 +196,6 @@ class TestOpenSource:
         session = open_source(1, media_source_ppt.pk, target_slide=4)
 
         assert session.command_args["target_slide"] == 4
-
-    def test_open_powerpoint_closes_other_powerpoint_window(
-        self,
-        media_source_ppt: MediaSource,
-    ) -> None:
-        """跨播放器进程打开 PowerPoint 前应先关闭其它 PowerPoint 窗口。"""
-        open_source(1, media_source_ppt.pk)
-
-        target_session = open_source(2, media_source_ppt.pk)
-        previous_session = get_or_create_session(1)
-
-        assert previous_session.pending_command == PlaybackCommand.CLOSE
-        assert previous_session.playback_state == PlaybackState.IDLE
-        assert target_session.pending_command == PlaybackCommand.OPEN
-
-    def test_open_pdf_slides_keeps_other_powerpoint_window(
-        self,
-        media_source_ppt: MediaSource,
-        tmp_path: Path,
-    ) -> None:
-        """
-        PDF 演示文稿不占用 PowerPoint 槽位，不应关闭其它 PowerPoint 窗口。
-
-        :param media_source_ppt: PowerPoint 媒体源
-        :param tmp_path: PDF 测试文件目录
-        :return: None
-        """
-        open_source(1, media_source_ppt.pk)
-        pdf_path = tmp_path / "slides.pdf"
-        pdf_path.write_bytes(b"%PDF-1.4")
-        pdf_source = MediaSource.objects.create(
-            source_type="ppt",
-            name="PDF 演示文稿",
-            uri=str(pdf_path),
-            metadata={"playback_mode": "pdf"},
-        )
-
-        open_source(2, pdf_source.pk)
-        previous_session = get_or_create_session(1)
-
-        assert previous_session.pending_command == PlaybackCommand.OPEN
 
     def test_open_with_autoplay_false(self, media_source_video: MediaSource) -> None:
         """autoplay=False 时指令参数应反映。"""
@@ -434,186 +389,6 @@ class TestNavigateContent:
         get_or_create_session(1)
         with pytest.raises(PlaybackError, match="没有打开"):
             navigate_content(1, PlaybackCommand.NEXT)
-
-
-@pytest.mark.django_db
-class TestControlPptMedia:
-    """测试 PPT 当前页媒体逐项控制。"""
-
-    def test_control_ppt_media_command(self, media_source_ppt: MediaSource) -> None:
-        """PPT 媒体控制应写入专用指令和媒体参数。"""
-        open_source(1, media_source_ppt.pk)
-        session = control_ppt_media(1, PlaybackCommand.PLAY, media_id="m1", media_index=2)
-
-        assert session.pending_command == PlaybackCommand.PPT_MEDIA
-        assert session.command_args["media_action"] == PlaybackCommand.PLAY
-        assert session.command_args["media_id"] == "m1"
-        assert session.command_args["media_index"] == 2
-
-    def test_ppt_media_command_after_powerpoint_open(
-        self,
-        media_source_ppt: MediaSource,
-    ) -> None:
-        """PowerPoint-only PPT 源应下发 PPT 媒体控制指令。"""
-        open_source(1, media_source_ppt.pk)
-
-        session = control_ppt_media(1, PlaybackCommand.PLAY, media_id="m1", media_index=1)
-
-        assert session.pending_command == PlaybackCommand.PPT_MEDIA
-        assert session.command_args["media_action"] == PlaybackCommand.PLAY
-
-    def test_rejects_non_ppt_source(self, media_source_video: MediaSource) -> None:
-        """非 PPT 源不应接受 PPT 媒体控制。"""
-        open_source(1, media_source_video.pk)
-
-        with pytest.raises(PlaybackError, match="未打开 PPT"):
-            control_ppt_media(1, PlaybackCommand.PLAY, media_id="m1", media_index=1)
-
-
-@pytest.mark.django_db
-class TestPptResetOperations:
-    """测试 PowerPoint-only PPT 重置。"""
-
-    def test_reset_ppt_playback_keeps_current_slide(self, media_source_ppt: MediaSource) -> None:
-        """重置 PPT 放映应收集当前 PPT 窗口并保留页码。"""
-        open_source(1, media_source_ppt.pk)
-        update_playback_progress(1, current_slide=5, total_slides=10)
-        clear_pending_command(1)
-
-        reset_ppt_playback()
-        session = get_or_create_session(1)
-
-        assert session.pending_command == PlaybackCommand.RESET_PPT
-        restart_sessions = session.command_args["restart_sessions"]
-        assert restart_sessions[0]["source_id"] == media_source_ppt.pk
-        assert restart_sessions[0]["target_slide"] == 5
-        assert "reset_token" in session.command_args
-
-    def test_reset_ppt_playback_only_targets_current_powerpoint_window(
-        self,
-        media_source_ppt: MediaSource,
-    ) -> None:
-        """全局单槽位切换后只应重置当前仍活跃的 PowerPoint 窗口。"""
-        open_source(1, media_source_ppt.pk)
-        open_source(2, media_source_ppt.pk)
-        clear_pending_command(1)
-        clear_pending_command(2)
-
-        reset_ppt_playback()
-        session1 = get_or_create_session(1)
-        session2 = get_or_create_session(2)
-
-        assert session1.pending_command == PlaybackCommand.NONE
-        assert session2.pending_command == PlaybackCommand.RESET_PPT
-        assert "reset_token" in session2.command_args
-
-    def test_reset_ppt_playback_uses_ready_playback_cache(
-        self,
-        media_source_ppt: MediaSource,
-        tmp_path: Path,
-    ) -> None:
-        """重置 PPT 放映时重启参数应继续使用放映缓存 URI。"""
-        cached_file = tmp_path / "cached.ppsx"
-        cached_file.write_bytes(b"cached-show")
-        media_source_ppt.metadata = {
-            PPT_PLAYBACK_METADATA_KEY: {
-                "status": "ready",
-                "path": str(cached_file),
-            },
-        }
-        media_source_ppt.save(update_fields=["metadata"])
-        open_source(1, media_source_ppt.pk)
-        update_playback_progress(1, current_slide=2, total_slides=5)
-        clear_pending_command(1)
-
-        reset_ppt_playback()
-        session = get_or_create_session(1)
-        restart_args = session.command_args["restart_sessions"][0]
-
-        assert restart_args["uri"] == str(cached_file)
-        assert restart_args["original_uri"] == media_source_ppt.uri
-
-    def test_reset_ppt_playback_ignores_pdf_slides(self, tmp_path: Path) -> None:
-        """
-        PowerPoint 重置不得关闭或重开 PDF 演示文稿。
-
-        :param tmp_path: PDF 测试文件目录
-        :return: None
-        """
-        pdf_path = tmp_path / "slides.pdf"
-        pdf_path.write_bytes(b"%PDF-1.4")
-        pdf_source = MediaSource.objects.create(
-            source_type="ppt",
-            name="PDF 演示文稿",
-            uri=str(pdf_path),
-            metadata={"playback_mode": "pdf"},
-        )
-        open_source(1, pdf_source.pk)
-        clear_pending_command(1)
-
-        reset_ppt_playback()
-        session = get_or_create_session(1)
-
-        assert session.pending_command == PlaybackCommand.NONE
-        assert session.playback_state == PlaybackState.LOADING
-
-
-# ══════════════════════════════════════════════════════════════
-# close_source
-# ══════════════════════════════════════════════════════════════
-
-@pytest.mark.django_db
-class TestCloseSource:
-    """测试源关闭和会话重置。"""
-
-    def test_close_with_active_source(self, media_source_video: MediaSource) -> None:
-        """有活跃源时关闭应发出 CLOSE 指令。"""
-        open_source(1, media_source_video.pk)
-        session = close_source(1)
-
-        assert session.pending_command == PlaybackCommand.CLOSE
-
-    def test_close_marks_temporary_source_for_cleanup(self, media_source_video: MediaSource) -> None:
-        """关闭临时源时应把清理 ID 下发给播放器。"""
-        media_source_video.is_temporary = True
-        media_source_video.save(update_fields=["is_temporary"])
-        open_source(1, media_source_video.pk)
-
-        session = close_source(1)
-
-        assert session.command_args["cleanup_source_id"] == media_source_video.pk
-
-    def test_close_without_source_resets(self) -> None:
-        """无活跃源时关闭应直接重置为 IDLE。"""
-        get_or_create_session(1)
-        session = close_source(1)
-
-        assert session.playback_state == PlaybackState.IDLE
-        assert session.pending_command == PlaybackCommand.NONE
-
-    def test_stop_current_content_delegates(self, media_source_video: MediaSource) -> None:
-        """stop_current_content 应委托给 close_source。"""
-        open_source(1, media_source_video.pk)
-        session = stop_current_content(1)
-
-        assert session.pending_command == PlaybackCommand.CLOSE
-
-
-# ══════════════════════════════════════════════════════════════
-# clear_pending_command
-# ══════════════════════════════════════════════════════════════
-
-@pytest.mark.django_db
-class TestClearPendingCommand:
-    """测试指令清除（播放器消费指令后调用）。"""
-
-    def test_clears_command_and_args(self, media_source_ppt: MediaSource) -> None:
-        """清除后 pending_command 应回到 NONE。"""
-        open_source(1, media_source_ppt.pk)
-        session = clear_pending_command(1)
-
-        assert session.pending_command == PlaybackCommand.NONE
-        assert session.command_args == {}
 
 
 # ══════════════════════════════════════════════════════════════

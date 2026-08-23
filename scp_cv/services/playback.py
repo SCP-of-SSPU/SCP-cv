@@ -13,7 +13,6 @@
 from __future__ import annotations
 
 import logging
-import time
 from typing import Optional
 
 from scp_cv.apps.playback.models import (
@@ -42,7 +41,16 @@ from scp_cv.services.playback_commands import (
     clear_playback_command_queue,
     enqueue_playback_command,
 )
-from scp_cv.services.playback_powerpoint import close_other_powerpoint_sessions
+from scp_cv.services.playback_powerpoint import (
+    close_other_powerpoint_sessions,
+    reset_ppt_playback as reset_ppt_playback,
+)
+from scp_cv.services.playback_lifecycle import (
+    RESET_ALL_WINDOWS_ARG as RESET_ALL_WINDOWS_ARG,
+    RESET_TOKEN_ARG as RESET_TOKEN_ARG,
+    request_player_windows_rebuild as _request_player_windows_rebuild,
+    reset_playback_fields as _reset_playback_fields,
+)
 from scp_cv.services.playback_window_controls import (
     is_muted_by_runtime as _is_muted_by_runtime,
     runtime_muted_windows as _runtime_muted_windows,
@@ -57,10 +65,6 @@ from scp_cv.services.slides_pdf import (
 from scp_cv.services.video_wall import VideoWallError, apply_big_screen_mode as apply_video_wall_mode
 
 logger = logging.getLogger(__name__)
-
-RESET_ALL_WINDOWS_ARG = "reset_all_windows"
-RESET_TOKEN_ARG = "reset_token"
-
 
 def reset_all_sessions_to_idle(*, rebuild_players: bool = True) -> list[PlaybackSession]:
     """
@@ -225,56 +229,6 @@ def open_source(
     return session
 
 
-def reset_ppt_playback() -> list[PlaybackSession]:
-    """
-    重置所有 PPT 放映窗口，并让当前 PPT 窗口回到重置前页码。
-    :return: 更新后的会话列表
-    """
-    restart_sessions: list[dict[str, object]] = []
-    updated_sessions: list[PlaybackSession] = []
-    for window_id in sorted(VALID_WINDOW_IDS):
-        session = get_or_create_session(window_id)
-        if (
-            session.media_source is None
-            or session.media_source.source_type != SourceType.PPT
-            or get_slides_playback_mode(session.media_source) != "powerpoint"
-            or session.playback_state == PlaybackState.IDLE
-        ):
-            continue
-        restart_args = _ppt_restart_args(session)
-        restart_sessions.append(restart_args)
-        session.playback_state = PlaybackState.LOADING
-        session.error_message = ""
-        session.save(update_fields=[
-            "playback_state",
-            "error_message",
-            "last_updated_at",
-        ])
-        clear_playback_command_queue(session)
-        updated_sessions.append(session)
-
-    if not restart_sessions:
-        logger.info("当前没有需要重置的 PowerPoint 放映")
-        return updated_sessions
-
-    reset_token = _new_reset_token("ppt")
-    target_window_ids = {
-        int(restart_args.get("window_id") or 0)
-        for restart_args in restart_sessions
-        if int(restart_args.get("window_id") or 0) > 0
-    }
-    for target_window_id in sorted(target_window_ids):
-        session = get_or_create_session(target_window_id)
-        enqueue_playback_command(session, PlaybackCommand.RESET_PPT, {
-            "restart_sessions": restart_sessions,
-            RESET_TOKEN_ARG: reset_token,
-        })
-        if session not in updated_sessions:
-            updated_sessions.append(session)
-    logger.info("已请求重置 PPT 放映，待重启窗口数=%d", len(restart_sessions))
-    return updated_sessions
-
-
 def control_playback(window_id: int, action: str) -> PlaybackSession:
     """
     发送播放控制指令（play / pause / stop）到指定窗口。
@@ -364,31 +318,6 @@ def control_ppt_media(
     enqueue_playback_command(session, PlaybackCommand.PPT_MEDIA, command_args)
     logger.info("窗口 %d 发送 PPT 媒体控制：%s，参数=%s", window_id, media_action, command_args)
     return session
-
-
-def _ppt_restart_args(session: PlaybackSession) -> dict[str, object]:
-    """
-    为 PPT 重启构造播放器 OPEN 指令参数。
-    :param session: 当前 PPT 播放会话
-    :return: 可直接交给播放器 _handle_open 的参数字典
-    """
-    source = session.media_source
-    if source is None:
-        return {}
-    playback_uri = resolve_slide_playback_uri(source) if source.source_type == SourceType.PPT else source.uri
-    return {
-        "window_id": session.window_id,
-        "source_id": source.pk,
-        "source_type": source.source_type,
-        "uri": playback_uri,
-        "original_uri": source.uri,
-        "adapter_kind": get_slides_playback_mode(source),
-        "autoplay": True,
-        "volume": session.volume,
-        "muted": session.is_muted,
-        "preheat_enabled": bool(getattr(source, "keep_alive", True)),
-        "target_slide": max(1, int(session.current_slide or 1)),
-    }
 
 
 def _navigation_is_noop(session: PlaybackSession, action: str, target_index: int) -> bool:
@@ -562,45 +491,3 @@ def select_display_target(
         window_id, session.get_display_mode_display(), session.target_display_label,
     )
     return session
-
-
-def _request_player_windows_rebuild() -> None:
-    """
-    请求播放器进程在主线程关闭并重建全部窗口。
-    :return: None
-    """
-    reset_token = _new_reset_token("all")
-    for window_id in sorted(VALID_WINDOW_IDS):
-        session = get_or_create_session(window_id)
-        enqueue_playback_command(session, PlaybackCommand.CLOSE, {
-            RESET_ALL_WINDOWS_ARG: True,
-            RESET_TOKEN_ARG: reset_token,
-        })
-
-
-def _new_reset_token(prefix: str) -> str:
-    """
-    生成一次全局重置广播 token，用于单进程播放器去重。
-    :param prefix: token 前缀
-    :return: token 字符串
-    """
-    return f"{prefix}-{time.time_ns()}"
-
-
-def _reset_playback_fields(session: PlaybackSession) -> None:
-    """
-    内部方法：重置会话的播放相关字段。
-    :param session: 播放会话实例（调用方负责 save）
-    """
-    session.media_source = None
-    session.playback_state = PlaybackState.IDLE
-    session.error_message = ""
-    session.current_slide = 0
-    session.total_slides = 0
-    session.position_ms = 0
-    session.duration_ms = 0
-    session.loop_enabled = False
-    session.volume = 100
-    session.is_muted = False
-    session.pending_command = PlaybackCommand.NONE
-    session.command_args = {}

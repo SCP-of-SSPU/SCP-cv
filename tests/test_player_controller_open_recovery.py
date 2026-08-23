@@ -12,7 +12,7 @@ from __future__ import annotations
 import pytest
 
 from scp_cv.player.controller import PlayerController
-from scp_cv.player import controller_adapter_lifecycle
+from scp_cv.player import controller_handlers
 
 
 class _OpenAdapter:
@@ -549,7 +549,7 @@ def test_schedule_close_detached_adapter_delays_ppt_close(
     scheduled: list[tuple[int, object]] = []
     close_calls: list[tuple[int, str | None]] = []
     monkeypatch.setattr(
-        "scp_cv.player.controller_adapter_lifecycle.QTimer.singleShot",
+        "scp_cv.player.controller_handlers.QTimer.singleShot",
         lambda delay_ms, callback: scheduled.append((delay_ms, callback)),
     )
     monkeypatch.setattr(
@@ -569,7 +569,7 @@ def test_schedule_close_detached_adapter_delays_ppt_close(
         reheat=True,
     )
 
-    assert scheduled[0][0] == controller_adapter_lifecycle._PPT_DETACHED_CLOSE_DELAY_MS
+    assert scheduled[0][0] == controller_handlers._PPT_DETACHED_CLOSE_DELAY_MS
     assert close_calls == []
 
     scheduled[0][1]()
@@ -584,7 +584,7 @@ def test_schedule_close_detached_adapter_keeps_non_ppt_immediate(
     controller = PlayerController()
     scheduled: list[int] = []
     monkeypatch.setattr(
-        "scp_cv.player.controller_adapter_lifecycle.QTimer.singleShot",
+        "scp_cv.player.controller_handlers.QTimer.singleShot",
         lambda delay_ms, _callback: scheduled.append(delay_ms),
     )
 

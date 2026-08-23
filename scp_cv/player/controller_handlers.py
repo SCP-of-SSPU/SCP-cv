@@ -11,8 +11,13 @@ from __future__ import annotations
 
 import logging
 
+from PySide6.QtCore import QTimer as QTimer
+
 from scp_cv.player.adapters import create_adapter
-from scp_cv.player.controller_adapter_lifecycle import PlayerAdapterLifecycleMixin
+from scp_cv.player.controller_adapter_lifecycle import (
+    PlayerAdapterLifecycleMixin,
+    _PPT_DETACHED_CLOSE_DELAY_MS as _PPT_DETACHED_CLOSE_DELAY_MS,
+)
 from scp_cv.player.controller_ppt_open import PptOpenFlowMixin
 from scp_cv.player.controller_window_helpers import PlayerWindowHelpersMixin
 

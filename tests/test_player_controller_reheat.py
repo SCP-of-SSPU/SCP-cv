@@ -104,7 +104,7 @@ def test_close_detached_adapter_skips_ppt_reheat_after_source_reaches_idle(
         lambda source_id: reheated_source_ids.append(source_id),
     )
     monkeypatch.setattr(
-        "scp_cv.player.controller_adapter_lifecycle.QTimer.singleShot",
+        "scp_cv.player.controller_handlers.QTimer.singleShot",
         lambda _delay_ms, callback: scheduled_callbacks.append(callback),
     )
     session = get_or_create_session(1)
@@ -142,7 +142,7 @@ def test_delayed_ppt_reheat_skips_when_same_source_reopens(
         lambda source_id: reheated_source_ids.append(source_id),
     )
     monkeypatch.setattr(
-        "scp_cv.player.controller_adapter_lifecycle.QTimer.singleShot",
+        "scp_cv.player.controller_handlers.QTimer.singleShot",
         lambda _delay_ms, callback: scheduled_callbacks.append(callback),
     )
     session = get_or_create_session(1)

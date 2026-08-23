@@ -13,8 +13,7 @@ PPT 源适配器，通过本机 COM 自动化控制幻灯片放映。
 
 from __future__ import annotations
 
-import functools
-import os
+import os as os
 import threading
 from collections.abc import Callable
 from collections.abc import Iterable
@@ -26,39 +25,38 @@ from scp_cv.player.adapters.ppt_constants import (
     PP_ALERTS_ALL as _PP_ALERTS_ALL,
     PP_ALERTS_NONE as _PP_ALERTS_NONE,
 )
-from scp_cv.player.adapters.ppt_focus import (
-    conceal_ppt_editor_window,
-    restore_player_foreground,
-)
 from scp_cv.player.adapters.ppt_navigation import PptNavigationMixin
 from scp_cv.player.adapters.ppt_window import (
     close_embedded_slideshow_window,
-    configure_windowed_slideshow,
-    embed_slideshow_window,
-    find_slideshow_hwnd,
+    embed_slideshow_window as embed_slideshow_window,
+    find_slideshow_hwnd as find_slideshow_hwnd,
     hide_embedded_slideshow_window,
     show_embedded_slideshow_window,
-    snapshot_slideshow_hwnds,
+    snapshot_slideshow_hwnds as snapshot_slideshow_hwnds,
+)
+from scp_cv.player.adapters.ppt_opening import (
+    PptOpeningMixin,
+    _SLIDESHOW_HWND_POLL_INTERVAL_SECONDS as _SLIDESHOW_HWND_POLL_INTERVAL_SECONDS,
+    _SLIDESHOW_HWND_TIMEOUT_SECONDS as _SLIDESHOW_HWND_TIMEOUT_SECONDS,
 )
 from scp_cv.player.adapters.ppt_process import (
-    read_ppt_app_process_id,
-    record_spawned_ppt_process,
-    snapshot_candidate_process_ids_for_prog_ids,
+    read_ppt_app_process_id as read_ppt_app_process_id,
+    snapshot_candidate_process_ids_for_prog_ids as snapshot_candidate_process_ids_for_prog_ids,
 )
 from scp_cv.player.powerpoint_slot import PowerPointSlot
 from scp_cv.player.adapters.ppt_preheat import PptPreheatMixin
 from scp_cv.player.preheat_types import PreheatedPptApplication
 from scp_cv.ppt_com import POWERPOINT_COM_PROG_IDS
 
-_SLIDESHOW_HWND_TIMEOUT_SECONDS = 8.0
-_SLIDESHOW_HWND_POLL_INTERVAL_SECONDS = 0.05
-_SYNC_OPEN_WAIT_TIMEOUT_SECONDS = 90.0
 _SYNC_CLOSE_WAIT_TIMEOUT_SECONDS = 30.0
-_POWERPOINT_SLOT_WAIT_TIMEOUT_SECONDS = 45.0
 
 
 class PptSourceAdapter(
-    PptNavigationMixin, PptComSessionMixin, PptPreheatMixin, SourceAdapter
+    PptOpeningMixin,
+    PptNavigationMixin,
+    PptComSessionMixin,
+    PptPreheatMixin,
+    SourceAdapter,
 ):
     """
     本机 PPT COM 放映适配器。
@@ -80,6 +78,16 @@ class PptSourceAdapter(
         slideshow_class_names: Optional[Iterable[str]] = None,
         powerpoint_slot: PowerPointSlot | None = None,
     ) -> None:
+        """
+        初始化 PowerPoint 放映适配器。
+
+        :param adapter_name: 适配器注册名称
+        :param app_label: 日志和错误信息中的应用名称
+        :param com_prog_ids: 可尝试连接的 PowerPoint COM ProgID
+        :param slideshow_class_names: 可接受的放映窗口类名集合
+        :param powerpoint_slot: 跨进程 PowerPoint 独占槽位；为空时创建默认槽位
+        :return: None
+        """
         super().__init__(adapter_name=adapter_name)
         self._app_label = app_label
         self._com_prog_ids = tuple(com_prog_ids or POWERPOINT_COM_PROG_IDS)
@@ -148,262 +156,6 @@ class PptSourceAdapter(
             command()
             return
         worker.submit(f"{self._app_label} {description}", command)
-
-    # ═══════════════════ 打开 ═══════════════════
-
-    def open(self, uri: str, window_handle: int, autoplay: bool = True) -> None:
-        """
-        同步打开 PPT 文件并启动幻灯片放映。
-        放映窗口定位到 window_handle 所在屏幕。
-        :param uri: PPT 文件绝对路径
-        :param window_handle: PySide 窗口原生句柄（用于定位屏幕）
-        :param autoplay: 是否立即开始放映
-        """
-        self._validate_ppt_file(uri)
-        self._file_path = uri
-        self._window_handle = window_handle
-
-        worker = self._com_worker
-        if worker is not None and not getattr(worker, "is_current_thread", False):
-            worker.submit_and_wait(
-                f"{self._app_label} 打开 {uri}",
-                functools.partial(self._open_on_com_thread, uri, autoplay, 1),
-                timeout_seconds=_SYNC_OPEN_WAIT_TIMEOUT_SECONDS,
-            )
-            return
-        self._open_on_com_thread(uri, autoplay, 1)
-
-    def open_async(
-        self,
-        uri: str,
-        window_handle: int,
-        autoplay: bool = True,
-        start_slide: int = 0,
-        on_finished: Optional[Callable[[Optional[BaseException]], None]] = None,
-    ) -> None:
-        """
-        异步打开 PPT 文件，完成后通过回调通知结果。
-        注入 worker 时本方法立即返回，COM 慢操作在工作线程执行；
-        未注入 worker 时内联同步执行并同步回调。
-        :param uri: PPT 文件绝对路径
-        :param window_handle: PySide 窗口原生句柄
-        :param autoplay: 是否立即开始放映
-        :param start_slide: 起始页码；0 表示从第 1 页开始
-        :param on_finished: 完成回调，参数为 None（成功）或异常对象
-        :return: None
-        """
-        try:
-            self._validate_ppt_file(uri)
-        except Exception as validation_error:
-            if on_finished is not None:
-                on_finished(validation_error)
-                return
-            raise
-        self._file_path = uri
-        self._window_handle = window_handle
-
-        open_job = functools.partial(
-            self._open_on_com_thread, uri, autoplay, max(1, start_slide or 1)
-        )
-        worker = self._com_worker
-        if worker is None or getattr(worker, "is_current_thread", False):
-            open_error: Optional[BaseException] = None
-            try:
-                open_job()
-            except BaseException as inline_error:
-                open_error = inline_error
-            if on_finished is not None:
-                on_finished(open_error)
-            elif open_error is not None:
-                raise open_error
-            return
-
-        def report_completion(_result: object, error: Optional[BaseException]) -> None:
-            if on_finished is not None:
-                on_finished(error)
-
-        worker.submit(
-            f"{self._app_label} 打开 {uri}",
-            open_job,
-            on_done=report_completion,
-        )
-
-    @staticmethod
-    def _validate_ppt_file(uri: str) -> None:
-        """
-        校验 PPT 文件存在性，让明显错误在调用线程立即失败。
-        :param uri: PPT 文件路径
-        :raises FileNotFoundError: 文件不存在时
-        """
-        if not os.path.isfile(uri):
-            raise FileNotFoundError(f"PPT 文件不存在：{uri}")
-
-    def _open_on_com_thread(self, uri: str, autoplay: bool, start_slide: int) -> None:
-        """
-        在 COM 线程执行完整打开流程并刷新状态缓存。
-        :param uri: PPT 文件路径
-        :param autoplay: 是否自动放映
-        :param start_slide: 起始页码（1-based）
-        :return: None
-        """
-        self._powerpoint_slot.acquire(_POWERPOINT_SLOT_WAIT_TIMEOUT_SECONDS)
-        try:
-            with self._com_lock:
-                self._init_com_and_open(uri, autoplay, start_slide)
-            self._mark_open()
-            self._refresh_cached_state()
-            self._logger.info("PPT 已打开：%s（%d 页）", uri, self._total_slides)
-        except BaseException:
-            with self._com_lock:
-                try:
-                    self._close_com_resources()
-                finally:
-                    self._powerpoint_slot.release()
-            raise
-
-    def _init_com_and_open(self, file_path: str, autoplay: bool, start_slide: int = 1) -> None:
-        """
-        初始化 COM 环境并打开 PPT 文件。
-        :param file_path: PPT 文件路径
-        :param autoplay: 是否自动开始放映
-        :param start_slide: 起始页码（1-based）
-        """
-        import pythoncom
-        import win32com.client
-
-        pythoncom.CoInitialize()
-
-        self._owns_ppt_app = False
-        existing_process_ids = snapshot_candidate_process_ids_for_prog_ids(
-            self._com_prog_ids,
-            self._active_com_prog_id,
-        )
-        self._preheated_app = self._take_preheated_application()
-        if self._preheated_app is not None:
-            self._ppt_app = self._preheated_app.app
-            self._active_com_prog_id = self._preheated_app.prog_id
-            try:
-                # PowerPoint 是进程级 COM 服务器；其它播放窗口关闭放映后，
-                # 本进程预热池里的 Application 代理可能已被 Office 断开。
-                # 在接管前验证最先需要的集合，失效时直接退休并重新 DispatchEx。
-                self._ppt_app.Presentations
-            except Exception as stale_error:
-                self._logger.warning(
-                    "预热 %s COM 应用已失效，重新创建：%s",
-                    self._app_label,
-                    stale_error,
-                )
-                self._preheated_app = None
-                self._ppt_app = None
-            else:
-                self._logger.info(
-                    "已复用预热 %s COM 应用：%s",
-                    self._app_label,
-                    self._active_com_prog_id,
-                )
-        if self._ppt_app is None:
-            self._ppt_app = self._dispatch_ppt_application(win32com.client)
-            self._owns_ppt_app = True
-        self._ppt_process_id = read_ppt_app_process_id(
-            self._ppt_app,
-            self._active_com_prog_id,
-            existing_process_ids,
-        )
-        self._set_powerpoint_alerts(_PP_ALERTS_NONE)
-
-        # 仅隐藏本系统拉起的编辑窗口，避免任务栏残留按钮；不打扰用户已有窗口。
-        self._spawned_ppt_process = (
-            self._ppt_process_id != 0
-            and self._ppt_process_id not in existing_process_ids
-        )
-        if self._spawned_ppt_process:
-            record_spawned_ppt_process(self._ppt_process_id)
-        preheated_spawned = bool(
-            self._preheated_app is not None
-            and getattr(self._preheated_app, "spawned_process", False)
-        )
-        if self._spawned_ppt_process or preheated_spawned:
-            conceal_ppt_editor_window(self._ppt_app, self._logger)
-
-        self._presentation = self._take_preheated_presentation(file_path)
-        if self._presentation is None:
-            self._presentation = self._open_presentation_for_slideshow(file_path)
-        self._mark_presentation_clean()
-        self._total_slides = self._presentation.Slides.Count
-
-        if autoplay:
-            self._start_slideshow(start_slide)
-
-    def _start_slideshow(self, start_slide: int = 1) -> None:
-        """
-        启动幻灯片放映并嵌入 PySide 播放器容器。
-        :param start_slide: 起始页码
-        """
-        if self._presentation is None:
-            return
-
-        # 仅更新必要的页码范围，尽量减少对演示文稿持久化设置的改写。
-        settings = configure_windowed_slideshow(
-            self._presentation.SlideShowSettings,
-            start_slide,
-            self._total_slides,
-        )
-        self._mark_presentation_clean()
-
-        # COM 无法直接给出 HWND 时，Win32 回退只能接受本次 Run 后新增的窗口。
-        existing_hwnds = snapshot_slideshow_hwnds(
-            self._logger,
-            class_names=self._slideshow_class_names,
-            process_id=self._ppt_process_id or None,
-        )
-
-        slideshow_window = self._run_powerpoint_operation(
-            "启动幻灯片放映",
-            settings.Run,
-        )
-        self._mark_presentation_clean()
-        if slideshow_window is None:
-            raise RuntimeError(f"{self._app_label} SlideShowSettings.Run 未返回放映窗口")
-        slideshow_view = slideshow_window.View
-
-        # 获取 PPT 放映窗口的 HWND
-        ppt_hwnd = find_slideshow_hwnd(
-            slideshow_window,
-            self._logger,
-            existing_hwnds,
-            class_names=self._slideshow_class_names,
-            timeout_seconds=_SLIDESHOW_HWND_TIMEOUT_SECONDS,
-            poll_interval_seconds=_SLIDESHOW_HWND_POLL_INTERVAL_SECONDS,
-            process_id=self._ppt_process_id or None,
-            allow_existing_when_unique=not existing_hwnds,
-        )
-        if ppt_hwnd == 0:
-            raise RuntimeError(
-                f"未找到 {self._app_label} 放映窗口句柄，无法嵌入播放器容器"
-            )
-
-        container_width, container_height = embed_slideshow_window(
-            ppt_hwnd, self._window_handle, self._embed_owner_token
-        )
-        # Run() 抢前台会让全屏播放窗口被任务栏盖住，嵌入完成后立即夺回。
-        restore_player_foreground(self._window_handle, self._ppt_process_id, self._logger)
-        self._slideshow_window = slideshow_window
-        self._slideshow_view = slideshow_view
-        self._ppt_hwnd = ppt_hwnd
-        self._is_paused = False
-        self._logger.debug(
-            "%s 放映窗口已嵌入 PySide 容器：%dx%d",
-            self._app_label,
-            container_width,
-            container_height,
-        )
-
-        self._logger.info(
-            "%s 放映已嵌入播放器窗口（HWND=%d，共 %d 页）",
-            self._app_label,
-            ppt_hwnd,
-            self._total_slides,
-        )
 
     # ═══════════════════ 关闭 ═══════════════════
 
