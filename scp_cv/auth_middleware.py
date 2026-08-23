@@ -27,10 +27,11 @@ _PUBLIC_PATHS = (
     "/api/auth/status/",
 )
 
-# 需要鉴权保护的业务前缀。/api/ 是 SPA 主入口，其余 dashboard 旧路径同样涉及
-# 状态变更与 SSE 推送，统一挡在登录态后。
+# 需要鉴权保护的业务前缀。媒体文件可能包含上传内容和演示文稿缓存，必须与
+# API 使用相同的登录态保护，避免绕过受保护的预览/下载接口直接读取。
 _PROTECTED_PREFIXES = (
     "/api/",
+    "/media/",
     "/sources/",
     "/playback/",
     "/scenarios/",

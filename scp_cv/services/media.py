@@ -135,6 +135,7 @@ def add_local_path(
 
     if not resolved_path.is_file():
         raise MediaError(f"文件不存在：{resolved_path}")
+    _validate_local_media_path(resolved_path)
 
     if source_type is None:
         source_type = detect_source_type(str(resolved_path))
@@ -166,6 +167,29 @@ def add_local_path(
 
     logger.info("通过本地路径添加媒体源「%s」（%s）→ %s", display_name, source_type, resolved_path)
     return media_source
+
+
+def _validate_local_media_path(file_path: Path) -> None:
+    """
+    校验本地媒体文件位于显式允许的目录中。
+
+    :param file_path: 已解析的本地文件绝对路径
+    :return: None
+    :raises MediaError: 文件不属于任一允许目录
+    """
+    configured_roots = getattr(
+        settings,
+        "LOCAL_MEDIA_ALLOWED_ROOTS",
+        [Path(settings.MEDIA_ROOT)],
+    )
+    allowed_roots = [Path(root).expanduser().resolve() for root in configured_roots]
+    if any(file_path == root or file_path.is_relative_to(root) for root in allowed_roots):
+        return
+    readable_roots = "、".join(str(root) for root in allowed_roots) or "未配置"
+    raise MediaError(
+        f"本地文件不在允许目录中：{file_path}；请将文件放入 {readable_roots}，"
+        "或配置 LOCAL_MEDIA_ALLOWED_ROOTS"
+    )
 
 
 def move_source(source_id: int, folder_id: Optional[int] = None) -> MediaSource:

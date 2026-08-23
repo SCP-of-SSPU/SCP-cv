@@ -13,6 +13,7 @@ from __future__ import annotations
 from collections.abc import Generator
 from concurrent import futures
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import grpc
@@ -237,8 +238,18 @@ def test_runtime_status_endpoint_uses_client_visible_host(settings) -> None:
 
 
 @pytest.mark.django_db(transaction=True)
-def test_grpc_real_channel_source_create_list_update(tmp_path: Path) -> None:
-    """真实 channel 应支持媒体源 create/list/update 完整往返。"""
+def test_grpc_real_channel_source_create_list_update(
+    tmp_path: Path,
+    settings: Any,
+) -> None:
+    """
+    真实 channel 应支持媒体源 create/list/update 完整往返。
+
+    :param tmp_path: 本地媒体临时目录
+    :param settings: pytest-django 设置对象
+    :return: None
+    """
+    settings.LOCAL_MEDIA_ALLOWED_ROOTS = [tmp_path]
     local_file = tmp_path / "channel-video.mp4"
     local_file.write_bytes(b"fake-video")
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=2))

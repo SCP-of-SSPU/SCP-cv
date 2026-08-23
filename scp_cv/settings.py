@@ -169,6 +169,12 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+_configured_local_media_roots = env.list("LOCAL_MEDIA_ALLOWED_ROOTS", default=[])
+LOCAL_MEDIA_ALLOWED_ROOTS = [
+    Path(configured_root).expanduser().resolve()
+    for configured_root in _configured_local_media_roots
+    if str(configured_root).strip()
+] or [MEDIA_ROOT.resolve()]
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -75,12 +76,17 @@ def test_ppt_source_repairs_missing_first_preview(
 
 
 @pytest.mark.django_db
-def test_file_sources_use_inline_preview_endpoint(tmp_path: Path) -> None:
+def test_file_sources_use_inline_preview_endpoint(
+    tmp_path: Path,
+    settings: Any,
+) -> None:
     """
     图片和视频源应返回可嵌入前端缩略位的预览端点。
     :param tmp_path: 临时文件目录
+    :param settings: pytest-django 设置对象
     :return: None
     """
+    settings.LOCAL_MEDIA_ALLOWED_ROOTS = [tmp_path]
     image_file = tmp_path / "poster.png"
     video_file = tmp_path / "clip.mp4"
     image_file.write_bytes(b"fake-image")

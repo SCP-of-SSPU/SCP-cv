@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -70,8 +71,18 @@ def test_upload_source_api_stores_preheat_flag() -> None:
 
 
 @pytest.mark.django_db
-def test_add_local_source_api_stores_preheat_flag(tmp_path: Path) -> None:
-    """POST /api/sources/local/ 应保存本地文件源预热开关。"""
+def test_add_local_source_api_stores_preheat_flag(
+    tmp_path: Path,
+    settings: Any,
+) -> None:
+    """
+    POST /api/sources/local/ 应保存本地文件源预热开关。
+
+    :param tmp_path: 本地媒体临时目录
+    :param settings: pytest-django 设置对象
+    :return: None
+    """
+    settings.LOCAL_MEDIA_ALLOWED_ROOTS = [tmp_path]
     client = Client()
     video_file = tmp_path / "local.mp4"
     video_file.write_bytes(b"fake-mp4")

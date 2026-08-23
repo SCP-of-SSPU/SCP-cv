@@ -1,3 +1,12 @@
+#!/user/bin/env python
+# -*- coding: UTF-8 -*-
+'''
+鉴权接口与受保护资源访问测试。
+@Project : SCP-cv
+@File : test_auth_api.py
+@Author : Qintsg
+@Date : 2026-08-23
+'''
 from __future__ import annotations
 
 import json
@@ -32,6 +41,19 @@ def test_auth_status_returns_user_when_logged_in() -> None:
     payload = response.json()
     assert payload["authenticated"] is True
     assert payload["user"]["username"] == "operator"
+
+
+def test_media_files_require_authentication(anonymous_client: Client) -> None:
+    """
+    未登录客户端访问媒体文件路径时应被鉴权中间件拒绝。
+
+    :param anonymous_client: 未登录 Django 测试客户端
+    :return: None
+    """
+    response = anonymous_client.get("/media/uploads/private.png")
+
+    assert response.status_code == 401
+    assert response.json()["code"] == "unauthorized"
 
 
 @pytest.mark.django_db
