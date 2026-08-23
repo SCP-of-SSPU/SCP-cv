@@ -6,7 +6,7 @@
  *  - 显示窗口 ID（调试用，仅触发一次）
  *  - 系统关机（带 Dialog 二次确认 + Danger 主按钮）
  */
-import { h } from 'vue';
+import { computed, h, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { NButton, NDropdown, type DropdownOption } from 'naive-ui';
 
@@ -20,6 +20,7 @@ const { t } = useI18n();
 const session = useSessionStore();
 const dialog = useDialog();
 const toast = useToast();
+const systemActionPending = ref(false);
 
 async function onResetAll(): Promise<void> {
   try {
@@ -56,6 +57,7 @@ async function onShowWindowIds(): Promise<void> {
 }
 
 async function onShutdown(): Promise<void> {
+  if (systemActionPending.value) return;
   const confirmed = await dialog.danger({
     title: t('emergency.shutdownTitle'),
     description: t('emergency.shutdownDesc'),
@@ -63,15 +65,19 @@ async function onShutdown(): Promise<void> {
     cancelLabel: t('common.cancel'),
   });
   if (!confirmed) return;
+  systemActionPending.value = true;
   try {
     const result = await session.shutdownSystem();
     toast.warning(t('emergency.shutdownOk'), result.detail ?? t('emergency.shutdownSent'));
   } catch (error) {
     toast.error(t('emergency.shutdownFail'), error instanceof Error ? error.message : t('common.retry'));
+  } finally {
+    systemActionPending.value = false;
   }
 }
 
 async function onRestartAll(): Promise<void> {
+  if (systemActionPending.value) return;
   const confirmed = await dialog.danger({
     title: t('emergency.restartAllTitle'),
     description: t('emergency.restartAllDesc'),
@@ -79,19 +85,22 @@ async function onRestartAll(): Promise<void> {
     cancelLabel: t('common.cancel'),
   });
   if (!confirmed) return;
+  systemActionPending.value = true;
   try {
     const result = await session.restartAll();
     toast.warning(t('emergency.restartAllOk'), result.detail ?? t('emergency.restartAllSent'));
   } catch (error) {
     toast.error(t('emergency.restartAllFail'), error instanceof Error ? error.message : t('common.retry'));
+  } finally {
+    systemActionPending.value = false;
   }
 }
 
-function renderIcon(name: FluentIconName) {
+function renderIcon(name: FluentIconName): () => ReturnType<typeof h> {
   return () => h(FIcon, { name, size: 18 });
 }
 
-const options: DropdownOption[] = [
+const options = computed<DropdownOption[]>(() => [
   {
     type: 'group',
     label: t('emergency.groupLabel'),
@@ -106,18 +115,21 @@ const options: DropdownOption[] = [
   {
     label: t('emergency.restartAll'),
     key: 'restart-all',
+    disabled: systemActionPending.value,
     icon: renderIcon('arrow_repeat_all_24_regular'),
     props: { onClick: onRestartAll },
   },
   {
     label: t('emergency.shutdown'),
     key: 'shutdown',
+    disabled: systemActionPending.value,
     icon: renderIcon('plug_disconnected_24_regular'),
     props: { onClick: onShutdown, style: 'color: var(--colorStatusDangerForeground1);' },
   },
-];
+]);
 
 function handleSelect(_key: string, option: DropdownOption): void {
+  if (systemActionPending.value) return;
   const handler = (option.props as { onClick?: () => void } | undefined)?.onClick;
   handler?.();
 }
@@ -133,6 +145,8 @@ function handleSelect(_key: string, option: DropdownOption): void {
     <n-button
       quaternary
       circle
+      :loading="systemActionPending"
+      :disabled="systemActionPending"
       :aria-label="t('emergency.triggerAria')"
     >
       <template #icon>
