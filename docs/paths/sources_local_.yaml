@@ -2,7 +2,7 @@ post:
   tags:
     - sources
   summary: 通过本地路径创建媒体源
-  description: 本地 PPT/PPS/POT/ODP 文件会默认使用 PowerPoint，并尝试生成播放专用 `.ppsx`/`.pps` 缓存；生成失败不阻断媒体源创建，播放时回退原始文件。
+  description: 路径必须位于 `LOCAL_MEDIA_ALLOWED_ROOTS` 配置的目录中。静态演示文稿会尝试转换为 PDF，动态演示文稿使用 PowerPoint。
   operationId: addLocalSource
   requestBody:
     required: true

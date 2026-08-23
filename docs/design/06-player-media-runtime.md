@@ -75,7 +75,7 @@ Django 服务层
 
 ## 指令处理
 
-命令处理位于 `scp_cv/player/controller_handlers.py`。
+命令分发位于 `scp_cv/player/controller_handlers.py`；适配器关闭、恢复、预热和会话回写位于 `scp_cv/player/controller_adapter_lifecycle.py`。
 
 | 命令 | 处理器 | 说明 |
 | --- | --- | --- |
@@ -188,6 +188,8 @@ PPT 全局 volume/mute 大多不可控。窗口音量 UI 对 PPT 不应承诺等
 
 PowerPoint 启动、打开文档、运行放映、HWND 查找和嵌入都带确定性重试或明确失败路径；失败时保留 PySide 黑屏并回写明确错误，不回退到其它后端。播放器不再隐藏 PySide 窗口，不取消 PySide 置顶，也不最小化其它顶层窗口。
 
+动态演示文稿使用全局单槽位：Django 播放服务在打开前先向其它 PowerPoint 会话下发 `CLOSE`，各 `run_player` 进程再通过 `PowerPointSlot` 的 Windows 命名互斥体协调，旧放映真正释放前新放映不会启动。PDF 演示文稿不占用该槽位。
+
 ## PPT 资源、预览和播放缓存
 
 PPT 后端不仅有播放 adapter，还有导入阶段的资源解析和缓存。
@@ -215,7 +217,7 @@ PPT 后端不仅有播放 adapter，还有导入阶段的资源解析和缓存�
 | audio | 预建后台音频播放器资源 |
 | stream | 隐藏 1x1 QWidget + libVLC 连接 |
 | web | 隐藏 `QWebEngineView` |
-| PowerPoint | 预启动 COM 应用，必要时预打开文件 |
+| PowerPoint | 当前停用预热；打开时按全局单槽位启动 COM 放映 |
 
 预热不是缓存业务状态，而是缓存播放器资源。迁移时不要把 `keep_alive` 简化为普通后端缓存字段。
 

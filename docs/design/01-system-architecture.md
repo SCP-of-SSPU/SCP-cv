@@ -43,7 +43,7 @@ gRPC 服务与 REST 共用同一 Django 服务层。`runall --headless` 默认�
 | 进程 | 启动入口 | 职责 | 迁移约束 |
 | --- | --- | --- | --- |
 | Django REST/gRPC | `manage.py runserver`, `runall.py` | API、认证、服务层、数据库状态、SSE | 可迁移到目标 Django，但服务层语义要保留 |
-| Vue/Vite | `npm --prefix frontend run dev`, `runall.py` | 控制台 UI | 可迁移到目标 Vue/Fluent 应用 |
+| Vue/Vite | `pnpm --prefix frontend run dev`, `runall.py` | 控制台 UI | 可迁移到目标 Vue/Fluent 应用 |
 | PySide6 player | `manage.py run_player` | 读取 DB 指令、播放媒体、回写状态 | 必须继续作为桌面进程，不要放进 Web Worker |
 | MediaMTX | `tools/third_party/mediamtx/mediamtx.exe` | SRT 发布/读取、RTSP 暴露、路径 API | 可作为外部服务保留 |
 | gRPC-Web proxy | `runall.py` | 浏览器兼容 gRPC-Web | 如目标项目不需要可停用，但 proto 契约需保留迁移说明 |

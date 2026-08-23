@@ -8,9 +8,9 @@
     "test": "tests"
   },
   "scripts": {
-    "frontend:dev": "npm --prefix frontend run dev",
-    "frontend:build": "npm --prefix frontend run build",
-    "frontend:typecheck": "npm --prefix frontend run typecheck"
+    "frontend:dev": "pnpm --prefix frontend run dev",
+    "frontend:build": "pnpm --prefix frontend run build",
+    "frontend:typecheck": "pnpm --prefix frontend run typecheck"
   },
   "repository": {
     "type": "git",
@@ -19,6 +19,7 @@
   "keywords": [],
   "author": "Qintsg (饶弘玮)",
   "license": "Artistic-2.0",
+  "packageManager": "pnpm@11.22.0",
   "type": "commonjs",
   "bugs": {
     "url": "https://github.com/SCP-of-SSPU/SCP-cv/issues"

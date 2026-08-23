@@ -62,6 +62,7 @@ uv python install
 uv sync
 
 # 安装前端依赖
+pnpm install
 pnpm install --prefix frontend
 
 # 准备本地环境变量
@@ -227,7 +228,7 @@ uv run python manage.py clearall
 
 ## 仓库整理约定
 
-以下内容不进入版本库：本地 agent 配置、Playwright/Codex 运行缓存、pytest/ruff 缓存、`node_modules/`、上传媒体、日志和历史 `requirements*.txt`。Python 依赖以 `pyproject.toml` + `uv.lock` 为准，前端依赖以 `frontend/package.json` + `frontend/package-lock.json` 为准。
+以下内容不进入版本库：本地 agent 配置、Playwright/Codex 运行缓存、pytest/ruff 缓存、`node_modules/`、上传媒体、日志和历史 `requirements*.txt`。Python 依赖以 `pyproject.toml` + `uv.lock` 为准，Node 依赖以根目录和 `frontend/` 各自的 `package.json` + `pnpm-lock.yaml` 为准。
 
 ## 许可证
 

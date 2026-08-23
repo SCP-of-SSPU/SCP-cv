@@ -1,0 +1,14 @@
+allOf:
+  - $ref: ./SuccessResponse.yaml
+  - type: object
+    required:
+      - sessions
+      - detail
+    properties:
+      sessions:
+        type: array
+        items:
+          $ref: ./SessionSnapshot.yaml
+      detail:
+        type: string
+        example: 全部服务重启请求已发送

@@ -1,0 +1,16 @@
+get:
+  tags:
+    - auth
+  summary: 探测当前登录态
+  description: 未登录时同样返回 200，避免前端首屏用 401 作为正常控制流。
+  operationId: getAuthStatus
+  security: []
+  responses:
+    '200':
+      description: 当前登录态与可选用户信息
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/AuthStatusResponse.yaml
+    '405':
+      $ref: ../components/responses/ErrorResponse.yaml

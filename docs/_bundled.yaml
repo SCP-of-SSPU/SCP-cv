@@ -11,7 +11,7 @@ info:
     SCP-cv 控制台 REST API 文档。
 
     所有业务路径默认挂载在 `/api` 前缀下；成功响应通常包含 `success: true`，错误响应统一为 `detail + code`。
-    业务接口由 Django session cookie 鉴权保护；`/auth/csrf/`、`/auth/login/`、`/auth/logout/` 和 `/auth/me/` 为公开端点。
+    业务接口与 `/media/` 文件由 Django session cookie 鉴权保护；`/auth/csrf/`、`/auth/login/`、`/auth/logout/`、`/auth/me/` 和 `/auth/status/` 为公开端点。
 servers:
   - url: /api
     description: 本机 Django REST API 前缀
@@ -131,6 +131,53 @@ paths:
                 $ref: '#/components/schemas/AuthUserResponse'
         '401':
           $ref: '#/components/responses/ErrorResponse'
+  /auth/status/:
+    get:
+      tags:
+        - auth
+      summary: 探测当前登录态
+      description: 未登录时同样返回 200，避免前端首屏用 401 作为正常控制流。
+      operationId: getAuthStatus
+      security: []
+      responses:
+        '200':
+          description: 当前登录态与可选用户信息
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthStatusResponse'
+        '405':
+          $ref: '#/components/responses/ErrorResponse'
+  /auth/change-password/:
+    post:
+      tags:
+        - auth
+      summary: 修改当前用户密码
+      description: 校验当前密码并应用 Django 密码强度规则；成功后保持当前浏览器会话登录。
+      operationId: changePassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '200':
+          description: 密码修改成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - detail
+                properties:
+                  detail:
+                    type: string
+                    example: 密码已修改
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
   /folders/:
     get:
       tags:
@@ -194,6 +241,12 @@ paths:
         - folders
       summary: 删除媒体文件夹
       operationId: deleteFolder
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FolderDeleteRequest'
       responses:
         '200':
           description: 删除成功
@@ -236,7 +289,7 @@ paths:
       tags:
         - sources
       summary: 上传文件并创建媒体源
-      description: 支持 PPT/PPS/POT/ODP、视频、音频和图片等文件。PPT 源默认使用 PowerPoint，并在导入后尝试生成播放专用 `.ppsx`/`.pps` 缓存；宏格式默认导出为非宏 `.ppsx`。
+      description: 支持 PDF、PPT/PPS/POT/ODP、视频、音频和图片等文件。静态演示文稿会尝试转换为 PDF，动态演示文稿使用 PowerPoint。
       operationId: uploadSource
       requestBody:
         required: true
@@ -277,7 +330,7 @@ paths:
       tags:
         - sources
       summary: 通过本地路径创建媒体源
-      description: 本地 PPT/PPS/POT/ODP 文件会默认使用 PowerPoint，并尝试生成播放专用 `.ppsx`/`.pps` 缓存；生成失败不阻断媒体源创建，播放时回退原始文件。
+      description: 路径必须位于 `LOCAL_MEDIA_ALLOWED_ROOTS` 配置的目录中。静态演示文稿会尝试转换为 PDF，动态演示文稿使用 PowerPoint。
       operationId: addLocalSource
       requestBody:
         required: true
@@ -965,8 +1018,8 @@ paths:
     post:
       tags:
         - playback
-      summary: 重置 PPT 放映后端并恢复页码
-      description: 向所有正在放映 PPT 的窗口广播重置指令，关闭当前 PPT 放映窗口与文档，重启所有正在放映的 PPT，并回到重置前页码。
+      summary: 重置当前 PowerPoint 放映并恢复页码
+      description: 关闭全局单槽位中当前活跃的 PowerPoint 放映窗口与文档，再回到重置前页码；PDF 演示文稿不受影响。
       operationId: resetPptPlayback
       responses:
         '200':
@@ -1012,6 +1065,22 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ShutdownResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+  /system/restart/:
+    post:
+      tags:
+        - runtime
+      summary: 请求重启全部服务
+      description: 通知 runall 关闭其管理的运行时进程，清理可确认属于本项目的残留进程，并以相同参数重新启动。
+      operationId: restartAllServices
+      responses:
+        '200':
+          description: 重启请求已发送
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RestartResponse'
         '401':
           $ref: '#/components/responses/ErrorResponse'
   /displays/:
@@ -1370,6 +1439,32 @@ components:
         detail:
           type: string
           example: ok
+    AuthStatusResponse:
+      type: object
+      required:
+        - authenticated
+        - user
+      properties:
+        authenticated:
+          type: boolean
+        user:
+          type: object
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/AuthUser'
+    ChangePasswordRequest:
+      type: object
+      required:
+        - current_password
+        - new_password
+      properties:
+        current_password:
+          type: string
+          format: password
+        new_password:
+          type: string
+          format: password
+          minLength: 8
     SuccessResponse:
       type: object
       required:
@@ -1429,6 +1524,13 @@ components:
           properties:
             folder:
               $ref: '#/components/schemas/Folder'
+    FolderDeleteRequest:
+      type: object
+      properties:
+        delete_contents:
+          type: boolean
+          default: false
+          description: true 时永久删除文件夹子树内的媒体源及其上传文件；false 时把媒体源移到根目录。
     FolderUpdateRequest:
       type: object
       properties:
@@ -1460,6 +1562,7 @@ components:
         - metadata
         - keep_alive
         - preheat_enabled
+        - playback_mode
         - preview_url
         - thumbnail_url
         - preview_kind
@@ -1507,7 +1610,14 @@ components:
           description: 旧版保持活跃字段，当前与 preheat_enabled 同步
         preheat_enabled:
           type: boolean
-          description: 媒体源预热开关；播放器启动时按源类型提前准备后台资源，PPT 源会按播放 URI 进行源文件级预热
+          description: 媒体源预热开关；播放器启动时按源类型提前准备后台资源，PowerPoint 预热当前停用
+        playback_mode:
+          type: string
+          enum:
+            - ''
+            - pdf
+            - powerpoint
+          description: 演示文稿播放模式；非演示文稿源为空字符串
         preview_url:
           type: string
           description: 可嵌入前端缩略位的预览 URL；无真实预览时为空字符串
@@ -1724,6 +1834,7 @@ components:
         - source_type
         - source_type_label
         - source_uri
+        - playback_mode
         - playback_state
         - playback_state_label
         - error_message
@@ -1741,6 +1852,8 @@ components:
         - volume
         - is_muted
         - loop_enabled
+        - player_online
+        - player_last_seen_at
       properties:
         window_id:
           type: integer
@@ -1757,6 +1870,13 @@ components:
           type: string
         source_uri:
           type: string
+        playback_mode:
+          type: string
+          enum:
+            - ''
+            - pdf
+            - powerpoint
+          description: 当前演示文稿播放模式；其它源为空字符串
         playback_state:
           $ref: '#/components/schemas/PlaybackState'
         playback_state_label:
@@ -1795,6 +1915,14 @@ components:
           type: boolean
         loop_enabled:
           type: boolean
+        player_online:
+          type: boolean
+          description: 播放器窗口最近 5 秒内是否上报过心跳
+        player_last_seen_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: 对应窗口播放器最后一次上报心跳的时间
     SessionsResponse:
       allOf:
         - $ref: '#/components/schemas/SuccessResponse'
@@ -2350,6 +2478,21 @@ components:
             detail:
               type: string
               example: 系统关闭请求已发送
+    RestartResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          required:
+            - sessions
+            - detail
+          properties:
+            sessions:
+              type: array
+              items:
+                $ref: '#/components/schemas/SessionSnapshot'
+            detail:
+              type: string
+              example: 全部服务重启请求已发送
     DisplayTarget:
       type: object
       required:

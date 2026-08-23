@@ -24,8 +24,8 @@
 | UI 组件 | Naive UI |
 | Fluent 体系 | `@fluentui/tokens` 生成 CSS 变量，配合 Fluent 图标和 Naive theme overrides |
 | 国际化 | `vue-i18n`，默认中文 |
-| 构建脚本 | `npm --prefix frontend run build` |
-| 类型检查 | `npm --prefix frontend run typecheck` |
+| 构建脚本 | `pnpm --prefix frontend run build` |
+| 类型检查 | `pnpm --prefix frontend run typecheck` |
 
 当前项目的 Fluent 实现重点是 token、图标、间距、圆角、阴影、动效和信息架构，不是直接使用官方 Fluent Vue 组件库。目标项目如果已有 Fluent 组件，应优先保留现有 token 命名和领域状态，再替换呈现层。
 
@@ -165,7 +165,7 @@ PPT 不再提供播放器后端选择；前端上传、编辑、打开和显控�
 | `frontend/src/composables/useTheme.ts` | light/dark/system 主题持久化和 `<html data-theme>` 切换 |
 | `frontend/src/design-system/icons.ts` | Fluent 图标映射 |
 
-`tokens.css` 不应手工编辑，应通过 `npm --prefix frontend run gen:fluent-tokens` 重新生成。业务组件样式应优先使用 token 变量。
+`tokens.css` 不应手工编辑，应通过 `pnpm --prefix frontend run gen:fluent-tokens` 重新生成。业务组件样式应优先使用 token 变量。
 
 迁移到标准 Fluent 组件的建议顺序：
 
@@ -209,4 +209,4 @@ PPT 不再提供播放器后端选择；前端上传、编辑、打开和显控�
 | 背景音乐 | 音频源加入播放列表，不占用四窗口 |
 | 主题 | light/dark/system 可切换并持久化 |
 | 移动端 | 显控页可在窄屏完成源选择和控制 |
-| 构建 | `npm --prefix frontend run typecheck` 和 `npm --prefix frontend run build` 通过 |
+| 构建 | `pnpm --prefix frontend run typecheck` 和 `pnpm --prefix frontend run build` 通过 |

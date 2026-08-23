@@ -53,6 +53,8 @@ Windows 主机
 
 `runall` 启动 Vite 前会清理父进程继承的 `VITE_*` 变量，使 `frontend/.env` 成为前端实际配置来源。只有当前端 env 文件未设置 `VITE_BACKEND_TARGET` 时，`runall` 才注入后端兜底地址。
 
+`LOCAL_MEDIA_ALLOWED_ROOTS` 控制“本机路径”媒体源可访问的根目录，多个目录用英文逗号分隔；未配置时仅允许项目 `media/`。`/media/` 与业务接口使用相同的登录态保护。
+
 ## 启动命令
 
 推荐全栈启动：
@@ -77,7 +79,7 @@ uv run python manage.py runall
 
 ```powershell
 uv run python manage.py runserver
-npm --prefix frontend run dev
+pnpm --prefix frontend run dev
 uv run python manage.py run_player
 ./tools/third_party/mediamtx/mediamtx.exe ./tools/third_party/mediamtx/mediamtx.yml
 ```
@@ -96,10 +98,12 @@ uv run python manage.py run_player
 | 6 | 重置所有 playback sessions 到 idle |
 | 7 | 启动 Vite，除非 `--skip-frontend` |
 | 8 | 启动 PySide player，除非 `--skip-player` |
-| 9 | 监控子进程和 `logs/runall.shutdown` |
+| 9 | 监控子进程、`logs/runall.shutdown` 和 `logs/runall.restart` |
 | 10 | 退出时清理进程树 |
 
 `/api/system/shutdown/` 会请求关闭全部窗口并写入 `logs/runall.shutdown`，runall 监控到后退出整个栈。
+
+`/api/system/restart/` 会写入 `logs/runall.restart`。runall 关闭已管理的进程树后，仅清理工作目录、命令行或可执行路径可确认属于当前项目的残留进程，再以相同参数重新启动；不会按进程名终止 PowerShell。
 
 ## 端口
 
@@ -178,8 +182,8 @@ uv run python manage.py clearall
 uv run python manage.py check
 uv run python manage.py makemigrations --check --dry-run
 uv run pytest tests/ -v
-npm --prefix frontend run typecheck
-npm --prefix frontend run build
+pnpm --prefix frontend run typecheck
+pnpm --prefix frontend run build
 ```
 
 重点测试：
@@ -239,7 +243,7 @@ npm --prefix frontend run build
 
 | 类别 | 检查项 |
 | --- | --- |
-| 依赖 | `uv.lock`、`frontend/package-lock.json` 与源码一致 |
+| 依赖 | `uv.lock`、`pnpm-lock.yaml`、`frontend/pnpm-lock.yaml` 与源码一致 |
 | 迁移 | `makemigrations --check --dry-run` 无新迁移 |
 | 构建 | 前端 typecheck/build 通过 |
 | 运行 | runall 能启动和关闭所有子进程 |

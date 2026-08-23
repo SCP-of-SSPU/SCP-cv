@@ -1,8 +1,8 @@
 post:
   tags:
     - playback
-  summary: 重置 PPT 放映后端并恢复页码
-  description: 向所有正在放映 PPT 的窗口广播重置指令，关闭当前 PPT 放映窗口与文档，重启所有正在放映的 PPT，并回到重置前页码。
+  summary: 重置当前 PowerPoint 放映并恢复页码
+  description: 关闭全局单槽位中当前活跃的 PowerPoint 放映窗口与文档，再回到重置前页码；PDF 演示文稿不受影响。
   operationId: resetPptPlayback
   responses:
     '200':

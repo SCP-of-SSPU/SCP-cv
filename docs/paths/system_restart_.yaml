@@ -1,0 +1,15 @@
+post:
+  tags:
+    - runtime
+  summary: 请求重启全部服务
+  description: 通知 runall 关闭其管理的运行时进程，清理可确认属于本项目的残留进程，并以相同参数重新启动。
+  operationId: restartAllServices
+  responses:
+    '200':
+      description: 重启请求已发送
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/RestartResponse.yaml
+    '401':
+      $ref: ../components/responses/ErrorResponse.yaml

@@ -1,0 +1,12 @@
+type: object
+required:
+  - authenticated
+  - user
+properties:
+  authenticated:
+    type: boolean
+  user:
+    type: object
+    nullable: true
+    allOf:
+      - $ref: ./AuthUser.yaml

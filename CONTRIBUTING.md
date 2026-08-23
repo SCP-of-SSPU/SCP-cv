@@ -8,7 +8,8 @@
 git status --short --branch
 git pull --rebase
 uv sync
-npm ci --prefix frontend
+pnpm install
+pnpm install --prefix frontend
 ```
 
 如果工作区存在未提交内容，先判断是否与当前任务相关。不要覆盖或回滚他人的改动。
@@ -86,8 +87,8 @@ uv run pytest tests/ -v
 前端：
 
 ```powershell
-npm --prefix frontend run typecheck
-npm --prefix frontend run build
+pnpm --prefix frontend run typecheck
+pnpm --prefix frontend run build
 ```
 
 启动流程或环境变量变更：
@@ -114,7 +115,7 @@ uv run pytest tests/test_runall_command.py -v
 - 上传媒体、日志、临时测试脚本
 - `requirements*.txt`
 
-依赖以 `uv.lock`、`package-lock.json` 和 `frontend/package-lock.json` 为准。
+依赖以 `uv.lock`、`pnpm-lock.yaml` 和 `frontend/pnpm-lock.yaml` 为准。
 
 ## 7. Pull Request 检查清单
 

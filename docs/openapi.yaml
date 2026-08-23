@@ -12,7 +12,7 @@ info:
     SCP-cv 控制台 REST API 文档。
 
     所有业务路径默认挂载在 `/api` 前缀下；成功响应通常包含 `success: true`，错误响应统一为 `detail + code`。
-    业务接口由 Django session cookie 鉴权保护；`/auth/csrf/`、`/auth/login/`、`/auth/logout/` 和 `/auth/me/` 为公开端点。
+    业务接口与 `/media/` 文件由 Django session cookie 鉴权保护；`/auth/csrf/`、`/auth/login/`、`/auth/logout/`、`/auth/me/` 和 `/auth/status/` 为公开端点。
 
 servers:
   - url: /api
@@ -56,6 +56,8 @@ paths:
     $ref: './paths/auth_logout_.yaml'
   /auth/me/:
     $ref: './paths/auth_me_.yaml'
+  /auth/status/:
+    $ref: './paths/auth_status_.yaml'
   /auth/change-password/:
     $ref: './paths/auth_change-password_.yaml'
   /folders/:
@@ -132,6 +134,8 @@ paths:
     $ref: './paths/playback_physical-smoke_.yaml'
   /system/shutdown/:
     $ref: './paths/system_shutdown_.yaml'
+  /system/restart/:
+    $ref: './paths/system_restart_.yaml'
   /displays/:
     $ref: './paths/displays_.yaml'
   /displays/select/:

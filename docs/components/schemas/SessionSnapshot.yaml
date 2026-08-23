@@ -6,6 +6,7 @@ required:
   - source_type
   - source_type_label
   - source_uri
+  - playback_mode
   - playback_state
   - playback_state_label
   - error_message
@@ -41,6 +42,13 @@ properties:
     type: string
   source_uri:
     type: string
+  playback_mode:
+    type: string
+    enum:
+      - ''
+      - pdf
+      - powerpoint
+    description: 当前演示文稿播放模式；其它源为空字符串
   playback_state:
     $ref: ./PlaybackState.yaml
   playback_state_label:
