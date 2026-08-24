@@ -10,7 +10,6 @@ PowerPoint 适配器打开流程，负责文件校验、COM 初始化和放映�
 from __future__ import annotations
 
 import functools
-import os
 from collections.abc import Callable
 from typing import Optional
 
@@ -122,7 +121,9 @@ class PptOpeningMixin:
         :return: None
         :raises FileNotFoundError: 文件不存在时
         """
-        if not os.path.isfile(uri):
+        from scp_cv.player.adapters import ppt as ppt_module
+
+        if not ppt_module.os.path.isfile(uri):
             raise FileNotFoundError(f"PPT 文件不存在：{uri}")
 
     def _open_on_com_thread(self, uri: str, autoplay: bool, start_slide: int) -> None:
