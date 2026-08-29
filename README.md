@@ -218,6 +218,18 @@ uv run python manage.py clearall
 
 ## 文档
 
+### Spec Kit 需求工作流
+
+本项目使用 GitHub Spec Kit 管理功能生命周期。先通过 GitHub 的“功能规范提案” Issue
+表单描述问题和验收标准，再按 `specify → clarify → plan → tasks → implement →
+analyze/review` 顺序推进。规范产物统一保存在 `specs/`，详细目录约定见
+[`specs/README.md`](specs/README.md)；项目原则见
+[`.specify/memory/constitution.md`](.specify/memory/constitution.md)。
+
+每个涉及规范的 PR 都会触发 [Spec Kit 文档校验](.github/workflows/spec-kit.yml)，并要求
+在 PR 模板中填写规范目录、验证命令及回滚信息。完整维护说明见
+[`CONTRIBUTING.md`](CONTRIBUTING.md) 和 [`.specify/README.md`](.specify/README.md)。
+
 - [使用文档](docs/使用文档.md)：现场部署、环境变量、启动、播控流程和常见问题。
 - [维护文档](docs/维护文档.md)：目录职责、运行时资产、依赖升级、备份、故障定位和发布维护流程。
 - [设计文档](docs/design/README.md)：面向迁移合并到 Django + Fluent + Vue 项目的系统架构、数据模型、接口、前端、播放器、运维和迁移指南。

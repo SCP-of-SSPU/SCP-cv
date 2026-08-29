@@ -1,0 +1,35 @@
+name: Spec Kit 文档校验
+
+on:
+  pull_request:
+    paths:
+      - "specs/**"
+      - ".specify/**"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/PULL_REQUEST_TEMPLATE.md"
+      - ".github/workflows/spec-kit.yml"
+  push:
+    branches: [main]
+    paths:
+      - "specs/**"
+      - ".specify/**"
+      - ".github/workflows/spec-kit.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: 校验规范产物
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 校验 Spec Kit 目录
+        run: python .specify/scripts/python/validate_specs.py --specs-dir specs

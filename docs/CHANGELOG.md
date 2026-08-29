@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 2026-08-30
+
+### GitHub Spec Kit 工作流
+
+- 增加 Spec Kit 项目宪章、`specs/` 目录约定及 Codex 端到端 SDD 流程说明。
+- 增加 GitHub 功能规范 Issue 表单、PR 追踪模板和 Spec Kit 文档校验 Action。
+- 新增无依赖的规范校验脚本，检查功能目录命名、必需章节、产物依赖和未完成占位符。
+- 验证：ActionLint、Prettier、Ruff、Spec Kit 校验和 Django check 通过。
+
 ## 2026-08-23
 
 ### 播放独占、安全与运维修复

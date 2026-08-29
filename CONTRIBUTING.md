@@ -124,3 +124,22 @@ uv run pytest tests/test_runall_command.py -v
 - 影响用户或现场运维的行为已更新文档。
 - 没有提交本地缓存、日志、上传文件或密钥。
 - `docs/CHANGELOG.md` 已记录用户可感知变更。
+
+## 8. Spec Kit 工作流
+
+功能需求使用 GitHub Issue 中的“功能规范提案”表单提交。维护者确认范围后，按以下顺序
+生成并审查产物：
+
+```text
+/speckit-specify <需求描述>
+/speckit-clarify
+/speckit-plan
+/speckit-tasks
+/speckit-implement
+/speckit-analyze
+```
+
+规范目录必须位于 `specs/<编号>-<短名称>/`，至少包含 `spec.md`；进入实现阶段后应有
+`plan.md` 和 `tasks.md`。提交 PR 时填写 `.github/PULL_REQUEST_TEMPLATE.md` 中的规范
+目录、验证命令、风险与回滚信息。`.github/workflows/spec-kit.yml` 会在规范或相关模板
+变更时自动检查目录完整性和未完成占位符。
