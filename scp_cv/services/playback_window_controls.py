@@ -19,6 +19,22 @@ from scp_cv.apps.playback.models import (
 )
 from scp_cv.services.playback_sessions import PlaybackError, get_or_create_session
 from scp_cv.services.playback_commands import enqueue_playback_command
+from scp_cv.apps.playback.models import SourceType
+
+
+def _require_source_capability(session: PlaybackSession, operation: str) -> None:
+    """在窗口参数变更前校验源能力。"""
+    if session.media_source is None:
+        return
+    supported = {
+        SourceType.VIDEO: {"set_volume", "set_mute", "set_loop"},
+        SourceType.PPT: set(),
+        SourceType.CUSTOM_STREAM: {"set_volume", "set_mute"},
+        SourceType.RTSP_STREAM: {"set_volume", "set_mute"},
+        SourceType.SRT_STREAM: {"set_volume", "set_mute"},
+    }.get(session.media_source.source_type, set())
+    if operation not in supported:
+        raise PlaybackError(f"源类型 {session.media_source.source_type} 不支持 {operation} 操作")
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +70,8 @@ def set_window_volume(window_id: int, volume: int) -> PlaybackSession:
     """
     normalized_volume = max(0, min(100, int(volume)))
     session = get_or_create_session(window_id)
+    if session.media_source is not None:
+        _require_source_capability(session, "set_volume")
     session.volume = normalized_volume
     enqueue_playback_command(
         session,
@@ -73,6 +91,8 @@ def set_window_mute(window_id: int, muted: bool) -> PlaybackSession:
     :return: 更新后的播放会话
     """
     session = get_or_create_session(window_id)
+    if session.media_source is not None:
+        _require_source_capability(session, "set_mute")
     normalized_muted = True if is_muted_by_runtime(window_id) else muted
     session.is_muted = normalized_muted
     enqueue_playback_command(
@@ -96,6 +116,7 @@ def toggle_loop_playback(window_id: int, enabled: bool) -> PlaybackSession:
     session = get_or_create_session(window_id)
     if session.media_source is None:
         raise PlaybackError(f"窗口 {window_id} 当前没有打开的媒体源")
+    _require_source_capability(session, "set_loop")
 
     session.loop_enabled = enabled
     enqueue_playback_command(

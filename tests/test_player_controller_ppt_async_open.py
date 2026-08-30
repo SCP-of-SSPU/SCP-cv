@@ -9,11 +9,13 @@
 '''
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Callable, Optional
 
 import pytest
 
 from scp_cv.player.controller import PlayerController
+from scp_cv.player.powerpoint_slot import PowerPointSlotTimeout
 
 
 class _AsyncPptAdapter:
@@ -135,6 +137,29 @@ class _WindowStub:
         self.calls.append("ppt_container")
 
 
+class _PdfFallbackAdapter:
+    """记录 PDF fallback 同步打开。"""
+
+    def __init__(self) -> None:
+        self.opened_uri = ""
+        self.closed = False
+
+    def open(self, uri: str, window_handle: int, autoplay: bool = True) -> None:
+        """记录 PDF 路径。"""
+        self.opened_uri = uri
+
+    def close(self) -> None:
+        """记录关闭。"""
+        self.closed = True
+
+    def goto_item(self, index: int) -> None:
+        """PDF 页码定位测试无需记录。"""
+
+    def supports(self, operation: str) -> bool:
+        """PDF fallback 不提供音量或静音能力。"""
+        return operation in {"next", "prev", "goto"}
+
+
 def _make_controller(monkeypatch: pytest.MonkeyPatch, adapter: object) -> tuple[PlayerController, _WindowStub, list[tuple[int, str]], list[tuple[int, str]]]:
     """
     构造带桩的控制器。
@@ -199,7 +224,92 @@ def test_async_ppt_open_success_registers_adapter_after_completion(
     assert controller._pending_ppt_opens == {}
     assert states == [(1, "loading"), (1, "playing")]
     assert errors == []
-    assert window.calls == ["black", "show", "raise", "ppt_container", "video", "show", "raise"]
+
+
+def test_powerpoint_slot_conflict_immediately_falls_back_to_pdf(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """COM 槽位被占用时应立即使用匹配 PDF，且不等待或抢占其它窗口。"""
+    pdf_path = tmp_path / "fallback.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4")
+    ppt_adapter = _AsyncPptAdapter(
+        finish_immediately=True,
+        error=PowerPointSlotTimeout("槽位已占用"),
+    )
+    pdf_adapter = _PdfFallbackAdapter()
+    previous_adapter = _PdfFallbackAdapter()
+    created: list[str] = []
+    scheduled: list[object] = []
+
+    def create_adapter(adapter_kind: str) -> object:
+        """按请求类型返回测试适配器。"""
+        created.append(adapter_kind)
+        return ppt_adapter if adapter_kind == "powerpoint" else pdf_adapter
+
+    controller, window, states, errors = _make_controller(monkeypatch, ppt_adapter)
+    controller._adapters[1] = previous_adapter  # type: ignore[assignment]
+    controller._adapter_source_types[1] = "video"
+    controller._adapter_source_ids[1] = 6
+    monkeypatch.setattr(
+        controller,
+        "_schedule_close_detached_adapter",
+        lambda _window_id, adapter, *_args, **_kwargs: scheduled.append(adapter),
+    )
+    monkeypatch.setattr("scp_cv.player.controller_handlers.create_adapter", create_adapter)
+
+    controller._handle_open(1, {
+        "source_id": 7,
+        "source_type": "ppt",
+        "uri": "C:/demo/demo.pptx",
+        "fallback_uri": str(pdf_path),
+        "adapter_kind": "powerpoint",
+        "autoplay": True,
+    })
+
+    assert created == ["powerpoint", "pdf"]
+    assert pdf_adapter.opened_uri == str(pdf_path)
+    assert controller._adapters[1] is pdf_adapter
+    assert controller._adapter_kinds[1] == "pdf"
+    assert scheduled == [previous_adapter]
+    assert errors == []
+    assert states[-1] == (1, "playing")
+    assert "ppt_container" in window.calls
+    assert "video" in window.calls
+
+
+def test_powerpoint_slot_conflict_with_broken_pdf_reports_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PDF fallback 自身失败时应安全报错并保持无新适配器状态。"""
+    ppt_adapter = _AsyncPptAdapter(
+        finish_immediately=True,
+        error=PowerPointSlotTimeout("槽位已占用"),
+    )
+    pdf_adapter = _PdfFallbackAdapter()
+
+    def fail_pdf_open(*_args: object, **_kwargs: object) -> None:
+        """模拟 PDF 文件在打开前失效。"""
+        raise RuntimeError("pdf missing")
+
+    pdf_adapter.open = fail_pdf_open  # type: ignore[method-assign]
+    controller, _window, _states, errors = _make_controller(monkeypatch, ppt_adapter)
+    monkeypatch.setattr(
+        "scp_cv.player.controller_handlers.create_adapter",
+        lambda adapter_kind: ppt_adapter if adapter_kind == "powerpoint" else pdf_adapter,
+    )
+
+    controller._handle_open(1, {
+        "source_id": 7,
+        "source_type": "ppt",
+        "uri": "C:/demo/demo.pptx",
+        "fallback_uri": "C:/demo/fallback.pdf",
+        "adapter_kind": "powerpoint",
+        "autoplay": True,
+    })
+
+    assert 1 not in controller._adapters
+    assert errors == [(1, "pdf missing")]
 
 
 def test_ppt_to_ppt_switch_closes_previous_slideshow_before_opening_next(

@@ -16,9 +16,13 @@ import subprocess
 import signal
 import sys
 import time
+import logging
+from pathlib import Path
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
+
+logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
@@ -78,6 +82,12 @@ class Command(BaseCommand):
             default=False,
             help="禁用背景音频命令消费；多播放器进程中仅一个进程应负责背景音频",
         )
+        parser.add_argument(
+            "--shutdown-file",
+            type=str,
+            default="",
+            help="父进程用于协作式关闭播放器的本地 IPC 文件",
+        )
 
     def handle(self, **options: object) -> None:
         """
@@ -114,6 +124,11 @@ class Command(BaseCommand):
         qt_app = QApplication.instance()
         if qt_app is None:
             qt_app = QApplication(sys.argv)
+        shutdown_watcher = self._install_shutdown_file_watcher(
+            qt_app,
+            str(options.get("shutdown_file") or ""),
+            shutdown_requested,
+        )
 
         def request_qt_shutdown(signum: int, _frame: object) -> None:
             """
@@ -177,6 +192,37 @@ class Command(BaseCommand):
             poll_interval,
             background_audio_enabled,
         )
+        # 保持 Qt timer 引用到 handle 退出，避免被 Python GC 提前销毁。
+        _ = shutdown_watcher
+
+    def _install_shutdown_file_watcher(
+        self,
+        qt_app: object,
+        raw_path: str,
+        shutdown_requested: dict[str, bool],
+    ) -> object | None:
+        """安装父子进程协作式退出文件监听器。"""
+        if not raw_path:
+            return None
+        from PySide6.QtCore import QTimer
+
+        shutdown_path = Path(raw_path).resolve()
+        shutdown_path.parent.mkdir(parents=True, exist_ok=True)
+        shutdown_path.unlink(missing_ok=True)
+        timer = QTimer(qt_app)
+
+        def check_shutdown_request() -> None:
+            """检测父进程退出请求并退出 Qt 事件循环。"""
+            if not shutdown_path.exists():
+                return
+            shutdown_requested["value"] = True
+            logger.info("收到父进程协作退出请求：%s", shutdown_path)
+            shutdown_path.unlink(missing_ok=True)
+            qt_app.quit()
+
+        timer.timeout.connect(check_shutdown_request)
+        timer.start(200)
+        return timer
 
     def _collect_launcher_result(self, qt_app: object, dev_mode: bool) -> object | None:
         """
@@ -267,9 +313,16 @@ class Command(BaseCommand):
         window_ids = sorted(result.window_assignments.keys())
         background_audio_owner = window_ids[0]
         processes: list[subprocess.Popen[bytes]] = []
+        shutdown_files: dict[subprocess.Popen[bytes], Path] = {}
         try:
             for window_id in window_ids:
                 display_target = result.window_assignments[window_id]
+                shutdown_path = (
+                    Path(settings.LOG_DIR)
+                    / f"run-player-{id(self)}-{window_id}-{time.time_ns()}.shutdown"
+                )
+                shutdown_path.parent.mkdir(parents=True, exist_ok=True)
+                shutdown_path.unlink(missing_ok=True)
                 command_args = [
                     sys.executable,
                     "manage.py",
@@ -281,6 +334,8 @@ class Command(BaseCommand):
                     str(window_id),
                     f"--window{window_id}",
                     str(display_target.index),
+                    "--shutdown-file",
+                    str(shutdown_path),
                 ]
                 if dev_mode:
                     command_args.append("--dev")
@@ -289,7 +344,9 @@ class Command(BaseCommand):
                     command_args.extend(["--gpu", str(selected_gpu.index)])
                 if window_id != background_audio_owner:
                     command_args.append("--disable-background-audio")
-                processes.append(subprocess.Popen(command_args))
+                process = subprocess.Popen(command_args)
+                processes.append(process)
+                shutdown_files[process] = shutdown_path
                 self.stdout.write(
                     self.style.SUCCESS(
                         f"独立播放器窗口 {window_id} 已启动（显示器 ID={display_target.index}）"
@@ -297,7 +354,7 @@ class Command(BaseCommand):
                 )
             self._monitor_isolated_players(processes, shutdown_requested)
         finally:
-            self._terminate_isolated_players(processes)
+            self._terminate_isolated_players(processes, shutdown_files)
 
     def _monitor_isolated_players(
         self,
@@ -329,22 +386,42 @@ class Command(BaseCommand):
             shutdown_requested["value"] = True
 
     @staticmethod
-    def _terminate_isolated_players(processes: list[subprocess.Popen[bytes]]) -> None:
+    def _terminate_isolated_players(
+        processes: list[subprocess.Popen[bytes]],
+        shutdown_files: dict[subprocess.Popen[bytes], Path] | None = None,
+    ) -> None:
         """
         关闭仍在运行的独立播放器子进程。
         :param processes: 子进程列表
         :return: None
         """
+        shutdown_files = shutdown_files or {}
         for process in processes:
-            if process.poll() is None:
-                process.terminate()
+            if process.poll() is not None:
+                continue
+            shutdown_path = shutdown_files.get(process)
+            if shutdown_path is None:
+                continue
+            try:
+                shutdown_path.write_text("shutdown\n", encoding="utf-8")
+                logger.info("已请求播放器协作退出：pid=%s file=%s", process.pid, shutdown_path)
+            except OSError as signal_error:
+                logger.warning("协作式通知播放器退出失败：pid=%s error=%s", process.pid, signal_error)
         for process in processes:
             if process.poll() is not None:
                 continue
             try:
                 process.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                process.kill()
+                logger.warning("播放器协作退出超时，执行 terminate：pid=%s", process.pid)
+                process.terminate()
+                try:
+                    process.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    logger.warning("播放器 terminate 超时，执行 kill：pid=%s", process.pid)
+                    process.kill()
+        for shutdown_path in shutdown_files.values():
+            shutdown_path.unlink(missing_ok=True)
 
     def _start_player(
         self,

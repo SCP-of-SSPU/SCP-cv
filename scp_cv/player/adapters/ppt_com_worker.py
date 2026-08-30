@@ -61,6 +61,7 @@ class PptComWorker:
         self._thread_id: Optional[int] = None
         self._lifecycle_lock = threading.Lock()
         self._shutdown_requested = False
+        self._initialization_error: BaseException | None = None
 
     @property
     def is_current_thread(self) -> bool:
@@ -125,12 +126,22 @@ class PptComWorker:
             return
         self.start()
         job = _PptComJob(description, fn, on_done)
+        rejection_error: BaseException | None = None
         with self._wake:
-            if low_priority:
+            if self._shutdown_requested:
+                rejection_error = self._initialization_error or RuntimeError(
+                    "PPT COM 工作线程已关闭"
+                )
+            elif low_priority:
                 self._low_jobs.append(job)
             else:
                 self._high_jobs.append(job)
-            self._wake.notify_all()
+            if rejection_error is None:
+                self._wake.notify_all()
+        if rejection_error is not None:
+            logger.warning("拒绝 COM 任务：%s：%s", description, rejection_error)
+            if on_done is not None:
+                on_done(None, rejection_error)
 
     def submit_and_wait(
         self,
@@ -205,6 +216,22 @@ class PptComWorker:
         """
         self._thread_id = threading.get_ident()
         com_initialized = self._initialize_com()
+        if not com_initialized:
+            self._initialization_error = RuntimeError("PPT COM 工作线程初始化失败")
+            with self._wake:
+                jobs = list(self._high_jobs) + list(self._low_jobs)
+                self._high_jobs.clear()
+                self._low_jobs.clear()
+                self._shutdown_requested = True
+            init_error = self._initialization_error
+            for job in jobs:
+                if job.on_done is not None:
+                    try:
+                        job.on_done(None, init_error)
+                    except Exception as callback_error:
+                        logger.error("COM 初始化失败回调异常：%s：%s", job.description, callback_error)
+            self._thread_id = None
+            return
         try:
             while True:
                 job = self._next_job()

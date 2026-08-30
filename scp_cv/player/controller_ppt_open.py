@@ -31,9 +31,12 @@ class _PendingPptOpen:
     previous_source_type: str | None
     previous_source_id: int | None
     previous_adapter_kind: str | None = None
+    command_id: int = 0
+    consumer_id: str = ""
     superseded: bool = False
     adapter_disposed: bool = False
     deferred: list[tuple[str, dict[str, object]]] = field(default_factory=list)
+    deferred_leases: list[tuple[int, str]] = field(default_factory=list)
 
 
 class PptOpenFlowMixin:
@@ -54,6 +57,8 @@ class PptOpenFlowMixin:
         previous_source_type: str | None,
         previous_source_id: int | None,
         previous_adapter_kind: str | None = None,
+        command_id: int = 0,
+        consumer_id: str = "",
     ) -> None:
         """
         发起 PPT 后台打开：注册在途请求并投递 open_async。
@@ -75,6 +80,8 @@ class PptOpenFlowMixin:
             previous_source_type=previous_source_type,
             previous_source_id=previous_source_id,
             previous_adapter_kind=previous_adapter_kind,
+            command_id=command_id,
+            consumer_id=consumer_id,
         )
         self._pending_ppt_opens[window_id] = entry
         self._update_session_state(window_id, "loading")
@@ -128,11 +135,23 @@ class PptOpenFlowMixin:
         else:
             self._finish_ppt_open_success(window_id, entry)
 
+        if entry.command_id:
+            from scp_cv.services.playback_commands import acknowledge_playback_command
+
+            acknowledge_playback_command(entry.command_id, entry.consumer_id or None)
+
         deferred_commands = entry.deferred
+        deferred_leases = entry.deferred_leases
         entry.deferred = []
-        for deferred_command, deferred_args in deferred_commands:
+        entry.deferred_leases = []
+        for command_index, (deferred_command, deferred_args) in enumerate(deferred_commands):
+            deferred_id, deferred_consumer = (
+                deferred_leases[command_index]
+                if command_index < len(deferred_leases)
+                else (0, "")
+            )
             self._execute_command_on_main_thread(
-                window_id, deferred_command, deferred_args
+                window_id, deferred_command, deferred_args, deferred_id, deferred_consumer
             )
 
     def _finish_ppt_open_success(self, window_id: int, entry: _PendingPptOpen) -> None:
@@ -167,7 +186,9 @@ class PptOpenFlowMixin:
                 restore_window=False,
                 reheat=True,
             )
-        self._cleanup_temporary_source(command_args)
+        cleanup_args = dict(command_args)
+        cleanup_args["_window_id"] = window_id
+        self._cleanup_temporary_source(cleanup_args)
         logger.info("窗口 %d PPT 后台打开完成", window_id)
 
     def _finish_ppt_open_failure(
@@ -183,6 +204,31 @@ class PptOpenFlowMixin:
         :param error: 失败原因
         :return: None
         """
+        from scp_cv.player.powerpoint_slot import PowerPointSlotTimeout
+
+        fallback_uri = str(entry.command_args.get("fallback_uri") or "")
+        if isinstance(error, PowerPointSlotTimeout) and fallback_uri:
+            logger.warning("窗口 %d PowerPoint 槽位不可用，安全回退 PDF：%s", window_id, fallback_uri)
+            self._close_adapter_quietly(window_id, entry.adapter)
+            fallback_args = dict(entry.command_args)
+            fallback_args.update({"adapter_kind": "pdf", "uri": fallback_uri})
+            try:
+                self._handle_open(window_id, fallback_args)
+                if entry.previous_adapter is not None:
+                    self._schedule_close_detached_adapter(
+                        window_id,
+                        entry.previous_adapter,
+                        entry.previous_source_type,
+                        entry.previous_source_id,
+                        restore_window=False,
+                        reheat=True,
+                    )
+                    entry.previous_adapter = None
+                return
+            except Exception as fallback_error:
+                logger.error("窗口 %d PDF fallback 打开失败：%s", window_id, fallback_error)
+                error = fallback_error
+
         self._close_adapter_quietly(window_id, entry.adapter)
         self._restore_previous_adapter(
             window_id,
@@ -237,6 +283,8 @@ class PptOpenFlowMixin:
         window_id: int,
         command: str,
         command_args: dict[str, object],
+        command_id: int = 0,
+        consumer_id: str = "",
     ) -> bool:
         """
         窗口存在在途 PPT 打开时，把后续指令排入待重放队列。
@@ -270,17 +318,25 @@ class PptOpenFlowMixin:
                     len(entry.deferred),
                 )
             entry.deferred = [(command, dict(command_args))]
+            entry.deferred_leases = [(command_id, consumer_id)]
             logger.info(
                 "窗口 %d PPT 打开进行中，指令 %s 已排队等待完成", window_id, command
             )
             return True
 
         entry.deferred.append((command, dict(command_args)))
+        entry.deferred_leases.append((command_id, consumer_id))
         if len(entry.deferred) > _MAX_DEFERRED_COMMANDS:
             # 只淘汰普通控制指令；终止/替换类经上方压缩后唯一且位于队首
             for queued_index, (queued_command, _queued_args) in enumerate(entry.deferred):
                 if queued_command not in terminal_commands:
                     dropped_command, _dropped_args = entry.deferred.pop(queued_index)
+                    if queued_index < len(entry.deferred_leases):
+                        dropped_id, dropped_consumer = entry.deferred_leases.pop(queued_index)
+                        if dropped_id:
+                            from scp_cv.services.playback_commands import acknowledge_playback_command
+
+                            acknowledge_playback_command(dropped_id, dropped_consumer or None)
                     logger.warning(
                         "窗口 %d PPT 打开期间指令积压过多，丢弃最早的普通指令：%s",
                         window_id,
@@ -302,6 +358,7 @@ class PptOpenFlowMixin:
         for window_id, entry in self._pending_ppt_opens.items():
             entry.superseded = True
             entry.deferred.clear()
+            entry.deferred_leases.clear()
             if not entry.adapter_disposed:
                 entry.adapter_disposed = True
                 self._close_adapter_quietly(window_id, entry.adapter)

@@ -24,8 +24,5 @@
   "bugs": {
     "url": "https://github.com/SCP-of-SSPU/SCP-cv/issues"
   },
-  "homepage": "https://github.com/SCP-of-SSPU/SCP-cv#readme",
-  "devDependencies": {
-    "@grpc-web/proxy": "^0.1.0"
-  }
+  "homepage": "https://github.com/SCP-of-SSPU/SCP-cv#readme"
 }

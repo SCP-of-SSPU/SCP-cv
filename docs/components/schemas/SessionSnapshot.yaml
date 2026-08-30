@@ -13,8 +13,6 @@ required:
   - display_mode
   - display_mode_label
   - target_display_label
-  - spliced_display_label
-  - is_spliced
   - current_slide
   - total_slides
   - position_ms
@@ -61,10 +59,6 @@ properties:
     type: string
   target_display_label:
     type: string
-  spliced_display_label:
-    type: string
-  is_spliced:
-    type: boolean
   current_slide:
     type: integer
   total_slides:

@@ -92,6 +92,24 @@ class StreamPreheatHandle:
         ttl_seconds = float(getattr(settings, "STREAM_PREHEAT_TTL_SECONDS", 60.0))
         return self._ready_at > 0 and time.monotonic() - self._ready_at > ttl_seconds
 
+    def refresh(self) -> bool:
+        """在 TTL 到期前续热；连接失效时后台重建。"""
+        if not self.is_ready:
+            return False
+        player = self._player
+        try:
+            state = player.get_state() if player is not None and hasattr(player, "get_state") else None
+            if state is not None and str(state).lower().endswith("error"):
+                raise RuntimeError("libVLC 预热连接已进入错误状态")
+            self._ready_at = time.monotonic()
+            return True
+        except Exception as refresh_error:
+            logger.info("直播预热连接失效，后台重建：source_id=%d, error=%s", self.source_id, refresh_error)
+            self.close()
+            self._claimed = False
+            self.start()
+            return self.is_ready
+
     def claim(self) -> PreheatedStreamSource | None:
         """
         将 libVLC 资源交给前台适配器。
@@ -123,11 +141,11 @@ class StreamPreheatHandle:
         关闭后台预连接资源。
         :return: None
         """
-        for method_owner, method_name in (
-            (self._player, "stop"),
-            (self._player, "release"),
-            (self._media, "release"),
-            (self._instance, "release"),
+        for resource_name, method_owner, method_name in (
+            ("player", self._player, "stop"),
+            ("player", self._player, "release"),
+            ("media", self._media, "release"),
+            ("instance", self._instance, "release"),
         ):
             if method_owner is None:
                 continue
@@ -135,8 +153,15 @@ class StreamPreheatHandle:
             if callable(method):
                 try:
                     method()
-                except Exception:
-                    pass
+                except Exception as close_error:
+                    logger.warning(
+                        "直播预热资源释放步骤失败：source_id=%d resource=%s "
+                        "stage=%s error=%s",
+                        self.source_id,
+                        resource_name,
+                        method_name,
+                        close_error,
+                    )
         self._player = None
         self._media = None
         self._instance = None

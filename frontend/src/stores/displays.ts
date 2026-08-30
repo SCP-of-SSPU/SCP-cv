@@ -10,25 +10,22 @@ import { useSessionStore } from './sessions';
 
 interface DisplayState {
   targets: DisplayTargetItem[];
-  spliceLabel: string;
 }
 
 export const useDisplayStore = defineStore('displays', {
   state: (): DisplayState => ({
     targets: [],
-    spliceLabel: '',
   }),
   actions: {
     async refresh(): Promise<void> {
       const payload = await api.listDisplays();
       this.targets = payload.targets;
-      this.spliceLabel = payload.splice_label;
     },
     /**
      * 应用显示器配置到指定窗口。
      * @param windowId 目标窗口 1-4
-     * @param displayMode 后端 PlaybackMode 字段（single / left_right_splice）
-     * @param targetLabel 显示器 label，对应 listDisplays 返回的某项 name 或 spliceLabel
+     * @param displayMode 后端 PlaybackMode 字段（single）
+     * @param targetLabel 显示器名称
      */
     async applyToWindow(
       windowId: number,

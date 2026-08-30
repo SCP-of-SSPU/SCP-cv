@@ -110,3 +110,24 @@ def test_cleanup_waits_on_original_process_object(
 
     assert runall_processes.cleanup_residual_processes(10, None, tmp_path) == [23]
     assert waited == [[process], []]
+
+
+def test_cooperative_player_shutdown_writes_declared_ipc_file(tmp_path: Path) -> None:
+    """runall 应从 run_player 命令行解析 shutdown-file 并写入退出请求。"""
+    shutdown_path = tmp_path / "player.shutdown"
+
+    class _PlayerProcess:
+        """提供 run_player 命令行。"""
+
+        def cmdline(self) -> list[str]:
+            """返回带 IPC 参数的命令行。"""
+            return [
+                "python.exe",
+                "manage.py",
+                "run_player",
+                "--shutdown-file",
+                str(shutdown_path),
+            ]
+
+    assert runall_processes._request_cooperative_player_shutdown(_PlayerProcess()) is True  # type: ignore[arg-type]
+    assert shutdown_path.read_text(encoding="utf-8") == "shutdown\n"

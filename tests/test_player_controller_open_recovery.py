@@ -495,10 +495,10 @@ def test_handle_open_detaches_previous_ppt_before_reopening_ppt(
 
 
 @pytest.mark.django_db
-def test_open_powerpoint_closes_other_window_slot_before_open(
+def test_open_powerpoint_does_not_close_other_window_before_slot_attempt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """打开新 PowerPoint 前应完整关闭另一窗口已放映的 PowerPoint。"""
+    """新 PowerPoint 请求不能在槽位判断前关闭其它窗口。"""
     controller = PlayerController()
     window1_adapter = _OpenAdapter()
     window1_adapter.closed = False
@@ -533,11 +533,33 @@ def test_open_powerpoint_closes_other_window_slot_before_open(
         "adapter_kind": "powerpoint",
     })
 
-    assert close_calls == [1]
-    assert window1_adapter.closed is True
-    assert 1 not in controller._adapters
+    assert close_calls == []
+    assert window1_adapter.closed is False
+    assert controller._adapters[1] is window1_adapter
     assert controller._adapters[2] is window2_adapter
     assert controller._adapter_kinds[2] == "powerpoint"
+
+
+def test_temporary_cleanup_failure_logs_window_source_and_stage(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """临时源删除失败必须保留可定位日志。"""
+    from scp_cv.services.media import MediaError
+
+    monkeypatch.setattr(
+        "scp_cv.services.media.delete_temporary_source_if_unused",
+        lambda _source_id: (_ for _ in ()).throw(MediaError("locked")),
+    )
+    with caplog.at_level("WARNING"):
+        PlayerController._cleanup_temporary_source({
+            "cleanup_source_id": 42,
+            "_window_id": 3,
+        })
+
+    assert "window_id=3" in caplog.text
+    assert "source_id=42" in caplog.text
+    assert "stage=delete" in caplog.text
 
 
 def test_schedule_close_detached_adapter_delays_ppt_close(
@@ -621,6 +643,67 @@ def test_stop_polling_closes_adapters_without_reheat(monkeypatch: pytest.MonkeyP
     controller.stop_polling()
 
     assert close_calls == [(1, False)]
+
+
+def test_stop_polling_does_not_teardown_resources_while_poll_thread_is_alive(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """轮询线程未确认退出时，控制器不能开始释放适配器资源。"""
+    controller = PlayerController()
+    close_calls: list[int] = []
+
+    class _AliveThread:
+        """模拟 join 超时后仍存活的轮询线程。"""
+
+        def join(self, timeout: float) -> None:
+            """模拟等待超时。"""
+
+        def is_alive(self) -> bool:
+            """返回线程仍存活。"""
+            return True
+
+    controller._poll_thread = _AliveThread()  # type: ignore[assignment]
+    controller._adapters[1] = _OpenAdapter()  # type: ignore[assignment]
+    monkeypatch.setattr(
+        controller,
+        "_close_adapter",
+        lambda window_id, **_kwargs: close_calls.append(window_id),
+    )
+
+    with caplog.at_level("ERROR"):
+        controller.stop_polling()
+
+    assert close_calls == []
+    assert "轮询线程在超时后仍未退出" in caplog.text
+
+
+def test_com_worker_shutdown_timeout_does_not_kill_powerpoint_processes(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """COM worker 未退出时不能终止它可能仍在访问的 PowerPoint。"""
+    controller = PlayerController()
+    terminated: list[bool] = []
+
+    class _Worker:
+        """模拟关闭超时的 COM worker。"""
+
+        def shutdown(self, timeout_seconds: float) -> bool:
+            """返回未退出。"""
+            return False
+
+    controller._ppt_com_worker = _Worker()
+    monkeypatch.setattr(
+        "scp_cv.player.adapters.ppt_process.terminate_spawned_ppt_processes",
+        lambda: terminated.append(True),
+    )
+
+    with caplog.at_level("ERROR"):
+        controller._shutdown_ppt_com_worker()
+
+    assert terminated == []
+    assert "未确认退出" in caplog.text
 
 
 def test_handle_open_stops_stream_preheat_when_reuse_disabled(monkeypatch: pytest.MonkeyPatch) -> None:

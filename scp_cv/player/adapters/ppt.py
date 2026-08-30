@@ -58,6 +58,7 @@ class PptSourceAdapter(
     PptPreheatMixin,
     SourceAdapter,
 ):
+    capabilities = frozenset({"play", "pause", "stop", "next", "prev", "goto", "control_media"})
     """
     本机 PPT COM 放映适配器。
 
@@ -144,25 +145,40 @@ class PptSourceAdapter(
         """
         self._com_worker = com_worker
 
-    def _submit_com_command(self, description: str, command: Callable[[], None]) -> None:
+    def _submit_com_command(
+        self,
+        description: str,
+        command: Callable[[], None],
+        *,
+        wait: bool = True,
+    ) -> None:
         """
         将 COM 操作投递到工作线程；未注入 worker 时内联执行。
         :param description: 操作描述，用于日志
         :param command: 待执行操作
+        :param wait: 是否等待 COM 工作线程完成；控制命令默认等待，关闭可异步投递
         :return: None
         """
         worker = self._com_worker
         if worker is None or getattr(worker, "is_current_thread", False):
             command()
             return
-        worker.submit(f"{self._app_label} {description}", command)
+        submit_and_wait = getattr(worker, "submit_and_wait", None)
+        if wait and callable(submit_and_wait):
+            submit_and_wait(
+                f"{self._app_label} {description}",
+                command,
+                timeout_seconds=_SYNC_CLOSE_WAIT_TIMEOUT_SECONDS,
+            )
+        else:
+            worker.submit(f"{self._app_label} {description}", command)
 
     # ═══════════════════ 关闭 ═══════════════════
 
     def close(self) -> None:
         """关闭 PPT 放映并释放 COM 资源；worker 模式下清理在后台执行。"""
         self._mark_closed()
-        self._submit_com_command("关闭", self._close_on_com_thread)
+        self._submit_com_command("关闭", self._close_on_com_thread, wait=False)
 
     def close_and_wait(self) -> None:
         """

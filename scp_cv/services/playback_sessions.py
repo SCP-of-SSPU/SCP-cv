@@ -104,8 +104,6 @@ def get_session_snapshot(window_id: int) -> dict[str, object]:
         "display_mode": session.display_mode,
         "display_mode_label": session.get_display_mode_display(),
         "target_display_label": session.target_display_label or "未选择",
-        "spliced_display_label": session.spliced_display_label or "无",
-        "is_spliced": session.is_spliced,
         "current_slide": session.current_slide,
         "total_slides": session.total_slides,
         "position_ms": session.position_ms,

@@ -41,12 +41,15 @@ class PptNavigationMixin:
             if self._slideshow_view is None and self._presentation is not None:
                 self._start_slideshow(self._last_slide_index)
                 return
+            if self._slideshow_view is None:
+                raise RuntimeError("PowerPoint 放映未运行，无法恢复播放")
             if self._slideshow_view is not None and self._is_paused:
                 try:
                     self._slideshow_view.State = _PP_SLIDE_SHOW_RUNNING
                     self._is_paused = False
                 except Exception as resume_error:
                     self._logger.warning("恢复放映失败：%s", resume_error)
+                    raise RuntimeError(f"恢复 PowerPoint 放映失败：{resume_error}") from resume_error
 
     def pause(self) -> None:
         """暂停放映。"""
@@ -58,12 +61,15 @@ class PptNavigationMixin:
         :return: None
         """
         with self._com_lock:
+            if self._slideshow_view is None:
+                raise RuntimeError("PowerPoint 放映未运行，无法暂停")
             if self._slideshow_view is not None and not self._is_paused:
                 try:
                     self._slideshow_view.State = _PP_SLIDE_SHOW_PAUSED
                     self._is_paused = True
                 except Exception as pause_error:
                     self._logger.warning("暂停放映失败：%s", pause_error)
+                    raise RuntimeError(f"暂停 PowerPoint 放映失败：{pause_error}") from pause_error
 
     def stop(self) -> None:
         """停止放映（退出放映模式，但不关闭文件）。"""
@@ -83,8 +89,9 @@ class PptNavigationMixin:
                     )
                     self._mark_presentation_clean()
                     self._slideshow_view.Exit()
-                except Exception:
-                    pass
+                except Exception as stop_error:
+                    self._logger.warning("停止 PowerPoint 放映失败：%s", stop_error)
+                    raise RuntimeError(f"停止 PowerPoint 放映失败：{stop_error}") from stop_error
                 if self._ppt_hwnd != 0:
                     try:
                         close_embedded_slideshow_window(
@@ -110,12 +117,13 @@ class PptNavigationMixin:
         """
         with self._com_lock:
             if self._slideshow_view is None or self._slideshow_is_finished():
-                return
+                raise RuntimeError("PowerPoint 放映未运行或已结束")
             try:
                 self._goto_next_click()
                 self._last_slide_index = self._current_show_position()
             except Exception as nav_error:
                 self._logger.warning("PPT 下一动画/页失败：%s", nav_error)
+                raise RuntimeError(f"PPT 下一动画/页失败：{nav_error}") from nav_error
 
     def prev_item(self) -> None:
         """上一动画或上一页。"""
@@ -128,12 +136,13 @@ class PptNavigationMixin:
         """
         with self._com_lock:
             if self._slideshow_view is None or self._slideshow_is_finished():
-                return
+                raise RuntimeError("PowerPoint 放映未运行或已结束")
             try:
                 self._goto_previous_click()
                 self._last_slide_index = self._current_show_position()
             except Exception as nav_error:
                 self._logger.warning("PPT 上一动画/页失败：%s", nav_error)
+                raise RuntimeError(f"PPT 上一动画/页失败：{nav_error}") from nav_error
 
     def _goto_next_click(self) -> None:
         """
@@ -223,8 +232,7 @@ class PptNavigationMixin:
         :param index: 页码（1-based）
         """
         if index < 1 or index > self._total_slides:
-            self._logger.warning("无效页码 %d（总计 %d 页）", index, self._total_slides)
-            return
+            raise ValueError(f"无效页码 {index}（总计 {self._total_slides} 页）")
         self._submit_com_command(
             f"跳转第 {index} 页",
             lambda: self._goto_item_on_com_thread(index),
@@ -238,12 +246,13 @@ class PptNavigationMixin:
         """
         with self._com_lock:
             if self._slideshow_view is None or self._slideshow_is_finished():
-                return
+                raise RuntimeError("PowerPoint 放映未运行或已结束")
             try:
                 self._goto_slide(index)
                 self._last_slide_index = index
             except Exception as goto_error:
                 self._logger.warning("PPT 跳转到第 %d 页失败：%s", index, goto_error)
+                raise RuntimeError(f"PPT 跳转到第 {index} 页失败：{goto_error}") from goto_error
 
     def _goto_slide(self, index: int) -> None:
         """

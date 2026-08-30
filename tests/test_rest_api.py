@@ -228,7 +228,7 @@ def test_displays_api_uses_display_service() -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["targets"][0]["name"] == "Display 1"
-    assert payload["splice_label"] == "Display 1 + Display 2"
+    assert "splice_label" not in payload
 
 
 @pytest.mark.django_db

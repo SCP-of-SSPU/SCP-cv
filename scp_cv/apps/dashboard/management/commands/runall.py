@@ -2,7 +2,7 @@
 # -*- coding: UTF-8 -*-
 """
 Django 管理命令：一键启动 SCP-cv 所有本地服务。
-负责启动和监控 MediaMTX、gRPC-Web 代理、Django HTTP/gRPC、Vue 前端和 PySide 播放器。
+负责启动和监控 MediaMTX、Django HTTP、Vue 前端和 PySide 播放器。
 @Project : SCP-cv
 @File : runall.py
 @Author : Qintsg
@@ -60,7 +60,7 @@ _FRONTEND_MAX_RESTARTS = 3
 
 
 class Command(RunallStarterMixin, BaseCommand):
-    help = "一键启动所有服务：MediaMTX + gRPC-Web + Django + Vue 前端 + PySide6 播放器"
+    help = "一键启动所有服务：MediaMTX + Django + Vue 前端 + PySide6 播放器"
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         """
@@ -160,13 +160,10 @@ class Command(RunallStarterMixin, BaseCommand):
                     f"Vue 前端端口未显式指定，使用 frontend/.env / Vite 配置端口 {frontend_display_port}"
                 )
             )
-        grpc_web_port = int(options.get("grpc_web_port", 8081))
         poll_interval = float(options.get("poll_interval", 0.2))
 
         if not bool(options.get("skip_mediamtx", False)):
             self._start_mediamtx()
-        if not bool(options.get("skip_grpcweb", False)):
-            self._start_grpcweb_proxy(grpc_web_port)
         self._start_django_server(backend_host, backend_port)
         self._wait_for_port(
             "Django", connect_host(backend_host), backend_port, required=True
@@ -197,9 +194,6 @@ class Command(RunallStarterMixin, BaseCommand):
                 frontend_wait_port,
                 required=False,
             )
-        if not bool(options.get("skip_grpcweb", False)):
-            self._wait_for_port("gRPC-Web", "127.0.0.1", grpc_web_port, required=False)
-
         frontend_url_host = public_host(frontend_host)
         backend_url_host = public_host(backend_host)
         self.stdout.write(

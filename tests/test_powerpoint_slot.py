@@ -134,3 +134,34 @@ def test_powerpoint_slot_is_not_reentrant_on_same_thread(tmp_path: Path) -> None
             contender_slot.acquire(timeout_seconds=0.01)
     finally:
         owner_slot.release()
+
+
+def test_four_window_contenders_never_obtain_second_powerpoint_slot(tmp_path: Path) -> None:
+    """四窗口竞争时只能有一个 COM 槽位持有者，其余必须立即失败。"""
+    slot_name = f"SCP-cv-four-window-{uuid.uuid4().hex}"
+    lock_path = tmp_path / "powerpoint.lock"
+    owner = PowerPointSlot(slot_name, lock_path=lock_path)
+    owner.acquire(timeout_seconds=1.0)
+    failures: list[int] = []
+
+    def contend(window_id: int) -> None:
+        """模拟其它窗口立即尝试唯一槽位。"""
+        contender = PowerPointSlot(slot_name, lock_path=lock_path)
+        try:
+            contender.acquire(timeout_seconds=0.0)
+        except PowerPointSlotTimeout:
+            failures.append(window_id)
+        else:
+            contender.release()
+
+    threads = [threading.Thread(target=contend, args=(window_id,)) for window_id in (2, 3, 4)]
+    try:
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=1.0)
+    finally:
+        owner.release()
+
+    assert sorted(failures) == [2, 3, 4]
+    assert all(not thread.is_alive() for thread in threads)

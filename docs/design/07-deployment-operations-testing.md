@@ -10,7 +10,7 @@ SCP-cv 当前部署模型是 Windows-first、single-host、多进程。目标机
 
 ```text
 Windows 主机
-  Django REST / gRPC / SSE
+  Django REST / SSE
   Vue Vite dev server 或构建产物
   MediaMTX
   PySide6 Player
@@ -46,7 +46,7 @@ Windows 主机
 
 | 文件 | 内容 |
 | --- | --- |
-| `.env` | Django、gRPC、MediaMTX、日志、PPT 和直播低延迟配置 |
+| `.env` | Django、MediaMTX、日志、PPT 和直播低延迟配置 |
 | `frontend/.env` | Vite 前端端口和 `VITE_BACKEND_TARGET` |
 | `config.toml` | 固定启动数据，当前主要是默认管理员 |
 | `tools/third_party/mediamtx/mediamtx.yml` | MediaMTX 自身配置 |
@@ -92,14 +92,13 @@ uv run python manage.py run_player
 | --- | --- |
 | 1 | 创建 `logs/runall/<timestamp>/` |
 | 2 | 启动 MediaMTX，除非 `--skip-mediamtx` |
-| 3 | 启动 gRPC-Web proxy |
-| 4 | 启动 Django |
-| 5 | 等待端口就绪 |
-| 6 | 重置所有 playback sessions 到 idle |
-| 7 | 启动 Vite，除非 `--skip-frontend` |
-| 8 | 启动 PySide player，除非 `--skip-player` |
-| 9 | 监控子进程、`logs/runall.shutdown` 和 `logs/runall.restart` |
-| 10 | 退出时清理进程树 |
+| 3 | 启动 Django |
+| 4 | 等待端口就绪 |
+| 5 | 重置所有 playback sessions 到 idle |
+| 6 | 启动 Vite，除非 `--skip-frontend` |
+| 7 | 启动 PySide player，除非 `--skip-player` |
+| 8 | 监控子进程、`logs/runall.shutdown` 和 `logs/runall.restart` |
+| 9 | 退出时清理进程树 |
 
 `/api/system/shutdown/` 会请求关闭全部窗口并写入 `logs/runall.shutdown`，runall 监控到后退出整个栈。
 
@@ -111,11 +110,8 @@ uv run python manage.py run_player
 | --- | --- |
 | 5173 | Vue 控制台 |
 | 8000 | Django REST / admin / media |
-| 50051 | gRPC |
 | 8890 | MediaMTX SRT publish/read |
 | 9997 | MediaMTX API |
-
-gRPC-Web proxy 端口由 runall 参数和配置决定，迁移时需同时检查前端或自动化系统是否依赖 gRPC-Web。
 
 ## 运行数据
 
@@ -193,7 +189,6 @@ pnpm --prefix frontend run build
 | `uv run pytest tests/test_runall_command.py -v` | runall 编排 |
 | `uv run pytest tests/test_playback_service.py -v` | 播放服务 |
 | `uv run pytest tests/test_rest_api.py -v` | REST API |
-| `uv run pytest tests/test_grpc_servicers.py -v` | gRPC |
 | `uv run pytest tests/test_player_controller.py -v` | 播放器控制器 |
 | `uv run pytest tests/test_mediamtx_service.py -v` | MediaMTX |
 | `uv run pytest tests/test_ppt_adapter.py -v` | PPT adapter |

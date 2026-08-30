@@ -139,6 +139,12 @@ class WebPreheatPool:
         if source_id <= 0 or not normalized_url:
             self._dispose_view(view)
             return
+        existing = self._items.get(source_id)
+        if existing is not None and existing.view is not view:
+            logger.warning("同源网页预热视图被替换，先释放旧实例：source_id=%d", source_id)
+            self._dispose_view(existing.view)
+        if existing is not None and existing.view is view:
+            return
         self._detach_from_current_parent(view)
         view.setParent(self._host)
         self._host.layout().addWidget(view)

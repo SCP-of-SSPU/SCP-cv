@@ -1,7 +1,7 @@
 #!/user/bin/env python
 # -*- coding: UTF-8 -*-
 '''
-PowerPoint 播放独占协调，负责在跨播放器进程打开前关闭旧放映会话。
+PowerPoint 放映重置与运行时参数构造。
 @Project : SCP-cv
 @File : playback_powerpoint.py
 @Author : Qintsg
@@ -18,10 +18,7 @@ from scp_cv.apps.playback.models import (
     PlaybackState,
     SourceType,
 )
-from scp_cv.services.playback_commands import (
-    clear_playback_command_queue,
-    enqueue_playback_command,
-)
+from scp_cv.services.playback_commands import enqueue_playback_command
 from scp_cv.services.playback_sessions import VALID_WINDOW_IDS, get_or_create_session
 from scp_cv.services.slides_pdf import (
     get_slides_playback_mode,
@@ -34,43 +31,16 @@ RESET_TOKEN_ARG = "reset_token"
 
 def close_other_powerpoint_sessions(target_window_id: int) -> list[int]:
     """
-    在目标窗口打开 PowerPoint 前向其它 PowerPoint 窗口下发关闭指令。
+    兼容旧调用入口，不再抢占其它 PowerPoint 窗口。
 
-    此接口位于 Django 服务层，因此可以协调分属不同 ``run_player`` 进程的
-    窗口；播放器适配器的系统级槽位负责保证旧放映释放前新放映不会抢跑。
+    唯一 COM 所有权由跨进程 ``PowerPointSlot`` 决定，槽位冲突由目标窗口
+    自行回退 PDF，服务层不能预判或关闭当前持有者。
 
     :param target_window_id: 即将打开 PowerPoint 的目标窗口编号
     :return: 已下发关闭指令的窗口编号列表
     """
-    closed_window_ids: list[int] = []
-    sessions = (
-        PlaybackSession.objects.exclude(window_id=target_window_id)
-        .filter(media_source__source_type=SourceType.PPT)
-        .exclude(playback_state=PlaybackState.IDLE)
-        .select_related("media_source")
-    )
-    for session in sessions:
-        source = session.media_source
-        if source is None or get_slides_playback_mode(source) != "powerpoint":
-            continue
-        cleanup_args = {
-            "cleanup_source_id": source.pk,
-        } if source.is_temporary else {}
-        session.playback_state = PlaybackState.IDLE
-        session.error_message = ""
-        session.current_slide = 0
-        session.total_slides = 0
-        session.position_ms = 0
-        session.duration_ms = 0
-        enqueue_playback_command(session, PlaybackCommand.CLOSE, cleanup_args)
-        closed_window_ids.append(session.window_id)
-    if closed_window_ids:
-        logger.info(
-            "窗口 %d 打开 PowerPoint 前关闭其它放映窗口：%s",
-            target_window_id,
-            closed_window_ids,
-        )
-    return closed_window_ids
+    logger.debug("窗口 %d 使用运行时 PowerPoint 槽位协调，不抢占其它窗口", target_window_id)
+    return []
 
 
 def reset_ppt_playback() -> list[PlaybackSession]:
@@ -98,7 +68,6 @@ def reset_ppt_playback() -> list[PlaybackSession]:
             "error_message",
             "last_updated_at",
         ])
-        clear_playback_command_queue(session)
         updated_sessions.append(session)
 
     if not restart_sessions:

@@ -29,7 +29,6 @@ class PlaybackMode(models.TextChoices):
     """播放目标布局。"""
 
     SINGLE = "single", "单屏"
-    LEFT_RIGHT_SPLICE = "left_right_splice", "左右拼接"
 
 
 class BigScreenMode(models.TextChoices):

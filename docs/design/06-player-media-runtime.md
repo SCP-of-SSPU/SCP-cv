@@ -2,7 +2,7 @@
 
 本文说明 PySide6 播放器、媒体 adapter、PowerPoint PPT、预热、状态回写和四窗口运行时。该部分是迁移中最不适合并入 Django Web Worker 的模块。
 
-最后更新：2026-06-10。
+最后更新：2026-08-30。
 
 ## 运行时定位
 
@@ -34,7 +34,7 @@ Django 服务层
 | `scp_cv/apps/dashboard/management/commands/runall.py` | 全栈编排并启动播放器子进程 |
 | `scp_cv/player/launcher_gui.py` | GUI 启动器，选择窗口和显示器 |
 | `scp_cv/player/headless_launcher.py` | 无 GUI/headless 窗口映射 |
-| `scp_cv/player/gpu.py` | GPU 选择辅助 |
+| `scp_cv/player/gpu_detector.py` | GPU 选择辅助 |
 
 `run_player` 的关键流程：
 
@@ -56,6 +56,9 @@ Django 服务层
 ## PlayerController
 
 主文件：`scp_cv/player/controller.py`。
+
+显示布局与窗口重建位于 `scp_cv/player/controller_display.py`；轮询/租约投递位于
+`controller_polling.py`，命令处理位于 `controller_handlers.py`。
 
 | 成员 | 说明 |
 | --- | --- |
@@ -101,7 +104,8 @@ Django 服务层
 
 ## PlayerWindow
 
-文件：`scp_cv/player/window.py`。
+文件：`scp_cv/player/window.py`；光标跟踪和 ID overlay 位于
+`scp_cv/player/window_interaction.py`。
 
 `PlayerWindow` 是每个物理输出窗口的容器。正常模式下无边框并置顶，debug 模式下可移动和调整。
 
@@ -114,7 +118,7 @@ Django 服务层
 
 `position_on_display()` 通过 Qt screen geometry 和 overlap 匹配屏幕。它能处理部分 DPI/坐标差异，但前提是 Windows 能正确枚举物理显示器。
 
-已知限制：`PlayerController.sig_reposition` 存在但没有接线；REST 修改显示目标后不会让运行中的窗口立即移动。`left_right_splice` 在数据层存在，但播放器当前仍按单个显示器定位。
+显示配置只支持一个窗口绑定一个物理显示器；REST 修改显示目标后由播放器轮询刷新并立即重新定位窗口，不提供左右拼接语义。
 
 ## Adapter 工厂
 
@@ -145,7 +149,8 @@ Django 服务层
 
 ## 直播流
 
-文件：`scp_cv/player/adapters/srt_stream.py`。
+适配器入口：`scp_cv/player/adapters/srt_stream.py`；VLC runtime 发现和低延迟参数位于
+`scp_cv/player/adapters/srt_stream_runtime.py`。
 
 直播流使用 `python-vlc/libVLC`，在 Windows 下通过 `set_hwnd()` 嵌入 `PlayerWindow.video_window_handle`。
 
@@ -174,7 +179,8 @@ PPT 适配器文件：`scp_cv/player/adapters/ppt.py`。
 | 能力 | 文件 |
 | --- | --- |
 | PowerPoint COM 放映 | `scp_cv/player/adapters/ppt.py` |
-| 放映 HWND 查找、嵌入和尺寸同步 | `scp_cv/player/adapters/ppt_window.py` |
+| 放映 HWND 查找 | `scp_cv/player/adapters/ppt_window.py` |
+| HWND 嵌入、尺寸同步和 Win32 清理 | `scp_cv/player/adapters/ppt_window_embedding.py` |
 | PPT 切源容器准备和恢复 | `scp_cv/player/controller_window_helpers.py` |
 | 当前页媒体控制 | `scp_cv/player/adapters/ppt_media.py` |
 
@@ -188,7 +194,7 @@ PPT 全局 volume/mute 大多不可控。窗口音量 UI 对 PPT 不应承诺等
 
 PowerPoint 启动、打开文档、运行放映、HWND 查找和嵌入都带确定性重试或明确失败路径；失败时保留 PySide 黑屏并回写明确错误，不回退到其它后端。播放器不再隐藏 PySide 窗口，不取消 PySide 置顶，也不最小化其它顶层窗口。
 
-动态演示文稿使用全局单槽位：Django 播放服务在打开前先向其它 PowerPoint 会话下发 `CLOSE`，各 `run_player` 进程再通过 `PowerPointSlot` 的 Windows 命名互斥体协调，旧放映真正释放前新放映不会启动。PDF 演示文稿不占用该槽位。
+动态演示文稿使用全局单槽位：每个 `run_player` 进程立即尝试通过 `PowerPointSlot` 取得唯一 COM 槽位；槽位被其它窗口占用时，不关闭其它窗口、不等待，而是使用源摘要匹配的 PDF 回退。PDF 窗口不会在槽位释放后自动升级为 COM。
 
 ## PPT 资源、预览和播放缓存
 
@@ -217,7 +223,7 @@ PPT 后端不仅有播放 adapter，还有导入阶段的资源解析和缓存�
 | audio | 预建后台音频播放器资源 |
 | stream | 隐藏 1x1 QWidget + libVLC 连接 |
 | web | 隐藏 `QWebEngineView` |
-| PowerPoint | 当前停用预热；打开时按全局单槽位启动 COM 放映 |
+| PowerPoint | 当前停用 COM 预热；打开时按全局单槽位启动 COM，冲突时使用 PDF fallback |
 
 预热不是缓存业务状态，而是缓存播放器资源。迁移时不要把 `keep_alive` 简化为普通后端缓存字段。
 
@@ -252,7 +258,7 @@ PPT 后端不仅有播放 adapter，还有导入阶段的资源解析和缓存�
 | 命令消费 | REST 写入命令后播放器能在 1 秒内消费 |
 | 状态回写 | 前端看到的状态来自真实 adapter |
 | 四窗口 | 1-4 语义保持不变 |
-| PPT | PowerPoint-only，窗口化放映 HWND 嵌入 PySide 视频容器 |
+| PPT | 单 COM 槽位；占用时使用源摘要匹配的 PDF，窗口化放映 HWND 嵌入 PySide 视频容器 |
 | 直播 | MediaMTX 自动源和手动 SRT/RTSP 源均可播放 |
 | 预热 | `keep_alive` 源能预热并可被前台认领 |
 | 背景音频 | 播放列表、自然下一首、循环、音量、静音可用 |

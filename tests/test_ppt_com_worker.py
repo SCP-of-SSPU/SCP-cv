@@ -180,3 +180,22 @@ def test_shutdown_drops_queued_low_priority_jobs() -> None:
 
     assert worker.shutdown(timeout_seconds=5.0) is True
     assert executed == ["high"]
+
+
+def test_com_initialization_failure_rejects_job_without_wait_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """STA 初始化失败时，提交任务应立即失败而不是挂起到调用超时。"""
+    worker = PptComWorker(name="test-ppt-com-init-failure")
+    monkeypatch.setattr(worker, "_initialize_com", lambda: False)
+    completed = threading.Event()
+    errors: list[BaseException | None] = []
+
+    worker.submit(
+        "should-not-run",
+        lambda: pytest.fail("COM 未初始化时不应执行任务"),
+        on_done=lambda _result, error: (errors.append(error), completed.set()),
+    )
+
+    assert completed.wait(timeout=1.0)
+    assert isinstance(errors[0], RuntimeError)

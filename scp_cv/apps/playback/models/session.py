@@ -64,15 +64,6 @@ class PlaybackSession(models.Model):
         blank=True,
         verbose_name="目标显示器",
     )
-    spliced_display_label = models.CharField(
-        max_length=255,
-        blank=True,
-        verbose_name="拼接显示器组",
-    )
-    is_spliced = models.BooleanField(
-        default=False,
-        verbose_name="是否拼接",
-    )
     # ── PPT / 翻页型源状态 ──
     current_slide = models.IntegerField(
         default=0,
@@ -162,9 +153,23 @@ class PlaybackCommandRecord(models.Model):
         verbose_name="指令参数",
     )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
+    status = models.CharField(
+        max_length=16,
+        choices=(("pending", "待领取"), ("processing", "处理中")),
+        default="pending",
+        db_index=True,
+        verbose_name="处理状态",
+    )
+    claimed_by = models.CharField(max_length=128, blank=True, default="", verbose_name="领取消费者")
+    claimed_at = models.DateTimeField(null=True, blank=True, verbose_name="领取时间")
+    attempt_count = models.PositiveIntegerField(default=0, verbose_name="尝试次数")
+    last_error = models.TextField(blank=True, default="", verbose_name="最后错误")
 
     class Meta:
         ordering = ["id"]
-        indexes = [models.Index(fields=["session", "id"], name="playback_cmd_session_idx")]
+        indexes = [
+            models.Index(fields=["session", "id"], name="playback_cmd_session_idx"),
+            models.Index(fields=["session", "status", "id"], name="playback_cmd_status_idx"),
+        ]
         verbose_name = "播放指令队列项"
         verbose_name_plural = "播放指令队列项"

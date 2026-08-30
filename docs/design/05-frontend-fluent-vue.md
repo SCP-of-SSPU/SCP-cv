@@ -195,7 +195,7 @@ PPT 不再提供播放器后端选择；前端上传、编辑、打开和显控�
 | 删除 CSRF/cookie 逻辑 | 登录态失效或 unsafe method 403 | 保留 `credentials` 和 `X-CSRFToken` |
 | 把 `VITE_BACKEND_TARGET` 固化 | 局域网访问失败 | 继续支持相对路径和 env override |
 | 将显示器选择包装成实时切换 | 用户误以为立即生效 | 后端/播放器未支持热 reposition 前需明确说明 |
-| 恢复 PPT 后端选择 | 与 PowerPoint-only 合同冲突，API 类型回退 | 保持上传、编辑、打开和显控页无 `ppt_backend` |
+| 恢复 PPT 后端选择 | 与单 COM/PDF fallback 合同冲突，API 类型回退 | 保持上传、编辑、打开和显控页无 `ppt_backend` |
 
 ## 前端验收清单
 

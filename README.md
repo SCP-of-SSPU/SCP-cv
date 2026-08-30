@@ -21,7 +21,6 @@ SCP-cv 是用于控制 **上海第二工业大学 28#108 多媒体显示系统**
 - **PPT 控制**：所有 PPT 导入、预览、播放缓存、预热和放映统一使用 Microsoft PowerPoint；导入后会尝试生成播放专用 `.ppsx`/`.pps` 缓存，显控页提供翻页、跳页和媒体控制。
 - **SRT / RTSP 直播播放**：MediaMTX 接收 OBS / 外部设备 SRT 推流，自动发现源默认通过 SRT read 地址交给 libVLC 播放；RTSP 保留为手动兼容路径。
 - **REST + SSE 控制台**：Vue 前端通过 REST 下发指令，通过 SSE 同步播放状态。
-- **保留 gRPC 接口**：用于兼容中控系统和自动化脚本。
 - **设备控制**：支持拼接屏、电视电源 TCP 指令和 Windows 系统音量同步。
 
 ## 架构概览
@@ -30,7 +29,7 @@ SCP-cv 是用于控制 **上海第二工业大学 28#108 多媒体显示系统**
 Vue 控制台 (frontend/)
   REST / SSE
         |
-Django 服务端 (REST + gRPC)
+Django 服务端 (REST + SSE)
         |
 SQLite 播放会话状态
         |
@@ -88,7 +87,7 @@ uv run python manage.py migrate
 
 后端配置在仓库根目录 `.env`，前端 Vite 配置在 `frontend/.env`。两者分离：
 
-- `.env`：Django、gRPC、MediaMTX、日志和后端运行配置。
+- `.env`：Django、MediaMTX、日志和后端运行配置。
 - `frontend/.env`：`VITE_FRONTEND_PORT` 与 `VITE_BACKEND_TARGET`。
 
 PPT 相关配置：
@@ -167,7 +166,7 @@ uv run python manage.py runall --headless --window1 1 --window2 2 --window3 3 --
 分进程调试：
 
 ```powershell
-# Django REST + gRPC
+# Django REST
 uv run python manage.py runserver
 
 # Vue 控制台
@@ -192,7 +191,6 @@ uv run python manage.py run_player --headless --only-window 2 --window2 2
 |------|------|
 | 5173 | Vue 控制台 |
 | 8000 | Django REST / admin / 媒体文件 |
-| 50051 | gRPC |
 | 8890 | MediaMTX SRT publish/read |
 | 9997 | MediaMTX API |
 

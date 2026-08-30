@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 class VideoSourceAdapter(SourceAdapter):
+    capabilities = frozenset({"play", "pause", "stop", "seek", "set_loop", "set_volume", "set_mute"})
     """
     本地视频文件播放适配器。
 

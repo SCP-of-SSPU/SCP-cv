@@ -96,10 +96,16 @@ def test_dynamic_ooxml_keeps_powerpoint_mode(tmp_path: Path, settings) -> None:
         uri=str(source_path),
     )
 
-    slides_pdf.prepare_slides_pdf(source)
+    def fake_exporter(_source_path: Path, target_path: Path) -> str:
+        """模拟动态 PPT 的 PDF fallback 生成。"""
+        target_path.write_bytes(b"pdf-fallback")
+        return "powerpoint"
+
+    slides_pdf.prepare_slides_pdf(source, pdf_exporter=fake_exporter)
     source.refresh_from_db()
 
     assert slides_pdf.get_slides_playback_mode(source) == "powerpoint"
+    assert slides_pdf.get_slides_pdf_uri(source).endswith(".pdf")
 
 
 def test_detect_ooxml_static_detects_timing_and_media(tmp_path: Path) -> None:

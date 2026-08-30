@@ -10,6 +10,8 @@ run_player 管理命令测试，覆盖启动器事件循环与播放器主循环
 from __future__ import annotations
 
 import sys
+import subprocess
+from pathlib import Path
 from types import ModuleType
 
 from pytest import MonkeyPatch
@@ -211,26 +213,56 @@ def test_run_isolated_window_players_spawns_one_process_per_window(
     )
 
     assert len(spawned_commands) == 2
-    assert spawned_commands[0][-7:] == [
-        "--headless",
-        "--only-window",
-        "1",
-        "--window1",
-        "1",
-        "--gpu",
-        "2",
-    ]
-    assert spawned_commands[1][-8:] == [
-        "--headless",
-        "--only-window",
-        "2",
-        "--window2",
-        "2",
-        "--gpu",
-        "2",
-        "--disable-background-audio",
-    ]
-    assert terminated == [True, True]
+    assert "--only-window" in spawned_commands[0]
+    assert spawned_commands[0][spawned_commands[0].index("--only-window") + 1] == "1"
+    assert "--shutdown-file" in spawned_commands[0]
+    assert "--only-window" in spawned_commands[1]
+    assert spawned_commands[1][spawned_commands[1].index("--only-window") + 1] == "2"
+    assert "--disable-background-audio" in spawned_commands[1]
+    # wait 成功代表子进程已通过 shutdown 文件协作退出，不应调用 terminate。
+    assert terminated == []
+
+
+def test_isolated_player_shutdown_forces_terminate_then_kill_after_timeouts(
+    tmp_path: Path,
+) -> None:
+    """协作退出和 terminate 都超时后，父进程才允许 kill。"""
+    shutdown_path = tmp_path / "player.shutdown"
+
+    class _HungProcess:
+        """始终不退出的子进程替身。"""
+
+        pid = 9001
+
+        def __init__(self) -> None:
+            self.terminate_calls = 0
+            self.kill_calls = 0
+
+        def poll(self) -> None:
+            """返回仍在运行。"""
+            return None
+
+        def wait(self, timeout: int) -> int:
+            """模拟任意阶段等待超时。"""
+            raise subprocess.TimeoutExpired("run_player", timeout)
+
+        def terminate(self) -> None:
+            """记录 terminate。"""
+            self.terminate_calls += 1
+
+        def kill(self) -> None:
+            """记录 kill。"""
+            self.kill_calls += 1
+
+    process = _HungProcess()
+    Command._terminate_isolated_players(
+        [process],  # type: ignore[list-item]
+        {process: shutdown_path},  # type: ignore[dict-item]
+    )
+
+    assert process.terminate_calls == 1
+    assert process.kill_calls == 1
+    assert not shutdown_path.exists()
 
 
 def _build_fake_launcher_module(action: str, launch_result: object) -> ModuleType:

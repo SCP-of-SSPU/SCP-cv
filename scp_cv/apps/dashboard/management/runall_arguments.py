@@ -34,26 +34,10 @@ def add_runall_arguments(parser: object) -> None:
         help="Vue 前端监听端口，0 表示使用 frontend/.env 中的 VITE_FRONTEND_PORT 或 Vite 默认值",
     )
     parser.add_argument(
-        "--grpc-web-port", type=int, default=8081, help="gRPC-Web 代理监听端口"
-    )
-    parser.add_argument(
         "--poll-interval", type=float, default=0.2, help="播放器轮询间隔秒数"
     )
     parser.add_argument(
         "--skip-mediamtx", action="store_true", default=False, help="跳过 MediaMTX"
-    )
-    parser.add_argument(
-        "--skip-grpcweb",
-        "--skip-grpc",
-        action="store_true",
-        default=True,
-        help="跳过 gRPC-Web 代理",
-    )
-    parser.add_argument(
-        "--enable-grpcweb",
-        action="store_false",
-        dest="skip_grpcweb",
-        help="启用 gRPC-Web 代理",
     )
     parser.add_argument(
         "--skip-frontend", action="store_true", default=False, help="跳过 Vue 前端"

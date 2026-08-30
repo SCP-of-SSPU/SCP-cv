@@ -118,3 +118,62 @@ def test_media_source_preheat_migration_preserves_legacy_non_web_semantics() -> 
     finally:
         final_executor = MigrationExecutor(connection)
         final_executor.migrate(final_executor.loader.graph.leaf_nodes())
+
+
+@pytest.mark.django_db(transaction=True)
+def test_display_splice_data_is_normalized_before_legacy_fields_are_removed() -> None:
+    """0029 应先将历史拼接会话归一为 single，再删除旧字段。"""
+    migrate_from = [("playback", "0028_backgroundaudiocommandrecord_and_more")]
+    migrate_to = [("playback", "0029_remove_playbacksession_is_spliced_and_more")]
+    executor = MigrationExecutor(connection)
+    try:
+        executor.migrate(migrate_from)
+        old_apps = executor.loader.project_state(migrate_from).apps
+        OldSession = old_apps.get_model("playback", "PlaybackSession")
+        session = OldSession.objects.create(
+            window_id=1,
+            display_mode="left_right_splice",
+            is_spliced=True,
+            spliced_display_label="HDMI-1 + HDMI-2",
+        )
+
+        executor = MigrationExecutor(connection)
+        executor.migrate(migrate_to)
+        new_apps = executor.loader.project_state(migrate_to).apps
+        NewSession = new_apps.get_model("playback", "PlaybackSession")
+        assert NewSession.objects.get(pk=session.pk).display_mode == "single"
+        assert not any(
+            field.name in {"is_spliced", "spliced_display_label"}
+            for field in NewSession._meta.fields
+        )
+    finally:
+        final_executor = MigrationExecutor(connection)
+        final_executor.migrate(final_executor.loader.graph.leaf_nodes())
+
+
+@pytest.mark.django_db(transaction=True)
+def test_command_queue_migration_preserves_legacy_background_command() -> None:
+    """0028 应把升级前的背景音频单槽命令转入 pending 队列。"""
+    migrate_from = [("playback", "0027_alter_mediasource_source_type")]
+    migrate_to = [("playback", "0028_backgroundaudiocommandrecord_and_more")]
+    executor = MigrationExecutor(connection)
+    try:
+        executor.migrate(migrate_from)
+        old_apps = executor.loader.project_state(migrate_from).apps
+        OldState = old_apps.get_model("playback", "BackgroundAudioState")
+        state = OldState.objects.create(
+            pending_command="pause",
+            command_args={"reason": "legacy"},
+        )
+
+        executor = MigrationExecutor(connection)
+        executor.migrate(migrate_to)
+        new_apps = executor.loader.project_state(migrate_to).apps
+        CommandRecord = new_apps.get_model("playback", "BackgroundAudioCommandRecord")
+        record = CommandRecord.objects.get(state_id=state.pk)
+        assert record.command == "pause"
+        assert record.command_args == {"reason": "legacy"}
+        assert record.status == "pending"
+    finally:
+        final_executor = MigrationExecutor(connection)
+        final_executor.migrate(final_executor.loader.graph.leaf_nodes())

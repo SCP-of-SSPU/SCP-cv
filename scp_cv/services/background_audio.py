@@ -23,6 +23,10 @@ from scp_cv.apps.playback.models import (
     PlaybackState,
     SourceType,
 )
+from scp_cv.services.background_audio_commands import (
+    clear_background_audio_command_queue,
+    enqueue_background_audio_command,
+)
 logger = logging.getLogger(__name__)
 
 
@@ -87,9 +91,8 @@ def resume_background_audio() -> BackgroundAudioState:
     if state.current_source_id and state.playback_state not in {PlaybackState.STOPPED, PlaybackState.ERROR}:
         state.playback_state = PlaybackState.PLAYING
         state.error_message = ""
-        state.pending_command = BackgroundAudioCommand.PLAY
-        state.command_args = {}
-        state.save()
+        state.save(update_fields=["playback_state", "error_message", "updated_at"])
+        enqueue_background_audio_command(state, BackgroundAudioCommand.PLAY)
         logger.info("背景音频恢复播放")
         return state
     if state.current_source_id:
@@ -110,9 +113,8 @@ def pause_background_audio() -> BackgroundAudioState:
     """
     state = BackgroundAudioState.get_instance()
     state.playback_state = PlaybackState.PAUSED
-    state.pending_command = BackgroundAudioCommand.PAUSE
-    state.command_args = {}
-    state.save()
+    state.save(update_fields=["playback_state", "updated_at"])
+    enqueue_background_audio_command(state, BackgroundAudioCommand.PAUSE)
     logger.info("背景音频暂停")
     return state
 
@@ -136,12 +138,14 @@ def stop_background_audio(clear_source: bool = False) -> BackgroundAudioState:
     state.error_message = ""
     state.position_ms = 0
     state.duration_ms = 0
-    state.pending_command = BackgroundAudioCommand.STOP
-    state.command_args = {"clear_source": bool(clear_source)}
-    state.save()
+    state.save(update_fields=["current_source", "playback_state", "error_message", "position_ms", "duration_ms", "updated_at"])
+    enqueue_background_audio_command(
+        state,
+        BackgroundAudioCommand.STOP,
+        {"clear_source": bool(clear_source), "cleanup_source_id": cleanup_source_id or 0},
+    )
     if cleanup_source_id:
         BackgroundAudioPlaylistItem.objects.filter(source_id=cleanup_source_id).delete()
-        _delete_temporary_audio_source(cleanup_source_id)
     logger.info("背景音频停止，clear_source=%s", clear_source)
     return state
 
@@ -156,9 +160,8 @@ def seek_background_audio(position_ms: int) -> BackgroundAudioState:
     state = BackgroundAudioState.get_instance()
     normalized_position = max(0, int(position_ms))
     state.position_ms = normalized_position
-    state.pending_command = BackgroundAudioCommand.SEEK
-    state.command_args = {"position_ms": normalized_position}
-    state.save()
+    state.save(update_fields=["position_ms", "updated_at"])
+    enqueue_background_audio_command(state, BackgroundAudioCommand.SEEK, {"position_ms": normalized_position})
     return state
 
 
@@ -192,9 +195,8 @@ def set_background_audio_volume(volume: int) -> BackgroundAudioState:
     normalized_volume = max(0, min(100, int(volume)))
     state = BackgroundAudioState.get_instance()
     state.volume = normalized_volume
-    state.pending_command = BackgroundAudioCommand.SET_VOLUME
-    state.command_args = {"volume": normalized_volume}
-    state.save()
+    state.save(update_fields=["volume", "updated_at"])
+    enqueue_background_audio_command(state, BackgroundAudioCommand.SET_VOLUME, {"volume": normalized_volume})
     return state
 
 
@@ -207,9 +209,8 @@ def set_background_audio_mute(muted: bool) -> BackgroundAudioState:
     """
     state = BackgroundAudioState.get_instance()
     state.is_muted = bool(muted)
-    state.pending_command = BackgroundAudioCommand.SET_MUTE
-    state.command_args = {"muted": bool(muted)}
-    state.save()
+    state.save(update_fields=["is_muted", "updated_at"])
+    enqueue_background_audio_command(state, BackgroundAudioCommand.SET_MUTE, {"muted": bool(muted)})
     return state
 
 
@@ -222,9 +223,8 @@ def set_background_audio_loop(enabled: bool) -> BackgroundAudioState:
     """
     state = BackgroundAudioState.get_instance()
     state.loop_enabled = bool(enabled)
-    state.pending_command = BackgroundAudioCommand.SET_LOOP
-    state.command_args = {"enabled": bool(enabled)}
-    state.save()
+    state.save(update_fields=["loop_enabled", "updated_at"])
+    enqueue_background_audio_command(state, BackgroundAudioCommand.SET_LOOP, {"enabled": bool(enabled)})
     return state
 
 
@@ -245,7 +245,7 @@ def remove_playlist_item(item_id: int) -> BackgroundAudioState:
     logger.info("背景音频播放列表移除 source_id=%s", item.source_id)
     if should_stop:
         state = stop_background_audio(clear_source=True)
-    if cleanup_source_id:
+    if cleanup_source_id and not should_stop:
         _delete_temporary_audio_source(cleanup_source_id)
     return state
 
@@ -277,11 +277,7 @@ def clear_background_audio_command() -> BackgroundAudioState:
 
     :return: 更新后的背景音频状态
     """
-    state = BackgroundAudioState.get_instance()
-    state.pending_command = BackgroundAudioCommand.NONE
-    state.command_args = {}
-    state.save(update_fields=["pending_command", "command_args", "updated_at"])
-    return state
+    return clear_background_audio_command_queue()
 
 
 def update_background_audio_progress(
@@ -333,9 +329,7 @@ def advance_background_audio_on_finished() -> BackgroundAudioState:
 
     state.playback_state = PlaybackState.STOPPED
     state.position_ms = state.duration_ms
-    state.pending_command = BackgroundAudioCommand.NONE
-    state.command_args = {}
-    state.save()
+    state.save(update_fields=["playback_state", "position_ms", "updated_at"])
     return state
 
 
@@ -428,15 +422,14 @@ def _open_source(source: MediaSource, autoplay: bool) -> BackgroundAudioState:
     state.error_message = ""
     state.position_ms = 0
     state.duration_ms = 0
-    state.pending_command = BackgroundAudioCommand.OPEN
-    state.command_args = {
+    state.save(update_fields=["current_source", "playback_state", "error_message", "position_ms", "duration_ms", "updated_at"])
+    enqueue_background_audio_command(state, BackgroundAudioCommand.OPEN, {
         "source_id": source.pk,
         "uri": source.uri,
         "autoplay": autoplay,
         "volume": state.volume,
         "muted": state.is_muted,
-    }
-    state.save()
+    })
     logger.info("背景音频打开「%s」", source.name)
     return state
 

@@ -39,6 +39,10 @@ class AdapterState:
     error_message: str = ""
 
 
+class UnsupportedAdapterOperation(RuntimeError):
+    """适配器明确不具备某项能力。"""
+
+
 class SourceAdapter(ABC):
     """
     媒体源适配器抽象基类。
@@ -51,6 +55,8 @@ class SourceAdapter(ABC):
     生命周期：open → play/pause/stop → close
     适配器实例由 PlayerManager 创建和管理。
     """
+
+    capabilities: frozenset[str] = frozenset({"play", "pause", "stop"})
 
     def __init__(self, adapter_name: str = "base") -> None:
         """
@@ -107,28 +113,28 @@ class SourceAdapter(ABC):
         下一项（翻页型源重写）。
         默认实现：不支持的源类型忽略操作。
         """
-        self._logger.debug("适配器 %s 不支持 next_item", self._adapter_name)
+        self._unsupported("next")
 
     def prev_item(self) -> None:
         """
         上一项（翻页型源重写）。
         默认实现：不支持的源类型忽略操作。
         """
-        self._logger.debug("适配器 %s 不支持 prev_item", self._adapter_name)
+        self._unsupported("prev")
 
     def goto_item(self, index: int) -> None:
         """
         跳转到指定项（翻页型源重写，从 1 开始计数）。
         :param index: 目标页码（1-based）
         """
-        self._logger.debug("适配器 %s 不支持 goto_item", self._adapter_name)
+        self._unsupported("goto")
 
     def seek(self, position_ms: int) -> None:
         """
         跳转到指定时间位置（时间线型源重写）。
         :param position_ms: 目标位置（毫秒）
         """
-        self._logger.debug("适配器 %s 不支持 seek", self._adapter_name)
+        self._unsupported("seek")
 
     def control_media(self, media_id: str, action: str, media_index: int = 0) -> None:
         """
@@ -137,7 +143,7 @@ class SourceAdapter(ABC):
         :param action: 控制动作（play / pause / stop）
         :param media_index: 当前页媒体序号
         """
-        self._logger.debug("适配器 %s 不支持 control_media", self._adapter_name)
+        self._unsupported("control_media")
 
     def set_loop(self, enabled: bool) -> None:
         """
@@ -145,21 +151,29 @@ class SourceAdapter(ABC):
         默认实现：不支持的源类型忽略操作。
         :param enabled: 是否启用循环播放
         """
-        self._logger.debug("适配器 %s 不支持 set_loop", self._adapter_name)
+        self._unsupported("set_loop")
 
     def set_volume(self, volume: int) -> None:
         """
         设置播放音量（带音频输出的源重写）。
         :param volume: 音量等级（0-100）
         """
-        self._logger.debug("适配器 %s 不支持 set_volume", self._adapter_name)
+        self._unsupported("set_volume")
 
     def set_mute(self, muted: bool) -> None:
         """
         设置静音状态（带音频输出的源重写）。
         :param muted: 是否静音
         """
-        self._logger.debug("适配器 %s 不支持 set_mute", self._adapter_name)
+        self._unsupported("set_mute")
+
+    def supports(self, operation: str) -> bool:
+        """返回适配器是否支持指定操作。"""
+        return operation in self.capabilities
+
+    def _unsupported(self, operation: str) -> None:
+        """抛出可被服务层转换为业务错误的能力异常。"""
+        raise UnsupportedAdapterOperation(f"适配器 {self._adapter_name} 不支持操作：{operation}")
 
     # ═══════════════════ 状态获取 ═══════════════════
 

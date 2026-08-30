@@ -139,7 +139,7 @@ class TestGetSessionSnapshot:
             "window_id", "session_id", "source_id", "source_name", "source_type", "source_type_label", "source_uri",
             "playback_state", "playback_state_label",
             "display_mode", "display_mode_label",
-            "target_display_label", "spliced_display_label", "is_spliced",
+            "target_display_label",
             "error_message",
             "current_slide", "total_slides", "position_ms", "duration_ms",
             "pending_command", "player_online", "player_last_seen_at",

@@ -94,6 +94,15 @@ def prepare_slides_pdf(
         source.save(update_fields=["metadata"])
         return metadata
 
+    # 测试/受限环境可关闭自动 COM 导出；显式注入 exporter 仍用于单元测试和
+    # 离线批处理。生产默认开启，以便动态 PPT 也具备 PDF fallback。
+    if not bool(getattr(settings, "SLIDES_PDF_AUTO_CONVERT", True)) and pdf_exporter is None:
+        metadata["slides_static"] = None
+        metadata[SLIDES_PLAYBACK_MODE_KEY] = "powerpoint"
+        source.metadata = metadata
+        source.save(update_fields=["metadata"])
+        return metadata
+
     detector = static_detector or detect_slides_static
     try:
         static = detector(source_path)
@@ -101,21 +110,18 @@ def prepare_slides_pdf(
         logger.warning("演示文稿静态检测失败，回退 PowerPoint：source_id=%s, error=%s", source.pk, detect_error)
         static = None
 
-    if static is not True:
-        metadata[SLIDES_PLAYBACK_MODE_KEY] = "powerpoint"
-        metadata["slides_static"] = False if static is False else None
-        source.metadata = metadata
-        source.save(update_fields=["metadata"])
-        return metadata
-
-    metadata["slides_static"] = True
+    # 所有可读 PPT 都尝试生成 PDF：静态源优先以 PDF 播放，动态/未知源仍保留
+    # PowerPoint 主模式，但在 COM 槽位被占用时可安全回退到同一份 PDF。
+    metadata["slides_static"] = static is True if static is not None else None
     try:
         payload = _build_pdf_cache(source, pdf_exporter)
     except Exception as cache_error:
         logger.warning("演示文稿 PDF 缓存生成失败：source_id=%s, error=%s", source.pk, cache_error)
         payload = _failed_payload(source, str(cache_error))
     metadata[SLIDES_PDF_METADATA_KEY] = payload
-    metadata[SLIDES_PLAYBACK_MODE_KEY] = "pdf" if payload.get("status") == "ready" else "powerpoint"
+    metadata[SLIDES_PLAYBACK_MODE_KEY] = (
+        "pdf" if static is True and payload.get("status") == "ready" else "powerpoint"
+    )
     source.metadata = metadata
     source.save(update_fields=["metadata"])
     return metadata
@@ -140,6 +146,25 @@ def resolve_slide_playback_uri(source: MediaSource) -> str:
         if Path(source.uri).suffix.lower() == ".pdf":
             return source.uri
     return resolve_ppt_playback_uri(source)
+
+
+def get_slides_pdf_uri(source: MediaSource) -> str:
+    """返回已生成且摘要对应当前源的 PDF 回退路径；不可用时返回空字符串。"""
+    if source.source_type != SourceType.PPT:
+        return ""
+    metadata = dict(source.metadata or {})
+    payload = dict(metadata.get(SLIDES_PDF_METADATA_KEY) or {})
+    path = _pdf_path_from_metadata(payload)
+    if path is None or not path.is_file():
+        return ""
+    source_path = Path(source.uri)
+    if source_path.is_file() and payload.get("source_digest"):
+        try:
+            if payload.get("source_digest") != _file_digest(source_path):
+                return ""
+        except OSError:
+            return ""
+    return str(path)
 
 
 def get_slides_playback_mode(source: MediaSource) -> str:
@@ -558,6 +583,7 @@ __all__ = [
     "detect_slides_static",
     "export_slides_pdf",
     "get_slides_playback_mode",
+    "get_slides_pdf_uri",
     "prepare_slides_pdf",
     "resolve_slide_playback_uri",
 ]

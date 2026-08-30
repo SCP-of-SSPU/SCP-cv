@@ -29,7 +29,7 @@ from scp_cv.apps.dashboard.api_utils import (
     parse_window_id,
 )
 from scp_cv.apps.playback.models import PlaybackCommand
-from scp_cv.services.display import build_left_right_splice_target, list_display_targets
+from scp_cv.services.display import list_display_targets
 from scp_cv.services.physical_smoke import (
     DEFAULT_TOTAL_TIMEOUT_SECONDS,
     PhysicalSmokeError,
@@ -432,19 +432,14 @@ def restart_all_api(request: HttpRequest) -> JsonResponse:
 @require_GET
 def list_displays_api(request: HttpRequest) -> JsonResponse:
     """
-    获取显示器列表和左右拼接标签。
+    获取可供播放器选择的单屏显示器列表。
     :param request: HTTP 请求
     :return: 显示器列表
     """
     display_targets = list_display_targets()
-    splice_target = build_left_right_splice_target(display_targets)
     return json_response({
         "success": True,
         "targets": [target.__dict__ for target in display_targets],
-        "splice_label": (
-            f"{splice_target.left.name} + {splice_target.right.name}"
-            if splice_target is not None else ""
-        ),
     })
 
 

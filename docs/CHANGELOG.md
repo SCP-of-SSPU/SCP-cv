@@ -2,6 +2,13 @@
 
 ## 2026-08-30
 
+### 移除 gRPC，仅保留 REST/SSE
+
+- 删除 gRPC 服务、gRPC-Web 代理、protobuf 合同、生成代码、测试和第三方生成器。
+- 清理 Django、runall、环境变量、Python/Node 依赖及当前部署/API 文档中的 gRPC 入口。
+- 保持 REST、SSE、Vue 控制台、播放器、MediaMTX 和设备控制链路不变。
+- 验证：389 个后端测试、Django check、迁移检查、Ruff、前端 typecheck/build、Redocly 和残留扫描通过。
+
 ### GitHub Spec Kit 工作流
 
 - 增加 Spec Kit 项目宪章、`specs/` 目录约定及 Codex 端到端 SDD 流程说明。

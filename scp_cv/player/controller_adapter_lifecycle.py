@@ -127,8 +127,14 @@ class PlayerAdapterLifecycleMixin:
                 from scp_cv.services.media import delete_temporary_source_if_unused
 
                 delete_temporary_source_if_unused(int(source_id))
-            except Exception:
-                pass
+            except Exception as cleanup_error:
+                logger.warning(
+                    "清理 PowerPoint 临时源失败：window_id=%d source_id=%d "
+                    "stage=powerpoint_close error=%s；保留记录供后续重试",
+                    window_id,
+                    source_id,
+                    cleanup_error,
+                )
         logger.info("窗口 %d PowerPoint 已完整关闭", window_id)
 
     @staticmethod

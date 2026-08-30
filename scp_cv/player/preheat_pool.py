@@ -155,6 +155,8 @@ class PlayerPreheatPool:
         handle = self._streams.pop(source_id, None)
         if handle is None:
             return None
+        if handle.is_stale():
+            handle.refresh()
         if handle.is_stale() or not handle.matches(source_id, uri):
             handle.close()
             return None
@@ -163,6 +165,14 @@ class PlayerPreheatPool:
             handle.close()
             return None
         return claimed
+
+    def maintain(self) -> None:
+        """维护长期 keep_alive 直播资源，续热或在后台重建。"""
+        for handle in list(self._streams.values()):
+            if not handle.is_ready:
+                continue
+            if handle.is_stale() and not handle.refresh():
+                self._streams.pop(handle.source_id, None)
 
     def preheat_ppt_source(self, source_id: int = 0, uri: str = "") -> None:
         """

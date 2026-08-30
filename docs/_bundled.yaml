@@ -1091,7 +1091,7 @@ paths:
     get:
       tags:
         - displays
-      summary: 获取显示器列表与拼接标签
+      summary: 获取可选物理显示器列表
       operationId: listDisplays
       responses:
         '200':
@@ -1828,7 +1828,6 @@ components:
       type: string
       enum:
         - single
-        - left_right_splice
     SessionSnapshot:
       type: object
       required:
@@ -1845,8 +1844,6 @@ components:
         - display_mode
         - display_mode_label
         - target_display_label
-        - spliced_display_label
-        - is_spliced
         - current_slide
         - total_slides
         - position_ms
@@ -1893,10 +1890,6 @@ components:
           type: string
         target_display_label:
           type: string
-        spliced_display_label:
-          type: string
-        is_spliced:
-          type: boolean
         current_slide:
           type: integer
         total_slides:
@@ -2528,14 +2521,11 @@ components:
         - type: object
           required:
             - targets
-            - splice_label
           properties:
             targets:
               type: array
               items:
                 $ref: '#/components/schemas/DisplayTarget'
-            splice_label:
-              type: string
     SelectDisplayRequest:
       type: object
       properties:

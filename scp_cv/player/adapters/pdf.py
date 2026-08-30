@@ -88,6 +88,7 @@ class _PdfPageWidget(QWidget):
 
 
 class PdfSourceAdapter(SourceAdapter):
+    capabilities = frozenset({"next", "prev", "goto"})
     """
     PDF 演示文稿显示适配器。
 

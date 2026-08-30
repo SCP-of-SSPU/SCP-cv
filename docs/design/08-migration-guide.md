@@ -8,11 +8,11 @@
 
 | 原则 | 说明 |
 | --- | --- |
-| 先契约后界面 | 先保留 REST/SSE/gRPC 和数据模型语义，再替换前端组件 |
+| 先契约后界面 | 先保留 REST/SSE 和数据模型语义，再替换前端组件 |
 | 先旁路后切换 | 先让新项目旁路调用旧服务或复制服务层，再切换真实入口 |
 | 保留播放器边界 | PySide6 播放器继续独立进程，不并入 Web Worker |
 | 保留窗口语义 | `window_id` 1-4 和 single/double 模式不可随意重排 |
-| 保持 PowerPoint-only | PPT 导入、预览、缓存、预热和放映只走 Microsoft PowerPoint |
+| 保持单 COM/PDF 回退 | PPT 导入、预览和缓存保留 PowerPoint 兼容性；运行时同一主机最多一个 COM，其余使用摘要匹配 PDF |
 | 保留状态回写 | 前端展示以播放器写回状态为准 |
 | 小步验收 | 每迁一类源或一个页面都做对应回归 |
 
@@ -22,7 +22,7 @@
 目标 Django 项目
   users / permissions / admin / deployment
   scp_cv domain app
-    models / services / api / grpc
+    models / services / api
   media storage / logs
 
 目标 Vue + Fluent 控制台
@@ -45,7 +45,6 @@
 | Models | `scp_cv/apps/playback/models/`, `scp_cv/apps/streams/models.py` | 作为新 Django app 或并入现有 app，保留字段语义 |
 | Services | `scp_cv/services/` | 优先整体迁移，避免把业务逻辑塞入 view |
 | REST API | `scp_cv/apps/dashboard/api_*.py`, `api_urls.py` | 迁到目标 URL namespace，保留响应格式 |
-| gRPC | `protos/`, `scp_cv/grpc_servicers/` | 如果仍有中控集成则保留，否则做兼容代理 |
 | SSE | `scp_cv/services/sse.py` | 保留 `playback_state` 事件，内部可替换为 Redis/channel |
 | Player | `scp_cv/player/` | 保持独立包和管理命令启动 |
 | Runall | `scp_cv/apps/dashboard/management/commands/runall.py` | 可改造成目标平台进程编排器或 supervisor 配置 |
@@ -60,7 +59,7 @@
 
 | 输出物 | 说明 |
 | --- | --- |
-| API 清单 | 以 `docs/openapi.yaml` 和 `docs/design/04-api-realtime-grpc.md` 为基础 |
+| API 清单 | 以 `docs/openapi.yaml` 为基础 |
 | 模型清单 | 以 `docs/design/02-data-model.md` 为基础 |
 | 播放器命令清单 | `PlaybackCommand`、`BackgroundAudioCommand`、`command_args` |
 | 现场运行清单 | 显示器、IP、端口、PowerPoint/VLC/MediaMTX |
@@ -174,7 +173,6 @@
 | 认证 | 可接目标 SSO，但前端仍需要 JSON 401，不要 redirect HTML |
 | CSRF | 如果仍用 Cookie session，保留 `auth/csrf/` 或等价机制 |
 | SSE | 保留 `playback_state` 事件名和 sessions/background_audio payload |
-| gRPC | 如有中控设备，保持 proto 兼容；如无，至少保留 REST 等价能力 |
 | OpenAPI | 更新 `docs/openapi.yaml` 并让前端类型同步 |
 
 ## 播放器迁移策略
@@ -216,9 +214,8 @@
 | 目标项目部署在非 Windows | 播放器和 Office 后端不可用 | Web 后端可跨平台，播放器节点仍需 Windows |
 | 单字段命令总线未改进 | 高频操作覆盖 | 迁移时加版本号或队列，但保留兼容写法 |
 | 组件替换改变移动端流程 | 现场操作效率下降 | 先做真实设备可用性测试 |
-| 删除 gRPC | 中控系统或脚本失效 | 迁移前确认外部消费者 |
 | 忽略 MediaMTX 自动发现 | 直播源不可见 | 保留 `sync_stream_states()` 和 `sync_streams_to_media_sources()` |
-| 恢复 PPT 多后端 | 与 PowerPoint-only 合同冲突 | 不恢复源级或会话级 `ppt_backend` |
+| 恢复 PPT 多后端 | 与单 COM/PDF 回退合同冲突 | 不恢复源级或会话级 `ppt_backend` |
 | 把 reset-all 当作普通 close | 窗口不重建，状态残留 | 保留 coordinator command 语义或提供等价重建命令 |
 
 ## 迁移验收矩阵
@@ -239,7 +236,6 @@
 | 设备 | 拼接屏电源、TV toggle TCP 指令 |
 | 系统音量 | Windows Core Audio 和 fallback |
 | SSE | 播放器状态变化可实时到前端 |
-| gRPC | 现有自动化脚本可继续调用 |
 | runall | 启动、skip 参数、headless、service、shutdown |
 | 物理烟测 | `/api/playback/physical-smoke/` 可完整跑通 |
 

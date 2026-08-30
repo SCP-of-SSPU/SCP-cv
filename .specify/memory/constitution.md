@@ -32,7 +32,7 @@ Sync Impact Report
 
 ### IV. 集成边界清晰
 
-REST、SSE、gRPC、播放器、MediaMTX、PowerPoint COM 和前端之间的合同变更 MUST 同步更新
+REST、SSE、播放器、MediaMTX、PowerPoint COM 和前端之间的合同变更 MUST 同步更新
 相关文档与测试。模块 MUST 通过已有服务边界协作，不得绕过权限、生命周期或资源清理约束。
 
 ### V. 简单、可观测、可维护

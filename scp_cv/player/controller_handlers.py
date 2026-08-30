@@ -45,6 +45,18 @@ class PlayerCommandHandlersMixin(
     单独拆出是为了让主控制器文件只保留轮询、信号和窗口注册职责。
     """
 
+    def _require_adapter_capability(self, window_id: int, operation: str) -> object:
+        """确认适配器存在且支持操作，避免 no-op 后伪造会话状态。"""
+        adapter = self._adapters.get(window_id)
+        if adapter is None:
+            raise RuntimeError(f"窗口 {window_id} 当前没有可用播放器适配器")
+        supports = getattr(adapter, "supports", None)
+        if callable(supports) and not supports(operation):
+            from scp_cv.player.adapters.base import UnsupportedAdapterOperation
+
+            raise UnsupportedAdapterOperation(f"适配器不支持 {operation} 操作")
+        return adapter
+
     def _handle_open(self, window_id: int, command_args: dict[str, object]) -> None:
         """
         处理 OPEN 指令：创建新适配器，待新内容可见后再关闭旧适配器。
@@ -61,6 +73,8 @@ class PlayerCommandHandlersMixin(
         is_web_source = source_type == "web"
         is_ppt_source = source_type == "ppt"
         adapter_kind = str(command_args.get("adapter_kind") or "")
+        command_id = int(command_args.get("_command_record_id") or 0)
+        consumer_id = str(command_args.get("_command_consumer_id") or "")
         if is_ppt_source and not adapter_kind:
             adapter_kind = "pdf" if uri.lower().endswith(".pdf") else "powerpoint"
         is_pdf_source = is_ppt_source and adapter_kind == "pdf"
@@ -68,8 +82,7 @@ class PlayerCommandHandlersMixin(
         is_stream_source = _is_stream_source(source_type)
 
         if not source_type or not uri:
-            logger.warning("窗口 %d：OPEN 指令缺少 source_type 或 uri", window_id)
-            return
+            raise ValueError(f"窗口 {window_id} 的 OPEN 指令缺少 source_type 或 uri")
 
         previous_adapter = self._adapters.pop(window_id, None)
         previous_source_type = self._adapter_source_types.pop(window_id, None)
@@ -102,23 +115,8 @@ class PlayerCommandHandlersMixin(
                 return
 
             if is_powerpoint_source:
-                # PowerPoint 是进程级单实例：打开新的完整放映前，先完整关闭其它窗口
-                # 正在放映的 PowerPoint，并等待 COM 资源真正释放，避免旧 HWND 竞态。
-                for other_window_id in list(self._adapters.keys()):
-                    if self._adapter_kinds.get(other_window_id) != "powerpoint":
-                        continue
-                    other_adapter = self._adapters.pop(other_window_id, None)
-                    other_source_type = self._adapter_source_types.pop(other_window_id, None)
-                    other_source_id = self._adapter_source_ids.pop(other_window_id, None)
-                    self._adapter_kinds.pop(other_window_id, None)
-                    self._last_reported_states.pop(other_window_id, None)
-                    self._close_powerpoint_adapter_sync(
-                        other_window_id,
-                        other_adapter,
-                        other_source_type,
-                        other_source_id,
-                        reset_session=True,
-                    )
+                # 仅尝试主机唯一槽位；槽位冲突时由完成回调选择匹配 PDF，
+                # 不关闭其它窗口的 COM，也不等待其释放。
                 if (
                     previous_adapter is not None
                     and previous_source_type == "ppt"
@@ -175,6 +173,8 @@ class PlayerCommandHandlersMixin(
                             previous_source_type,
                             previous_source_id,
                             previous_adapter_kind,
+                            command_id,
+                            consumer_id,
                         )
                         return
             adapter.open(uri=uri, window_handle=window_handle, autoplay=autoplay)
@@ -182,8 +182,11 @@ class PlayerCommandHandlersMixin(
                 adapter.goto_item(target_slide)
             elif is_pdf_source and target_slide > 0:
                 adapter.goto_item(target_slide)
-            adapter.set_volume(int(command_args.get("volume", 100)))
-            adapter.set_mute(bool(command_args.get("muted", False)))
+            supports = getattr(adapter, "supports", None)
+            if not callable(supports) or supports("set_volume"):
+                adapter.set_volume(int(command_args.get("volume", 100)))
+            if not callable(supports) or supports("set_mute"):
+                adapter.set_mute(bool(command_args.get("muted", False)))
         except Exception:
             if adapter is not None:
                 try:
@@ -231,32 +234,31 @@ class PlayerCommandHandlersMixin(
                 restore_window=False,
                 reheat=True,
             )
-        self._cleanup_temporary_source(command_args)
+        cleanup_args = dict(command_args)
+        cleanup_args["_window_id"] = window_id
+        self._cleanup_temporary_source(cleanup_args)
 
     def _handle_play(self, window_id: int, command_args: dict[str, object]) -> None:
         """处理 PLAY 指令。"""
-        adapter = self._adapters.get(window_id)
-        if adapter is not None:
-            adapter.play()
-            if self._adapter_source_types.get(window_id) == "ppt":
-                self._show_ppt_container(window_id)
-            self._update_session_state(window_id, "playing")
+        adapter = self._require_adapter_capability(window_id, "play")
+        adapter.play()
+        if self._adapter_source_types.get(window_id) == "ppt":
+            self._show_ppt_container(window_id)
+        self._update_session_state(window_id, "playing")
 
     def _handle_pause(self, window_id: int, command_args: dict[str, object]) -> None:
         """处理 PAUSE 指令。"""
-        adapter = self._adapters.get(window_id)
-        if adapter is not None:
-            adapter.pause()
-            self._update_session_state(window_id, "paused")
+        adapter = self._require_adapter_capability(window_id, "pause")
+        adapter.pause()
+        self._update_session_state(window_id, "paused")
 
     def _handle_stop(self, window_id: int, command_args: dict[str, object]) -> None:
         """处理 STOP 指令。"""
-        adapter = self._adapters.get(window_id)
-        if adapter is not None:
-            adapter.stop()
-            if self._adapter_source_types.get(window_id) == "ppt":
-                self._restore_player_window_to_black(window_id)
-            self._update_session_state(window_id, "stopped")
+        adapter = self._require_adapter_capability(window_id, "stop")
+        adapter.stop()
+        if self._adapter_source_types.get(window_id) == "ppt":
+            self._restore_player_window_to_black(window_id)
+        self._update_session_state(window_id, "stopped")
 
     def _handle_close(self, window_id: int, command_args: dict[str, object]) -> None:
         """处理 CLOSE 指令：关闭适配器并重置会话。"""
@@ -267,7 +269,9 @@ class PlayerCommandHandlersMixin(
             return
 
         self._close_adapter(window_id)
-        self._cleanup_temporary_source(command_args)
+        cleanup_args = dict(command_args)
+        cleanup_args["_window_id"] = window_id
+        self._cleanup_temporary_source(cleanup_args)
 
         window = self.get_window(window_id)
         if window is not None:
@@ -359,47 +363,46 @@ class PlayerCommandHandlersMixin(
         if not cleanup_source_id:
             return
         from scp_cv.services.media import MediaError, delete_temporary_source_if_unused
+        window_id = command_args.get("_window_id", "unknown")
         try:
             delete_temporary_source_if_unused(int(cleanup_source_id))
         except (ValueError, MediaError) as cleanup_error:
-            logger.warning("清理临时源失败：%s", cleanup_error)
+            logger.warning(
+                "清理临时源失败：window_id=%s source_id=%s stage=delete error=%s",
+                window_id,
+                cleanup_source_id,
+                cleanup_error,
+            )
 
     def _handle_next(self, window_id: int, command_args: dict[str, object]) -> None:
         """处理 NEXT 指令。"""
-        adapter = self._adapters.get(window_id)
-        if adapter is not None:
-            adapter.next_item()
+        self._require_adapter_capability(window_id, "next").next_item()
 
     def _handle_prev(self, window_id: int, command_args: dict[str, object]) -> None:
         """处理 PREV 指令。"""
-        adapter = self._adapters.get(window_id)
-        if adapter is not None:
-            adapter.prev_item()
+        self._require_adapter_capability(window_id, "prev").prev_item()
 
     def _handle_goto(self, window_id: int, command_args: dict[str, object]) -> None:
         """处理 GOTO 指令。"""
-        adapter = self._adapters.get(window_id)
-        if adapter is not None:
-            target_index = int(command_args.get("target_index", 1))
-            adapter.goto_item(target_index)
+        adapter = self._require_adapter_capability(window_id, "goto")
+        target_index = int(command_args.get("target_index", 1))
+        adapter.goto_item(target_index)
 
     def _handle_seek(self, window_id: int, command_args: dict[str, object]) -> None:
         """处理 SEEK 指令。"""
-        adapter = self._adapters.get(window_id)
-        if adapter is not None:
-            position_ms = int(command_args.get("position_ms", 0))
-            adapter.seek(position_ms)
+        adapter = self._require_adapter_capability(window_id, "seek")
+        position_ms = int(command_args.get("position_ms", 0))
+        adapter.seek(position_ms)
 
     def _handle_ppt_media(self, window_id: int, command_args: dict[str, object]) -> None:
         """处理 PPT 当前页媒体播放 / 暂停 / 停止指令。"""
-        adapter = self._adapters.get(window_id)
-        if adapter is not None:
-            media_index = int(command_args.get("media_index", 0))
-            adapter.control_media(
-                str(command_args.get("media_id", "")),
-                str(command_args.get("media_action", "")),
-                media_index,
-            )
+        adapter = self._require_adapter_capability(window_id, "control_media")
+        media_index = int(command_args.get("media_index", 0))
+        adapter.control_media(
+            str(command_args.get("media_id", "")),
+            str(command_args.get("media_action", "")),
+            media_index,
+        )
 
     def _handle_reset_ppt(self, window_id: int, command_args: dict[str, object]) -> None:
         """
@@ -436,11 +439,10 @@ class PlayerCommandHandlersMixin(
         :param window_id: 窗口编号
         :param command_args: 包含 enabled 字段的参数字典
         """
-        adapter = self._adapters.get(window_id)
-        if adapter is not None:
-            loop_enabled = bool(command_args.get("enabled", False))
-            adapter.set_loop(loop_enabled)
-            logger.info("窗口 %d 循环播放已设置为 %s", window_id, loop_enabled)
+        adapter = self._require_adapter_capability(window_id, "set_loop")
+        loop_enabled = bool(command_args.get("enabled", False))
+        adapter.set_loop(loop_enabled)
+        logger.info("窗口 %d 循环播放已设置为 %s", window_id, loop_enabled)
 
     def _handle_set_volume(self, window_id: int, command_args: dict[str, object]) -> None:
         """
@@ -448,11 +450,10 @@ class PlayerCommandHandlersMixin(
         :param window_id: 窗口编号
         :param command_args: 包含 volume 字段的参数字典
         """
-        adapter = self._adapters.get(window_id)
-        if adapter is not None:
-            volume = int(command_args.get("volume", 100))
-            adapter.set_volume(volume)
-            logger.info("窗口 %d 音量已设置为 %d", window_id, volume)
+        adapter = self._require_adapter_capability(window_id, "set_volume")
+        volume = int(command_args.get("volume", 100))
+        adapter.set_volume(volume)
+        logger.info("窗口 %d 音量已设置为 %d", window_id, volume)
 
     def _handle_set_mute(self, window_id: int, command_args: dict[str, object]) -> None:
         """
@@ -460,11 +461,10 @@ class PlayerCommandHandlersMixin(
         :param window_id: 窗口编号
         :param command_args: 包含 muted 字段的参数字典
         """
-        adapter = self._adapters.get(window_id)
-        if adapter is not None:
-            muted = bool(command_args.get("muted", False))
-            adapter.set_mute(muted)
-            logger.info("窗口 %d 静音已设置为 %s", window_id, muted)
+        adapter = self._require_adapter_capability(window_id, "set_mute")
+        muted = bool(command_args.get("muted", False))
+        adapter.set_mute(muted)
+        logger.info("窗口 %d 静音已设置为 %s", window_id, muted)
 
     def _handle_show_id(self, window_id: int, command_args: dict[str, object]) -> None:
         """

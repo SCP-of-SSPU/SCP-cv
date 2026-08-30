@@ -25,10 +25,7 @@ from scp_cv.apps.playback.models import (
     RuntimeState,
     SourceType,
 )
-from scp_cv.services.display import (
-    build_left_right_splice_target,
-    list_display_targets,
-)
+from scp_cv.services.display import list_display_targets
 from scp_cv.services.playback_sessions import (
     VALID_WINDOW_IDS as VALID_WINDOW_IDS,
     PlaybackError as PlaybackError,
@@ -41,10 +38,7 @@ from scp_cv.services.playback_commands import (
     clear_playback_command_queue,
     enqueue_playback_command,
 )
-from scp_cv.services.playback_powerpoint import (
-    close_other_powerpoint_sessions,
-    reset_ppt_playback as reset_ppt_playback,
-)
+from scp_cv.services.playback_powerpoint import reset_ppt_playback as reset_ppt_playback
 from scp_cv.services.playback_lifecycle import (
     RESET_ALL_WINDOWS_ARG as RESET_ALL_WINDOWS_ARG,
     RESET_TOKEN_ARG as RESET_TOKEN_ARG,
@@ -59,12 +53,37 @@ from scp_cv.services.playback_window_controls import (
     toggle_loop_playback as toggle_loop_playback,
 )
 from scp_cv.services.slides_pdf import (
+    get_slides_pdf_uri,
     get_slides_playback_mode,
     resolve_slide_playback_uri,
 )
 from scp_cv.services.video_wall import VideoWallError, apply_big_screen_mode as apply_video_wall_mode
 
 logger = logging.getLogger(__name__)
+
+
+_SOURCE_CAPABILITIES: dict[str, frozenset[str]] = {
+    SourceType.PPT: frozenset({"play", "pause", "stop", "next", "prev", "goto", "control_media"}),
+    SourceType.VIDEO: frozenset({"play", "pause", "stop", "seek", "set_loop", "set_volume", "set_mute"}),
+    SourceType.IMAGE: frozenset(),
+    SourceType.WEB: frozenset({"play", "stop"}),
+    SourceType.CUSTOM_STREAM: frozenset({"play", "pause", "stop", "set_volume", "set_mute"}),
+    SourceType.RTSP_STREAM: frozenset({"play", "pause", "stop", "set_volume", "set_mute"}),
+    SourceType.SRT_STREAM: frozenset({"play", "pause", "stop", "set_volume", "set_mute"}),
+}
+
+
+def source_supports_operation(session: PlaybackSession, operation: str) -> bool:
+    """返回当前源是否声明支持指定控制操作。"""
+    source_type = session.media_source.source_type if session.media_source else ""
+    return operation in _SOURCE_CAPABILITIES.get(source_type, frozenset())
+
+
+def require_source_capability(session: PlaybackSession, operation: str) -> None:
+    """不支持操作时抛出业务错误，防止 REST 返回虚假成功。"""
+    if not source_supports_operation(session, operation):
+        source_type = session.media_source.source_type if session.media_source else "无源"
+        raise PlaybackError(f"源类型 {source_type} 不支持 {operation} 操作")
 
 def reset_all_sessions_to_idle(*, rebuild_players: bool = True) -> list[PlaybackSession]:
     """
@@ -77,7 +96,7 @@ def reset_all_sessions_to_idle(*, rebuild_players: bool = True) -> list[Playback
         session = get_or_create_session(window_id)
         _reset_playback_fields(session)
         session.save()
-        clear_playback_command_queue(session)
+        clear_playback_command_queue(session, preserve_processing=rebuild_players)
         reset_sessions.append(session)
     if rebuild_players:
         apply_runtime_audio_policy()
@@ -154,6 +173,9 @@ def apply_runtime_audio_policy() -> None:
     for window_id in sorted(VALID_WINDOW_IDS):
         session = get_or_create_session(window_id)
         muted = window_id in muted_windows
+        if session.media_source is not None and not source_supports_operation(session, "set_mute"):
+            logger.debug("窗口 %d 的源不支持静音，跳过运行态静音指令", window_id)
+            continue
         session.is_muted = muted
         enqueue_playback_command(
             session,
@@ -185,12 +207,6 @@ def open_source(
     if source.source_type == SourceType.AUDIO:
         raise PlaybackError("音频源只能通过背景音乐模块播放")
 
-    if (
-        source.source_type == SourceType.PPT
-        and get_slides_playback_mode(source) == "powerpoint"
-    ):
-        close_other_powerpoint_sessions(window_id)
-
     session = get_or_create_session(window_id)
     previous_source_id = session.media_source_id
     previous_source_is_temporary = bool(
@@ -217,6 +233,7 @@ def open_source(
     if source.source_type == SourceType.PPT:
         command_args["original_uri"] = source.uri
         command_args["adapter_kind"] = get_slides_playback_mode(source)
+        command_args["fallback_uri"] = get_slides_pdf_uri(source)
         if target_slide > 0:
             command_args["target_slide"] = int(target_slide)
     if previous_source_is_temporary:
@@ -244,6 +261,7 @@ def control_playback(window_id: int, action: str) -> PlaybackSession:
     session = get_or_create_session(window_id)
     if session.media_source is None:
         raise PlaybackError(f"窗口 {window_id} 当前没有打开的媒体源")
+    require_source_capability(session, action)
 
     enqueue_playback_command(session, action)
     logger.info("窗口 %d 发送播放控制指令：%s", window_id, action)
@@ -273,6 +291,7 @@ def navigate_content(
     session = get_or_create_session(window_id)
     if session.media_source is None:
         raise PlaybackError(f"窗口 {window_id} 当前没有打开的媒体源")
+    require_source_capability(session, action)
     if _navigation_is_noop(session, action, target_index):
         return session
 
@@ -309,6 +328,7 @@ def control_ppt_media(
         raise PlaybackError(f"窗口 {window_id} 当前没有打开的媒体源")
     if session.media_source.source_type != SourceType.PPT:
         raise PlaybackError("当前窗口未打开 PPT 源")
+    require_source_capability(session, "control_media")
 
     command_args = {
         "media_action": media_action,
@@ -443,9 +463,9 @@ def select_display_target(
     target_display_name: str = "",
 ) -> PlaybackSession:
     """
-    为指定窗口选择显示目标：单屏或左右拼接模式。
+    为指定窗口选择单个显示器目标。
     :param window_id: 窗口编号（1-4）
-    :param display_mode: 'single' 或 'left_right_splice'
+    :param display_mode: 仅支持 'single'
     :param target_display_name: 目标显示器名称（单屏模式下必填）
     :return: 更新后的播放会话
     :raises PlaybackError: 显示器不存在或不足时
@@ -453,37 +473,17 @@ def select_display_target(
     session = get_or_create_session(window_id)
     display_targets = list_display_targets()
 
-    if display_mode == PlaybackMode.SINGLE:
-        if target_display_name:
-            matched_display = next(
-                (dt for dt in display_targets if dt.name == target_display_name),
-                None,
-            )
-            if matched_display is None:
-                raise PlaybackError(f"显示器「{target_display_name}」不存在")
-            session.target_display_label = matched_display.name
-        elif display_targets:
-            primary_display = next(
-                (dt for dt in display_targets if dt.is_primary), display_targets[0],
-            )
-            session.target_display_label = primary_display.name
-
-        session.display_mode = PlaybackMode.SINGLE
-        session.is_spliced = False
-        session.spliced_display_label = ""
-
-    elif display_mode == PlaybackMode.LEFT_RIGHT_SPLICE:
-        splice_target = build_left_right_splice_target(display_targets)
-        if splice_target is None:
-            raise PlaybackError("检测到的显示器不足两台，无法进行左右拼接")
-
-        session.display_mode = PlaybackMode.LEFT_RIGHT_SPLICE
-        session.is_spliced = True
-        session.target_display_label = splice_target.left.name
-        session.spliced_display_label = f"{splice_target.left.name} + {splice_target.right.name}"
-
-    else:
+    if display_mode != PlaybackMode.SINGLE:
         raise PlaybackError(f"未知的显示模式：{display_mode}")
+    if target_display_name:
+        matched_display = next((dt for dt in display_targets if dt.name == target_display_name), None)
+        if matched_display is None:
+            raise PlaybackError(f"显示器「{target_display_name}」不存在")
+        session.target_display_label = matched_display.name
+    elif display_targets:
+        primary_display = next((dt for dt in display_targets if dt.is_primary), display_targets[0])
+        session.target_display_label = primary_display.name
+    session.display_mode = PlaybackMode.SINGLE
 
     session.save()
     logger.info(

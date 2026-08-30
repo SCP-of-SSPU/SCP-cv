@@ -24,7 +24,7 @@
 | 枚举 | 值 | 语义 |
 | --- | --- | --- |
 | `SourceType` | `ppt`, `video`, `audio`, `image`, `web`, `custom_stream`, `rtsp_stream`, `srt_stream` | 媒体源类型，前端筛选、服务校验和 adapter 工厂都依赖这些值 |
-| `PlaybackMode` | `single`, `left_right_splice` | 会话显示模式，拼接字段当前偏数据语义 |
+| `PlaybackMode` | `single` | 每个播放器窗口绑定一个物理显示器 |
 | `BigScreenMode` | `single`, `double` | 大屏单/双画面运行模式 |
 | `PlaybackState` | `idle`, `loading`, `playing`, `paused`, `stopped`, `error` | 前端、服务层、播放器共同使用的播放状态 |
 | `PlaybackCommand` | `open`, `play`, `pause`, `stop`, `close`, `seek`, `next`, `prev`, `goto`, `set_loop`, `set_volume`, `set_mute`, `ppt_media`, `reset_ppt`, `show_id` | 四窗口命令 |
@@ -32,7 +32,7 @@
 | `SourceState` | `unset`, `empty`, `set` | 预案 tri-state，区分不修改、清空、设置 |
 | `DeviceType` | `splice_screen`, `tv_left`, `tv_right` | 物理电源控制设备类型 |
 
-迁移时不要随意改枚举字符串。前端 API 类型、OpenAPI、gRPC 兼容层、历史数据和场景 JSON 都依赖字符串值。
+迁移时不要随意改枚举字符串。前端 API 类型、OpenAPI、历史数据和场景 JSON 都依赖字符串值。
 
 ## `MediaFolder`
 
@@ -132,10 +132,8 @@
 | `media_source` | 当前媒体源 | 后端服务层和关闭逻辑 |
 | `playback_state` | UI 可见状态 | 服务层初始化，播放器回写 |
 | `error_message` | 错误说明 | 播放器回写，服务层清空 |
-| `display_mode` | 单窗口或左右拼接 | 显示选择服务 |
+| `display_mode` | 单窗口 | 显示选择服务 |
 | `target_display_label` | 目标显示器标签 | run_player 和显示选择服务 |
-| `spliced_display_label` | 拼接目标标签 | 显示选择服务 |
-| `is_spliced` | 是否拼接 | 显示选择服务 |
 | `current_slide` | PPT 当前页，1-based | 播放器回写 |
 | `total_slides` | PPT 总页数 | 播放器回写 |
 | `position_ms` | 视频/音频/流进度 | 播放器回写 |
@@ -281,7 +279,7 @@ tri-state 设计的价值是避免预案激活时无意清空未配置窗口。�
 | `0021_add_wps_ppt_backend.py` | 支持 WPS 演示 |
 | `0023_background_audio.py` | 引入背景音频状态和播放列表 |
 | `0024_default_powerpoint_ppt_backend.py` | 默认 PPT 后端改为 PowerPoint |
-| `0025_remove_ppt_backend_fields.py` | 删除媒体源和会话 PPT 后端字段，统一 PowerPoint-only |
+| `0025_remove_ppt_backend_fields.py` | 删除媒体源和会话 PPT 后端字段；运行时由单 COM 槽位与 PDF 回退策略决定 |
 
 ## 数据迁移原则
 

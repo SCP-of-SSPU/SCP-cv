@@ -69,6 +69,9 @@ def validate_specs(specs_dir: Path) -> list[str]:
 
         documents = sorted(feature_dir.rglob("*.md"))
         for document in documents:
+            # 质量清单会描述占位符规则本身，不把该说明误判为未完成内容。
+            if "checklists" in document.relative_to(feature_dir).parts:
+                continue
             placeholders = _find_placeholders(document.read_text(encoding="utf-8"))
             if placeholders:
                 errors.append(f"{document}: 存在未完成占位符 {', '.join(placeholders)}")

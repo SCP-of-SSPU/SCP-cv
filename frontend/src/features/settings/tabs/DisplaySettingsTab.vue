@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * 设置中心显示器 Tab。
- * 负责选择物理显示器或左右拼接 label，并应用到指定播放窗口。
+ * 负责选择物理显示器并应用到指定播放窗口。
  */
 import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -19,7 +19,7 @@ import type { DisplayTargetItem } from '@/services/api';
 
 interface DisplaySelection {
   target: DisplayTargetItem | null;
-  mode: 'single' | 'left_right_splice';
+  mode: 'single';
   label: string;
 }
 
@@ -39,14 +39,6 @@ function pickDisplay(target: DisplayTargetItem): void {
     target,
     mode: 'single',
     label: target.name,
-  };
-}
-
-function pickSplice(): void {
-  displaySelection.value = {
-    target: null,
-    mode: 'left_right_splice',
-    label: display.spliceLabel,
   };
 }
 
@@ -86,12 +78,6 @@ async function applyDisplay(): Promise<void> {
           <p class="settings-view__display-meta">{{ target.width }} × {{ target.height }}</p>
           <p class="settings-view__display-meta">({{ target.x }}, {{ target.y }})</p>
           <FIcon v-if="target.is_primary" class="settings-view__display-primary" name="star_24_filled" />
-        </button>
-        <button type="button" class="settings-view__display-tile settings-view__display-tile--splice"
-          :class="{ 'settings-view__display-tile--selected': displaySelection.mode === 'left_right_splice' }"
-          :disabled="!display.spliceLabel" @click="pickSplice">
-          <p class="settings-view__display-name">{{ display.spliceLabel || t('settings.spliceUnset') }}</p>
-          <p class="settings-view__display-meta">{{ t('settings.spliceMeta') }}</p>
         </button>
       </div>
     </n-card>

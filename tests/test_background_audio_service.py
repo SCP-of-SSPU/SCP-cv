@@ -18,6 +18,7 @@ from django.test import Client
 
 from scp_cv.apps.playback.models import (
     BackgroundAudioCommand,
+    BackgroundAudioCommandRecord,
     BackgroundAudioPlaylistItem,
     BackgroundAudioState,
     MediaSource,
@@ -68,17 +69,16 @@ def test_remove_current_playlist_item_stops_background_audio(media_source_audio:
     :param media_source_audio: 音频媒体源
     :return: None
     """
-    state = play_source(media_source_audio.pk)
+    play_source(media_source_audio.pk)
     item = BackgroundAudioPlaylistItem.objects.get(source=media_source_audio)
-    state.pending_command = BackgroundAudioCommand.NONE
-    state.command_args = {}
-    state.save(update_fields=["pending_command", "command_args", "updated_at"])
 
     next_state = remove_playlist_item(item.pk)
 
     assert next_state.current_source_id is None
-    assert next_state.pending_command == BackgroundAudioCommand.STOP
-    assert next_state.command_args == {"clear_source": True}
+    assert list(BackgroundAudioCommandRecord.objects.values_list("command", flat=True)) == [
+        BackgroundAudioCommand.OPEN,
+        BackgroundAudioCommand.STOP,
+    ]
     assert not BackgroundAudioPlaylistItem.objects.filter(pk=item.pk).exists()
 
 
@@ -98,10 +98,14 @@ def test_stop_background_audio_deletes_temporary_audio_source(tmp_path: Path, se
     state = stop_background_audio()
 
     assert state.current_source_id is None
-    assert state.command_args == {"clear_source": True}
-    assert not MediaSource.objects.filter(pk=source.pk).exists()
+    stop_record = BackgroundAudioCommandRecord.objects.get(command=BackgroundAudioCommand.STOP)
+    assert stop_record.command_args == {
+        "clear_source": True,
+        "cleanup_source_id": source.pk,
+    }
+    assert MediaSource.objects.filter(pk=source.pk).exists()
     assert not BackgroundAudioPlaylistItem.objects.filter(source_id=source.pk).exists()
-    assert not uploaded_path.exists()
+    assert uploaded_path.exists()
 
 
 @pytest.mark.django_db

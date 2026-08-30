@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from scp_cv.player.window_interaction import PlayerWindowInteractionMixin
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ OVERLAY_DISPLAY_DURATION_MS = 5000
 CURSOR_IDLE_HIDE_DELAY_MS = 5000
 
 
-class PlayerWindow(QWidget):
+class PlayerWindow(PlayerWindowInteractionMixin, QWidget):
     """
     播放器显示窗口。每个物理屏幕对应一个实例。
 
@@ -414,117 +415,6 @@ class PlayerWindow(QWidget):
             self.deleteLater()
         finally:
             self._suppress_close_signal = False
-
-    # ═══════════════════ 鼠标光标自动隐藏 ═══════════════════
-
-    def _install_cursor_tracking(self) -> None:
-        """
-        为播放窗口和当前渲染子组件安装鼠标事件过滤器。
-        :return: None
-        """
-        for widget in (
-            self,
-            self._background_label,
-            self._video_viewport,
-            self._video_container,
-            self._web_viewport,
-            self._web_container,
-            self._overlay_label,
-        ):
-            self._track_cursor_widget(widget)
-        self._restart_cursor_idle_timer()
-
-    def _track_cursor_widget(self, widget: QWidget) -> None:
-        """
-        让指定 widget 参与鼠标静止隐藏逻辑。
-        :param widget: 待追踪的 QWidget
-        :return: None
-        """
-        widget_id = id(widget)
-        if widget_id in self._cursor_tracked_widgets:
-            return
-        self._cursor_tracked_widgets.add(widget_id)
-        widget.setMouseTracking(True)
-        if self._cursor_hidden:
-            widget.setCursor(Qt.CursorShape.BlankCursor)
-        widget.installEventFilter(self)
-        for child in widget.findChildren(QWidget):
-            self._track_cursor_widget(child)
-
-    def _restart_cursor_idle_timer(self) -> None:
-        """
-        重置鼠标静止计时器。
-        :return: None
-        """
-        self._cursor_idle_timer.start(CURSOR_IDLE_HIDE_DELAY_MS)
-
-    def _show_cursor_temporarily(self) -> None:
-        """
-        鼠标进入或移动时显示光标，并重新开始静止计时。
-        :return: None
-        """
-        self._show_cursor()
-        self._restart_cursor_idle_timer()
-
-    def _show_cursor(self) -> None:
-        """
-        恢复播放窗口及子组件光标。
-        :return: None
-        """
-        if not self._cursor_hidden:
-            return
-        self._apply_cursor_shape(Qt.CursorShape.ArrowCursor)
-        self._cursor_hidden = False
-        logger.debug("窗口 [%d] 显示鼠标光标", self._window_id)
-
-    @Slot()
-    def _hide_idle_cursor(self) -> None:
-        """
-        鼠标静止超过阈值后隐藏播放窗口光标。
-        :return: None
-        """
-        self._apply_cursor_shape(Qt.CursorShape.BlankCursor)
-        self._cursor_hidden = True
-        logger.debug("窗口 [%d] 隐藏鼠标光标", self._window_id)
-
-    def _apply_cursor_shape(self, cursor_shape: Qt.CursorShape) -> None:
-        """
-        对窗口及所有已追踪子组件统一设置光标形状。
-        :param cursor_shape: Qt 光标形状
-        :return: None
-        """
-        self.setCursor(cursor_shape)
-        for child in self.findChildren(QWidget):
-            child.setCursor(cursor_shape)
-
-    # ═══════════════════ 窗口 ID 覆盖层 ═══════════════════
-
-    @Slot()
-    def show_id_overlay(self) -> None:
-        """
-        显示窗口 ID 覆盖层，5 秒后自动隐藏。
-        若已显示则重置计时器。
-        """
-        self._center_overlay()
-        self._overlay_label.show()
-        self._overlay_label.raise_()
-        # 重置计时器（如果已在倒计时则重新开始）
-        self._overlay_timer.start(OVERLAY_DISPLAY_DURATION_MS)
-        logger.debug("窗口 [%d] 显示 ID 覆盖层", self._window_id)
-
-    @Slot()
-    def _hide_id_overlay(self) -> None:
-        """隐藏窗口 ID 覆盖层。"""
-        self._overlay_label.hide()
-        logger.debug("窗口 [%d] 隐藏 ID 覆盖层", self._window_id)
-
-    def _center_overlay(self) -> None:
-        """将覆盖层居中定位到当前窗口中央。"""
-        overlay_width = self._overlay_label.width()
-        overlay_height = self._overlay_label.height()
-        center_x = (self.width() - overlay_width) // 2
-        center_y = (self.height() - overlay_height) // 2
-        self._overlay_label.move(max(0, center_x), max(0, center_y))
 
     def _apply_render_viewport_geometry(self) -> None:
         """根据当前窗口尺寸更新渲染容器几何。"""

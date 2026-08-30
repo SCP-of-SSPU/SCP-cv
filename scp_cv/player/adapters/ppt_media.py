@@ -37,21 +37,21 @@ def control_slide_media(
     """
     normalized_action = action.strip().lower()
     if normalized_action not in ALLOWED_MEDIA_ACTIONS:
-        logger.warning("未知 PPT 媒体控制动作：%s", action)
-        return
+        raise ValueError(f"未知 PPT 媒体控制动作：{action}")
     if slideshow_view is None:
-        logger.warning("PPT 放映未运行，无法控制页面媒体")
-        return
+        raise RuntimeError("PPT 放映未运行，无法控制页面媒体")
     player = resolve_media_player(
         slideshow_view, presentation, media_id, media_index
     )
     if player is None:
-        logger.warning("未找到 PPT 页面媒体：media_id=%s, index=%d", media_id, media_index)
-        return
+        raise RuntimeError(f"未找到 PPT 页面媒体：media_id={media_id}, index={media_index}")
     try:
         getattr(player, normalized_action.capitalize())()
     except Exception as media_error:
         logger.warning("PPT 页面媒体 %s 执行 %s 失败：%s", media_id, action, media_error)
+        raise RuntimeError(
+            f"PPT 页面媒体 {media_id} 执行 {action} 失败：{media_error}"
+        ) from media_error
 
 
 def resolve_media_player(

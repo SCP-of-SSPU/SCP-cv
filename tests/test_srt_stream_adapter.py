@@ -9,6 +9,7 @@ SRT 直播适配器测试，覆盖首帧错误宽限状态。
 '''
 from __future__ import annotations
 
+import pytest
 from pytest import MonkeyPatch
 
 from scp_cv.player.adapters import create_adapter
@@ -243,3 +244,51 @@ def test_stream_source_types_route_to_libvlc_srt_adapter() -> None:
         adapter = create_adapter(source_type)
 
         assert isinstance(adapter, SrtStreamAdapter)
+
+
+@pytest.mark.parametrize(
+    "failed_step",
+    ["player.stop", "player.set_media", "player.release", "media.release", "instance.release"],
+)
+def test_srt_cleanup_continues_after_each_native_step_failure(failed_step: str) -> None:
+    """任一原生清理步骤失败都不能阻断其余 release。"""
+    class _Resource:
+        """记录单项资源释放。"""
+
+        def __init__(self, name: str) -> None:
+            self.name = name
+            self.calls: list[str] = []
+
+        def _maybe_fail(self, method_name: str) -> None:
+            """按参数注入指定清理步骤失败。"""
+            if failed_step == f"{self.name}.{method_name}":
+                raise RuntimeError(f"{failed_step} failed")
+
+        def stop(self) -> None:
+            """停止播放器。"""
+            self.calls.append("stop")
+            self._maybe_fail("stop")
+
+        def set_media(self, _media: object) -> None:
+            """解绑媒体。"""
+            self.calls.append("set_media")
+            self._maybe_fail("set_media")
+
+        def release(self) -> None:
+            """释放原生资源。"""
+            self.calls.append("release")
+            self._maybe_fail("release")
+
+    adapter = SrtStreamAdapter()
+    player = _Resource("player")
+    media = _Resource("media")
+    instance = _Resource("instance")
+    adapter._player = player
+    adapter._media = media
+    adapter._instance = instance
+
+    adapter._release_player()
+
+    assert player.calls == ["stop", "set_media", "release"]
+    assert media.calls == ["release"]
+    assert instance.calls == ["release"]

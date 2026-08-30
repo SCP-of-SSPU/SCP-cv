@@ -242,7 +242,6 @@ const errorBarDescription = computed(() => {
           </h3>
           <p class="playback-control__caption">
             {{ session.source_id ? (session.source_type_label || t('playback.idle')) : t('playback.noSource') }}
-            <template v-if="session.is_spliced">· {{ session.spliced_display_label || t('playback.spliced') }}</template>
             <n-tag v-if="category === 'ppt' && session.playback_mode === 'pdf'" type="info" round size="small">
               {{ t('playback.pdfBadge') }}
             </n-tag>

@@ -6,7 +6,7 @@
 
 | 路径 | 职责 |
 | --- | --- |
-| `scp_cv/settings.py` | Django、REST、gRPC、MediaMTX、PPT、日志、静态媒体配置 |
+| `scp_cv/settings.py` | Django、REST、MediaMTX、PPT、日志、静态媒体配置 |
 | `scp_cv/urls.py` | root URL，挂载 admin、REST、dashboard、static/media |
 | `scp_cv/apps/dashboard/api_urls.py` | REST API 路由表 |
 | `scp_cv/apps/dashboard/api_views.py` | 媒体、设备、SSE 等普通 API |
@@ -14,7 +14,6 @@
 | `scp_cv/apps/dashboard/api_auth_views.py` | session 登录、退出、CSRF、当前用户 |
 | `scp_cv/apps/dashboard/api_utils.py` | JSON、错误、请求解析、`mutate_playback()` |
 | `scp_cv/services/` | 主要业务逻辑，迁移时应保留为后端核心层 |
-| `scp_cv/grpc_servicers/` | gRPC 兼容接口，委托服务层 |
 
 ## settings 设计
 
@@ -22,12 +21,11 @@
 
 | 配置 | 当前值或行为 | 迁移注意 |
 | --- | --- | --- |
-| `INSTALLED_APPS` | Django built-ins、DRF、django-socio-grpc、dashboard、playback、streams | 目标项目要合并 app 或保留 namespace |
+| `INSTALLED_APPS` | Django built-ins、DRF、dashboard、playback、streams | 目标项目要合并 app 或保留 namespace |
 | `MIDDLEWARE` | CORS、Security、Session、Common、CSRF、Auth、`ApiAuthMiddleware` | API 401 行为依赖自定义中间件 |
 | REST auth | SessionAuthentication + `IsAuthenticated` | 前端依赖 cookie session 和 CSRF |
 | DB | SQLite `BASE_DIR / db.sqlite3` | 可换 DB，但播放器轮询语义要重新验证 |
 | static/media | 本地目录，开发时直接 serve | 生产化时需明确媒体 URL 和本机播放器路径关系 |
-| gRPC | django-socio-grpc async server，100 MiB 消息限制 | 外部中控依赖时保留 |
 | MediaMTX | SRT/RTSP/API host/port、publish/read latency | 现场网络参数不要硬编码进 UI |
 | VLC stream | libVLC caching、clock、drop/skip frame 参数 | 直播延迟和稳定性依赖这些参数 |
 | PPT preview/export | worker/export timeout | 大 PPT 导入性能和失败降级依赖 |
@@ -113,7 +111,7 @@
 | `close_source()` | 写关闭指令，UI 立即可见 idle，同时保留播放器清理参数 |
 | `reset_all_sessions_to_idle()` | 重置会话并请求播放器窗口重建 |
 | `update_playback_progress()` | 播放器进程回写状态 |
-| `select_display_target()` | 选择目标显示器或拼接目标 |
+| `select_display_target()` | 选择单个目标显示器 |
 
 关键业务规则：
 
@@ -145,7 +143,7 @@
 迁移注意：
 
 - 上传文件保存到 `media/uploads/%Y%m%d/`。
-- PPT 源创建后会调用 `prepare_ppt_source_resources()`、`prepare_ppt_playback_cache()` 和 `prepare_slides_pdf()`；静态 OOXML 自动导出 PDF。
+- PPT 源创建后会调用 `prepare_ppt_source_resources()`、`prepare_ppt_playback_cache()` 和 `prepare_slides_pdf()`；所有可读 PPT 尝试生成带源摘要的 PDF，静态源默认 PDF，动态源保留 PowerPoint 主模式并在 COM 槽位冲突时回退 PDF。
 - 删除 PPT 源时必须清理 `media/ppt_previews/<source_id>/` 和 `media/ppt_playback/<source_id>/`。
 - 流媒体源的可用性来自 MediaMTX 同步，不应由前端手动维护。
 
@@ -213,7 +211,7 @@ PPT 资源处理是容错设计：zip 解析失败时仍会尝试导出预览；
 
 - 使用 `screeninfo.get_monitors()` 枚举物理显示器。
 - 构建 display label，供前端选择和 session 保存。
-- 构建左右拼接目标标签。
+- 校验目标显示器并保存单屏映射。
 - 提供 `list_display_targets()` 和 `find_display_target()`。
 
 当前限制：显示器选择写入 DB 后，运行中的播放器不会自动 reposition。迁移时如果目标项目要求在线切屏，需要新增播放器命令或接通 `PlayerController.sig_reposition`。
@@ -268,7 +266,7 @@ PPT 资源处理是容错设计：zip 解析失败时仍会尝试导出预览；
 
 职责：
 
-- 启动 MediaMTX、gRPC-Web、Django、Vite、PySide6 播放器。
+- 启动 MediaMTX、Django、Vite、PySide6 播放器。
 - 创建每次运行日志目录。
 - 等待端口就绪。
 - 监控必需进程，异常退出时清理进程树。

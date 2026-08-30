@@ -152,19 +152,48 @@ def terminate_process_tree(process_id: int) -> None:
     parent_process = psutil.Process(process_id)
     process_tree = parent_process.children(recursive=True)
     process_tree.append(parent_process)
-    for child_process in process_tree:
-        child_process.terminate()
-    _, alive_processes = psutil.wait_procs(process_tree, timeout=8)
+    # run_player 子进程具备显式 shutdown-file IPC；先请求 Qt/COM/VLC 协作清理。
+    cooperative_results = [
+        _request_cooperative_player_shutdown(child_process)
+        for child_process in process_tree
+    ]
+    cooperative_requested = any(cooperative_results)
+    if cooperative_requested:
+        _, cooperative_alive = psutil.wait_procs(process_tree, timeout=8)
+        for child_process in cooperative_alive:
+            child_process.terminate()
+        _, alive_processes = psutil.wait_procs(cooperative_alive, timeout=3)
+    else:
+        for child_process in process_tree:
+            child_process.terminate()
+        _, alive_processes = psutil.wait_procs(process_tree, timeout=8)
     for alive_process in alive_processes:
         alive_process.kill()
     if alive_processes:
         psutil.wait_procs(alive_processes, timeout=3)
 
 
+def _request_cooperative_player_shutdown(process: psutil.Process) -> bool:
+    """向 run_player 命令行中的 shutdown-file 发送协作退出请求。"""
+    try:
+        command_line = [str(part) for part in process.cmdline()]
+    except (PsutilError, OSError, AttributeError):
+        return False
+    if "run_player" not in " ".join(command_line).casefold():
+        return False
+    try:
+        marker_index = command_line.index("--shutdown-file")
+        shutdown_path = Path(command_line[marker_index + 1])
+        shutdown_path.parent.mkdir(parents=True, exist_ok=True)
+        shutdown_path.write_text("shutdown\n", encoding="utf-8")
+        return True
+    except (ValueError, IndexError, OSError):
+        return False
+
+
 _PROJECT_MANAGE_COMMANDS = frozenset({
     "run_player",
     "runserver",
-    "grpcrunaioserver",
 })
 
 
@@ -246,11 +275,7 @@ def _is_project_residual_process(
         return any(command in command_parts for command in _PROJECT_MANAGE_COMMANDS)
 
     if process_name in {"node.exe", "node"}:
-        return works_in_project and (
-            "vite" in normalized_command
-            or "@grpc-web/proxy" in normalized_command
-            or "@grpc-web+proxy" in normalized_command
-        )
+        return works_in_project and "vite" in normalized_command
     return False
 
 

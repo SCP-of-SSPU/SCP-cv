@@ -45,34 +45,9 @@ class RunallStarterMixin:
             "MediaMTX", command_args, cwd=mediamtx_bin.parent, required=False
         )
 
-    def _start_grpcweb_proxy(self, listen_port: int) -> None:
-        """
-        启动 gRPC-Web 代理。
-
-        :param listen_port: 监听端口
-        :return: None
-        """
-        pnpm_path = shutil.which("pnpm")
-        if pnpm_path is None:
-            self.stderr.write(self.style.WARNING("未找到 pnpm，跳过 gRPC-Web 代理"))
-            return
-        grpc_port = int(getattr(settings, "GRPC_PORT", 50051))
-        self._spawn(
-            "gRPC-Web 代理",
-            [
-                pnpm_path,
-                "exec",
-                "proxy",
-                f"--target=http://127.0.0.1:{grpc_port}",
-                f"--listen={listen_port}",
-            ],
-            cwd=Path(settings.BASE_DIR),
-            required=False,
-        )
-
     def _start_django_server(self, host: str, port: int) -> None:
         """
-        启动 Django HTTP/gRPC 开发服务器。
+        启动 Django HTTP 开发服务器。
 
         :param host: 监听地址
         :param port: 监听端口

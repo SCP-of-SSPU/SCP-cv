@@ -2,7 +2,7 @@
 # -*- coding: UTF-8 -*-
 '''
 媒体源查询与 API 序列化服务。
-集中输出前端、REST API 与 gRPC 共享的媒体源字典字段。
+集中输出前端与 REST API 共享的媒体源字典字段。
 @Project : SCP-cv
 @File : media_queries.py
 @Author : Qintsg

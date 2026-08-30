@@ -10,6 +10,7 @@ PowerPoint 跨进程独占槽位，封装 Windows 命名互斥体与 POSIX 文�
 from __future__ import annotations
 
 import os
+import logging
 import tempfile
 import threading
 import time
@@ -21,6 +22,7 @@ DEFAULT_POWERPOINT_SLOT_NAME = "Local\\SCP-cv-PowerPoint-Slot"
 _LOCK_POLL_INTERVAL_SECONDS = 0.01
 _LOCAL_LOCKS_GUARD = threading.Lock()
 _LOCAL_LOCKS: dict[str, threading.Lock] = {}
+logger = logging.getLogger(__name__)
 
 
 class PowerPointSlotTimeout(TimeoutError):
@@ -78,8 +80,20 @@ class PowerPointSlot:
         try:
             if os.name == "nt":
                 self._acquire_windows(remaining_seconds)
+                logger.info(
+                    "PowerPoint 槽位已取得：name=%s pid=%d thread=%d",
+                    self._name,
+                    os.getpid(),
+                    threading.get_ident(),
+                )
                 return
             self._acquire_posix(remaining_seconds)
+            logger.info(
+                "PowerPoint 槽位已取得：name=%s pid=%d thread=%d",
+                self._name,
+                os.getpid(),
+                threading.get_ident(),
+            )
         except BaseException:
             self._local_lock_held = False
             self._local_lock.release()
@@ -115,6 +129,12 @@ class PowerPointSlot:
             if self._local_lock_held:
                 self._local_lock_held = False
                 self._local_lock.release()
+                logger.info(
+                    "PowerPoint 槽位已释放：name=%s pid=%d thread=%d",
+                    self._name,
+                    os.getpid(),
+                    threading.get_ident(),
+                )
 
     def _acquire_windows(self, timeout_seconds: float) -> None:
         """
@@ -132,6 +152,12 @@ class PowerPointSlot:
         wait_result = win32event.WaitForSingleObject(handle, timeout_milliseconds)
         if wait_result in {win32event.WAIT_OBJECT_0, win32event.WAIT_ABANDONED}:
             self._windows_handle = handle
+            if wait_result == win32event.WAIT_ABANDONED:
+                logger.warning(
+                    "检测到崩溃遗留的 PowerPoint 槽位，已恢复所有权：name=%s pid=%d",
+                    self._name,
+                    os.getpid(),
+                )
             return
         win32api.CloseHandle(handle)
         raise PowerPointSlotTimeout(

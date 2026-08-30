@@ -24,19 +24,21 @@ from __future__ import annotations
 import itertools
 import logging
 import threading
+import uuid
 from typing import Callable, Optional
 
-from PySide6.QtCore import QObject, QRect, Signal, Slot
+from PySide6.QtCore import QObject, QRect, QTimer, Signal, Slot
 
 from scp_cv.player.adapters import SourceAdapter
 from scp_cv.player.background_audio_handlers import BackgroundAudioHandlersMixin
 from scp_cv.player.controller_handlers import PlayerCommandHandlersMixin
 from scp_cv.player.controller_polling import PlayerPollingMixin
+from scp_cv.player.controller_display import PlayerDisplayLayoutMixin
 
 logger = logging.getLogger(__name__)
 
 
-class PlayerController(PlayerPollingMixin, PlayerCommandHandlersMixin, BackgroundAudioHandlersMixin, QObject):
+class PlayerController(PlayerDisplayLayoutMixin, PlayerPollingMixin, PlayerCommandHandlersMixin, BackgroundAudioHandlersMixin, QObject):
     """
     多窗口播放器控制器。
 
@@ -59,8 +61,8 @@ class PlayerController(PlayerPollingMixin, PlayerCommandHandlersMixin, Backgroun
     sig_reposition = Signal(int, QRect)  # window_id + 目标矩形
 
     # 轮询线程 → Qt 主线程：分发指令执行（携带 window_id）
-    sig_dispatch_command = Signal(int, str, dict)  # (window_id, command, command_args)
-    sig_dispatch_background_audio_command = Signal(str, dict)  # (command, command_args)
+    sig_dispatch_command = Signal(int, str, dict, int, str)  # window, command, args, queue id, consumer
+    sig_dispatch_background_audio_command = Signal(int, str, dict, str)  # id, command, args, consumer
     sig_report_states = Signal()                   # 轮询线程 → Qt 主线程：读取适配器状态
     # COM 工作线程 → Qt 主线程：PPT 后台打开完成（window_id, token, error）
     sig_ppt_open_finished = Signal(int, int, object)
@@ -100,10 +102,14 @@ class PlayerController(PlayerPollingMixin, PlayerCommandHandlersMixin, Backgroun
         self._last_reported_background_audio_state: tuple[str, str, int, int] | None = None
         self._last_reset_all_token = ""
         self._last_reset_ppt_token = ""
+        self._last_display_labels: dict[int, str] = {}
 
         # 轮询线程
         self._poll_thread: Optional[threading.Thread] = None
         self._poll_running = False
+        self._poll_stop_event = threading.Event()
+        self._consumer_id = uuid.uuid4().hex
+        self._preheat_maintenance_timer: QTimer | None = None
         self._last_player_heartbeat_monotonic = 0.0
 
         # 每个窗口上一次已上报状态，避免轮询线程无变化时频繁写库。
@@ -113,6 +119,7 @@ class PlayerController(PlayerPollingMixin, PlayerCommandHandlersMixin, Backgroun
 
         # 连接指令分发信号到主线程处理槽
         self.sig_dispatch_command.connect(self._execute_command_on_main_thread)
+        self.sig_reposition.connect(self._reposition_window)
         if self._enable_background_audio:
             self.sig_dispatch_background_audio_command.connect(self._execute_background_audio_command_on_main_thread)
         self.sig_report_states.connect(self._report_all_adapter_states)
@@ -177,6 +184,7 @@ class PlayerController(PlayerPollingMixin, PlayerCommandHandlersMixin, Backgroun
             return
 
         self._poll_running = True
+        self._poll_stop_event.clear()
         self._poll_thread = threading.Thread(
             target=self._poll_loop,
             args=(interval_seconds,),
@@ -184,14 +192,46 @@ class PlayerController(PlayerPollingMixin, PlayerCommandHandlersMixin, Backgroun
             name="player-poll",
         )
         self._poll_thread.start()
+        if self._preheat_pool is not None and self._preheat_maintenance_timer is None:
+            self._preheat_maintenance_timer = QTimer(self)
+            self._preheat_maintenance_timer.setInterval(1000)
+            self._preheat_maintenance_timer.timeout.connect(self._maintain_preheat_resources)
+            self._preheat_maintenance_timer.start()
         logger.info("控制器轮询已启动（间隔 %.1fs）", interval_seconds)
 
     def stop_polling(self) -> None:
         """停止轮询并关闭所有适配器。"""
         self._poll_running = False
+        self._poll_stop_event.set()
+        if self._preheat_maintenance_timer is not None:
+            self._preheat_maintenance_timer.stop()
+            self._preheat_maintenance_timer.deleteLater()
+            self._preheat_maintenance_timer = None
         if self._poll_thread is not None:
             self._poll_thread.join(timeout=3.0)
+            if self._poll_thread.is_alive():
+                logger.error("播放器轮询线程在超时后仍未退出，延迟释放其可能使用的资源")
+                return
             self._poll_thread = None
+        from scp_cv.services.playback_commands import release_playback_command_lease
+
+        try:
+            released = release_playback_command_lease(self._consumer_id, tuple(self.registered_window_ids))
+        except Exception as lease_error:
+            logger.warning("退出时释放播放指令租约失败：%s", lease_error)
+            released = 0
+        if released:
+            logger.info("退出时释放播放指令租约：%d 条", released)
+        if self._enable_background_audio:
+            from scp_cv.services.background_audio_commands import release_background_audio_command_lease
+
+            try:
+                released_audio = release_background_audio_command_lease(self._consumer_id)
+            except Exception as lease_error:
+                logger.warning("退出时释放背景音频租约失败：%s", lease_error)
+                released_audio = 0
+            if released_audio:
+                logger.info("退出时释放背景音频指令租约：%d 条", released_audio)
 
         # 取消在途 PPT 打开，再关闭所有窗口的适配器
         self._abort_pending_ppt_opens()
@@ -211,10 +251,15 @@ class PlayerController(PlayerPollingMixin, PlayerCommandHandlersMixin, Backgroun
         """
         if self._ppt_com_worker is None:
             return
+        shutdown_ok = False
         try:
-            self._ppt_com_worker.shutdown(timeout_seconds=10.0)
+            shutdown_ok = bool(self._ppt_com_worker.shutdown(timeout_seconds=10.0))
+            if not shutdown_ok:
+                logger.error("PPT COM 工作线程未确认退出，保留资源以避免并发访问已终止 COM server")
         except Exception as shutdown_error:
             logger.warning("PPT COM 工作线程关闭异常：%s", shutdown_error)
+        if not shutdown_ok:
+            return
         from scp_cv.player.adapters.ppt_process import terminate_spawned_ppt_processes
 
         terminated = terminate_spawned_ppt_processes()
@@ -264,127 +309,23 @@ class PlayerController(PlayerPollingMixin, PlayerCommandHandlersMixin, Backgroun
         """
         self.preheat_sources()
 
-    # ═══════════════════ 窗口定位 ═══════════════════
-
-    def apply_display_positions(self) -> None:
-        """根据各窗口会话的显示配置定位所有窗口。"""
-        from scp_cv.services.display import list_display_targets
-        from scp_cv.services.playback import get_or_create_session
-
-        display_targets = list_display_targets()
-
-        for window_id, window in self._windows.items():
-            session = get_or_create_session(window_id)
-            target_label = session.target_display_label
-            if not target_label:
-                continue
-
-            matched_display = next(
-                (dt for dt in display_targets if dt.name == target_label),
-                None,
-            )
-            if matched_display is not None:
-                rect = QRect(
-                    matched_display.x, matched_display.y,
-                    matched_display.width, matched_display.height,
-                )
-                window.position_on_display(rect)
-
-    def apply_current_layout(self) -> None:
-        """按数据库中持久化的显示器目标恢复播放器窗口位置。"""
-        self.apply_display_positions()
-
-    def rebuild_registered_windows(self) -> None:
-        """
-        关闭并替换当前已注册窗口，然后按持久化显示配置重新显示。
-        :return: None
-        """
-        from scp_cv.player.window import PlayerWindow
-
-        qt_app, previous_quit_on_last_window = self._disable_qt_last_window_auto_quit()
-        old_windows = list(self._windows.items())
-        try:
-            self._windows = {}
-            for window_id, old_window in old_windows:
-                self._disconnect_window_signals(old_window)
-                if hasattr(old_window, "close_for_rebuild"):
-                    old_window.close_for_rebuild()
-                else:
-                    old_window.hide()
-                    old_window.deleteLater()
-                logger.info("窗口 %d 已为全局重置关闭", window_id)
-
-            for window_id, old_window in old_windows:
-                debug_mode = bool(getattr(old_window, "debug_mode", False))
-                new_window = PlayerWindow(window_id=window_id, debug_mode=debug_mode)
-                self.register_window(window_id, new_window)
-                if debug_mode:
-                    new_window.resize(960, 540)
-                    new_window.show()
-
-            self.apply_current_layout()
-        finally:
-            self._restore_qt_last_window_auto_quit(qt_app, previous_quit_on_last_window)
-        logger.info("已按当前显示配置重建 %d 个播放器窗口", len(old_windows))
-
-    @staticmethod
-    def _disable_qt_last_window_auto_quit() -> tuple[object | None, bool | None]:
-        """
-        重建播放窗口期间暂时关闭 Qt 最后窗口关闭即退出，避免启动重置导致播放器退出。
-        :return: QApplication 实例和原设置；不可用时均为空
-        """
-        try:
-            from PySide6.QtWidgets import QApplication
-        except Exception as import_error:
-            logger.debug("Qt 应用不可用，跳过自动退出保护：%s", import_error)
-            return None, None
-        qt_app = QApplication.instance()
-        if qt_app is None:
-            return None, None
-        previous_quit_on_last_window = bool(qt_app.quitOnLastWindowClosed())
-        qt_app.setQuitOnLastWindowClosed(False)
-        return qt_app, previous_quit_on_last_window
-
-    @staticmethod
-    def _restore_qt_last_window_auto_quit(
-        qt_app: object | None,
-        previous_quit_on_last_window: bool | None,
-    ) -> None:
-        """
-        恢复 Qt 最后窗口关闭即退出原设置。
-        :param qt_app: QApplication 实例
-        :param previous_quit_on_last_window: 原设置
-        :return: None
-        """
-        if qt_app is None or previous_quit_on_last_window is None:
+    @Slot()
+    def _maintain_preheat_resources(self) -> None:
+        """在 Qt 主线程周期维护直播等长期预热资源。"""
+        if self._preheat_pool is None:
             return
-        try:
-            qt_app.setQuitOnLastWindowClosed(previous_quit_on_last_window)
-        except RuntimeError as restore_error:
-            logger.debug("恢复 Qt 自动退出设置失败：%s", restore_error)
+        maintain = getattr(self._preheat_pool, "maintain", None)
+        if callable(maintain):
+            maintain()
 
-    def _disconnect_window_signals(self, player_window: object) -> None:
-        """
-        断开控制器持有的窗口信号，避免旧窗口销毁后继续响应广播。
-        :param player_window: 待销毁的 PlayerWindow 实例
-        :return: None
-        """
-        try:
-            self.sig_stop_all.disconnect(player_window.stop_all)
-        except (RuntimeError, TypeError):
-            pass
-        if self._window_closed_callback is not None:
-            try:
-                player_window.window_closed.disconnect(self._window_closed_callback)
-            except (RuntimeError, TypeError):
-                pass
-
-    @Slot(int, str, dict)
+    @Slot(int, str, dict, int, str)
     def _execute_command_on_main_thread(
         self,
         window_id: int,
         command: str,
         command_args: dict[str, object],
+        command_id: int = 0,
+        consumer_id: str = "",
     ) -> None:
         """
         在 Qt 主线程上执行适配器指令。
@@ -399,9 +340,10 @@ class PlayerController(PlayerPollingMixin, PlayerCommandHandlersMixin, Backgroun
         logger.info("主线程执行指令：窗口 %d → %s", window_id, command)
         # 排队检查必须先于 reset 去重：排队时不记录 reset token，
         # 否则打开完成后重放同一条 reset 指令会被误判为重复广播而丢弃。
-        if self._defer_command_during_ppt_open(window_id, command, command_args):
+        if self._defer_command_during_ppt_open(window_id, command, command_args, command_id, consumer_id):
             return
         if self._is_duplicate_reset_command(window_id, command, command_args):
+            self._ack_command_record(command_id, consumer_id)
             return
 
         command_dispatch: dict[str, object] = {
@@ -423,12 +365,34 @@ class PlayerController(PlayerPollingMixin, PlayerCommandHandlersMixin, Backgroun
         }
 
         handler = command_dispatch.get(command)
-        if handler is not None:
-            try:
-                handler(window_id, command_args)
-            except Exception as cmd_error:
-                logger.error("执行指令 %s（窗口 %d）失败：%s", command, window_id, cmd_error)
-                self._update_session_error(window_id, str(cmd_error))
+        if handler is None:
+            logger.error("窗口 %d 收到未知播放指令：%s", window_id, command)
+            self._ack_command_record(command_id, consumer_id)
+            return
+        try:
+            handler_args = dict(command_args)
+            if command_id:
+                handler_args["_command_record_id"] = command_id
+                handler_args["_command_consumer_id"] = consumer_id
+            handler(window_id, handler_args)
+        except Exception as cmd_error:
+            logger.error("执行指令 %s（窗口 %d）失败：%s", command, window_id, cmd_error)
+            self._update_session_error(window_id, str(cmd_error))
+        finally:
+            # 异步 PPT 在完成回调中确认；其它命令在主线程 handler 返回后确认。
+            if command_id and not (
+                command == PlaybackCommand.OPEN and window_id in self._pending_ppt_opens
+            ):
+                self._ack_command_record(command_id, consumer_id)
+
+    @staticmethod
+    def _ack_command_record(command_id: int, consumer_id: str = "") -> None:
+        """确认已处理的播放队列记录。"""
+        if not command_id:
+            return
+        from scp_cv.services.playback_commands import acknowledge_playback_command
+
+        acknowledge_playback_command(command_id, consumer_id or None)
 
     def _is_duplicate_reset_command(
         self,

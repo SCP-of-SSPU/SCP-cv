@@ -28,8 +28,8 @@ class PlaybackSessionAdmin(admin.ModelAdmin):
         "pending_command",
         "last_updated_at",
     )
-    list_filter = ("playback_state", "display_mode", "is_spliced")
-    search_fields = ("target_display_label", "spliced_display_label")
+    list_filter = ("playback_state", "display_mode")
+    search_fields = ("target_display_label",)
 
 
 @admin.register(BackgroundAudioState)

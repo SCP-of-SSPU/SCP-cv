@@ -33,11 +33,11 @@ from scp_cv.services.ppt_playback_cache import PPT_PLAYBACK_METADATA_KEY
 
 
 @pytest.mark.django_db
-def test_open_powerpoint_closes_other_powerpoint_window(
+def test_open_powerpoint_does_not_preempt_other_powerpoint_window(
     media_source_ppt: MediaSource,
 ) -> None:
     """
-    跨播放器进程打开 PowerPoint 前应先关闭其它 PowerPoint 窗口。
+    第二个 PowerPoint 请求不能抢占其它窗口；运行时槽位冲突后应选择 PDF。
 
     :param media_source_ppt: PowerPoint 媒体源
     :return: None
@@ -45,8 +45,8 @@ def test_open_powerpoint_closes_other_powerpoint_window(
     open_source(1, media_source_ppt.pk)
     target_session = open_source(2, media_source_ppt.pk)
     previous_session = get_or_create_session(1)
-    assert previous_session.pending_command == PlaybackCommand.CLOSE
-    assert previous_session.playback_state == PlaybackState.IDLE
+    assert previous_session.pending_command == PlaybackCommand.OPEN
+    assert previous_session.playback_state == PlaybackState.LOADING
     assert target_session.pending_command == PlaybackCommand.OPEN
 
 
@@ -147,7 +147,7 @@ class TestPptResetOperations:
         media_source_ppt: MediaSource,
     ) -> None:
         """
-        全局单槽位下只重置当前仍活跃的 PowerPoint 窗口。
+    多窗口请求由运行时单槽位区分；服务层不得预先假定哪个窗口持有 COM。
 
         :param media_source_ppt: PowerPoint 媒体源
         :return: None
@@ -157,7 +157,7 @@ class TestPptResetOperations:
         clear_pending_command(1)
         clear_pending_command(2)
         reset_ppt_playback()
-        assert get_or_create_session(1).pending_command == PlaybackCommand.NONE
+        assert get_or_create_session(1).pending_command == PlaybackCommand.RESET_PPT
         assert get_or_create_session(2).pending_command == PlaybackCommand.RESET_PPT
 
     def test_reset_uses_ready_playback_cache(

@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 class WebSourceAdapter(SourceAdapter):
+    capabilities = frozenset({"play", "stop"})
     """
     网页显示适配器。
 
