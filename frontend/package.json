@@ -9,6 +9,7 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit -p tsconfig.json && vite build",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
+    "test": "node --test scripts/*.test.mjs",
     "preview": "vite preview --host 0.0.0.0 --port 4173",
     "gen:fluent-tokens": "node scripts/generate-fluent-tokens.mjs"
   },

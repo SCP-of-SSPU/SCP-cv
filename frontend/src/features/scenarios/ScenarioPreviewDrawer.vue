@@ -189,7 +189,7 @@ void runtime;
 </script>
 
 <template>
-  <n-drawer v-model:show="isOpen" :width="520" placement="right">
+  <n-drawer v-model:show="isOpen" width="min(520px, 100vw)" placement="right">
     <n-drawer-content :title="scenario?.name ?? t('scenarios.preview.title')" closable>
       <p class="scenario-preview__meta">{{ meta }}</p>
 

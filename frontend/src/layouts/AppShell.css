@@ -108,6 +108,7 @@
 
 /* ── 导航：rail / drawer 共用骨架 ─────────────────────────── */
 .app-shell__nav {
+  flex-shrink: 0;
   position: sticky;
   inset-block-start: 3.5rem;
   align-self: flex-start;

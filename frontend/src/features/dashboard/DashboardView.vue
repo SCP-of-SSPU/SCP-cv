@@ -14,6 +14,7 @@ import {
   NSlider,
   NSpin,
   NSwitch,
+  NTag,
 } from 'naive-ui';
 
 import FIcon from '@/design-system/FIcon.vue';

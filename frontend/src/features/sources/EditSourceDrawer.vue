@@ -116,7 +116,7 @@ function close(): void {
 </script>
 
 <template>
-  <n-drawer v-model:show="isOpen" :width="480" placement="right">
+  <n-drawer v-model:show="isOpen" width="min(480px, 100vw)" placement="right">
     <n-drawer-content :title="t('sources.editDrawer.title')" closable>
       <p v-if="source" class="edit-source__desc">{{ t('sources.editDrawer.desc', { name: source.name }) }}</p>
 

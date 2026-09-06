@@ -205,7 +205,7 @@ function close(): void {
 </script>
 
 <template>
-  <n-drawer v-model:show="isOpen" :width="520" placement="right">
+  <n-drawer v-model:show="isOpen" width="min(520px, 100vw)" placement="right">
     <n-drawer-content :title="scenario ? t('scenarios.edit.titleEdit') : t('scenarios.edit.titleCreate')" closable>
       <p class="scenario-edit__desc">{{ t('scenarios.edit.desc') }}</p>
 

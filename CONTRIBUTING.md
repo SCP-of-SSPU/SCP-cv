@@ -87,6 +87,7 @@ uv run pytest tests/ -v
 前端：
 
 ```powershell
+pnpm --prefix frontend test
 pnpm --prefix frontend run typecheck
 pnpm --prefix frontend run build
 ```

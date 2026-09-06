@@ -199,3 +199,14 @@ description: "播放器 Runtime 可靠性、单 COM/PDF 放映与媒体热切换
 3. 完成 US2 删除废弃拼接合同并阻止虚假成功。
 4. 完成 US3/US4 后进行 PowerPoint、PDF、网页和直播实机验证。
 5. 最后完成 P3 拆分、文档同步、全量检查和适配器/第三方集成 review。
+
+## Phase 9: Convergence
+
+本轮按用户要求采用远端规范，不保留与单 COM/PDF 方案冲突的 Broker 运行架构。
+浏览器复现仪表盘状态标签未注册；静态类型检查和构建未覆盖此类模板组件遗漏。
+
+- [X] T063 在 `frontend/scripts/check-components.test.mjs` 增加模板组件注册回归测试，并修复 `frontend/src/features/dashboard/DashboardView.vue` 缺失的状态标签导入；依据 contracts 的链路/播放器状态分离呈现、FR-021 和宪章 III（partial）
+- [X] T064 在 `docs/前端检查结果.md` 记录桌面与移动页面、弹窗、错误态检查，以及类型检查、构建和后端回归结果；依据 SC-010、宪章 III（partial）
+- [X] T065 修复 `frontend/src/layouts/AppNavigation.vue` 中“更多”打开抽屉同时误跳首页的问题，在 `frontend/scripts/check-components.test.mjs` 补充导航回归约束并用手机视口验证保留当前页面；依据宪章 III 和用户前端无展示 bug 的验收要求（partial）
+- [X] T066 限制 `frontend/src/features/sources/*Drawer.vue`、`frontend/src/features/scenarios/*Drawer.vue` 的侧边抽屉宽度，并清理 `frontend/src/features/display/PlaybackControl.vue` 空闲提示重复；通过 `frontend/scripts/check-components.test.mjs` 和 390px 手机视口验证，依据宪章 III 和用户展示检查要求（partial）
+- [X] T067 修复 `frontend/src/features/sources/SourcesView.vue` 表格在平板宽度下操作列不可达及 `frontend/src/layouts/AppShell.css` 导航被挤窄的问题，并在 `frontend/scripts/check-components.test.mjs` 增加约束；依据宪章 III 和用户展示检查要求（partial）

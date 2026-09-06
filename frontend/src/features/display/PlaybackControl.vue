@@ -238,10 +238,10 @@ const errorBarDescription = computed(() => {
             {{ session.source_id ? (session.playback_state_label || session.playback_state) : t('playback.idle') }}
           </n-tag>
           <h3 class="playback-control__source-name">
-            {{ session.source_id ? (session.source_name || t('playback.notOpened')) : t('playback.noSource') }}
+            {{ session.source_name && session.source_id ? session.source_name : t('playback.notOpened') }}
           </h3>
-          <p class="playback-control__caption">
-            {{ session.source_id ? (session.source_type_label || t('playback.idle')) : t('playback.noSource') }}
+          <p v-if="session.source_id" class="playback-control__caption">
+            {{ session.source_type_label || t('playback.idle') }}
             <n-tag v-if="category === 'ppt' && session.playback_mode === 'pdf'" type="info" round size="small">
               {{ t('playback.pdfBadge') }}
             </n-tag>

@@ -79,14 +79,14 @@ const { t } = useI18n();
   </nav>
 
   <nav v-if="compact" class="app-shell__bottom" :aria-label="t('app.primaryNav')">
-    <RouterLink
+    <a
       v-for="item in MOBILE_TAB_BAR"
       :key="item.path"
-      :to="item.path"
+      :href="item.path"
       class="app-shell__bottom-item"
       :class="{ 'app-shell__bottom-item--active': isActive(item.path) }"
       :aria-current="isActive(item.path) ? 'page' : undefined"
-      @click="(event) => emit('bottomClick', item.path, event)"
+      @click.prevent="(event) => emit('bottomClick', item.path, event)"
     >
       <span class="app-shell__bottom-indicator">
         <FIcon
@@ -95,7 +95,7 @@ const { t } = useI18n();
         />
       </span>
       <span class="app-shell__bottom-label">{{ item.label }}</span>
-    </RouterLink>
+    </a>
   </nav>
 
   <MoreSheet :open="moreOpen" @update:open="(value) => emit('update:moreOpen', value)" />

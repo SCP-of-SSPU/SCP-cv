@@ -458,7 +458,7 @@ async function moveSourceToFolder(source: MediaSourceItem, folderId: number | nu
             </n-dropdown>
           </div>
         </div>
-        <n-card content-style="padding:0">
+        <n-card content-style="padding:0; overflow-x:auto">
           <template v-if="isLoading && sourceStore.filtered.length === 0">
             <div class="sources-view__skeletons">
               <div v-for="line in 6" :key="line" class="sources-view__skeleton-row">

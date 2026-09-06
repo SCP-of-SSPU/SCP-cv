@@ -158,7 +158,7 @@ async function addWebSource(): Promise<void> {
 </script>
 
 <template>
-  <n-drawer v-model:show="isOpen" :width="480" placement="right">
+  <n-drawer v-model:show="isOpen" width="min(480px, 100vw)" placement="right">
     <n-drawer-content :title="t('sources.add.title')" closable>
       <p class="add-source__desc">{{ t('sources.add.desc') }}</p>
 
