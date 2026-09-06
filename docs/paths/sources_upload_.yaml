@@ -2,7 +2,7 @@ post:
   tags:
     - sources
   summary: 上传文件并创建媒体源
-  description: 支持 PPT/PPS/POT/ODP、视频、音频和图片等文件。PPT 源默认使用 PowerPoint，并在导入后尝试生成播放专用 `.ppsx`/`.pps` 缓存；宏格式默认导出为非宏 `.ppsx`。
+  description: 支持 PDF、PPT/PPS/POT/ODP、视频、音频和图片等文件。静态演示文稿会尝试转换为 PDF，动态演示文稿使用 PowerPoint。
   operationId: uploadSource
   requestBody:
     required: true

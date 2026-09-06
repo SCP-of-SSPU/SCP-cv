@@ -9,12 +9,187 @@
 '''
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Callable, Optional
+
 import pytest
 
-from tests.player_controller_ppt_async_test_support import (
-    _AsyncPptAdapter,
-    _make_controller,
-)
+from scp_cv.player.controller import PlayerController
+from scp_cv.player.powerpoint_slot import PowerPointSlotTimeout
+
+
+class _AsyncPptAdapter:
+    """支持 open_async 的 PPT 适配器替身，可手动触发完成回调。"""
+
+    def __init__(self, finish_immediately: bool = False, error: Exception | None = None) -> None:
+        """
+        初始化替身。
+        :param finish_immediately: open_async 内是否立即同步回调
+        :param error: 立即回调时上报的异常；None 表示成功
+        :return: None
+        """
+        self.finish_immediately = finish_immediately
+        self.error = error
+        self.open_async_args: dict[str, object] = {}
+        self.com_workers: list[object] = []
+        self.on_finished: Optional[Callable[[Optional[BaseException]], None]] = None
+        self.closed = False
+        self.close_count = 0
+        self.detached = False
+        self.restored = False
+        self.volumes: list[int] = []
+        self.mutes: list[bool] = []
+
+    def set_com_worker(self, com_worker: object) -> None:
+        """
+        记录注入的 COM 工作线程。
+        :param com_worker: worker 或 None
+        :return: None
+        """
+        self.com_workers.append(com_worker)
+
+    def open_async(
+        self,
+        uri: str,
+        window_handle: int,
+        autoplay: bool = True,
+        start_slide: int = 0,
+        on_finished: Optional[Callable[[Optional[BaseException]], None]] = None,
+    ) -> None:
+        """
+        记录打开参数；按配置立即回调或交由测试手动触发。
+        :param uri: 媒体 URI
+        :param window_handle: 窗口句柄
+        :param autoplay: 是否自动播放
+        :param start_slide: 起始页码
+        :param on_finished: 完成回调
+        :return: None
+        """
+        self.open_async_args = {
+            "uri": uri,
+            "window_handle": window_handle,
+            "autoplay": autoplay,
+            "start_slide": start_slide,
+        }
+        self.on_finished = on_finished
+        if self.finish_immediately and on_finished is not None:
+            on_finished(self.error)
+
+    def close(self) -> None:
+        """记录关闭调用。"""
+        self.closed = True
+        self.close_count += 1
+
+    def detach_for_fast_switch(self) -> None:
+        """记录嵌入窗口隐藏调用。"""
+        self.detached = True
+
+    def restore_after_failed_switch(self) -> None:
+        """记录嵌入窗口恢复调用。"""
+        self.restored = True
+
+    def set_volume(self, volume: int) -> None:
+        """
+        记录音量设置。
+        :param volume: 音量
+        :return: None
+        """
+        self.volumes.append(volume)
+
+    def set_mute(self, muted: bool) -> None:
+        """
+        记录静音设置。
+        :param muted: 是否静音
+        :return: None
+        """
+        self.mutes.append(muted)
+
+
+class _WindowStub:
+    """记录窗口显示调用的替身。"""
+
+    def __init__(self) -> None:
+        """初始化记录。"""
+        self.calls: list[str] = []
+        self.topmost: list[bool] = []
+        self.web_container = object()
+        self.top_level_window_handle = 5001
+
+    def show_black_screen(self) -> None:
+        self.calls.append("black")
+
+    def show(self) -> None:
+        self.calls.append("show")
+
+    def raise_(self) -> None:
+        self.calls.append("raise")
+
+    def set_always_on_top(self, enabled: bool) -> None:
+        self.topmost.append(enabled)
+
+    def show_web_container(self) -> None:
+        self.calls.append("web")
+
+    def show_video_container(self) -> None:
+        self.calls.append("video")
+
+    def prepare_ppt_container(self) -> None:
+        self.calls.append("ppt_container")
+
+
+class _PdfFallbackAdapter:
+    """记录 PDF fallback 同步打开。"""
+
+    def __init__(self) -> None:
+        self.opened_uri = ""
+        self.closed = False
+
+    def open(self, uri: str, window_handle: int, autoplay: bool = True) -> None:
+        """记录 PDF 路径。"""
+        self.opened_uri = uri
+
+    def close(self) -> None:
+        """记录关闭。"""
+        self.closed = True
+
+    def goto_item(self, index: int) -> None:
+        """PDF 页码定位测试无需记录。"""
+
+    def supports(self, operation: str) -> bool:
+        """PDF fallback 不提供音量或静音能力。"""
+        return operation in {"next", "prev", "goto"}
+
+
+def _make_controller(monkeypatch: pytest.MonkeyPatch, adapter: object) -> tuple[PlayerController, _WindowStub, list[tuple[int, str]], list[tuple[int, str]]]:
+    """
+    构造带桩的控制器。
+    :param monkeypatch: pytest monkeypatch
+    :param adapter: create_adapter 返回的适配器替身
+    :return: (controller, window, states, errors)
+    """
+    controller = PlayerController()
+    window = _WindowStub()
+    states: list[tuple[int, str]] = []
+    errors: list[tuple[int, str]] = []
+
+    monkeypatch.setattr(
+        "scp_cv.player.controller_handlers.create_adapter",
+        lambda *_args, **_kwargs: adapter,
+    )
+    monkeypatch.setattr(controller, "get_window_handle", lambda _window_id: 2001)
+    monkeypatch.setattr(controller, "get_window", lambda _window_id: window)
+    monkeypatch.setattr(controller, "_cleanup_temporary_source", lambda _command_args: None)
+    monkeypatch.setattr(
+        controller,
+        "_update_session_state",
+        lambda window_id, state: states.append((window_id, state)),
+    )
+    monkeypatch.setattr(
+        controller,
+        "_update_session_error",
+        lambda window_id, message: errors.append((window_id, message)),
+    )
+    return controller, window, states, errors
 
 
 def test_async_ppt_open_success_registers_adapter_after_completion(
@@ -40,6 +215,7 @@ def test_async_ppt_open_success_registers_adapter_after_completion(
         "autoplay": True,
         "start_slide": 4,
     }
+    assert adapter.com_workers == [None]
     assert adapter.volumes == [66]
     assert adapter.mutes == [True]
     assert controller._adapters[1] is adapter
@@ -48,13 +224,143 @@ def test_async_ppt_open_success_registers_adapter_after_completion(
     assert controller._pending_ppt_opens == {}
     assert states == [(1, "loading"), (1, "playing")]
     assert errors == []
-    assert window.calls == ["black", "show", "raise", "ppt_container", "video", "show", "raise"]
 
 
-def test_async_ppt_open_failure_restores_previous_adapter(
+def test_powerpoint_slot_conflict_immediately_falls_back_to_pdf(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """COM 槽位被占用时应立即使用匹配 PDF，且不等待或抢占其它窗口。"""
+    pdf_path = tmp_path / "fallback.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4")
+    ppt_adapter = _AsyncPptAdapter(
+        finish_immediately=True,
+        error=PowerPointSlotTimeout("槽位已占用"),
+    )
+    pdf_adapter = _PdfFallbackAdapter()
+    previous_adapter = _PdfFallbackAdapter()
+    created: list[str] = []
+    scheduled: list[object] = []
+
+    def create_adapter(adapter_kind: str) -> object:
+        """按请求类型返回测试适配器。"""
+        created.append(adapter_kind)
+        return ppt_adapter if adapter_kind == "powerpoint" else pdf_adapter
+
+    controller, window, states, errors = _make_controller(monkeypatch, ppt_adapter)
+    controller._adapters[1] = previous_adapter  # type: ignore[assignment]
+    controller._adapter_source_types[1] = "video"
+    controller._adapter_source_ids[1] = 6
+    monkeypatch.setattr(
+        controller,
+        "_schedule_close_detached_adapter",
+        lambda _window_id, adapter, *_args, **_kwargs: scheduled.append(adapter),
+    )
+    monkeypatch.setattr("scp_cv.player.controller_handlers.create_adapter", create_adapter)
+
+    controller._handle_open(1, {
+        "source_id": 7,
+        "source_type": "ppt",
+        "uri": "C:/demo/demo.pptx",
+        "fallback_uri": str(pdf_path),
+        "adapter_kind": "powerpoint",
+        "autoplay": True,
+    })
+
+    assert created == ["powerpoint", "pdf"]
+    assert pdf_adapter.opened_uri == str(pdf_path)
+    assert controller._adapters[1] is pdf_adapter
+    assert controller._adapter_kinds[1] == "pdf"
+    assert scheduled == [previous_adapter]
+    assert errors == []
+    assert states[-1] == (1, "playing")
+    assert "ppt_container" in window.calls
+    assert "video" in window.calls
+
+
+def test_powerpoint_slot_conflict_with_broken_pdf_reports_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """打开失败时应释放新适配器、恢复旧适配器并写入错误状态。"""
+    """PDF fallback 自身失败时应安全报错并保持无新适配器状态。"""
+    ppt_adapter = _AsyncPptAdapter(
+        finish_immediately=True,
+        error=PowerPointSlotTimeout("槽位已占用"),
+    )
+    pdf_adapter = _PdfFallbackAdapter()
+
+    def fail_pdf_open(*_args: object, **_kwargs: object) -> None:
+        """模拟 PDF 文件在打开前失效。"""
+        raise RuntimeError("pdf missing")
+
+    pdf_adapter.open = fail_pdf_open  # type: ignore[method-assign]
+    controller, _window, _states, errors = _make_controller(monkeypatch, ppt_adapter)
+    monkeypatch.setattr(
+        "scp_cv.player.controller_handlers.create_adapter",
+        lambda adapter_kind: ppt_adapter if adapter_kind == "powerpoint" else pdf_adapter,
+    )
+
+    controller._handle_open(1, {
+        "source_id": 7,
+        "source_type": "ppt",
+        "uri": "C:/demo/demo.pptx",
+        "fallback_uri": "C:/demo/fallback.pdf",
+        "adapter_kind": "powerpoint",
+        "autoplay": True,
+    })
+
+    assert 1 not in controller._adapters
+    assert errors == [(1, "pdf missing")]
+
+
+def test_ppt_to_ppt_switch_closes_previous_slideshow_before_opening_next(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PowerPoint 单实例不能可靠并行 Run；PPT 切 PPT 必须先关闭旧放映再打开新放映。"""
+    events: list[str] = []
+    previous_adapter = _AsyncPptAdapter()
+    new_adapter = _AsyncPptAdapter()
+    controller, _window, _states, _errors = _make_controller(monkeypatch, new_adapter)
+    controller._adapters[1] = previous_adapter  # type: ignore[assignment]
+    controller._adapter_source_types[1] = "ppt"
+    controller._adapter_source_ids[1] = 77
+
+    previous_adapter.close = lambda: events.append("previous_close")  # type: ignore[method-assign]
+
+    def open_next(
+        uri: str,
+        window_handle: int,
+        autoplay: bool = True,
+        start_slide: int = 0,
+        on_finished: Optional[Callable[[Optional[BaseException]], None]] = None,
+    ) -> None:
+        events.append("next_open")
+        if on_finished is not None:
+            on_finished(None)
+
+    new_adapter.open_async = open_next  # type: ignore[method-assign]
+    reheated: list[tuple[int, int]] = []
+    monkeypatch.setattr(
+        controller,
+        "_schedule_reheat_source_if_enabled",
+        lambda window_id, source_id: reheated.append((window_id, source_id)),
+    )
+
+    controller._handle_open(1, {
+        "source_id": 8,
+        "source_type": "ppt",
+        "uri": "C:/demo/next.pptx",
+        "autoplay": True,
+    })
+
+    assert events == ["previous_close", "next_open"]
+    assert reheated == []
+    assert controller._adapters[1] is new_adapter
+
+
+def test_async_ppt_to_ppt_open_failure_does_not_restore_closed_previous_adapter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PPT 切 PPT 已先关闭旧放映；新源失败时应保持黑屏并明确上报错误。"""
     previous_adapter = _AsyncPptAdapter()
     new_adapter = _AsyncPptAdapter(finish_immediately=True, error=RuntimeError("ppt broken"))
     controller, window, states, errors = _make_controller(monkeypatch, new_adapter)
@@ -70,10 +376,9 @@ def test_async_ppt_open_failure_restores_previous_adapter(
     })
 
     assert new_adapter.closed is True
-    assert previous_adapter.detached is True
-    assert previous_adapter.restored is True
-    assert controller._adapters[1] is previous_adapter
-    assert controller._adapter_source_ids[1] == 77
+    assert previous_adapter.closed is True
+    assert previous_adapter.restored is False
+    assert controller._adapters == {}
     assert controller._pending_ppt_opens == {}
     assert states == [(1, "loading")]
     assert errors == [(1, "ppt broken")]

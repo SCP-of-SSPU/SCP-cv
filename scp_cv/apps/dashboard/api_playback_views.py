@@ -28,23 +28,22 @@ from scp_cv.apps.dashboard.api_utils import (
     mutate_playback,
     parse_window_id,
 )
-from scp_cv.services.display import build_left_right_splice_target, list_display_targets
+from scp_cv.apps.playback.models import PlaybackCommand
+from scp_cv.services.display import list_display_targets
 from scp_cv.services.physical_smoke import (
     DEFAULT_TOTAL_TIMEOUT_SECONDS,
     PhysicalSmokeError,
     run_physical_smoke_test,
 )
 from scp_cv.services.background_audio_payloads import get_background_audio_snapshot
-from scp_cv.services.command_status import (
-    capture_enqueued_commands,
-    control_command_payloads,
-)
 from scp_cv.services.playback import (
+    VALID_WINDOW_IDS,
     PlaybackError,
     close_source,
     control_ppt_media,
     control_playback,
     get_all_sessions_snapshot,
+    get_or_create_session,
     get_runtime_snapshot,
     get_session_snapshot,
     navigate_content,
@@ -60,7 +59,18 @@ from scp_cv.services.playback import (
 )
 from scp_cv.services.volume import VolumeError, get_system_volume, set_system_volume
 
-_SYSTEM_SHUTDOWN_SIGNAL = Path(settings.LOG_DIR) / "runall.shutdown"
+def _system_shutdown_signal_path() -> Path:
+    """按当前 settings 解析关闭信号，允许测试隔离到临时目录。"""
+    signal_path = Path(settings.LOG_DIR) / "runall.shutdown"
+    signal_path.parent.mkdir(parents=True, exist_ok=True)
+    return signal_path
+
+
+def _system_restart_signal_path() -> Path:
+    """按当前 settings 解析重启信号，允许测试隔离到临时目录。"""
+    signal_path = Path(settings.LOG_DIR) / "runall.restart"
+    signal_path.parent.mkdir(parents=True, exist_ok=True)
+    return signal_path
 
 
 @require_GET
@@ -278,8 +288,7 @@ def runtime_state_api(request: HttpRequest) -> JsonResponse:
     if error is not None:
         return error
     try:
-        with capture_enqueued_commands() as accepted_commands:
-            runtime = set_big_screen_mode(str(body.get("big_screen_mode", "")).strip())
+        runtime = set_big_screen_mode(str(body.get("big_screen_mode", "")).strip())
     except PlaybackError as playback_error:
         return error_response(str(playback_error), code="playback_error")
     sessions = get_all_sessions_snapshot()
@@ -288,7 +297,6 @@ def runtime_state_api(request: HttpRequest) -> JsonResponse:
         "runtime": runtime,
         "sessions": sessions,
         "background_audio": get_background_audio_snapshot(),
-        "commands": control_command_payloads(accepted_commands),
     })
 
 
@@ -326,9 +334,10 @@ def show_window_ids_api(request: HttpRequest) -> JsonResponse:
     :return: 操作后的会话状态
     """
     def apply_show_id() -> None:
-        from scp_cv.services.playback import request_show_window_ids
-
-        request_show_window_ids()
+        from scp_cv.services.playback_commands import enqueue_playback_command
+        for window_id in VALID_WINDOW_IDS:
+            session = get_or_create_session(window_id)
+            enqueue_playback_command(session, PlaybackCommand.SHOW_ID)
 
     return mutate_playback(apply_show_id)
 
@@ -392,33 +401,45 @@ def shutdown_system_api(request: HttpRequest) -> JsonResponse:
     :param request: HTTP 请求
     :return: 当前会话状态
     """
-    with capture_enqueued_commands() as accepted_commands:
-        request_all_windows_close()
-    _SYSTEM_SHUTDOWN_SIGNAL.write_text("shutdown\n", encoding="utf-8")
+    request_all_windows_close()
+    _system_shutdown_signal_path().write_text("shutdown\n", encoding="utf-8")
     return json_response({
         "success": True,
         "sessions": get_all_sessions_snapshot(),
-        "commands": control_command_payloads(accepted_commands),
         "detail": "系统关闭请求已发送",
+    })
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def restart_all_api(request: HttpRequest) -> JsonResponse:
+    """
+    请求 runall 主控进程按统一清理流程关闭后重新启动全部服务。
+    会关闭前端、后端（Django）、播放器窗口、MediaMTX 等全部子进程，
+    然后以相同参数重新拉起 runall。
+    :param request: HTTP 请求
+    :return: 当前会话状态
+    """
+    request_all_windows_close()
+    _system_restart_signal_path().write_text("restart\n", encoding="utf-8")
+    return json_response({
+        "success": True,
+        "sessions": get_all_sessions_snapshot(),
+        "detail": "系统重启请求已发送",
     })
 
 
 @require_GET
 def list_displays_api(request: HttpRequest) -> JsonResponse:
     """
-    获取显示器列表和左右拼接标签。
+    获取可供播放器选择的单屏显示器列表。
     :param request: HTTP 请求
     :return: 显示器列表
     """
     display_targets = list_display_targets()
-    splice_target = build_left_right_splice_target(display_targets)
     return json_response({
         "success": True,
         "targets": [target.__dict__ for target in display_targets],
-        "splice_label": (
-            f"{splice_target.left.name} + {splice_target.right.name}"
-            if splice_target is not None else ""
-        ),
     })
 
 

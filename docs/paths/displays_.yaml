@@ -1,7 +1,7 @@
 get:
   tags:
     - displays
-  summary: 获取显示器列表与拼接标签
+  summary: 获取可选物理显示器列表
   operationId: listDisplays
   responses:
     '200':

@@ -1,7 +1,5 @@
 from .display import (
 	DisplayTarget,
-	SplicedDisplayTarget,
-	build_left_right_splice_target,
 	list_display_targets,
 )
 from .executables import get_mediamtx_executable
@@ -46,8 +44,6 @@ from .mediamtx import (
 
 __all__ = [
 	"DisplayTarget",
-	"SplicedDisplayTarget",
-	"build_left_right_splice_target",
 	"list_display_targets",
 	"get_mediamtx_executable",
 	"MediaError",

@@ -16,6 +16,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Optional
 
+from django.conf import settings
 from django.core.files.uploadedfile import UploadedFile
 from django.utils import timezone
 
@@ -26,6 +27,7 @@ from scp_cv.apps.playback.models import (
 )
 from scp_cv.services import ppt_playback_cache as _ppt_playback_cache
 from scp_cv.services import ppt_resources as _ppt_resources
+from scp_cv.services import slides_pdf as _slides_pdf
 from scp_cv.services.media_folders import (
     create_folder as create_folder,
     delete_folder as delete_folder,
@@ -37,6 +39,7 @@ from scp_cv.services.media_types import (
     detect_source_type,
     guess_mime_type as _guess_mime_type,
 )
+from scp_cv.services.media_paths import validate_local_media_path
 from scp_cv.services.media_previews import get_source_preview_file_info as get_source_preview_file_info
 from scp_cv.services.media_queries import (
     list_media_sources as list_media_sources,
@@ -106,6 +109,7 @@ def add_uploaded_file(
     media_source.save()
     _prepare_ppt_source_resources(media_source)
     _prepare_ppt_playback_cache(media_source)
+    _prepare_slides_pdf(media_source)
 
     logger.info("通过上传添加媒体源「%s」（%s）→ %s", display_name, source_type, media_source.uri)
     return media_source
@@ -132,6 +136,7 @@ def add_local_path(
 
     if not resolved_path.is_file():
         raise MediaError(f"文件不存在：{resolved_path}")
+    validate_local_media_path(resolved_path)
 
     if source_type is None:
         source_type = detect_source_type(str(resolved_path))
@@ -159,6 +164,7 @@ def add_local_path(
     )
     _prepare_ppt_source_resources(media_source)
     _prepare_ppt_playback_cache(media_source)
+    _prepare_slides_pdf(media_source)
 
     logger.info("通过本地路径添加媒体源「%s」（%s）→ %s", display_name, source_type, resolved_path)
     return media_source
@@ -203,12 +209,16 @@ def get_source_download_info(source_id: int) -> tuple[str, str, str]:
         raise MediaError(f"媒体源 id={source_id} 不存在") from not_found
 
     file_path = source.uri
-    if not file_path or not os.path.isfile(file_path):
+    if not file_path:
+        raise MediaError("源文件不存在，无法下载")
+    resolved_path = Path(file_path).resolve()
+    validate_local_media_path(resolved_path)
+    if not resolved_path.is_file():
         raise MediaError("源文件不存在，无法下载")
 
-    file_name = source.original_filename or os.path.basename(file_path)
+    file_name = source.original_filename or resolved_path.name
     mime_type = source.mime_type or _guess_mime_type(file_name)
-    return file_path, file_name, mime_type
+    return str(resolved_path), file_name, mime_type
 
 
 def delete_media_source(media_source_id: int) -> None:
@@ -225,6 +235,7 @@ def delete_media_source(media_source_id: int) -> None:
     from scp_cv.services.background_audio import handle_media_source_deleted
     handle_media_source_deleted(source.pk)
     _ppt_playback_cache.cleanup_ppt_playback_cache(source.pk)
+    _slides_pdf.cleanup_slides_pdf(source.pk)
 
     # 删除关联的上传文件
     if source.uploaded_file:
@@ -277,6 +288,17 @@ def _prepare_ppt_playback_cache(source: MediaSource) -> None:
     :return: None
     """
     _ppt_playback_cache.prepare_ppt_playback_cache(source)
+
+
+def _prepare_slides_pdf(source: MediaSource) -> None:
+    """
+    为新上传的演示文稿建立 PDF 播放模式元数据。
+    :param source: 已保存的演示文稿源
+    :return: None
+    """
+    if not getattr(settings, "SLIDES_PDF_AUTO_CONVERT", True):
+        return
+    _slides_pdf.prepare_slides_pdf(source)
 
 
 def _export_ppt_slide_previews(file_path: Path, source_id: int) -> list[str]:
@@ -371,6 +393,9 @@ def sync_streams_to_media_sources() -> dict[str, int]:
                 uri=srt_url,
                 stream_identifier=stream.stream_identifier,
                 is_available=True,
+                # 自动发现的直播流生命周期短，默认不建立常驻 libVLC 连接。
+                # 用户仍可在媒体源设置中显式开启预热。
+                keep_alive=False,
             )
             counts["created"] += 1
         else:

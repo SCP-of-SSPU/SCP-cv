@@ -11,7 +11,7 @@ post:
           $ref: ../components/schemas/BackgroundAudioSourceRequest.yaml
   responses:
     '200':
-      description: 已加入列表，播放指令已持久化并接受；不表示播放器已开始输出音频
+      description: 已加入列表并下发播放指令
       content:
         application/json:
           schema:

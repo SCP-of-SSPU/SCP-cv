@@ -11,7 +11,7 @@ post:
           $ref: ../components/schemas/BackgroundAudioControlRequest.yaml
   responses:
     '200':
-      description: 背景音频控制指令已持久化并接受；最终播放器状态通过 SSE 更新确认
+      description: 控制指令已写入后台播放器状态
       content:
         application/json:
           schema:

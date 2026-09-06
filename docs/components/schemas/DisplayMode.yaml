@@ -1,4 +1,3 @@
 type: string
 enum:
   - single
-  - left_right_splice

@@ -23,12 +23,14 @@ import {
 } from 'naive-ui';
 
 import FIcon from '@/design-system/FIcon.vue';
+import { sliderAriaLabel as vSliderAriaLabel } from '@/design-system/sliderAriaLabel';
+import SourceThumbnail from '@/features/sources/SourceThumbnail.vue';
 import { useToast } from '@/composables/useToast';
 import { useThrottledSlider } from '@/composables/useThrottledSlider';
 import { useSessionStore } from '@/stores/sessions';
 import { useSourceStore } from '@/stores/sources';
 import { formatDuration } from '@/design-system/utils';
-import { api, type PptResourceItem, type SessionSnapshot } from '@/services/api';
+import { api, buildBackendUrl, type PptResourceItem, type SessionSnapshot } from '@/services/api';
 import { usePlaybackErrorGate } from './usePlaybackErrorGate';
 
 const props = defineProps<{ session: SessionSnapshot }>();
@@ -39,10 +41,13 @@ const sessionStore = useSessionStore();
 const sourceStore = useSourceStore();
 
 const category = computed(() => sourceStore.resolveCategory(props.session.source_type));
+const isPdfMode = computed(() => props.session.playback_mode === 'pdf');
+const currentSource = computed(() => sourceStore.findById(props.session.source_id) ?? null);
 
 type NTagType = 'default' | 'primary' | 'info' | 'success' | 'warning' | 'error';
 
 const stateType = computed<NTagType>(() => {
+  if (!props.session.source_id) return 'default';
   switch (props.session.playback_state) {
     case 'playing':
       return 'success';
@@ -119,12 +124,15 @@ const windowVolume = useThrottledSlider(
   },
 );
 
-function onSeek(positionMs: number): void {
-  void call(
-    () => sessionStore.navigate(props.session.window_id, 'seek', 0, positionMs),
-    t('playback.seekFail'),
-  );
-}
+const seekValue = computed(() => Math.min(props.session.duration_ms, Math.max(0, props.session.position_ms)));
+
+const videoSeek = useThrottledSlider(
+  () => seekValue.value,
+  {
+    commit: (positionMs: number) => sessionStore.navigate(props.session.window_id, 'seek', 0, positionMs),
+    onError: (error) => toast.error(t('playback.seekFail'), error instanceof Error ? error.message : t('common.retry')),
+  },
+);
 
 function onClose(): void {
   void call(() => sessionStore.closeSource(props.session.window_id), t('playback.closeFail'));
@@ -148,7 +156,7 @@ async function loadPptResources(): Promise<void> {
 }
 
 watch(
-  () => [category.value, props.session.source_id, props.session.current_slide] as const,
+  () => [category.value, props.session.source_id] as const,
   loadPptResources,
   { immediate: true },
 );
@@ -156,6 +164,10 @@ watch(
 const currentResource = computed(() =>
   pptResources.value.find((res) => res.page_index === props.session.current_slide),
 );
+const currentPagePreviewUrl = computed(() => {
+  if (category.value !== 'ppt' || !currentResource.value?.slide_image) return '';
+  return buildBackendUrl(currentResource.value.slide_image);
+});
 
 async function pptMediaAction(mediaId: string, mediaIndex: number, action: string): Promise<void> {
   try {
@@ -175,8 +187,6 @@ const pptProgressPercentage = computed(() => {
   return Math.round((props.session.current_slide / props.session.total_slides) * 100);
 });
 
-const seekValue = computed(() => Math.min(props.session.duration_ms, Math.max(0, props.session.position_ms)));
-
 const isPlaying = computed(() => props.session.playback_state === 'playing');
 
 async function reopenCurrentSource(): Promise<void> {
@@ -186,6 +196,16 @@ async function reopenCurrentSource(): Promise<void> {
     toast.info(t('playback.reopenOk'), t('playback.reopenOkDetail'));
   } catch (error) {
     toast.error(t('playback.reopenFail'), error instanceof Error ? error.message : t('common.retry'));
+  }
+}
+
+async function refreshWebSource(): Promise<void> {
+  if (!props.session.source_id) return;
+  try {
+    await sessionStore.control(props.session.window_id, 'play');
+    toast.info(t('playback.refreshOk'));
+  } catch (error) {
+    toast.error(t('playback.refreshFail'), error instanceof Error ? error.message : t('common.retry'));
   }
 }
 
@@ -211,17 +231,25 @@ const errorBarDescription = computed(() => {
 <template>
   <div class="playback-control">
     <header class="playback-control__heading">
-      <div>
-        <n-tag :type="stateType" round size="small">
-          {{ session.playback_state_label || session.playback_state }}
-        </n-tag>
-        <h3 class="playback-control__source-name">
-          {{ session.source_name || t('playback.notOpened') }}
-        </h3>
-        <p class="playback-control__caption">
-          {{ session.source_type_label || t('playback.idle') }}
-          <template v-if="session.is_spliced">· {{ session.spliced_display_label || t('playback.spliced') }}</template>
-        </p>
+      <div class="playback-control__identity">
+        <SourceThumbnail v-if="currentSource" :source="currentSource" size="comfortable" />
+        <div>
+          <n-tag :type="stateType" round size="small">
+            {{ session.source_id ? (session.playback_state_label || session.playback_state) : t('playback.idle') }}
+          </n-tag>
+          <h3 class="playback-control__source-name">
+            {{ session.source_id ? (session.source_name || t('playback.notOpened')) : t('playback.noSource') }}
+          </h3>
+          <p class="playback-control__caption">
+            {{ session.source_id ? (session.source_type_label || t('playback.idle')) : t('playback.noSource') }}
+            <n-tag v-if="category === 'ppt' && session.playback_mode === 'pdf'" type="info" round size="small">
+              {{ t('playback.pdfBadge') }}
+            </n-tag>
+            <n-tag v-else-if="category === 'ppt' && session.playback_mode === 'powerpoint'" type="warning" round size="small">
+              {{ t('playback.powerpointBadge') }}
+            </n-tag>
+          </p>
+        </div>
       </div>
       <RouterLink v-if="category === 'ppt' && session.source_id" :to="`/ppt-focus/${session.window_id}`"
         class="playback-control__focus-link">
@@ -229,6 +257,15 @@ const errorBarDescription = computed(() => {
         <span>{{ t('playback.focusLink') }}</span>
       </RouterLink>
     </header>
+
+    <section v-if="currentSource" class="playback-control__monitor" aria-live="polite">
+      <SourceThumbnail :source="currentSource" size="stage" :image-url="currentPagePreviewUrl" />
+      <div class="playback-control__monitor-copy">
+        <span class="playback-control__monitor-eyebrow">{{ t('playback.currentOutput') }}</span>
+        <strong>{{ currentSource.name }}</strong>
+        <span>{{ t('playback.previewReference') }}</span>
+      </div>
+    </section>
 
     <n-alert v-if="showErrorBar" type="error" :title="errorBarTitle" closable @close="dismissErrorBar">
       <div class="playback-control__alert-body">
@@ -268,7 +305,7 @@ const errorBarDescription = computed(() => {
         {{ pptError }}
       </n-alert>
 
-      <div v-if="currentResource && currentResource.media_items.length > 0" class="playback-control__media">
+      <div v-if="!isPdfMode && currentResource && currentResource.media_items.length > 0" class="playback-control__media">
         <h4 class="playback-control__media-title">{{ t('playback.currentMedia') }}</h4>
         <ul class="playback-control__media-list">
           <li v-for="media in currentResource.media_items" :key="media.id" class="playback-control__media-item">
@@ -308,18 +345,22 @@ const errorBarDescription = computed(() => {
         </n-button>
         <div class="playback-control__switch">
           <span>{{ t('playback.loop') }}</span>
-          <n-switch :value="session.loop_enabled" @update:value="onLoopToggle" />
+          <n-switch :value="session.loop_enabled" :aria-label="t('playback.loop')"
+            @update:value="onLoopToggle" />
         </div>
       </div>
       <div v-if="session.duration_ms > 0" class="playback-control__row playback-control__row--seek">
         <n-slider
-          :value="seekValue"
+          v-slider-aria-label="t('playback.seekAria')"
+          :value="videoSeek.value.value"
           :min="0"
           :max="session.duration_ms"
           :step="1000"
           :aria-label="t('playback.seekAria')"
           class="playback-control__seek"
-          @update:value="onSeek"
+          @update:value="videoSeek.handleInput"
+          @dragend="videoSeek.handleChange(videoSeek.value.value)"
+          @keyup="videoSeek.handleChange(videoSeek.value.value)"
         />
         <span class="playback-control__progress-label">
           {{ formatDuration(session.position_ms) }} / {{ formatDuration(session.duration_ms) }}
@@ -330,6 +371,10 @@ const errorBarDescription = computed(() => {
     <section v-else-if="category === 'image' || category === 'web'" class="playback-control__section">
       <p v-if="session.source_uri" class="playback-control__uri">{{ session.source_uri }}</p>
       <p v-else class="playback-control__uri">{{ t('playback.uriMissing') }}</p>
+      <n-button v-if="category === 'web'" size="small" :disabled="!session.source_id" @click="refreshWebSource">
+        <template #icon><FIcon name="arrow_clockwise_24_regular" /></template>
+        {{ t('playback.refresh') }}
+      </n-button>
     </section>
 
     <section v-else-if="category === 'stream'" class="playback-control__section">
@@ -337,6 +382,10 @@ const errorBarDescription = computed(() => {
         {{ session.source_uri ? t('playback.live') : t('playback.notStreaming') }}
       </n-tag>
       <p v-if="session.source_uri" class="playback-control__uri">{{ session.source_uri }}</p>
+      <n-button size="small" :disabled="!session.source_id" @click="refreshWebSource">
+        <template #icon><FIcon name="arrow_clockwise_24_regular" /></template>
+        {{ t('playback.refresh') }}
+      </n-button>
     </section>
 
     <section v-else class="playback-control__section">
@@ -347,14 +396,16 @@ const errorBarDescription = computed(() => {
       <div class="playback-control__row">
         <span class="playback-control__field-label">{{ t('playback.windowVolume') }}</span>
         <n-slider
+          v-slider-aria-label="t('playback.windowVolumeAria')"
           :value="windowVolume.value.value"
           :min="0"
           :max="100"
           :aria-label="t('playback.windowVolumeAria')"
-          :disabled="category === 'audio' || category === 'image' || category === 'web'"
+          :disabled="!session.source_id || category === 'audio' || category === 'image' || category === 'web'"
           class="playback-control__seek"
           @update:value="windowVolume.handleInput"
           @dragend="windowVolume.handleChange(windowVolume.value.value)"
+          @keyup="windowVolume.handleChange(windowVolume.value.value)"
         />
       </div>
       <div class="playback-control__row">
@@ -362,11 +413,12 @@ const errorBarDescription = computed(() => {
           <span>{{ t('playback.windowMute') }}</span>
           <n-switch
             :value="session.is_muted"
-            :disabled="category === 'audio' || category === 'image' || category === 'web'"
+            :aria-label="t('playback.windowMute')"
+            :disabled="!session.source_id || category === 'audio' || category === 'image' || category === 'web'"
             @update:value="onMuteToggle"
           />
         </div>
-        <n-button type="error" :disabled="!session.source_id" @click="onClose">
+        <n-button v-if="session.source_id" type="error" @click="onClose">
           <template #icon><FIcon name="dismiss_24_regular" /></template>
           {{ t('playback.closeDisplay') }}
         </n-button>
@@ -375,167 +427,4 @@ const errorBarDescription = computed(() => {
   </div>
 </template>
 
-<style scoped>
-.playback-control {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacingVerticalL);
-}
-
-.playback-control__heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--spacingHorizontalL);
-}
-
-.playback-control__source-name {
-  margin: var(--spacingVerticalXS) 0 0;
-  font-size: var(--fontSizeBase600);
-  line-height: var(--lineHeightBase600);
-  font-weight: 600;
-}
-
-.playback-control__caption {
-  margin: var(--spacingVerticalXS) 0 0;
-  color: var(--colorNeutralForeground2);
-  font-size: var(--fontSizeBase200);
-}
-
-.playback-control__focus-link {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacingHorizontalXS);
-  padding: var(--spacingVerticalS) var(--spacingHorizontalM);
-  border-radius: var(--borderRadiusMedium);
-  background: var(--colorBrandBackground2);
-  color: var(--colorBrandForeground1);
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.playback-control__focus-link:hover {
-  background: var(--colorBrandBackground);
-  color: #ffffff;
-}
-
-.playback-control__section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacingVerticalM);
-  padding: var(--spacingVerticalL);
-  border-radius: var(--borderRadiusLarge);
-  background: var(--colorNeutralBackground2);
-  border: 1px solid var(--colorNeutralStroke2);
-}
-
-.playback-control__row {
-  display: flex;
-  align-items: center;
-  gap: var(--spacingHorizontalM);
-  flex-wrap: wrap;
-}
-
-.playback-control__jump {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacingHorizontalS);
-  flex: 0 0 auto;
-}
-
-.playback-control__jump :deep(.n-input) {
-  width: 96px;
-}
-
-.playback-control__row--progress,
-.playback-control__row--seek {
-  align-items: center;
-  flex-wrap: nowrap;
-}
-
-.playback-control__progress,
-.playback-control__seek {
-  flex: 1 1 auto;
-}
-
-.playback-control__progress-label {
-  font-variant-numeric: tabular-nums;
-  color: var(--colorNeutralForeground2);
-  flex-shrink: 0;
-}
-
-.playback-control__switch {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacingHorizontalS);
-}
-
-.playback-control__media-title {
-  margin: 0;
-  font-size: var(--fontSizeBase400);
-  font-weight: 600;
-}
-
-.playback-control__media-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacingVerticalXS);
-}
-
-.playback-control__media-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacingHorizontalM);
-  padding: var(--spacingVerticalS) var(--spacingHorizontalM);
-  background: var(--colorNeutralBackground1);
-  border: 1px solid var(--colorNeutralStroke2);
-  border-radius: var(--borderRadiusMedium);
-}
-
-.playback-control__media-name {
-  flex: 1 1 auto;
-  font-weight: 500;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.playback-control__media-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacingHorizontalXS);
-}
-
-.playback-control__uri {
-  margin: 0;
-  font-family: var(--fontFamilyMonospace);
-  color: var(--colorNeutralForeground2);
-  word-break: break-all;
-}
-
-.playback-control__field-label {
-  flex: 0 0 96px;
-  font-weight: 600;
-}
-
-@media (max-width: 767px) {
-  .playback-control__heading {
-    flex-direction: column;
-    gap: var(--spacingVerticalS);
-  }
-
-  .playback-control__row {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .playback-control__field-label {
-    flex: 0 0 auto;
-  }
-}
-</style>
+<style scoped src="./PlaybackControl.css"></style>

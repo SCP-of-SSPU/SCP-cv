@@ -7,7 +7,7 @@ import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { NAlert, NButton, NCard, NTag } from 'naive-ui';
 
-import { api, PHYSICAL_SMOKE_TOTAL_TIMEOUT_SECONDS, type PhysicalSmokeResult } from '@/services/api';
+import { api, getConnectionPorts, PHYSICAL_SMOKE_TOTAL_TIMEOUT_SECONDS, type PhysicalSmokeResult } from '@/services/api';
 import { useDialog } from '@/composables/useDialog';
 import { useToast } from '@/composables/useToast';
 import { useSessionStore } from '@/stores/sessions';
@@ -18,8 +18,9 @@ const toast = useToast();
 const sessionStore = useSessionStore();
 
 const backendTarget = computed(() => String(import.meta.env.VITE_BACKEND_TARGET || ''));
+const connectionPorts = getConnectionPorts();
 const portsCaption = computed(() =>
-  t('settings.ports', { port: import.meta.env.VITE_FRONTEND_PORT || '5173' }),
+  t('settings.ports', connectionPorts),
 );
 const smokeRunning = ref(false);
 const smokeResult = ref<PhysicalSmokeResult | null>(null);

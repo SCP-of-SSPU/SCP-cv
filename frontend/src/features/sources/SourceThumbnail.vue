@@ -12,13 +12,15 @@ import { sourceCategoryIcon } from './sourcePresentation';
 
 const props = withDefaults(defineProps<{
   source: MediaSourceItem;
-  size?: 'compact' | 'comfortable';
+  size?: 'compact' | 'comfortable' | 'stage';
+  imageUrl?: string;
 }>(), {
   size: 'compact',
+  imageUrl: '',
 });
 
 const loadFailed = ref(false);
-const rawPreviewUrl = computed(() => props.source.thumbnail_url || props.source.preview_url || '');
+const rawPreviewUrl = computed(() => props.imageUrl || props.source.thumbnail_url || props.source.preview_url || '');
 const previewUrl = computed(() => (rawPreviewUrl.value ? buildBackendUrl(rawPreviewUrl.value) : ''));
 const previewKind = computed(() => props.source.preview_kind || 'icon');
 const fallbackIcon = computed(() => sourceCategoryIcon(props.source));
@@ -71,6 +73,16 @@ function markFailed(): void {
 .source-thumbnail--comfortable {
   width: 48px;
   height: 36px;
+}
+
+.source-thumbnail--stage {
+  width: min(100%, 320px);
+  aspect-ratio: 16 / 9;
+  border-radius: var(--borderRadiusMedium);
+}
+
+.source-thumbnail--stage .source-thumbnail__icon {
+  font-size: 3rem;
 }
 
 .source-thumbnail--media {

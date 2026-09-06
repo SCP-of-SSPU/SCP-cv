@@ -10,6 +10,8 @@ run_player 管理命令测试，覆盖启动器事件循环与播放器主循环
 from __future__ import annotations
 
 import sys
+import subprocess
+from pathlib import Path
 from types import ModuleType
 
 from pytest import MonkeyPatch
@@ -18,7 +20,79 @@ from scp_cv.apps.dashboard.management.commands.run_player import Command
 from scp_cv.player.gpu_detector import GPUInfo
 from scp_cv.player.launcher_gui import LauncherResult
 from scp_cv.services.display import DisplayTarget
-from tests.run_player_test_support import _QtAppStub, _SignalStub
+
+
+class _SignalStub:
+    """最小 Qt Signal 替身。"""
+
+    def __init__(self) -> None:
+        """
+        初始化回调列表。
+        :return: None
+        """
+        self._callbacks: list[object] = []
+
+    def connect(self, callback: object) -> None:
+        """
+        记录连接的回调。
+        :param callback: 回调对象
+        :return: None
+        """
+        self._callbacks.append(callback)
+
+    def emit(self, *args: object) -> None:
+        """
+        触发所有已连接回调。
+        :param args: 回调参数
+        :return: None
+        """
+        for callback in list(self._callbacks):
+            callback(*args)
+
+
+class _QtAppStub:
+    """最小 QApplication 替身。"""
+
+    def __init__(self) -> None:
+        """
+        初始化事件循环状态。
+        :return: None
+        """
+        self._quit_on_last_window_closed = True
+        self.quit_calls = 0
+        self.exec_calls = 0
+        self.quit_on_last_window_values: list[bool] = []
+
+    def quitOnLastWindowClosed(self) -> bool:
+        """
+        返回是否最后窗口关闭时退出。
+        :return: 当前设置
+        """
+        return self._quit_on_last_window_closed
+
+    def setQuitOnLastWindowClosed(self, enabled: bool) -> None:
+        """
+        设置最后窗口关闭退出行为。
+        :param enabled: 是否启用
+        :return: None
+        """
+        self._quit_on_last_window_closed = enabled
+        self.quit_on_last_window_values.append(enabled)
+
+    def quit(self) -> None:
+        """
+        记录退出请求。
+        :return: None
+        """
+        self.quit_calls += 1
+
+    def exec(self) -> int:
+        """
+        记录事件循环启动。
+        :return: 退出码
+        """
+        self.exec_calls += 1
+        return 0
 
 
 def test_collect_launcher_result_explicitly_quits_launcher_loop(
@@ -60,8 +134,6 @@ def test_collect_launcher_result_returns_none_when_cancelled(
     assert qt_app.exec_calls == 1
     assert qt_app.quit_calls == 1
     assert qt_app.quit_on_last_window_values == [False, True]
-
-
 
 
 def test_run_isolated_window_players_spawns_one_process_per_window(
@@ -141,26 +213,56 @@ def test_run_isolated_window_players_spawns_one_process_per_window(
     )
 
     assert len(spawned_commands) == 2
-    assert spawned_commands[0][-7:] == [
-        "--headless",
-        "--only-window",
-        "1",
-        "--window1",
-        "1",
-        "--gpu",
-        "2",
-    ]
-    assert spawned_commands[1][-8:] == [
-        "--headless",
-        "--only-window",
-        "2",
-        "--window2",
-        "2",
-        "--gpu",
-        "2",
-        "--disable-background-audio",
-    ]
-    assert terminated == [True, True]
+    assert "--only-window" in spawned_commands[0]
+    assert spawned_commands[0][spawned_commands[0].index("--only-window") + 1] == "1"
+    assert "--shutdown-file" in spawned_commands[0]
+    assert "--only-window" in spawned_commands[1]
+    assert spawned_commands[1][spawned_commands[1].index("--only-window") + 1] == "2"
+    assert "--disable-background-audio" in spawned_commands[1]
+    # wait 成功代表子进程已通过 shutdown 文件协作退出，不应调用 terminate。
+    assert terminated == []
+
+
+def test_isolated_player_shutdown_forces_terminate_then_kill_after_timeouts(
+    tmp_path: Path,
+) -> None:
+    """协作退出和 terminate 都超时后，父进程才允许 kill。"""
+    shutdown_path = tmp_path / "player.shutdown"
+
+    class _HungProcess:
+        """始终不退出的子进程替身。"""
+
+        pid = 9001
+
+        def __init__(self) -> None:
+            self.terminate_calls = 0
+            self.kill_calls = 0
+
+        def poll(self) -> None:
+            """返回仍在运行。"""
+            return None
+
+        def wait(self, timeout: int) -> int:
+            """模拟任意阶段等待超时。"""
+            raise subprocess.TimeoutExpired("run_player", timeout)
+
+        def terminate(self) -> None:
+            """记录 terminate。"""
+            self.terminate_calls += 1
+
+        def kill(self) -> None:
+            """记录 kill。"""
+            self.kill_calls += 1
+
+    process = _HungProcess()
+    Command._terminate_isolated_players(
+        [process],  # type: ignore[list-item]
+        {process: shutdown_path},  # type: ignore[dict-item]
+    )
+
+    assert process.terminate_calls == 1
+    assert process.kill_calls == 1
+    assert not shutdown_path.exists()
 
 
 def _build_fake_launcher_module(action: str, launch_result: object) -> ModuleType:

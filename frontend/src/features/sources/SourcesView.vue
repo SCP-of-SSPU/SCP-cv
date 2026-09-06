@@ -12,9 +12,11 @@ import {
   NAlert,
   NButton,
   NCard,
+  NCheckbox,
   NDropdown,
   NEmpty,
   NInput,
+  NModal,
   NSkeleton,
   NTabs,
   NTabPane,
@@ -33,7 +35,7 @@ import { useToast } from '@/composables/useToast';
 import { useBackgroundAudioStore } from '@/stores/backgroundAudio';
 import { useSessionStore } from '@/stores/sessions';
 import { useSourceStore, type SourceCategory } from '@/stores/sources';
-import { api, type MediaSourceItem } from '@/services/api';
+import { api, type MediaFolderItem, type MediaSourceItem } from '@/services/api';
 import { formatBytes, formatRelativeTime } from '@/design-system/utils';
 
 const { t } = useI18n();
@@ -48,6 +50,13 @@ const isLoading = ref(false);
 const drawerOpen = ref(false);
 const editDrawerOpen = ref(false);
 const editingSource = ref<MediaSourceItem | null>(null);
+const newFolderDialogOpen = ref(false);
+const newFolderName = ref('');
+const creatingFolder = ref(false);
+const deleteFolderTarget = ref<MediaFolderItem | null>(null);
+const deleteFolderContents = ref(false);
+const deletingFolder = ref(false);
+const deleteFolderDialogOpen = ref(false);
 
 function startEdit(source: MediaSourceItem): void {
   editingSource.value = source;
@@ -87,6 +96,10 @@ async function refresh(): Promise<void> {
 }
 
 async function openToWindow(source: MediaSourceItem, windowId: number): Promise<void> {
+  if (!source.is_available) {
+    toast.warning(t('sources.offline'), t('sources.unavailableCard'));
+    return;
+  }
   try {
     await sessionStore.openSource(windowId, source.id, true);
     toast.success(t('sources.openedOk', { id: windowId, name: source.name }));
@@ -159,6 +172,7 @@ function buildRowMenu(source: MediaSourceItem): DropdownOption[] {
         type: 'group',
         label: t('sources.openToWindow'),
         key: 'open-group',
+        disabled: !source.is_available,
         children: [1, 2, 3, 4].map((windowId) => ({
           label: t('sources.window', { id: windowId }),
           key: `open-${windowId}`,
@@ -177,6 +191,12 @@ function buildRowMenu(source: MediaSourceItem): DropdownOption[] {
       props: { onClick: () => startEdit(source) },
     },
     {
+      label: t('sources.moveToFolder'),
+      key: 'move-to',
+      icon: renderIcon('folder_24_regular'),
+      children: buildMoveToFolderOptions(source),
+    },
+    {
       label: t('sources.download'),
       key: 'download',
       icon: renderIcon('arrow_download_24_regular'),
@@ -193,6 +213,15 @@ function buildRowMenu(source: MediaSourceItem): DropdownOption[] {
       },
     },
   ];
+}
+
+function activeWindowLabel(sourceId: number): string {
+  const windows = sessionStore.sessions
+    .filter((session) => session.source_id === sourceId)
+    .map((session) => session.window_id)
+    .sort((left, right) => left - right)
+    .join('、');
+  return windows ? t('sources.onAirWindows', { windows }) : '';
 }
 
 function setCategory(value: SourceCategory): void {
@@ -220,6 +249,130 @@ const categoryModel = computed({
   get: () => sourceStore.category,
   set: (value: string) => setCategory(value as SourceCategory),
 });
+
+// ═══════════════════ 文件夹管理 ═══════════════════
+
+const breadcrumbs = computed(() => sourceStore.folderBreadcrumbs);
+const childFolders = computed(() => sourceStore.childFolders);
+
+async function navigateToFolder(folderId: number | null): Promise<void> {
+  isLoading.value = true;
+  try {
+    sourceStore.setCurrentFolder(folderId);
+    await sourceStore.refresh();
+  } catch (error) {
+    toast.error(t('sources.folderFail'), error instanceof Error ? error.message : t('common.retry'));
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+async function createFolder(): Promise<void> {
+  const name = newFolderName.value.trim();
+  if (!name) return;
+  creatingFolder.value = true;
+  try {
+    await sourceStore.createFolder(name, sourceStore.currentFolderId);
+    toast.success(t('sources.folderCreatedOk'));
+    newFolderName.value = '';
+    newFolderDialogOpen.value = false;
+  } catch (error) {
+    toast.error(t('sources.folderFail'), error instanceof Error ? error.message : t('common.retry'));
+  } finally {
+    creatingFolder.value = false;
+  }
+}
+
+async function renameFolder(folder: MediaFolderItem): Promise<void> {
+  // 使用简单的 prompt 对话框重命名
+  const newName = window.prompt(t('sources.renameFolder'), folder.name);
+  if (newName === null || newName.trim() === folder.name) return;
+  try {
+    await sourceStore.renameFolder(folder.id, newName.trim());
+    toast.success(t('sources.folderRenamedOk'));
+  } catch (error) {
+    toast.error(t('sources.folderFail'), error instanceof Error ? error.message : t('common.retry'));
+  }
+}
+
+async function deleteFolderConfirm(folder: MediaFolderItem): Promise<void> {
+  deleteFolderTarget.value = folder;
+  deleteFolderContents.value = false;
+  deleteFolderDialogOpen.value = true;
+}
+
+async function executeFolderDelete(): Promise<void> {
+  const folder = deleteFolderTarget.value;
+  if (folder === null) return;
+  deletingFolder.value = true;
+  try {
+    await sourceStore.deleteFolder(folder.id, deleteFolderContents.value);
+    toast.success(t('sources.folderDeletedOk'));
+    deleteFolderDialogOpen.value = false;
+    deleteFolderTarget.value = null;
+  } catch (error) {
+    toast.error(t('sources.folderFail'), error instanceof Error ? error.message : t('common.retry'));
+  } finally {
+    deletingFolder.value = false;
+  }
+}
+
+function buildFolderMenu(folder: MediaFolderItem): DropdownOption[] {
+  return [
+    {
+      label: t('sources.renameFolder'),
+      key: 'rename-folder',
+      icon: renderIcon('edit_24_regular'),
+      props: { onClick: () => renameFolder(folder) },
+    },
+    {
+      label: t('sources.deleteFolder'),
+      key: 'delete-folder',
+      icon: renderIcon('delete_24_regular'),
+      props: {
+        onClick: () => deleteFolderConfirm(folder),
+        style: 'color: var(--colorStatusDangerForeground1);',
+      },
+    },
+  ];
+}
+
+/** 构建可移动到的文件夹列表（排除源当前所在文件夹）。 */
+function buildMoveToFolderOptions(source: MediaSourceItem): DropdownOption[] {
+  const allFolders = sourceStore.folders;
+  const options: DropdownOption[] = [
+    {
+      label: t('sources.moveToRoot'),
+      key: 'move-root',
+      icon: renderIcon('folder_24_regular'),
+      disabled: source.folder_id === null,
+      props: { onClick: () => moveSourceToFolder(source, null) },
+    },
+  ];
+  for (const folder of allFolders) {
+    if (folder.id === source.folder_id) continue;
+    options.push({
+      label: folder.name,
+      key: `move-${folder.id}`,
+      icon: renderIcon('folder_24_regular'),
+      props: { onClick: () => moveSourceToFolder(source, folder.id) },
+    });
+  }
+  return options;
+}
+
+async function moveSourceToFolder(source: MediaSourceItem, folderId: number | null): Promise<void> {
+  try {
+    await sourceStore.moveSource(source.id, folderId);
+    const folderName = sourceStore.folders.find((folder) => folder.id === folderId)?.name;
+    toast.success(folderId === null
+      ? t('sources.movedRootOk')
+      : t('sources.movedOk', { name: folderName ?? '' }));
+    await refresh();
+  } catch (error) {
+    toast.error(t('sources.moveFail'), error instanceof Error ? error.message : t('common.retry'));
+  }
+}
 </script>
 
 <template>
@@ -267,6 +420,44 @@ const categoryModel = computed({
       </aside>
 
       <section class="sources-view__main">
+        <!-- 文件夹面包屑 + 新建文件夹 -->
+        <div class="sources-view__folder-bar">
+          <nav class="sources-view__breadcrumb" :aria-label="t('sources.folderBreadcrumbAria')">
+            <button type="button" class="sources-view__breadcrumb-item"
+              :class="{ 'sources-view__breadcrumb-item--active': sourceStore.currentFolderId === null }"
+              @click="navigateToFolder(null)">
+              <FIcon name="home_24_regular" :size="16" />
+              <span>{{ t('sources.folderRoot') }}</span>
+            </button>
+            <template v-for="crumb in breadcrumbs" :key="crumb.id">
+              <FIcon name="chevron_right_24_regular" :size="14" class="sources-view__breadcrumb-sep" />
+              <button type="button" class="sources-view__breadcrumb-item"
+                :class="{ 'sources-view__breadcrumb-item--active': crumb.id === sourceStore.currentFolderId }"
+                @click="navigateToFolder(crumb.id)">
+                {{ crumb.name }}
+              </button>
+            </template>
+          </nav>
+          <n-button size="small" quaternary :aria-label="t('sources.newFolder')" @click="newFolderDialogOpen = true">
+            <template #icon><FIcon name="add_24_regular" /></template>
+            {{ t('sources.newFolderOkShort') }}
+          </n-button>
+        </div>
+
+        <!-- 子文件夹列表 -->
+        <div v-if="childFolders.length > 0" class="sources-view__folders">
+          <div v-for="folder in childFolders" :key="folder.id" class="sources-view__folder-card" role="button"
+            tabindex="0" @click="navigateToFolder(folder.id)" @keyup.enter="navigateToFolder(folder.id)">
+            <FIcon name="folder_24_regular" :size="28" />
+            <span class="sources-view__folder-name">{{ folder.name }}</span>
+            <n-dropdown trigger="click" placement="bottom-end" :options="buildFolderMenu(folder)"
+              @select="handleMenuSelect" @click.stop>
+              <n-button quaternary circle size="tiny" :aria-label="t('common.edit')">
+                <template #icon><FIcon name="more_horizontal_20_regular" :size="16" /></template>
+              </n-button>
+            </n-dropdown>
+          </div>
+        </div>
         <n-card content-style="padding:0">
           <template v-if="isLoading && sourceStore.filtered.length === 0">
             <div class="sources-view__skeletons">
@@ -280,7 +471,7 @@ const categoryModel = computed({
           </template>
 
           <template v-else-if="sourceStore.filtered.length === 0">
-            <n-empty :description="activeCategoryDef.emptyHint">
+            <n-empty :description="sourceStore.searchKeyword.trim() ? t('sources.searchEmpty') : activeCategoryDef.emptyHint">
               <template #icon>
                 <FIcon name="library_24_regular" />
               </template>
@@ -311,6 +502,9 @@ const categoryModel = computed({
                       <SourceThumbnail :source="source" size="comfortable" />
                       <div>
                         <p class="sources-view__name">{{ source.name }}</p>
+                        <n-tag v-if="activeWindowLabel(source.id)" type="success" round size="small" class="sources-view__on-air">
+                          {{ activeWindowLabel(source.id) }}
+                        </n-tag>
                         <p v-if="source.uri" class="sources-view__uri">{{ source.uri }}</p>
                       </div>
                     </div>
@@ -330,7 +524,7 @@ const categoryModel = computed({
                       :options="buildRowMenu(source)"
                       @select="handleMenuSelect"
                     >
-                      <n-button quaternary circle>
+                      <n-button quaternary circle :aria-label="t('sources.rowActionsAria', { name: source.name })">
                         <template #icon><FIcon name="more_horizontal_20_regular" /></template>
                       </n-button>
                     </n-dropdown>
@@ -356,13 +550,16 @@ const categoryModel = computed({
                     :options="buildRowMenu(source)"
                     @select="handleMenuSelect"
                   >
-                    <n-button quaternary circle>
+                    <n-button quaternary circle :aria-label="t('sources.rowActionsAria', { name: source.name })">
                       <template #icon><FIcon name="more_horizontal_24_regular" /></template>
                     </n-button>
                   </n-dropdown>
                 </template>
                 <div class="sources-view__card-meta">
                   <n-tag :type="sourceCategoryTone(source)" round size="small">{{ sourceCategoryLabel(source) }}</n-tag>
+                  <n-tag v-if="activeWindowLabel(source.id)" type="success" round size="small">
+                    {{ activeWindowLabel(source.id) }}
+                  </n-tag>
                   <span v-if="source.file_size">{{ formatBytes(source.file_size) }}</span>
                   <span>{{ formatRelativeTime(source.created_at) }}</span>
                 </div>
@@ -376,7 +573,34 @@ const categoryModel = computed({
       </section>
     </div>
 
-    <AddSourceDrawer v-model:open="drawerOpen" @added="refresh" />
+    <!-- 删除文件夹确认对话框 -->
+    <n-modal v-model:show="deleteFolderDialogOpen" preset="dialog"
+      :title="t('sources.deleteFolderTitle', { name: deleteFolderTarget?.name ?? '' })"
+      :positive-text="t('sources.deleteFolderOk')"
+      :negative-text="t('common.cancel')"
+      :positive-button-props="{ type: 'error', loading: deletingFolder }"
+      @positive-click="executeFolderDelete"
+      @negative-click="deleteFolderTarget = null">
+      <p style="margin: 0 0 var(--spacingVerticalS); color: var(--colorNeutralForeground2);">
+        {{ t('sources.deleteFolderDesc') }}
+      </p>
+      <n-checkbox v-model:checked="deleteFolderContents">
+        {{ t('sources.deleteFolderContentsCheckbox') }}
+      </n-checkbox>
+      <n-alert v-if="deleteFolderContents" type="warning" :closable="false" style="margin-top: var(--spacingVerticalS);">
+        {{ t('sources.deleteFolderContentsWarn') }}
+      </n-alert>
+    </n-modal>
+
+    <!-- 新建文件夹对话框 -->
+    <n-modal v-model:show="newFolderDialogOpen" preset="dialog" :title="t('sources.newFolder')"
+      :positive-text="t('sources.newFolderOk')" :negative-text="t('common.cancel')"
+      :loading="creatingFolder" @positive-click="createFolder">
+      <n-input v-model:value="newFolderName" :placeholder="t('sources.newFolderPlaceholder')"
+        :aria-label="t('sources.newFolderName')" @keyup.enter="createFolder" />
+    </n-modal>
+
+    <AddSourceDrawer v-model:open="drawerOpen" :folderId="sourceStore.currentFolderId" @added="refresh" />
     <EditSourceDrawer v-model:open="editDrawerOpen" :source="editingSource" @updated="refresh" />
   </div>
 </template>

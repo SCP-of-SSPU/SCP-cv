@@ -13,7 +13,7 @@ post:
           $ref: ../components/schemas/OpenSourceRequest.yaml
   responses:
     '200':
-      description: 打开指令已持久化并接受；不表示播放器已执行完成，最终状态通过 SSE 会话更新确认
+      description: 操作成功
       content:
         application/json:
           schema:

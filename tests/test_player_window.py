@@ -17,8 +17,6 @@ import pytest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QEvent, Qt
-from PySide6.QtGui import QGuiApplication
-from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QWidget
 
 from scp_cv.player.window import CURSOR_IDLE_HIDE_DELAY_MS, PlayerWindow
@@ -51,118 +49,6 @@ def test_player_window_hides_cursor_after_idle_timeout(qt_app: QApplication) -> 
         assert window._cursor_hidden is True
         assert window.cursor().shape() == Qt.CursorShape.BlankCursor
         assert window.web_container.cursor().shape() == Qt.CursorShape.BlankCursor
-    finally:
-        window.close()
-        qt_app.processEvents()
-
-
-def test_debug_player_window_uses_resizable_16_by_9_preview(
-    qt_app: QApplication,
-) -> None:
-    """
-    开发模式应在目标屏幕内显示可缩放的 16:9 预览窗口。
-    :param qt_app: QApplication fixture
-    :return: None
-    """
-    target_screen = QGuiApplication.primaryScreen()
-    assert target_screen is not None
-    target_geometry = target_screen.geometry()
-    window = PlayerWindow(window_id=1, debug_mode=True)
-
-    try:
-        window.position_on_display(target_geometry)
-        qt_app.processEvents()
-
-        assert window.width() * 9 == window.height() * 16
-        assert window.width() <= int(target_geometry.width() * 0.8)
-        assert window.height() <= int(target_geometry.height() * 0.8)
-        assert target_geometry.contains(window.geometry())
-
-        resized_width = max(160, window.width() // 2)
-        resized_height = max(90, window.height() // 2)
-        window.resize(resized_width, resized_height)
-        qt_app.processEvents()
-        assert window.size().width() == resized_width
-        assert window.size().height() == resized_height
-    finally:
-        window.close()
-        qt_app.processEvents()
-
-
-def test_player_window_emits_debounced_render_viewport_size(
-    qt_app: QApplication,
-) -> None:
-    """窗口拖动缩放后应发出稳定的原生渲染容器尺寸。"""
-    window = PlayerWindow(window_id=3, debug_mode=True)
-    emitted: list[tuple[int, int, int]] = []
-    window.render_viewport_resized.connect(
-        lambda window_id, width, height: emitted.append(
-            (window_id, width, height)
-        )
-    )
-
-    try:
-        window.show()
-        window.resize(640, 360)
-        QTest.qWait(80)
-        qt_app.processEvents()
-
-        assert emitted[-1] == (3, 640, 360)
-    finally:
-        window.close()
-        qt_app.processEvents()
-
-
-def test_debug_player_windows_are_cascaded_by_window_id(
-    qt_app: QApplication,
-) -> None:
-    """
-    同一显示器上的开发窗口应按窗口编号错位，且都留在目标屏幕内。
-    :param qt_app: QApplication fixture
-    :return: None
-    """
-    target_screen = QGuiApplication.primaryScreen()
-    assert target_screen is not None
-    target_geometry = target_screen.geometry()
-    first_window = PlayerWindow(window_id=1, debug_mode=True)
-    second_window = PlayerWindow(window_id=2, debug_mode=True)
-
-    try:
-        first_window.position_on_display(target_geometry)
-        second_window.position_on_display(target_geometry)
-        qt_app.processEvents()
-
-        assert first_window.pos() != second_window.pos()
-        assert second_window.x() > first_window.x()
-        assert second_window.y() > first_window.y()
-        assert target_geometry.contains(first_window.geometry())
-        assert target_geometry.contains(second_window.geometry())
-    finally:
-        first_window.close()
-        second_window.close()
-        qt_app.processEvents()
-
-
-def test_production_player_window_remains_fixed_to_target_display(
-    qt_app: QApplication,
-) -> None:
-    """
-    生产模式仍应锁定为目标屏幕的完整尺寸和位置。
-    :param qt_app: QApplication fixture
-    :return: None
-    """
-    target_screen = QGuiApplication.primaryScreen()
-    assert target_screen is not None
-    target_geometry = target_screen.geometry()
-    window = PlayerWindow(window_id=1, debug_mode=False)
-
-    try:
-        window.position_on_display(target_geometry)
-        qt_app.processEvents()
-
-        assert window.geometry() == target_geometry
-        assert window.minimumSize() == target_geometry.size()
-        assert window.maximumSize() == target_geometry.size()
     finally:
         window.close()
         qt_app.processEvents()

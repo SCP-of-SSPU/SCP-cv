@@ -14,6 +14,7 @@ from pathlib import Path
 
 from scp_cv.apps.playback.models import MediaSource, SourceType
 from scp_cv.services import ppt_resources as _ppt_resources
+from scp_cv.services.media_paths import validate_local_media_path
 from scp_cv.services.media_types import MediaError, guess_mime_type
 
 
@@ -30,7 +31,7 @@ def source_preview_payload(source: MediaSource) -> dict[str, str]:
     if source.source_type == SourceType.PPT:
         preview_url = first_ppt_slide_preview_url(source)
         preview_kind = "image" if preview_url else "icon"
-        preview_label = "PPT 第一页缩略图" if preview_url else "PPT 暂无缩略图"
+        preview_label = "演示文稿第一页缩略图" if preview_url else "演示文稿暂无缩略图"
     elif source.source_type == SourceType.IMAGE and _source_file_is_readable(source):
         preview_url = f"/api/sources/{source.pk}/preview/"
         preview_kind = "image"
@@ -57,12 +58,14 @@ def first_ppt_slide_preview_url(source: MediaSource) -> str:
     if source.source_type != SourceType.PPT:
         return ""
     resources = list(source.ppt_resources.all())
-    if not resources:
-        _ppt_resources.prepare_ppt_source_resources(source)
+    first_resource = next((resource for resource in resources if resource.page_index == 1), None)
+    if not first_resource or not first_resource.slide_image:
+        # 旧源或 PDF/PPT 预览生成失败的源：懒补齐/懒修复后再读第一页。
+        _ppt_resources.list_ppt_resources(source.pk)
         # 若调用方用了 prefetch，补齐资源后需要清掉旧缓存再读取第一页。
         getattr(source, "_prefetched_objects_cache", {}).pop("ppt_resources", None)
         resources = list(source.ppt_resources.all())
-    first_resource = next((resource for resource in resources if resource.page_index == 1), None)
+        first_resource = next((resource for resource in resources if resource.page_index == 1), None)
     return first_resource.slide_image if first_resource and first_resource.slide_image else ""
 
 
@@ -91,4 +94,10 @@ def _source_file_is_readable(source: MediaSource) -> bool:
     :return: 文件路径存在且可读时返回 True
     """
     source_path = Path(source.uri) if source.uri and source.is_available else None
-    return bool(source_path and source_path.is_file() and os.access(source_path, os.R_OK))
+    if source_path is None:
+        return False
+    try:
+        resolved_path = validate_local_media_path(source_path)
+    except MediaError:
+        return False
+    return resolved_path.is_file() and os.access(resolved_path, os.R_OK)

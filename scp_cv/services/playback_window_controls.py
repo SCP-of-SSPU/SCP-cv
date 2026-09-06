@@ -18,20 +18,25 @@ from scp_cv.apps.playback.models import (
     RuntimeState,
 )
 from scp_cv.services.playback_sessions import PlaybackError, get_or_create_session
+from scp_cv.services.playback_commands import enqueue_playback_command
+from scp_cv.apps.playback.models import SourceType
+
+
+def _require_source_capability(session: PlaybackSession, operation: str) -> None:
+    """在窗口参数变更前校验源能力。"""
+    if session.media_source is None:
+        return
+    supported = {
+        SourceType.VIDEO: {"set_volume", "set_mute", "set_loop"},
+        SourceType.PPT: set(),
+        SourceType.CUSTOM_STREAM: {"set_volume", "set_mute"},
+        SourceType.RTSP_STREAM: {"set_volume", "set_mute"},
+        SourceType.SRT_STREAM: {"set_volume", "set_mute"},
+    }.get(session.media_source.source_type, set())
+    if operation not in supported:
+        raise PlaybackError(f"源类型 {session.media_source.source_type} 不支持 {operation} 操作")
 
 logger = logging.getLogger(__name__)
-
-
-def _enqueue_window_command(
-    session: PlaybackSession,
-    command: str,
-    arguments: dict[str, object],
-) -> None:
-    """把窗口参数控制合并到尚未领取的同类持久化指令。"""
-    from scp_cv.services.command_queue import enqueue_coalesced, target_for_window
-
-    enqueue_coalesced(target_for_window(session.window_id), command, arguments)
-    session.refresh_from_db(fields=["pending_command", "command_args"])
 
 
 def runtime_muted_windows(big_screen_mode: str) -> list[int]:
@@ -65,12 +70,14 @@ def set_window_volume(window_id: int, volume: int) -> PlaybackSession:
     """
     normalized_volume = max(0, min(100, int(volume)))
     session = get_or_create_session(window_id)
+    if session.media_source is not None:
+        _require_source_capability(session, "set_volume")
     session.volume = normalized_volume
-    session.save(update_fields=["volume", "last_updated_at"])
-    _enqueue_window_command(
+    enqueue_playback_command(
         session,
         PlaybackCommand.SET_VOLUME,
         {"volume": normalized_volume},
+        update_fields=["volume"],
     )
     logger.info("窗口 %d 音量设置为 %d", window_id, normalized_volume)
     return session
@@ -84,13 +91,15 @@ def set_window_mute(window_id: int, muted: bool) -> PlaybackSession:
     :return: 更新后的播放会话
     """
     session = get_or_create_session(window_id)
+    if session.media_source is not None:
+        _require_source_capability(session, "set_mute")
     normalized_muted = True if is_muted_by_runtime(window_id) else muted
     session.is_muted = normalized_muted
-    session.save(update_fields=["is_muted", "last_updated_at"])
-    _enqueue_window_command(
+    enqueue_playback_command(
         session,
         PlaybackCommand.SET_MUTE,
         {"muted": normalized_muted},
+        update_fields=["is_muted"],
     )
     logger.info("窗口 %d 静音设置为 %s", window_id, normalized_muted)
     return session
@@ -107,13 +116,14 @@ def toggle_loop_playback(window_id: int, enabled: bool) -> PlaybackSession:
     session = get_or_create_session(window_id)
     if session.media_source is None:
         raise PlaybackError(f"窗口 {window_id} 当前没有打开的媒体源")
+    _require_source_capability(session, "set_loop")
 
     session.loop_enabled = enabled
-    session.save(update_fields=["loop_enabled", "last_updated_at"])
-    _enqueue_window_command(
+    enqueue_playback_command(
         session,
         PlaybackCommand.SET_LOOP,
         {"enabled": enabled},
+        update_fields=["loop_enabled"],
     )
 
     logger.info("窗口 %d 循环播放已%s", window_id, "开启" if enabled else "关闭")

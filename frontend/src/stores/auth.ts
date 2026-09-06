@@ -41,14 +41,14 @@ export const useAuthStore = defineStore('auth', {
       } catch {
         // CSRF 失败一般是后端尚未启动；不阻塞后续 me 调用。
       }
+      // 使用公开 status 接口探测登录态，避免未登录时 /me 返回 401 产生控制台噪声。
       try {
-        const payload = await api.fetchMe();
-        this.user = payload.user;
+        const payload = await api.fetchAuthStatus();
+        this.user = payload.authenticated ? payload.user : null;
       } catch {
         this.user = null;
-      } finally {
-        this.initialized = true;
       }
+      this.initialized = true;
     },
     /**
      * 用户登录：username/password 经 /api/auth/login/ 建立 Django session。
@@ -78,6 +78,9 @@ export const useAuthStore = defineStore('auth', {
       } finally {
         this.user = null;
       }
+    },
+    async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+      await api.changePassword({ current_password: currentPassword, new_password: newPassword });
     },
     /**
      * 由 401 全局回调触发的本地清场（不调网络）。

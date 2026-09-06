@@ -8,21 +8,24 @@ import { useI18n } from 'vue-i18n';
 import { NButton, NTabPane, NTabs } from 'naive-ui';
 
 import FIcon from '@/design-system/FIcon.vue';
+import { getConnectionPorts } from '@/services/api';
 import { useToast } from '@/composables/useToast';
 import RuntimeSettingsTab from './tabs/RuntimeSettingsTab.vue';
 import DisplaySettingsTab from './tabs/DisplaySettingsTab.vue';
 import DevicePowerSettingsTab from './tabs/DevicePowerSettingsTab.vue';
 import DevSettingsTab from './tabs/DevSettingsTab.vue';
+import AccountSettingsTab from './tabs/AccountSettingsTab.vue';
 
-type SettingsTab = 'runtime' | 'display' | 'devices' | 'dev';
+type SettingsTab = 'runtime' | 'display' | 'devices' | 'account' | 'dev';
 
 const { t } = useI18n();
 const toast = useToast();
 
 const activeTab = ref<SettingsTab>('runtime');
 const version = '1.0.0';
+const connectionPorts = getConnectionPorts();
 const portsCaption = computed(() =>
-  t('settings.ports', { port: import.meta.env.VITE_FRONTEND_PORT || '5173' }),
+  t('settings.ports', connectionPorts),
 );
 </script>
 
@@ -59,6 +62,9 @@ const portsCaption = computed(() =>
       </n-tab-pane>
       <n-tab-pane name="devices" :tab="t('settings.tabDevices')">
         <DevicePowerSettingsTab />
+      </n-tab-pane>
+      <n-tab-pane name="account" :tab="t('settings.tabAccount')">
+        <AccountSettingsTab />
       </n-tab-pane>
       <n-tab-pane name="dev" :tab="t('settings.tabDev')">
         <DevSettingsTab />

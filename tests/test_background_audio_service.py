@@ -18,11 +18,9 @@ from django.test import Client
 
 from scp_cv.apps.playback.models import (
     BackgroundAudioCommand,
+    BackgroundAudioCommandRecord,
     BackgroundAudioPlaylistItem,
     BackgroundAudioState,
-    ControlCommand,
-    ControlCommandStatus,
-    ControlCommandTarget,
     MediaSource,
     PlaybackState,
 )
@@ -32,7 +30,6 @@ from scp_cv.services.background_audio import (
     play_source,
     remove_playlist_item,
     resume_background_audio,
-    set_background_audio_volume,
     stop_background_audio,
 )
 from scp_cv.services.media import add_uploaded_file
@@ -55,24 +52,6 @@ def test_play_source_adds_playlist_and_opens_audio(media_source_audio: MediaSour
 
 
 @pytest.mark.django_db
-def test_background_volume_replaces_matching_pending_setting() -> None:
-    """连续调整背景音量时只保留一条尚未领取的音量指令。"""
-    set_background_audio_volume(20)
-
-    set_background_audio_volume(80)
-
-    queued = list(
-        ControlCommand.objects.filter(
-            target=ControlCommandTarget.BACKGROUND_AUDIO,
-            command=BackgroundAudioCommand.SET_VOLUME,
-            status=ControlCommandStatus.PENDING,
-        )
-    )
-    assert len(queued) == 1
-    assert queued[0].arguments == {"volume": 80}
-
-
-@pytest.mark.django_db
 def test_add_source_to_playlist_rejects_non_audio(media_source_video: MediaSource) -> None:
     """
     背景音乐播放列表只接受 audio 媒体源。
@@ -90,17 +69,16 @@ def test_remove_current_playlist_item_stops_background_audio(media_source_audio:
     :param media_source_audio: 音频媒体源
     :return: None
     """
-    state = play_source(media_source_audio.pk)
+    play_source(media_source_audio.pk)
     item = BackgroundAudioPlaylistItem.objects.get(source=media_source_audio)
-    state.pending_command = BackgroundAudioCommand.NONE
-    state.command_args = {}
-    state.save(update_fields=["pending_command", "command_args", "updated_at"])
 
     next_state = remove_playlist_item(item.pk)
 
     assert next_state.current_source_id is None
-    assert next_state.pending_command == BackgroundAudioCommand.STOP
-    assert next_state.command_args == {"clear_source": True}
+    assert list(BackgroundAudioCommandRecord.objects.values_list("command", flat=True)) == [
+        BackgroundAudioCommand.OPEN,
+        BackgroundAudioCommand.STOP,
+    ]
     assert not BackgroundAudioPlaylistItem.objects.filter(pk=item.pk).exists()
 
 
@@ -120,10 +98,14 @@ def test_stop_background_audio_deletes_temporary_audio_source(tmp_path: Path, se
     state = stop_background_audio()
 
     assert state.current_source_id is None
-    assert state.command_args == {"clear_source": True}
-    assert not MediaSource.objects.filter(pk=source.pk).exists()
+    stop_record = BackgroundAudioCommandRecord.objects.get(command=BackgroundAudioCommand.STOP)
+    assert stop_record.command_args == {
+        "clear_source": True,
+        "cleanup_source_id": source.pk,
+    }
+    assert MediaSource.objects.filter(pk=source.pk).exists()
     assert not BackgroundAudioPlaylistItem.objects.filter(source_id=source.pk).exists()
-    assert not uploaded_path.exists()
+    assert uploaded_path.exists()
 
 
 @pytest.mark.django_db
@@ -190,17 +172,8 @@ def test_background_audio_play_source_api(media_source_audio: MediaSource) -> No
     )
 
     assert response.status_code == 200
-    response_payload = response.json()
-    payload = response_payload["background_audio"]
+    payload = response.json()["background_audio"]
     assert payload["state"]["source_id"] == media_source_audio.pk
     assert payload["state"]["pending_command"] == BackgroundAudioCommand.OPEN
     assert payload["playlist"][0]["source_id"] == media_source_audio.pk
     assert BackgroundAudioState.get_instance().current_source_id == media_source_audio.pk
-    queued = ControlCommand.objects.get(target=ControlCommandTarget.BACKGROUND_AUDIO)
-    assert response_payload["commands"] == [{
-        "id": queued.pk,
-        "target": ControlCommandTarget.BACKGROUND_AUDIO,
-        "command": BackgroundAudioCommand.OPEN,
-        "status": ControlCommandStatus.PENDING,
-        "error_message": "",
-    }]

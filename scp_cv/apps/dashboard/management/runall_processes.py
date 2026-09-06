@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import BinaryIO
 
 import psutil
+from psutil import Error as PsutilError
 
 
 def create_runall_log_dir(log_dir: Path, started_at: datetime | None = None) -> Path:
@@ -63,6 +64,7 @@ def build_child_environment(
     process_env.setdefault("PYTHONUTF8", "1")
     process_env.setdefault("PYTHONIOENCODING", "utf-8")
     process_env.setdefault("npm_config_yes", "true")
+    process_env.setdefault("PNPM_CONFIG_CONFIRM", "true")
     for env_key in list(process_env):
         if env_key.startswith(env_remove_prefixes):
             process_env.pop(env_key, None)
@@ -150,10 +152,141 @@ def terminate_process_tree(process_id: int) -> None:
     parent_process = psutil.Process(process_id)
     process_tree = parent_process.children(recursive=True)
     process_tree.append(parent_process)
-    for child_process in process_tree:
-        child_process.terminate()
-    _, alive_processes = psutil.wait_procs(process_tree, timeout=8)
+    # run_player 子进程具备显式 shutdown-file IPC；先请求 Qt/COM/VLC 协作清理。
+    cooperative_results = [
+        _request_cooperative_player_shutdown(child_process)
+        for child_process in process_tree
+    ]
+    cooperative_requested = any(cooperative_results)
+    if cooperative_requested:
+        _, cooperative_alive = psutil.wait_procs(process_tree, timeout=8)
+        for child_process in cooperative_alive:
+            child_process.terminate()
+        _, alive_processes = psutil.wait_procs(cooperative_alive, timeout=3)
+    else:
+        for child_process in process_tree:
+            child_process.terminate()
+        _, alive_processes = psutil.wait_procs(process_tree, timeout=8)
     for alive_process in alive_processes:
         alive_process.kill()
     if alive_processes:
         psutil.wait_procs(alive_processes, timeout=3)
+
+
+def _request_cooperative_player_shutdown(process: psutil.Process) -> bool:
+    """向 run_player 命令行中的 shutdown-file 发送协作退出请求。"""
+    try:
+        command_line = [str(part) for part in process.cmdline()]
+    except (PsutilError, OSError, AttributeError):
+        return False
+    if "run_player" not in " ".join(command_line).casefold():
+        return False
+    try:
+        marker_index = command_line.index("--shutdown-file")
+        shutdown_path = Path(command_line[marker_index + 1])
+        shutdown_path.parent.mkdir(parents=True, exist_ok=True)
+        shutdown_path.write_text("shutdown\n", encoding="utf-8")
+        return True
+    except (ValueError, IndexError, OSError):
+        return False
+
+
+_PROJECT_MANAGE_COMMANDS = frozenset({
+    "run_player",
+    "runserver",
+})
+
+
+def cleanup_residual_processes(
+    current_pid: int,
+    parent_pid: int | None,
+    project_dir: Path,
+) -> list[int]:
+    """
+    清理非 runall 管理但可确认属于当前项目的残留进程。
+
+    归属判定同时检查工作目录、可执行文件路径和命令行；不再按进程名清理
+    PowerShell，避免终止用户终端或其它系统任务。
+
+    :param current_pid: 当前 runall 进程 PID
+    :param parent_pid: 父进程 PID（如通过 --service 启动时）
+    :param project_dir: SCP-cv 项目根目录
+    :return: 被终止的进程 PID 列表
+    """
+    terminated: list[int] = []
+    terminated_processes: list[psutil.Process] = []
+    protected_pids = {current_pid}
+    if parent_pid is not None:
+        protected_pids.add(parent_pid)
+
+    resolved_project_dir = project_dir.resolve()
+    for proc in psutil.process_iter(["pid", "ppid", "name", "cmdline", "cwd", "exe"]):
+        try:
+            proc_pid = int(proc.info.get("pid") or 0)
+            if proc_pid in protected_pids:
+                continue
+            if not _is_project_residual_process(proc.info, resolved_project_dir):
+                continue
+            proc.terminate()
+            terminated.append(proc_pid)
+            terminated_processes.append(proc)
+        except (PsutilError, ValueError):
+            continue
+
+    if terminated:
+        _, alive = psutil.wait_procs(
+            terminated_processes,
+            timeout=5,
+        )
+        for alive_proc in alive:
+            try:
+                alive_proc.kill()
+            except PsutilError:
+                pass
+        psutil.wait_procs(alive, timeout=3)
+    return terminated
+
+
+def _is_project_residual_process(
+    process_info: dict[str, object],
+    project_dir: Path,
+) -> bool:
+    """
+    判断进程是否是可安全清理的 SCP-cv 残留子进程。
+
+    :param process_info: ``psutil.process_iter`` 返回的进程信息
+    :param project_dir: 已解析的项目根目录
+    :return: True 表示进程归属明确且属于已知运行时类型
+    """
+    process_name = str(process_info.get("name") or "").casefold()
+    command_parts = [str(part) for part in process_info.get("cmdline") or []]
+    normalized_command = " ".join(command_parts).casefold()
+    working_dir = _optional_resolved_path(process_info.get("cwd"))
+    executable = _optional_resolved_path(process_info.get("exe"))
+    works_in_project = working_dir is not None and working_dir.is_relative_to(project_dir)
+    executable_in_project = executable is not None and executable.is_relative_to(project_dir)
+
+    if process_name == "mediamtx.exe":
+        return executable_in_project
+
+    if process_name in {"python.exe", "pythonw.exe", "python", "python3"}:
+        if not works_in_project or "manage.py" not in normalized_command:
+            return False
+        return any(command in command_parts for command in _PROJECT_MANAGE_COMMANDS)
+
+    if process_name in {"node.exe", "node"}:
+        return works_in_project and "vite" in normalized_command
+    return False
+
+
+def _optional_resolved_path(raw_path: object) -> Path | None:
+    """
+    将 psutil 的可选路径字段转换为绝对路径。
+
+    :param raw_path: cwd 或 exe 字段
+    :return: 解析后的路径；空值返回 None
+    """
+    path_text = str(raw_path or "").strip()
+    if not path_text:
+        return None
+    return Path(path_text).resolve()

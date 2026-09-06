@@ -10,15 +10,7 @@
 '''
 from django.urls import path
 
-from . import (
-    api_auth_views,
-    api_background_audio_views,
-    api_device_views,
-    api_event_views,
-    api_playback_views,
-    api_scenario_views,
-    api_views,
-)
+from . import api_auth_views, api_background_audio_views, api_playback_views, api_scenario_views, api_views
 
 app_name = "dashboard_api"
 
@@ -27,6 +19,8 @@ urlpatterns = [
     path("auth/login/", api_auth_views.login_api, name="auth_login"),
     path("auth/logout/", api_auth_views.logout_api, name="auth_logout"),
     path("auth/me/", api_auth_views.me_api, name="auth_me"),
+    path("auth/status/", api_auth_views.status_api, name="auth_status"),
+    path("auth/change-password/", api_auth_views.change_password_api, name="auth_change_password"),
     path("folders/", api_views.folders_api, name="folders"),
     path("folders/<int:folder_id>/", api_views.folder_detail_api, name="folder_detail"),
     path("sources/", api_views.list_sources_api, name="list_sources"),
@@ -64,16 +58,17 @@ urlpatterns = [
     path("playback/reset-ppt/", api_playback_views.reset_ppt_playback_api, name="reset_ppt_playback"),
     path("playback/physical-smoke/", api_playback_views.physical_smoke_api, name="physical_smoke"),
     path("system/shutdown/", api_playback_views.shutdown_system_api, name="shutdown_system"),
+    path("system/restart/", api_playback_views.restart_all_api, name="restart_all"),
     path("displays/", api_playback_views.list_displays_api, name="list_displays"),
     path("displays/select/", api_playback_views.select_display_api, name="select_display"),
-    path("devices/", api_device_views.list_devices_api, name="list_devices"),
-    path("devices/<str:device_type>/toggle/", api_device_views.toggle_device_api, name="toggle_device"),
-    path("devices/<str:device_type>/power/<str:action>/", api_device_views.power_device_api, name="power_device"),
+    path("devices/", api_views.list_devices_api, name="list_devices"),
+    path("devices/<str:device_type>/toggle/", api_views.toggle_device_api, name="toggle_device"),
+    path("devices/<str:device_type>/power/<str:action>/", api_views.power_device_api, name="power_device"),
     path("scenarios/", api_scenario_views.list_scenarios_api, name="list_scenarios"),
     path("scenarios/create/", api_scenario_views.create_scenario_api, name="create_scenario_compat"),
     path("scenarios/capture/", api_scenario_views.capture_scenario_api, name="capture_scenario"),
     path("scenarios/<int:scenario_id>/", api_scenario_views.scenario_detail_api, name="scenario_detail"),
     path("scenarios/<int:scenario_id>/pin/", api_scenario_views.pin_scenario_api, name="pin_scenario"),
     path("scenarios/<int:scenario_id>/activate/", api_scenario_views.activate_scenario_api, name="activate_scenario"),
-    path("events/", api_event_views.events_api, name="events"),
+    path("events/", api_views.events_api, name="events"),
 ]

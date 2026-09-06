@@ -37,21 +37,12 @@ def publish_event(event_type: str, payload: dict[str, object]) -> None:
     """
     global _event_sequence
 
-    normalized_payload = payload
-    if event_type == "playback_state":
-        from scp_cv.services.command_status import get_recent_control_command_payloads
-
-        normalized_payload = {
-            **payload,
-            "commands": get_recent_control_command_payloads(),
-        }
-
     with _event_condition:
         _event_sequence += 1
         _latest_event_data[event_type] = {
             "sequence": _event_sequence,
             "type": event_type,
-            "data": normalized_payload,
+            "data": payload,
             "timestamp": time.time(),
         }
         # 唤醒所有等待的订阅者
@@ -78,12 +69,6 @@ def event_stream(last_sequence: int = 0) -> Generator[str, None, None]:
         )
     for pending_message in pending_messages:
         yield pending_message
-    polled_message, current_state_signature = _build_polled_state_message(
-        current_state_signature,
-    )
-    if polled_message:
-        yield polled_message
-        last_heartbeat_at = time.time()
 
     # 持续等待并推送新事件
     while True:
@@ -100,17 +85,18 @@ def event_stream(last_sequence: int = 0) -> Generator[str, None, None]:
             for pending_message in pending_messages:
                 yield pending_message
             last_heartbeat_at = time.time()
-        polled_message, current_state_signature = _build_polled_state_message(
-            current_state_signature,
-        )
-        if polled_message:
-            yield polled_message
-            last_heartbeat_at = time.time()
-            continue
-        now = time.time()
-        if now - last_heartbeat_at >= _HEARTBEAT_SECONDS:
-            yield ": heartbeat\n\n"
-            last_heartbeat_at = now
+        else:
+            polled_message, current_state_signature = _build_polled_state_message(
+                current_state_signature,
+            )
+            if polled_message:
+                yield polled_message
+                last_heartbeat_at = time.time()
+                continue
+            now = time.time()
+            if now - last_heartbeat_at >= _HEARTBEAT_SECONDS:
+                yield ": heartbeat\n\n"
+                last_heartbeat_at = now
 
 
 def _collect_pending_messages_locked(current_sequence: int) -> tuple[list[str], int]:
@@ -158,20 +144,14 @@ def _build_polled_state_message(current_signature: str) -> tuple[str, str]:
     """
     try:
         from scp_cv.services.background_audio_payloads import get_background_audio_snapshot
-        from scp_cv.services.command_status import get_recent_control_command_payloads
         from scp_cv.services.playback import get_all_sessions_snapshot
         background_audio = get_background_audio_snapshot()
-        commands = get_recent_control_command_payloads()
         sessions = get_all_sessions_snapshot()
     except Exception as snapshot_error:
         logger.debug("轮询播放状态失败：%s", snapshot_error)
         return "", current_signature
 
-    payload = {
-        "sessions": sessions,
-        "background_audio": background_audio,
-        "commands": commands,
-    }
+    payload = {"sessions": sessions, "background_audio": background_audio}
     next_signature = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
     if next_signature == current_signature:
         return "", current_signature

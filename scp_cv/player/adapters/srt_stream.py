@@ -1,155 +1,32 @@
 #!/user/bin/env python
 # -*- coding: UTF-8 -*-
 '''
-SRT 流适配器：通过 libVLC 直接播放 MediaMTX SRT 流。
-路径：OBS → SRT → MediaMTX → SRT read → libVLC → PySide6 QWidget
-
-低延迟策略：
-- libVLC 使用 Direct3D11 输出与硬件解码
-- network/live caching 降低到现场播放可接受范围
-- drop-late-frames / skip-frames 优先追实时画面
-- SRT read latency=50: libVLC 读端请求低延迟，MediaMTX 通常收敛到约 120ms
-
-线程模型：
-- open() 在 Qt 主线程中调用（由 PlayerController 保证）
-- libVLC 内部使用独立解码/渲染线程，通过 HWND 嵌入 Qt 容器
+SRT 流适配器：通过 libVLC 直接播放 SRT/RTSP 流。
 @Project : SCP-cv
 @File : srt_stream.py
 @Author : Qintsg
-@Date : 2026-05-12
+@Date : 2026-08-30
 '''
 from __future__ import annotations
 
 import logging
-import os
 import time
-from pathlib import Path
-
-from django.conf import settings
 
 from scp_cv.player.adapters.base import AdapterState, SourceAdapter
-from scp_cv.player.gpu_detector import get_vlc_gpu_options
+from scp_cv.player.adapters.srt_stream_runtime import (
+    build_srt_media_options as _build_srt_media_options,
+    build_vlc_instance_args as _build_vlc_instance_args,
+    load_vlc,
+)
 from scp_cv.player.preheat_types import PreheatedStreamSource
 
 logger = logging.getLogger(__name__)
-
-_VLC_RUNTIME_DIR = Path(__file__).resolve().parents[3] / "tools" / "third_party" / "vlc"
-_VLC_DLL_DIRECTORY_HANDLES: list[object] = []
-
-# libVLC 连接 SRT 读端时可能在首帧前先抛一次错误事件；
-# 这段窗口内先保持 loading，避免控制台把正常握手误判为异常。
+vlc = load_vlc()
+_VLC_IMPORT_ERROR = RuntimeError("libVLC 不可用") if vlc is None else None
 _TRANSIENT_ERROR_GRACE_SECONDS = 5.0
 
-
-def _candidate_vlc_runtime_dirs() -> list[Path]:
-    """
-    枚举 libVLC 运行时目录候选位置。
-    :return: 按优先级排列的 VLC runtime 目录列表
-    """
-    candidate_dirs = [
-        _VLC_RUNTIME_DIR / "runtime",
-        _VLC_RUNTIME_DIR,
-    ]
-
-    for env_name in ("ProgramFiles", "ProgramFiles(x86)"):
-        program_files_dir = os.environ.get(env_name)
-        if program_files_dir:
-            candidate_dirs.append(Path(program_files_dir) / "VideoLAN" / "VLC")
-
-    return candidate_dirs
-
-
-def _configure_vlc_runtime_paths() -> Path | None:
-    """
-    将可用 libVLC 目录加入 DLL 搜索路径。
-    :return: 命中的 libVLC 目录；未命中时返回 None，由 python-vlc 继续按系统 PATH 查找
-    """
-    for runtime_dir in _candidate_vlc_runtime_dirs():
-        libvlc_path = runtime_dir / "libvlc.dll"
-        if not libvlc_path.is_file():
-            continue
-
-        runtime_path = str(runtime_dir)
-        if os.name == "nt" and hasattr(os, "add_dll_directory"):
-            _VLC_DLL_DIRECTORY_HANDLES.append(os.add_dll_directory(runtime_path))
-        os.environ["PATH"] = runtime_path + os.pathsep + os.environ.get("PATH", "")
-
-        plugin_dir = runtime_dir / "plugins"
-        if plugin_dir.is_dir():
-            os.environ.setdefault("VLC_PLUGIN_PATH", str(plugin_dir))
-
-        logger.debug("已配置 libVLC 运行时目录：%s", runtime_dir)
-        return runtime_dir
-
-    logger.debug("未发现项目内置 libVLC，继续使用系统 PATH 查找")
-    return None
-
-
-_ACTIVE_VLC_RUNTIME_DIR = _configure_vlc_runtime_paths()
-
-try:
-    import vlc  # noqa: E402
-except (ImportError, OSError) as vlc_import_error:
-    vlc = None
-    _VLC_IMPORT_ERROR: BaseException | None = vlc_import_error
-else:
-    _VLC_IMPORT_ERROR = None
-
-
-def _build_vlc_instance_args() -> list[str]:
-    """
-    生成 libVLC 实例级参数。
-    :return: 可传给 vlc.Instance() 的参数列表
-    """
-    instance_args = [
-        "--no-video-title-show",
-        "--no-snapshot-preview",
-        f"--network-caching={int(getattr(settings, 'STREAM_VLC_NETWORK_CACHING_MS', 50))}",
-        f"--live-caching={int(getattr(settings, 'STREAM_VLC_LIVE_CACHING_MS', 50))}",
-        f"--file-caching={int(getattr(settings, 'STREAM_VLC_FILE_CACHING_MS', 0))}",
-        f"--clock-jitter={int(getattr(settings, 'STREAM_VLC_CLOCK_JITTER', 0))}",
-        f"--clock-synchro={int(getattr(settings, 'STREAM_VLC_CLOCK_SYNCHRO', 0))}",
-    ]
-    if bool(getattr(settings, "STREAM_VLC_DROP_LATE_FRAMES", True)):
-        instance_args.append("--drop-late-frames")
-    if bool(getattr(settings, "STREAM_VLC_SKIP_FRAMES", True)):
-        instance_args.append("--skip-frames")
-
-    instance_args.extend(get_vlc_gpu_options())
-    return instance_args
-
-
-def _build_srt_media_options() -> list[str]:
-    """
-    生成 SRT 直播源媒体级参数。
-    :return: 可传给 media.add_option() 的参数列表
-    """
-    media_options = [
-        f":network-caching={int(getattr(settings, 'STREAM_VLC_NETWORK_CACHING_MS', 50))}",
-        f":live-caching={int(getattr(settings, 'STREAM_VLC_LIVE_CACHING_MS', 50))}",
-        f":clock-jitter={int(getattr(settings, 'STREAM_VLC_CLOCK_JITTER', 0))}",
-        f":clock-synchro={int(getattr(settings, 'STREAM_VLC_CLOCK_SYNCHRO', 0))}",
-        *([":drop-late-frames"] if bool(getattr(settings, "STREAM_VLC_DROP_LATE_FRAMES", True)) else []),
-        *([":skip-frames"] if bool(getattr(settings, "STREAM_VLC_SKIP_FRAMES", True)) else []),
-    ]
-    media_options.extend(_rtsp_transport_options())
-    return media_options
-
-
-def _rtsp_transport_options() -> list[str]:
-    """
-    根据配置生成 RTSP 传输方式参数。
-    :return: libVLC media options
-    """
-    transport = str(getattr(settings, "MEDIAMTX_RTSP_READ_TRANSPORT", "tcp") or "").strip().lower()
-    if transport == "tcp":
-        return [":rtsp-tcp"]
-    if transport == "udp":
-        return [":rtsp-udp"]
-    return []
-
-
 class SrtStreamAdapter(SourceAdapter):
+    capabilities = frozenset({"play", "pause", "stop", "set_volume", "set_mute"})
     """
     SRT 流播放适配器，使用 libVLC 直接播放 SRT 流。
 
@@ -356,12 +233,15 @@ class SrtStreamAdapter(SourceAdapter):
         self._event_manager = None
 
         if self._player is not None:
-            try:
-                self._player.stop()
-                self._player.set_media(None)
-                self._player.release()
-            except Exception as release_error:
-                self._logger.warning("释放 libVLC 播放器时异常：%s", release_error)
+            player = self._player
+            for method_name, args in (("stop", ()), ("set_media", (None,)), ("release", ())):
+                method = getattr(player, method_name, None)
+                if not callable(method):
+                    continue
+                try:
+                    method(*args)
+                except Exception as release_error:
+                    self._logger.warning("释放 libVLC 播放器步骤失败：%s: %s", method_name, release_error)
             self._player = None
 
         if self._media is not None:

@@ -9,6 +9,7 @@ required:
   - metadata
   - keep_alive
   - preheat_enabled
+  - playback_mode
   - preview_url
   - thumbnail_url
   - preview_kind
@@ -56,7 +57,14 @@ properties:
     description: 旧版保持活跃字段，当前与 preheat_enabled 同步
   preheat_enabled:
     type: boolean
-    description: 媒体源预热开关；播放器启动时按源类型提前准备后台资源，PPT 源会按播放 URI 进行源文件级预热
+    description: 媒体源预热开关；播放器启动时按源类型提前准备后台资源，PowerPoint 预热当前停用
+  playback_mode:
+    type: string
+    enum:
+      - ''
+      - pdf
+      - powerpoint
+    description: 演示文稿播放模式；非演示文稿源为空字符串
   preview_url:
     type: string
     description: 可嵌入前端缩略位的预览 URL；无真实预览时为空字符串

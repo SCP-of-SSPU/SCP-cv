@@ -21,6 +21,7 @@ from scp_cv.player.preheat_types import PreheatedAudioSource
 
 
 class BackgroundAudioAdapter(SourceAdapter):
+    capabilities = frozenset({"play", "pause", "stop", "seek", "set_volume", "set_mute"})
     """
     后台背景音频播放适配器。
     不绑定 PlayerWindow，也不创建视频输出，只输出到本机默认音频设备。

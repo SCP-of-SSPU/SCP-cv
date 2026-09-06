@@ -59,10 +59,7 @@ properties:
     description: 是否在自然播放到列表末尾后回到首项
   pending_command:
     type: string
-    readOnly: true
-    description: >-
-      只读兼容镜像，显示背景音频通道最早的未完成 ControlCommand；空字符串表示当前没有未完成指令。
-      新客户端不得把此字段当作命令真值或执行完成证明，最终播放结果应依据 SSE 中持续更新的状态与错误信息。
+    description: 播放器进程尚未消费的后台指令；空字符串表示无指令
     enum:
       - ''
       - open

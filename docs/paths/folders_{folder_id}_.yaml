@@ -25,6 +25,12 @@ delete:
     - folders
   summary: 删除媒体文件夹
   operationId: deleteFolder
+  requestBody:
+    required: false
+    content:
+      application/json:
+        schema:
+          $ref: ../components/schemas/FolderDeleteRequest.yaml
   responses:
     '200':
       description: 删除成功

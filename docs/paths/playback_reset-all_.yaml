@@ -2,13 +2,11 @@ post:
   tags:
     - playback
   summary: 重置全部窗口并重建播放器窗口
-  description: >-
-    清空全部播放会话并为窗口 1-4 持久化关闭批次，通知运行中的 PySide 播放器关闭并重建窗口，同时重建媒体预热池。
-    HTTP 响应只表示批次已接受，最终状态通过 SSE 会话更新确认。
+  description: 清空全部播放会话，向全部窗口播放器广播重置指令，通知运行中的 PySide 播放器关闭并重建窗口，同时重建媒体预热池。
   operationId: resetAllSessions
   responses:
     '200':
-      description: 全窗口重置批次已持久化并接受
+      description: 操作成功
       content:
         application/json:
           schema:

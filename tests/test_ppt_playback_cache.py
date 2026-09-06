@@ -16,6 +16,7 @@ import pytest
 
 from scp_cv.apps.playback.models import MediaSource, SourceType
 from scp_cv.services import ppt_playback_cache
+from scp_cv.services import slides_pdf
 from scp_cv.services.ppt_playback_cache import (
     PPT_PLAYBACK_METADATA_KEY,
     cleanup_ppt_playback_cache,
@@ -145,6 +146,31 @@ def test_resolve_ppt_playback_uri_falls_back_when_cache_missing(tmp_path: Path) 
     )
 
     assert resolve_ppt_playback_uri(source) == str(source_path)
+
+
+@pytest.mark.django_db
+def test_pdf_fallback_rejects_cache_with_stale_source_digest(tmp_path: Path, settings) -> None:
+    """源文件发生变化时不得继续使用旧 PDF fallback。"""
+    settings.MEDIA_ROOT = tmp_path / "media"
+    source_path = tmp_path / "demo.pptx"
+    source_path.write_bytes(b"current-source")
+    pdf_path = settings.MEDIA_ROOT / "slides_pdf" / "1" / "stale.pdf"
+    pdf_path.parent.mkdir(parents=True)
+    pdf_path.write_bytes(b"pdf")
+    source = MediaSource.objects.create(
+        source_type=SourceType.PPT,
+        name="过期缓存",
+        uri=str(source_path),
+        metadata={
+            slides_pdf.SLIDES_PDF_METADATA_KEY: {
+                "status": "ready",
+                "source_digest": "stale-digest",
+                "path": str(pdf_path),
+            },
+        },
+    )
+
+    assert slides_pdf.get_slides_pdf_uri(source) == ""
 
 
 def test_cleanup_ppt_playback_cache_removes_source_directory(tmp_path: Path, settings) -> None:

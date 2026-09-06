@@ -24,13 +24,10 @@ delete:
   tags:
     - sources
   summary: 删除媒体源
-  description: >-
-    删除当前正在播放的背景音频源时会同时接受一条 STOP 命令；响应 commands 包含其 ID，
-    最终状态通过 SSE 中同一 ID 确认。删除非当前源时 commands 为空数组。
   operationId: deleteSource
   responses:
     '200':
-      description: 删除完成；可能同时接受背景音频停止命令
+      description: 删除成功
       content:
         application/json:
           schema:

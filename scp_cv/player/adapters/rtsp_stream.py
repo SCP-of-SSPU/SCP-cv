@@ -36,6 +36,7 @@ os.environ.setdefault("QT_MEDIA_BACKEND", "ffmpeg")
 
 
 class RtspStreamAdapter(SourceAdapter):
+    capabilities = frozenset({"play", "pause", "stop", "set_volume", "set_mute"})
     """
     RTSP 流播放适配器，使用 QMediaPlayer 播放 RTSP 流。
 

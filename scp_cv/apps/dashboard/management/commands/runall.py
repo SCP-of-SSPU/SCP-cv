@@ -2,8 +2,7 @@
 # -*- coding: UTF-8 -*-
 """
 Django 管理命令：一键启动 SCP-cv 所有本地服务。
-负责启动和监控 MediaMTX、gRPC-Web 代理、Django HTTP/gRPC、Vue 前端、
-PowerPoint Broker 和 PySide 播放器。
+负责启动和监控 MediaMTX、Django HTTP、Vue 前端和 PySide 播放器。
 @Project : SCP-cv
 @File : runall.py
 @Author : Qintsg
@@ -13,25 +12,23 @@ PowerPoint Broker 和 PySide 播放器。
 from __future__ import annotations
 
 import atexit
+import os
 import signal
 import subprocess
 import sys
+import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import BinaryIO
 
+from psutil import Error as PsutilError
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from scp_cv.apps.dashboard.management.runall_arguments import add_runall_arguments
-from scp_cv.apps.dashboard.management.runall_frontend import (
-    read_frontend_env,
-    resolve_frontend_port,
-)
-from scp_cv.apps.dashboard.management.runall_orchestration import (
-    ManagedProcess,
-    RunallProcessOrchestration,
-)
+from scp_cv.apps.dashboard.management.runall_frontend import resolve_frontend_port
 from scp_cv.apps.dashboard.management.runall_processes import (
+    cleanup_residual_processes,
     connect_host,
     create_runall_log_dir,
     open_process_log,
@@ -46,14 +43,24 @@ from scp_cv.apps.dashboard.management.runall_service import (
     current_process_session_id,
     launch_runall_service,
 )
-from scp_cv.player.ppt_broker.contracts import BrokerHealth
+from scp_cv.apps.dashboard.management.runall_starters import RunallStarterMixin
 
 
-class Command(RunallProcessOrchestration, BaseCommand):
-    help = (
-        "一键启动所有服务：MediaMTX + gRPC-Web + Django + Vue 前端 + "
-        "PowerPoint Broker + PySide6 播放器"
-    )
+@dataclass
+class ManagedProcess:
+    """被 runall 编排的子进程记录。"""
+
+    name: str
+    process: subprocess.Popen[bytes]
+    required: bool = True
+    log_handle: BinaryIO | None = None
+
+
+_FRONTEND_MAX_RESTARTS = 3
+
+
+class Command(RunallStarterMixin, BaseCommand):
+    help = "一键启动所有服务：MediaMTX + Django + Vue 前端 + PySide6 播放器"
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         """
@@ -66,15 +73,18 @@ class Command(RunallProcessOrchestration, BaseCommand):
         self._processes: list[ManagedProcess] = []
         self._shutting_down = False
         self._shutdown_signal_path = Path(settings.LOG_DIR) / "runall.shutdown"
+        self._restart_signal_path = Path(settings.LOG_DIR) / "runall.restart"
         self._last_shutdown_signal_mtime = 0.0
+        self._last_restart_signal_mtime = 0.0
+        self._restart_requested = False
         self._reset_startup_state_done = False
         self._request_shutdown_reason = ""
         self._startup_reset_failed = False
         self._startup_reset_message = ""
         self._backend_port = 8000
         self._process_log_dir = Path(settings.LOG_DIR)
-        self._ppt_broker_client: object | None = None
-        self._ppt_broker_health: BrokerHealth | None = None
+        self._frontend_restart_count = 0
+        self._frontend_options: dict[str, object] = {}
 
     def add_arguments(self, parser: object) -> None:
         """
@@ -136,6 +146,12 @@ class Command(RunallProcessOrchestration, BaseCommand):
             if frontend_port > 0
             else resolve_frontend_port(Path(settings.BASE_DIR) / "frontend")
         )
+        self._frontend_options = {
+            "frontend_host": frontend_host,
+            "frontend_port": frontend_port,
+            "backend_host": backend_host,
+            "backend_port": backend_port,
+        }
         frontend_display_port = frontend_wait_port
         frontend_uses_env_port = frontend_port <= 0
         if frontend_uses_env_port:
@@ -144,13 +160,10 @@ class Command(RunallProcessOrchestration, BaseCommand):
                     f"Vue 前端端口未显式指定，使用 frontend/.env / Vite 配置端口 {frontend_display_port}"
                 )
             )
-        grpc_web_port = int(options.get("grpc_web_port", 8081))
         poll_interval = float(options.get("poll_interval", 0.2))
 
         if not bool(options.get("skip_mediamtx", False)):
             self._start_mediamtx()
-        if not bool(options.get("skip_grpcweb", False)):
-            self._start_grpcweb_proxy(grpc_web_port)
         self._start_django_server(backend_host, backend_port)
         self._wait_for_port(
             "Django", connect_host(backend_host), backend_port, required=True
@@ -167,7 +180,6 @@ class Command(RunallProcessOrchestration, BaseCommand):
                 3: int(options.get("window3", 0) or 0),
                 4: int(options.get("window4", 0) or 0),
             }
-            self._prepare_ppt_broker()
             self._start_player(
                 poll_interval,
                 bool(options.get("headless", False)),
@@ -182,9 +194,6 @@ class Command(RunallProcessOrchestration, BaseCommand):
                 frontend_wait_port,
                 required=False,
             )
-        if not bool(options.get("skip_grpcweb", False)):
-            self._wait_for_port("gRPC-Web", "127.0.0.1", grpc_web_port, required=False)
-
         frontend_url_host = public_host(frontend_host)
         backend_url_host = public_host(backend_host)
         self.stdout.write(
@@ -194,149 +203,195 @@ class Command(RunallProcessOrchestration, BaseCommand):
         )
         self._monitor_processes()
 
-    def _start_mediamtx(self) -> None:
-        """启动 MediaMTX 子进程。"""
-        from scp_cv.services.executables import get_mediamtx_executable
+        if self._restart_requested:
+            self._restart_self()
 
-        mediamtx_bin = get_mediamtx_executable()
-        if mediamtx_bin is None:
-            self.stderr.write(
-                self.style.WARNING(
-                    "未找到 MediaMTX，可使用 --skip-mediamtx 或配置 MEDIAMTX_BIN_PATH"
-                )
-            )
-            return
-        command_args = [str(mediamtx_bin)]
-        config_path = mediamtx_bin.parent / "mediamtx.yml"
-        if config_path.exists():
-            command_args.append(str(config_path))
-        self._spawn("MediaMTX", command_args, cwd=mediamtx_bin.parent, required=False)
-
-    def _start_grpcweb_proxy(self, listen_port: int) -> None:
+    def _restart_self(self) -> None:
         """
-        启动 gRPC-Web 代理，保留给旧前端和第三方浏览器客户端使用。
-        :param listen_port: 监听端口
+        清理完成后以相同参数重新拉起 runall，实现系统级重启。
+        重启前额外清理可确认属于当前项目的残留运行时进程。
         :return: None
         """
-        import shutil
-
-        npx_path = shutil.which("npx")
-        if npx_path is None:
-            self.stderr.write(self.style.WARNING("未找到 npx，跳过 gRPC-Web 代理"))
-            return
-        grpc_port = int(getattr(settings, "GRPC_PORT", 50051))
-        self._spawn(
-            "gRPC-Web 代理",
-            [
-                npx_path,
-                "@grpc-web/proxy",
-                f"--target=http://127.0.0.1:{grpc_port}",
-                f"--listen={listen_port}",
-            ],
-            required=False,
+        parent_pid = os.getppid() if os.name == "nt" else None
+        terminated = cleanup_residual_processes(
+            os.getpid(),
+            parent_pid,
+            Path(settings.BASE_DIR),
+        )
+        if terminated:
+            self.stdout.write(self.style.WARNING(
+                f"已清理 {len(terminated)} 个残留进程：{terminated}"
+            ))
+        service_command = [sys.executable] + sys.argv
+        self.stdout.write(self.style.SUCCESS("正在重新启动全部服务…"))
+        subprocess.Popen(
+            service_command,
+            cwd=str(Path(settings.BASE_DIR)),
+            close_fds=True,
+            creationflags=(
+                subprocess.CREATE_NEW_PROCESS_GROUP
+                | subprocess.DETACHED_PROCESS
+                | subprocess.CREATE_NO_WINDOW
+            ) if os.name == "nt" else 0,
         )
 
-    def _start_django_server(self, host: str, port: int) -> None:
-        """
-        启动 Django HTTP/gRPC 开发服务器。
-        :param host: 监听地址
-        :param port: 监听端口
-        :return: None
-        """
-        self._spawn(
-            "Django",
-            [sys.executable, "manage.py", "runserver", f"{host}:{port}", "--noreload"],
-            required=True,
-        )
-
-    def _start_frontend(
-        self, host: str, port: int, backend_host: str, backend_port: int
-    ) -> None:
-        """
-        启动 Vue Vite 开发服务器。
-        :param host: 监听地址
-        :param port: 监听端口
-        :param backend_host: Django 监听地址
-        :param backend_port: Django 监听端口
-        :return: None
-        """
-        import shutil
-
-        npm_path = shutil.which("npm")
-        frontend_dir = Path(settings.BASE_DIR) / "frontend"
-        if npm_path is None or not frontend_dir.exists():
-            self.stderr.write(
-                self.style.WARNING("未找到 npm 或 frontend/，跳过 Vue 前端")
-            )
-            return
-        extra_env: dict[str, str] | None = None
-        frontend_env = read_frontend_env(frontend_dir)
-        configured_target = frontend_env.get("VITE_BACKEND_TARGET", "").strip()
-        if not configured_target:
-            backend_target_host = public_host(backend_host)
-            # 仅在前端环境文件未配置时提供兜底值，避免覆盖用户显式配置。
-            extra_env = {
-                "VITE_BACKEND_TARGET": f"http://{backend_target_host}:{backend_port}"
-            }
-        command_args = [npm_path, "run", "dev", "--", "--host", host]
-        if port > 0:
-            command_args.extend(["--port", str(port)])
-        self._spawn(
-            "Vue 前端",
-            command_args,
-            cwd=frontend_dir,
-            required=True,
-            extra_env=extra_env,
-            env_remove_prefixes=("VITE_",),
-        )
-        if port <= 0:
-            self.stdout.write(
-                self.style.WARNING(
-                    "Vue 前端未追加 --port，端口以 frontend/.env / Vite 配置为准"
-                )
-            )
-        else:
-            self.stdout.write(self.style.WARNING(f"Vue 前端已显式追加 --port {port}"))
-
-    def _open_runall_process_log(self, log_dir: Path, name: str) -> BinaryIO:
-        """通过命令模块导出的工厂打开日志，保留既有测试替换缝隙。"""
-        return open_process_log(log_dir, name)
-
-    def _spawn_runall_process(
+    def _spawn(
         self,
+        name: str,
         command_args: list[str],
-        log_handle: BinaryIO,
         cwd: Path | None = None,
+        required: bool = True,
         extra_env: dict[str, str] | None = None,
         env_remove_prefixes: tuple[str, ...] = (),
-    ) -> subprocess.Popen[bytes]:
-        """通过命令模块导出的工厂启动子进程。"""
-        return spawn_process(
-            command_args,
-            log_handle=log_handle,
-            cwd=cwd,
-            extra_env=extra_env,
-            env_remove_prefixes=env_remove_prefixes,
+    ) -> None:
+        """
+        启动子进程并继承控制台输出，避免 PIPE 缓冲区导致阻塞。
+        :param name: 服务名称
+        :param command_args: 命令参数列表
+        :param cwd: 工作目录
+        :param required: 是否关键服务
+        :param extra_env: 追加传给子进程的环境变量
+        :param env_remove_prefixes: 传递前从父进程环境移除的变量名前缀
+        :return: None
+        """
+        log_handle: BinaryIO | None = None
+        try:
+            log_handle = open_process_log(self._process_log_dir, name)
+            process = spawn_process(
+                command_args,
+                log_handle=log_handle,
+                cwd=cwd,
+                extra_env=extra_env,
+                env_remove_prefixes=env_remove_prefixes,
+            )
+        except OSError as start_error:
+            if log_handle is not None:
+                log_handle.close()
+            message = f"{name} 启动失败：{start_error}"
+            if required:
+                self.stderr.write(self.style.ERROR(message))
+                self._cleanup_processes()
+                sys.exit(1)
+            self.stderr.write(self.style.WARNING(message))
+            return
+        self._processes.append(
+            ManagedProcess(
+                name=name, process=process, required=required, log_handle=log_handle
+            )
+        )
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"{name} 已启动（pid={process.pid}，日志={log_handle.name}）"
+            )
         )
 
-    def _wait_for_runall_port(self, host: str, port: int) -> bool:
-        """通过命令模块导出的端口探测函数执行健康检查。"""
-        return wait_for_port(host, port)
+    def _wait_for_port(self, name: str, host: str, port: int, required: bool) -> None:
+        """
+        轮询端口可连接状态，用于启动健康检查。
+        :param name: 服务名称
+        :param host: 主机
+        :param port: 端口
+        :param required: 是否关键服务
+        :return: None
+        """
+        if wait_for_port(host, port):
+            self.stdout.write(self.style.SUCCESS(f"{name} 端口已就绪：{host}:{port}"))
+            return
+        message = f"{name} 端口等待超时：{host}:{port}"
+        if required:
+            self.stderr.write(self.style.ERROR(message))
+            self._cleanup_processes()
+            sys.exit(1)
+        self.stderr.write(self.style.WARNING(message))
 
-    def _terminate_runall_process_tree(self, process_id: int) -> None:
-        """通过命令模块导出的清理函数终止普通子进程树。"""
-        terminate_process_tree(process_id)
+    def _monitor_processes(self) -> None:
+        """监控关键子进程，任一关键进程退出时清理所有服务。"""
+        try:
+            while not self._shutting_down:
+                shutdown_reason = self._consume_shutdown_request()
+                if shutdown_reason:
+                    self.stdout.write(self.style.WARNING(shutdown_reason))
+                    self._request_shutdown_reason = shutdown_reason
+                    self._cleanup_processes()
+                    return
+                for managed_process in list(self._processes):
+                    exit_code = managed_process.process.poll()
+                    if exit_code is None:
+                        continue
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"{managed_process.name} 已退出（pid={managed_process.process.pid}, code={exit_code}）"
+                        )
+                    )
+                    if managed_process.log_handle is not None:
+                        managed_process.log_handle.close()
+                    self._processes.remove(managed_process)
+                    if (
+                        managed_process.name == "Vue 前端"
+                        and not self._shutting_down
+                        and self._frontend_restart_count < _FRONTEND_MAX_RESTARTS
+                    ):
+                        self._frontend_restart_count += 1
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"Vue 前端异常退出，自动重启（第 {self._frontend_restart_count}/{_FRONTEND_MAX_RESTARTS} 次）"
+                            )
+                        )
+                        self._start_frontend(
+                            str(self._frontend_options.get("frontend_host", "127.0.0.1")),
+                            int(self._frontend_options.get("frontend_port", 0) or 0),
+                            str(self._frontend_options.get("backend_host", "127.0.0.1")),
+                            int(self._frontend_options.get("backend_port", 8000)),
+                        )
+                        continue
+                    if managed_process.required:
+                        self._cleanup_processes()
+                        return
+                time.sleep(0.5)
+        except KeyboardInterrupt:
+            self._cleanup_processes()
+
+    def _cleanup_processes(self) -> None:
+        """按启动反序终止所有仍在运行的子进程。"""
+        if self._shutting_down:
+            return
+        self._shutting_down = True
+        for managed_process in reversed(self._processes):
+            process = managed_process.process
+            if process.poll() is not None:
+                continue
+            try:
+                self.stdout.write(
+                    f"正在停止 {managed_process.name}（pid={process.pid}）…"
+                )
+                terminate_process_tree(process.pid)
+                self.stdout.write(self.style.SUCCESS(f"{managed_process.name} 已停止"))
+            except PsutilError as process_error:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"{managed_process.name} 停止异常：{process_error}"
+                    )
+                )
+            finally:
+                if managed_process.log_handle is not None:
+                    managed_process.log_handle.close()
+        self._processes.clear()
 
     def _prepare_shutdown_signal_file(self) -> None:
-        """初始化系统关闭请求信号文件。"""
+        """初始化系统关闭和重启请求信号文件。"""
         self._shutdown_signal_path.write_text("", encoding="utf-8")
         self._last_shutdown_signal_mtime = self._shutdown_signal_path.stat().st_mtime
+        self._restart_signal_path.write_text("", encoding="utf-8")
+        self._last_restart_signal_mtime = self._restart_signal_path.stat().st_mtime
 
     def _consume_shutdown_request(self) -> str:
         """
-        检查前端发出的系统关闭请求。
+        检查前端发出的系统关闭或重启请求。
         :return: 关闭原因描述；未请求时返回空字符串
         """
+        restart_reason = self._consume_restart_request()
+        if restart_reason:
+            return restart_reason
         try:
             stat_result = self._shutdown_signal_path.stat()
         except OSError:
@@ -352,6 +407,27 @@ class Command(RunallProcessOrchestration, BaseCommand):
             return "收到前端系统关闭请求，正在停止所有服务…"
         return ""
 
+    def _consume_restart_request(self) -> str:
+        """
+        检查前端发出的系统重启请求。
+        :return: 重启原因描述；未请求时返回空字符串
+        """
+        try:
+            stat_result = self._restart_signal_path.stat()
+        except OSError:
+            return ""
+        if stat_result.st_mtime <= self._last_restart_signal_mtime:
+            return ""
+        self._last_restart_signal_mtime = stat_result.st_mtime
+        try:
+            marker = self._restart_signal_path.read_text(encoding="utf-8").strip()
+        except OSError:
+            marker = ""
+        if marker:
+            self._restart_requested = True
+            return "收到前端系统重启请求，正在停止所有服务后重新启动…"
+        return ""
+
     def _reset_startup_state(self) -> None:
         """
         在前端和播放器启动前，将所有窗口状态重置为待机。
@@ -360,7 +436,9 @@ class Command(RunallProcessOrchestration, BaseCommand):
         from scp_cv.services.playback import reset_all_sessions_to_idle
 
         try:
-            reset_all_sessions_to_idle()
+            # 播放器尚未启动；只清理会话与遗留队列，避免它先预热再消费
+            # 一条启动前生成的 reset，造成直播预连接刚建立就被拆除。
+            reset_all_sessions_to_idle(rebuild_players=False)
             self._reset_startup_state_done = True
             self.stdout.write(self.style.SUCCESS("启动前已将所有窗口重置为待机状态"))
         except Exception as reset_error:

@@ -11,7 +11,7 @@ patch:
           $ref: ../components/schemas/BackgroundAudioVolumeRequest.yaml
   responses:
     '200':
-      description: 音量设置已持久化并接受；最终播放器状态通过 SSE 更新确认
+      description: 音量已更新
       content:
         application/json:
           schema:

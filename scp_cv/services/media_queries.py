@@ -2,7 +2,7 @@
 # -*- coding: UTF-8 -*-
 '''
 媒体源查询与 API 序列化服务。
-集中输出前端、REST API 与 gRPC 共享的媒体源字典字段。
+集中输出前端与 REST API 共享的媒体源字典字段。
 @Project : SCP-cv
 @File : media_queries.py
 @Author : Qintsg
@@ -14,6 +14,7 @@ from typing import Optional
 
 from scp_cv.apps.playback.models import MediaSource
 from scp_cv.services.media_previews import source_preview_payload
+from scp_cv.services.slides_pdf import get_slides_playback_mode
 
 
 def list_media_sources(
@@ -60,6 +61,7 @@ def media_source_payload(source: MediaSource) -> dict[str, object]:
         "metadata": source.metadata,
         "keep_alive": keep_alive,
         "preheat_enabled": keep_alive,
+        "playback_mode": get_slides_playback_mode(source),
         "created_at": source.created_at.isoformat() if source.created_at else "",
     }
     payload.update(source_preview_payload(source))

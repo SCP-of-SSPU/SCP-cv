@@ -106,6 +106,9 @@ def export_ppt_slide_previews(file_path: Path, source_id: int) -> list[str]:
     :param source_id: 媒体源 ID，用于隔离导出目录
     :return: 按页码排序的媒体 URL 列表；不可导出时返回空列表
     """
+    if file_path.suffix.lower() == ".pdf":
+        from scp_cv.services.pdf_preview import export_pdf_slide_previews
+        return export_pdf_slide_previews(file_path, source_id)
     return ppt_preview.export_ppt_slide_previews(file_path, source_id)
 
 

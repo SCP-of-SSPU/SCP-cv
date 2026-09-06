@@ -6,7 +6,7 @@
  *  - 显示窗口 ID（调试用，仅触发一次）
  *  - 系统关机（带 Dialog 二次确认 + Danger 主按钮）
  */
-import { h } from 'vue';
+import { computed, h, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { NButton, NDropdown, type DropdownOption } from 'naive-ui';
 
@@ -20,7 +20,12 @@ const { t } = useI18n();
 const session = useSessionStore();
 const dialog = useDialog();
 const toast = useToast();
+const systemActionPending = ref(false);
 
+/**
+ * 重置全部播放窗口。
+ * :return: Promise 完成时表示请求已处理
+ */
 async function onResetAll(): Promise<void> {
   try {
     await session.resetAll();
@@ -30,6 +35,10 @@ async function onResetAll(): Promise<void> {
   }
 }
 
+/**
+ * 确认后重置当前 PowerPoint 放映。
+ * :return: Promise 完成时表示请求已处理或用户已取消
+ */
 async function onResetPptPlayback(): Promise<void> {
   const confirmed = await dialog.danger({
     title: t('emergency.resetPptTitle'),
@@ -46,6 +55,10 @@ async function onResetPptPlayback(): Promise<void> {
   }
 }
 
+/**
+ * 在物理输出窗口显示窗口编号。
+ * :return: Promise 完成时表示请求已处理
+ */
 async function onShowWindowIds(): Promise<void> {
   try {
     await session.showWindowIds();
@@ -55,7 +68,12 @@ async function onShowWindowIds(): Promise<void> {
   }
 }
 
+/**
+ * 确认后请求关闭全部服务。
+ * :return: Promise 完成时表示请求已处理或用户已取消
+ */
 async function onShutdown(): Promise<void> {
+  if (systemActionPending.value) return;
   const confirmed = await dialog.danger({
     title: t('emergency.shutdownTitle'),
     description: t('emergency.shutdownDesc'),
@@ -63,19 +81,51 @@ async function onShutdown(): Promise<void> {
     cancelLabel: t('common.cancel'),
   });
   if (!confirmed) return;
+  systemActionPending.value = true;
   try {
     const result = await session.shutdownSystem();
     toast.warning(t('emergency.shutdownOk'), result.detail ?? t('emergency.shutdownSent'));
   } catch (error) {
     toast.error(t('emergency.shutdownFail'), error instanceof Error ? error.message : t('common.retry'));
+  } finally {
+    systemActionPending.value = false;
   }
 }
 
-function renderIcon(name: FluentIconName) {
+/**
+ * 确认后请求重启全部服务，并阻止重复系统动作。
+ * :return: Promise 完成时表示请求已处理或用户已取消
+ */
+async function onRestartAll(): Promise<void> {
+  if (systemActionPending.value) return;
+  const confirmed = await dialog.danger({
+    title: t('emergency.restartAllTitle'),
+    description: t('emergency.restartAllDesc'),
+    confirmLabel: t('emergency.restartAllConfirm'),
+    cancelLabel: t('common.cancel'),
+  });
+  if (!confirmed) return;
+  systemActionPending.value = true;
+  try {
+    const result = await session.restartAll();
+    toast.warning(t('emergency.restartAllOk'), result.detail ?? t('emergency.restartAllSent'));
+  } catch (error) {
+    toast.error(t('emergency.restartAllFail'), error instanceof Error ? error.message : t('common.retry'));
+  } finally {
+    systemActionPending.value = false;
+  }
+}
+
+/**
+ * 构造下拉菜单使用的 Fluent 图标渲染函数。
+ * :param name: 设计系统图标名称
+ * :return: Naive UI 图标渲染函数
+ */
+function renderIcon(name: FluentIconName): () => ReturnType<typeof h> {
   return () => h(FIcon, { name, size: 18 });
 }
 
-const options: DropdownOption[] = [
+const options = computed<DropdownOption[]>(() => [
   {
     type: 'group',
     label: t('emergency.groupLabel'),
@@ -88,14 +138,29 @@ const options: DropdownOption[] = [
   },
   { type: 'divider', key: 'divider-1' },
   {
+    label: t('emergency.restartAll'),
+    key: 'restart-all',
+    disabled: systemActionPending.value,
+    icon: renderIcon('arrow_repeat_all_24_regular'),
+    props: { onClick: onRestartAll },
+  },
+  {
     label: t('emergency.shutdown'),
     key: 'shutdown',
+    disabled: systemActionPending.value,
     icon: renderIcon('plug_disconnected_24_regular'),
     props: { onClick: onShutdown, style: 'color: var(--colorStatusDangerForeground1);' },
   },
-];
+]);
 
+/**
+ * 执行下拉选项绑定的动作。
+ * :param _key: Naive UI 选项键，本处理器不使用
+ * :param option: 被选择的下拉选项
+ * :return: None
+ */
 function handleSelect(_key: string, option: DropdownOption): void {
+  if (systemActionPending.value) return;
   const handler = (option.props as { onClick?: () => void } | undefined)?.onClick;
   handler?.();
 }
@@ -111,6 +176,8 @@ function handleSelect(_key: string, option: DropdownOption): void {
     <n-button
       quaternary
       circle
+      :loading="systemActionPending"
+      :disabled="systemActionPending"
       :aria-label="t('emergency.triggerAria')"
     >
       <template #icon>

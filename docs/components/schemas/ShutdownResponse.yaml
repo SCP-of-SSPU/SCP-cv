@@ -4,7 +4,6 @@ allOf:
     required:
       - sessions
       - detail
-      - commands
     properties:
       sessions:
         type: array
@@ -13,8 +12,3 @@ allOf:
       detail:
         type: string
         example: 系统关闭请求已发送
-      commands:
-        type: array
-        description: 关闭窗口及应用运行时音频策略时实际持久化的命令
-        items:
-          $ref: ./ControlCommandState.yaml

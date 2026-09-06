@@ -1,12 +1,5 @@
 import { t } from '@/locales';
 
-import { ApiRequestError, parseJsonText, UnauthorizedError } from './api-errors';
-import type { ApiDetailPayload } from './api-errors';
-import type { ControlCommandState } from './control-command';
-
-export { ApiRequestError, UnauthorizedError } from './api-errors';
-export type { ControlCommandState, ControlCommandStatus } from './control-command';
-
 export interface MediaFolderItem {
   id: number;
   name: string;
@@ -35,6 +28,8 @@ export interface MediaSourceItem {
    */
   preheat_enabled: boolean;
   keep_alive: boolean;
+  /** 演示文稿播放模式：pdf / powerpoint；其它类型为空字符串。 */
+  playback_mode: string;
   preview_url: string;
   thumbnail_url: string;
   preview_kind: 'icon' | 'image' | 'video';
@@ -58,19 +53,21 @@ export interface SessionSnapshot {
   source_type: string;
   source_type_label: string;
   source_uri: string;
+  /** 演示文稿播放模式：pdf / powerpoint；其它类型为空字符串。 */
+  playback_mode: string;
   playback_state: string;
   playback_state_label: string;
   error_message: string;
   display_mode: string;
   display_mode_label: string;
   target_display_label: string;
-  spliced_display_label: string;
-  is_spliced: boolean;
   current_slide: number;
   total_slides: number;
   position_ms: number;
   duration_ms: number;
   pending_command: string;
+  player_online: boolean;
+  player_last_seen_at: string;
   last_updated_at: string;
   volume: number;
   is_muted: boolean;
@@ -113,7 +110,6 @@ export interface BackgroundAudioSnapshot {
 export interface BackgroundAudioPayload {
   success: boolean;
   background_audio: BackgroundAudioSnapshot;
-  commands?: ControlCommandState[];
 }
 
 export interface RuntimeSnapshot {
@@ -191,7 +187,6 @@ export interface ApiStatePayload {
   success: boolean;
   sessions: SessionSnapshot[];
   background_audio?: BackgroundAudioSnapshot;
-  commands?: ControlCommandState[];
 }
 
 export interface PhysicalSmokeRequest {
@@ -252,6 +247,10 @@ export interface ScenarioPayload {
   }>;
 }
 
+interface ApiDetailPayload {
+  detail?: string;
+}
+
 const REQUEST_TIMEOUT_MS = 10000;
 const RUNTIME_MODE_TIMEOUT_MS = 120000;
 export const PHYSICAL_SMOKE_TOTAL_TIMEOUT_SECONDS = 9 * 60;
@@ -281,6 +280,50 @@ export function buildBackendUrl(path: string): string {
   return resolveBackendBase() + normalizedPath;
 }
 
+export function getConnectionPorts(): { backendPort: string; frontendPort: string } {
+  const configuredTarget = String(import.meta.env.VITE_BACKEND_TARGET || '').trim();
+  let backendPort = DEFAULT_BACKEND_PORT;
+  if (configuredTarget) {
+    try {
+      const configuredUrl = new URL(configuredTarget);
+      backendPort = configuredUrl.port || (configuredUrl.protocol === 'https:' ? '443' : '80');
+    } catch {
+      // 配置格式错误由实际 API 请求暴露；端口摘要保留默认值，避免设置页自身崩溃。
+    }
+  }
+  const frontendPort = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
+  return { backendPort, frontendPort };
+}
+
+function buildNonJsonError(statusCode: number, responseText: string): Error {
+  const normalizedText = responseText.trim().replace(/\s+/g, ' ');
+  const previewText = normalizedText.slice(0, 120) || t('api.emptyResponse');
+  return new Error(t('api.nonJson', { code: statusCode, preview: previewText }));
+}
+
+function parseJsonText<T>(responseText: string, statusCode: number, contentType = ''): T & ApiDetailPayload {
+  const trimmedText = responseText.trim();
+  if (!trimmedText) return {} as T & ApiDetailPayload;
+  if (contentType && !contentType.includes('application/json')) {
+    throw buildNonJsonError(statusCode, trimmedText);
+  }
+  try {
+    return JSON.parse(trimmedText) as T & ApiDetailPayload;
+  } catch (error) {
+    throw buildNonJsonError(statusCode, trimmedText);
+  }
+}
+
+/**
+ * 401 专用错误：路由守卫 / Pinia store 据此触发清状态 + 跳登录。
+ */
+export class UnauthorizedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UnauthorizedError';
+  }
+}
+
 let unauthorizedHandler: (() => void) | null = null;
 
 /**
@@ -308,7 +351,14 @@ async function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs =
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(url, { ...init, signal: controller.signal });
+    try {
+      return await fetch(url, { ...init, signal: controller.signal });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new Error(t('api.timeout'));
+      }
+      throw new Error(t('api.connectionLost'));
+    }
   } finally {
     window.clearTimeout(timeoutId);
   }
@@ -340,12 +390,7 @@ async function requestJson<T>(url: string, init: RequestInit = {}, timeoutMs = R
     throw new UnauthorizedError(payload.detail || t('api.requestFail', { status: 401 }));
   }
   if (!response.ok) {
-    throw new ApiRequestError(
-      payload.detail || t('api.requestFail', { status: response.status }),
-      response.status,
-      payload.code || '',
-      payload.commands || [],
-    );
+    throw new Error(payload.detail || t('api.requestFail', { status: response.status }));
   }
   return payload;
 }
@@ -410,17 +455,20 @@ export const api = {
     requestJson<{ user: AuthUser }>('/api/auth/login/', { method: 'POST', body: JSON.stringify(payload) }),
   logout: () => requestJson<{ detail: string }>('/api/auth/logout/', { method: 'POST' }),
   fetchMe: () => requestJson<{ user: AuthUser }>('/api/auth/me/'),
+  fetchAuthStatus: () => requestJson<{ authenticated: boolean; user: AuthUser | null }>('/api/auth/status/'),
+  changePassword: (payload: { current_password: string; new_password: string }) =>
+    requestJson<{ detail: string }>('/api/auth/change-password/', { method: 'POST', body: JSON.stringify(payload) }),
   listFolders: () => requestJson<{ success: boolean; folders: MediaFolderItem[] }>('/api/folders/'),
   createFolder: (payload: { name: string; parent_id?: number | null }) => requestJson<{ success: boolean; folder: MediaFolderItem }>('/api/folders/', { method: 'POST', body: JSON.stringify(payload) }),
   updateFolder: (folderId: number, payload: { name?: string; parent_id?: number | null }) => requestJson<{ success: boolean; folder: MediaFolderItem }>(`/api/folders/${folderId}/`, { method: 'PATCH', body: JSON.stringify(payload) }),
-  deleteFolder: (folderId: number) => requestJson<{ success: boolean }>(`/api/folders/${folderId}/`, { method: 'DELETE' }),
+  deleteFolder: (folderId: number, deleteContents?: boolean) => requestJson<{ success: boolean }>(`/api/folders/${folderId}/`, { method: 'DELETE', body: deleteContents ? JSON.stringify({ delete_contents: true }) : undefined }),
   listSources: (sourceType = '', folderId: number | null = null) => requestJson<{ success: boolean; sources: MediaSourceItem[] }>(`/api/sources/${sourceQuery(sourceType, folderId)}`),
   uploadSource: (formData: FormData, options?: UploadOptions) => uploadFormData<{ success: boolean; source: MediaSourceItem }>('/api/sources/upload/', formData, options),
   addLocalSource: (payload: { path: string; name?: string; folder_id?: number | null }) => requestJson<{ success: boolean; source: MediaSourceItem }>('/api/sources/local/', { method: 'POST', body: JSON.stringify(payload) }),
   addWebSource: (payload: { url: string; name?: string; folder_id?: number | null; preheat_enabled?: boolean; keep_alive?: boolean }) => requestJson<{ success: boolean; source: MediaSourceItem }>('/api/sources/web/', { method: 'POST', body: JSON.stringify(payload) }),
   moveSource: (sourceId: number, folderId: number | null) => requestJson<{ success: boolean; source: MediaSourceItem }>(`/api/sources/${sourceId}/move/`, { method: 'PATCH', body: JSON.stringify({ folder_id: folderId }) }),
   updateSource: (sourceId: number, payload: MediaSourceUpdate) => requestJson<{ success: boolean; source: MediaSourceItem }>(`/api/sources/${sourceId}/`, { method: 'PATCH', body: JSON.stringify(payload) }),
-  deleteSource: (sourceId: number) => requestJson<{ success: boolean; commands?: ControlCommandState[] }>(`/api/sources/${sourceId}/`, { method: 'DELETE' }),
+  deleteSource: (sourceId: number) => requestJson<{ success: boolean }>(`/api/sources/${sourceId}/`, { method: 'DELETE' }),
   downloadSourceUrl: (sourceId: number) => buildBackendUrl(`/api/sources/${sourceId}/download/`),
   listPptResources: (sourceId: number) => requestJson<{ success: boolean; resources: PptResourceItem[] }>(`/api/sources/${sourceId}/ppt-resources/`),
   listSessions: () => requestJson<ApiStatePayload>('/api/sessions/'),
@@ -458,11 +506,12 @@ export const api = {
     }),
   }, PHYSICAL_SMOKE_TIMEOUT_MS),
   shutdownSystem: () => requestJson<ApiStatePayload & { detail?: string }>('/api/system/shutdown/', { method: 'POST' }),
+  restartAll: () => requestJson<ApiStatePayload & { detail?: string }>('/api/system/restart/', { method: 'POST' }),
   setLoop: (windowId: number, enabled: boolean) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/loop/`, { method: 'PATCH', body: JSON.stringify({ enabled }) }),
   setWindowVolume: (windowId: number, volume: number) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/volume/`, { method: 'PATCH', body: JSON.stringify({ volume }) }),
   setWindowMute: (windowId: number, muted: boolean) => requestJson<ApiStatePayload>(`/api/playback/${windowId}/mute/`, { method: 'PATCH', body: JSON.stringify({ muted }) }),
   showWindowIds: () => requestJson<ApiStatePayload>('/api/playback/show-ids/', { method: 'POST' }),
-  listDisplays: () => requestJson<{ success: boolean; targets: DisplayTargetItem[]; splice_label: string }>('/api/displays/'),
+  listDisplays: () => requestJson<{ success: boolean; targets: DisplayTargetItem[] }>('/api/displays/'),
   selectDisplay: (payload: { window_id: number; display_mode: string; target_label: string }) => requestJson<ApiStatePayload>('/api/displays/select/', { method: 'POST', body: JSON.stringify(payload) }),
   listDevices: () => requestJson<{ success: boolean; devices: DeviceItem[] }>('/api/devices/'),
   toggleDevice: (deviceType: string) => requestJson<{ success: boolean; device: DeviceItem }>(`/api/devices/${deviceType}/toggle/`, { method: 'POST' }),
@@ -475,17 +524,3 @@ export const api = {
   activateScenario: (scenarioId: number) => requestJson<ApiStatePayload>(`/api/scenarios/${scenarioId}/activate/`, { method: 'POST' }),
   captureScenario: (payload: { name: string; description?: string; scenario_id?: number }) => requestJson<{ success: boolean; scenario: ScenarioItem }>('/api/scenarios/capture/', { method: 'POST', body: JSON.stringify(payload) }),
 };
-
-export function formatDuration(milliseconds: number): string {
-  const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-}
-
-export function formatBytes(bytes: number): string {
-  if (!bytes) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB'];
-  const unitIndex = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  return `${(bytes / 1024 ** unitIndex).toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
-}

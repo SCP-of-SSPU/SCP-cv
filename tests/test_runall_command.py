@@ -12,12 +12,14 @@ runall 管理命令测试。
 from __future__ import annotations
 
 from pathlib import Path
+import shutil
 from typing import Any
 from datetime import datetime
 
 from scp_cv.apps.dashboard.management import runall_processes
 from scp_cv.apps.dashboard.management.commands import runall
 from scp_cv.apps.dashboard.management.runall_processes import create_runall_log_dir
+from scp_cv.apps.dashboard.management.runall_frontend import resolve_frontend_port
 
 
 def test_handle_checks_django_via_loopback_for_wildcard_host(monkeypatch: Any) -> None:
@@ -51,10 +53,8 @@ def test_handle_checks_django_via_loopback_for_wildcard_host(monkeypatch: Any) -
         backend_port=8000,
         frontend_host="0.0.0.0",
         frontend_port=0,
-        grpc_web_port=8081,
         poll_interval=0.2,
         skip_mediamtx=True,
-        skip_grpcweb=True,
         skip_frontend=True,
         skip_player=True,
     )
@@ -62,6 +62,210 @@ def test_handle_checks_django_via_loopback_for_wildcard_host(monkeypatch: Any) -
     assert checked_ports == [("Django", "127.0.0.1", 8000, True)]
 
 
+def test_start_frontend_respects_configured_backend_target(
+    monkeypatch: Any,
+    tmp_path: Path,
+) -> None:
+    """
+    frontend/.env 已配置 VITE_BACKEND_TARGET 时，runall 不应覆盖该值。
+    :param monkeypatch: pytest monkeypatch fixture
+    :param tmp_path: pytest 临时目录 fixture
+    :return: None
+    """
+    spawned_processes: list[dict[str, Any]] = []
+    command = runall.Command()
+
+    def record_spawn(
+        name: str,
+        command_args: list[str],
+        cwd: object = None,
+        required: bool = True,
+        extra_env: dict[str, str] | None = None,
+        env_remove_prefixes: tuple[str, ...] = (),
+    ) -> None:
+        """
+        记录前端启动参数，避免测试中真正拉起 npm。
+        :param name: 服务名称
+        :param command_args: 命令参数
+        :param cwd: 工作目录
+        :param required: 是否关键服务
+        :param extra_env: 额外环境变量
+        :return: None
+        """
+        spawned_processes.append(
+            {
+                "name": name,
+                "command_args": command_args,
+                "cwd": cwd,
+                "required": required,
+                "extra_env": extra_env,
+                "env_remove_prefixes": env_remove_prefixes,
+            }
+        )
+
+    frontend_dir = tmp_path / "frontend"
+    frontend_dir.mkdir()
+    (frontend_dir / ".env").write_text(
+        "VITE_BACKEND_TARGET=http://192.168.1.50:8000\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        shutil,
+        "which",
+        lambda command_name: "npm.cmd" if command_name == "npm" else None,
+    )
+    monkeypatch.setattr(command, "_spawn", record_spawn)
+    monkeypatch.setattr(runall.settings, "BASE_DIR", tmp_path)
+    monkeypatch.setenv("VITE_BACKEND_TARGET", "http://root-env-should-not-win:8000")
+
+    command._start_frontend("0.0.0.0", 5173, "0.0.0.0", 8000)
+
+    assert len(spawned_processes) == 1
+    assert spawned_processes[0]["name"] == "Vue 前端"
+    assert spawned_processes[0]["extra_env"] is None
+    assert spawned_processes[0]["env_remove_prefixes"] == ("VITE_",)
+    assert spawned_processes[0]["command_args"][-2:] == ["--port", "5173"]
+
+
+def test_start_frontend_uses_env_port_when_port_is_not_explicit(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    """
+    未显式指定 frontend_port 时，runall 不应覆盖 frontend/.env 中的 VITE_FRONTEND_PORT。
+    :param monkeypatch: pytest monkeypatch fixture
+    :param tmp_path: pytest 临时目录 fixture
+    :return: None
+    """
+    spawned_processes: list[dict[str, Any]] = []
+    command = runall.Command()
+
+    def record_spawn(
+        name: str,
+        command_args: list[str],
+        cwd: object = None,
+        required: bool = True,
+        extra_env: dict[str, str] | None = None,
+        env_remove_prefixes: tuple[str, ...] = (),
+    ) -> None:
+        spawned_processes.append(
+            {
+                "name": name,
+                "command_args": command_args,
+                "cwd": cwd,
+                "required": required,
+                "extra_env": extra_env,
+                "env_remove_prefixes": env_remove_prefixes,
+            }
+        )
+
+    frontend_dir = tmp_path / "frontend"
+    frontend_dir.mkdir()
+    (frontend_dir / ".env").write_text(
+        "VITE_FRONTEND_PORT=5260\nVITE_BACKEND_TARGET=http://192.168.1.50:8000\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        shutil,
+        "which",
+        lambda command_name: "npm.cmd" if command_name == "npm" else None,
+    )
+    monkeypatch.setattr(command, "_spawn", record_spawn)
+    monkeypatch.setattr(runall.settings, "BASE_DIR", tmp_path)
+    monkeypatch.setenv("VITE_FRONTEND_PORT", "9999")
+    monkeypatch.setenv("VITE_BACKEND_TARGET", "http://root-env-should-not-win:8000")
+
+    command._start_frontend("0.0.0.0", 0, "0.0.0.0", 8000)
+
+    assert len(spawned_processes) == 1
+    assert spawned_processes[0]["command_args"] == [
+        "npm.cmd",
+        "run",
+        "dev",
+        "--",
+        "--host",
+        "0.0.0.0",
+    ]
+    assert resolve_frontend_port(frontend_dir) == 5260
+
+
+def test_resolve_frontend_port_falls_back_to_vite_default(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    """
+    frontend/.env 未配置或配置非法时，应回退到 Vite 默认端口 5173。
+    :param monkeypatch: pytest monkeypatch fixture
+    :param tmp_path: pytest 临时目录 fixture
+    :return: None
+    """
+    frontend_dir = tmp_path / "frontend"
+    frontend_dir.mkdir()
+    monkeypatch.setattr(runall.settings, "BASE_DIR", tmp_path)
+    monkeypatch.setenv("VITE_FRONTEND_PORT", "9999")
+    assert resolve_frontend_port(frontend_dir) == 5173
+    (frontend_dir / ".env").write_text("VITE_FRONTEND_PORT=invalid\n", encoding="utf-8")
+    assert resolve_frontend_port(frontend_dir) == 5173
+
+
+def test_start_frontend_injects_backend_target_when_config_missing(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    """
+    frontend/.env 缺少 VITE_BACKEND_TARGET 时，runall 应为前端提供可访问的兜底值。
+    :param monkeypatch: pytest monkeypatch fixture
+    :param tmp_path: pytest 临时目录 fixture
+    :return: None
+    """
+    spawned_processes: list[dict[str, Any]] = []
+    command = runall.Command()
+
+    def record_spawn(
+        name: str,
+        command_args: list[str],
+        cwd: object = None,
+        required: bool = True,
+        extra_env: dict[str, str] | None = None,
+        env_remove_prefixes: tuple[str, ...] = (),
+    ) -> None:
+        """
+        记录前端启动参数，避免测试中真正拉起 npm。
+        :param name: 服务名称
+        :param command_args: 命令参数
+        :param cwd: 工作目录
+        :param required: 是否关键服务
+        :param extra_env: 额外环境变量
+        :return: None
+        """
+        spawned_processes.append(
+            {
+                "name": name,
+                "command_args": command_args,
+                "cwd": cwd,
+                "required": required,
+                "extra_env": extra_env,
+                "env_remove_prefixes": env_remove_prefixes,
+            }
+        )
+
+    frontend_dir = tmp_path / "frontend"
+    frontend_dir.mkdir()
+    (frontend_dir / ".env").write_text("VITE_FRONTEND_PORT=5173\n", encoding="utf-8")
+    monkeypatch.setattr(
+        shutil,
+        "which",
+        lambda command_name: "npm.cmd" if command_name == "npm" else None,
+    )
+    monkeypatch.setattr(command, "_spawn", record_spawn)
+    monkeypatch.setattr(runall.settings, "BASE_DIR", tmp_path)
+    monkeypatch.setenv("VITE_BACKEND_TARGET", "http://root-env-should-not-win:8000")
+    monkeypatch.setattr(runall, "public_host", lambda listen_host: "192.168.1.50")
+
+    command._start_frontend("0.0.0.0", 5173, "0.0.0.0", 8000)
+
+    assert len(spawned_processes) == 1
+    assert spawned_processes[0]["extra_env"] == {
+        "VITE_BACKEND_TARGET": "http://192.168.1.50:8000"
+    }
+    assert spawned_processes[0]["env_remove_prefixes"] == ("VITE_",)
 
 
 def test_spawn_removes_prefixed_environment(monkeypatch: Any) -> None:
@@ -140,7 +344,7 @@ def test_start_player_forwards_headless_display_and_gpu_options(
     monkeypatch: Any,
 ) -> None:
     """
-    runall --headless 应为每个窗口启动独立播放器进程，隔离 Qt/渲染生命周期。
+    runall --headless 应为每个窗口启动独立播放器进程，隔离 PowerPoint COM。
     :param monkeypatch: pytest monkeypatch fixture
     :return: None
     """
@@ -284,10 +488,8 @@ def test_headless_requires_active_desktop_for_player(monkeypatch: Any) -> None:
             backend_port=8000,
             frontend_host="0.0.0.0",
             frontend_port=0,
-            grpc_web_port=8081,
             poll_interval=0.2,
             skip_mediamtx=True,
-            skip_grpcweb=True,
             skip_frontend=True,
             skip_player=False,
             headless=True,
@@ -312,12 +514,12 @@ def test_reset_startup_state_uses_internal_service(monkeypatch: Any) -> None:
     reset_calls: list[str] = []
     command = runall.Command()
 
-    def fake_reset_all_sessions_to_idle() -> None:
+    def fake_reset_all_sessions_to_idle(*, rebuild_players: bool = True) -> None:
         """
         记录服务层重置调用。
         :return: None
         """
-        reset_calls.append("reset")
+        reset_calls.append(f"reset:{rebuild_players}")
 
     monkeypatch.setattr(
         "scp_cv.services.playback.reset_all_sessions_to_idle",
@@ -326,7 +528,7 @@ def test_reset_startup_state_uses_internal_service(monkeypatch: Any) -> None:
 
     command._reset_startup_state()
 
-    assert reset_calls == ["reset"]
+    assert reset_calls == ["reset:False"]
     assert command._reset_startup_state_done is True
     assert command._startup_reset_failed is False
 

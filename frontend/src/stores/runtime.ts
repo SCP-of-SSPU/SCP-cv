@@ -6,14 +6,7 @@
  */
 import { defineStore } from 'pinia';
 
-import {
-  api,
-  type BackgroundAudioSnapshot,
-  type ControlCommandState,
-  type RuntimeSnapshot,
-  type SessionSnapshot,
-  buildBackendUrl,
-} from '@/services/api';
+import { api, type BackgroundAudioSnapshot, type RuntimeSnapshot, type SessionSnapshot, buildBackendUrl } from '@/services/api';
 import { t } from '@/locales';
 import { useBackgroundAudioStore } from './backgroundAudio';
 import { useSessionStore } from './sessions';
@@ -34,8 +27,6 @@ interface RuntimeState {
   sseStatus: 'connecting' | 'connected' | 'reconnecting' | 'closed';
   /** SSE 上次更新时间（用于诊断展示）。 */
   sseLastUpdate: number;
-  /** 已通过受理响应或 SSE 观察到的命令状态，按持久化 ID 索引。 */
-  controlCommands: Record<number, ControlCommandState>;
   /** 内部 EventSource 引用，避免重复建连。 */
   _eventSource: EventSource | null;
   _reconnectTimer: number | null;
@@ -54,7 +45,6 @@ export const useRuntimeStore = defineStore('runtime', {
     },
     sseStatus: 'closed',
     sseLastUpdate: 0,
-    controlCommands: {},
     _eventSource: null,
     _reconnectTimer: null,
   }),
@@ -83,11 +73,6 @@ export const useRuntimeStore = defineStore('runtime', {
         backend: volume.backend,
       };
     },
-    applyControlCommands(commands: ControlCommandState[]): void {
-      for (const command of commands) {
-        this.controlCommands[command.id] = command;
-      }
-    },
     /** 切换大屏模式：会同步刷新 sessions（后端 PATCH 返回最新会话快照）。 */
     async setBigScreenMode(mode: 'single' | 'double'): Promise<void> {
       const payload = await api.setRuntimeMode(mode);
@@ -95,9 +80,6 @@ export const useRuntimeStore = defineStore('runtime', {
       useSessionStore().applyRemoteSessions(payload.sessions);
       if (payload.background_audio) {
         useBackgroundAudioStore().applyRemoteSnapshot(payload.background_audio);
-      }
-      if (Array.isArray(payload.commands)) {
-        this.applyControlCommands(payload.commands);
       }
     },
     /** 设置系统音量；后端可能返回未同步标记（无 Windows Core Audio 时）。 */
@@ -143,16 +125,12 @@ export const useRuntimeStore = defineStore('runtime', {
           const payload = JSON.parse(event.data) as {
             sessions?: SessionSnapshot[];
             background_audio?: BackgroundAudioSnapshot;
-            commands?: ControlCommandState[];
           };
           if (Array.isArray(payload.sessions)) {
             useSessionStore().applyRemoteSessions(payload.sessions);
           }
           if (payload.background_audio) {
             useBackgroundAudioStore().applyRemoteSnapshot(payload.background_audio);
-          }
-          if (Array.isArray(payload.commands)) {
-            this.applyControlCommands(payload.commands);
           }
           this.sseLastUpdate = Date.now();
         } catch {

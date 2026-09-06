@@ -85,6 +85,8 @@
 .app-shell__mute {
   display: inline-flex;
   align-items: center;
+  flex: 0 0 auto;
+  white-space: nowrap;
   padding: 2px var(--spacingHorizontalS);
   border-radius: var(--borderRadiusCircular);
   background: var(--colorStatusWarningBackground1);
@@ -92,6 +94,10 @@
   font-size: var(--fontSizeBase200);
   line-height: var(--lineHeightBase200);
   font-weight: var(--fontWeightSemibold);
+}
+
+.app-shell__mute-compact {
+  display: none;
 }
 
 .app-shell__body {
@@ -299,4 +305,41 @@
   font-size: var(--fontSizeBase200);
   line-height: var(--lineHeightBase200);
   font-weight: var(--fontWeightSemibold);
+}
+
+@media (max-width: 599px) {
+  .app-shell__bar {
+    gap: var(--spacingHorizontalXS);
+    padding-inline: var(--spacingHorizontalS);
+  }
+
+  .app-shell__brand {
+    flex: 0 0 auto;
+  }
+
+  .app-shell__brand-meta {
+    display: none;
+  }
+
+  .app-shell__brand-mark {
+    inline-size: 1.75rem;
+    block-size: 1.75rem;
+  }
+
+  .app-shell__bar-meta {
+    min-inline-size: 0;
+    gap: var(--spacingHorizontalXS);
+  }
+
+  .app-shell__bar-meta .n-tag {
+    font-size: var(--fontSizeBase100);
+  }
+
+  .app-shell__mute-full {
+    display: none;
+  }
+
+  .app-shell__mute-compact {
+    display: inline;
+  }
 }

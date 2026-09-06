@@ -20,6 +20,10 @@ from PySide6.QtWidgets import QVBoxLayout, QWidget
 from scp_cv.services.media_web import normalize_web_url
 
 logger = logging.getLogger(__name__)
+_LOAD_STATE_PROPERTY = "scpCvPreheatLoadState"
+_LOAD_STATE_LOADING = "loading"
+_LOAD_STATE_SUCCESS = "success"
+_LOAD_STATE_ERROR = "error"
 
 
 @dataclass
@@ -41,11 +45,20 @@ class WebPreheatPool:
     def __init__(self) -> None:
         """
         初始化隐藏宿主容器。
+
+        宿主窗口保持可见但移到屏幕外，确保 Chromium 维持合成表面：
+        如果直接 hide()，QWebEngineView 在隐藏状态下可能延迟或停止
+        绘制，认领后 show() 时会出现"状态显示 playing 但画面空白"。
+        将宿主放到屏幕外并保持可见，可以让预热页面保持已渲染状态，
+        认领后只需 reparent 即可立即呈现。
         :return: None
         """
         self._host = QWidget()
         self._host.setObjectName("WebPreheatHost")
-        self._host.hide()
+        # 将宿主移到屏幕外，保持可见以维持 Chromium 合成。
+        self._host.move(-10000, -10000)
+        self._host.resize(1, 1)
+        self._host.show()
         host_layout = QVBoxLayout(self._host)
         host_layout.setContentsMargins(0, 0, 0, 0)
         host_layout.setSpacing(0)
@@ -69,9 +82,13 @@ class WebPreheatPool:
             self._dispose_view(existing.view)
 
         view = QWebEngineView(self._host)
-        view.hide()
         self._host.layout().addWidget(view)
-        view.loadFinished.connect(self._on_load_finished)
+        view.setProperty(_LOAD_STATE_PROPERTY, _LOAD_STATE_LOADING)
+        view.loadFinished.connect(
+            lambda load_success, target=view: self._on_load_finished(
+                target, load_success
+            )
+        )
         view.setUrl(QUrl(normalized_url))
         self._items[source_id] = PreheatedWebView(source_id=source_id, url=normalized_url, view=view)
         logger.info("网页源已开始预热：source_id=%d, url=%s", source_id, normalized_url)
@@ -97,6 +114,13 @@ class WebPreheatPool:
             self._dispose_view(item.view)
             return None
         self._detach_from_current_parent(item.view)
+        # 预热池在创建时连接的 loadFinished 回调属于池内部状态记录；
+        # 认领后由适配器接管加载状态，断开池回调避免认领后的 reload
+        # 同时触发池回调和适配器回调（双重触发）。
+        try:
+            item.view.loadFinished.disconnect()
+        except (RuntimeError, TypeError):
+            pass
         item.view.setParent(parent_widget)
         if parent_widget.layout() is not None:
             parent_widget.layout().addWidget(item.view)
@@ -115,10 +139,15 @@ class WebPreheatPool:
         if source_id <= 0 or not normalized_url:
             self._dispose_view(view)
             return
+        existing = self._items.get(source_id)
+        if existing is not None and existing.view is not view:
+            logger.warning("同源网页预热视图被替换，先释放旧实例：source_id=%d", source_id)
+            self._dispose_view(existing.view)
+        if existing is not None and existing.view is view:
+            return
         self._detach_from_current_parent(view)
         view.setParent(self._host)
         self._host.layout().addWidget(view)
-        view.hide()
         self._items[source_id] = PreheatedWebView(source_id=source_id, url=normalized_url, view=view)
         logger.info("网页预热视图已回收：source_id=%d, url=%s", source_id, normalized_url)
 
@@ -132,13 +161,18 @@ class WebPreheatPool:
         self._items.clear()
         self._host.deleteLater()
 
-    @Slot(bool)
-    def _on_load_finished(self, load_success: bool) -> None:
+    @Slot(object, bool)
+    def _on_load_finished(self, view: QWebEngineView, load_success: bool) -> None:
         """
         记录预热视图加载结果。
+        :param view: 完成加载的预热视图
         :param load_success: 加载是否成功
         :return: None
         """
+        view.setProperty(
+            _LOAD_STATE_PROPERTY,
+            _LOAD_STATE_SUCCESS if load_success else _LOAD_STATE_ERROR,
+        )
         logger.info("网页预热加载完成：success=%s", load_success)
 
     @staticmethod

@@ -18,8 +18,8 @@ from .media import MediaSource
 class PlaybackSession(models.Model):
     """
     播放会话模型，每个输出窗口维护一个独立实例。
-    通过 window_id（1-4）区分不同窗口的运行状态；播放器从
-    ControlCommand 队列认领指令，并将执行结果回写到本表。
+    通过 window_id（1-4）区分不同窗口的播放状态与指令。
+    播放器进程通过轮询本表驱动播放行为。
     """
 
     # ── 窗口标识（1-4） ──
@@ -64,15 +64,6 @@ class PlaybackSession(models.Model):
         blank=True,
         verbose_name="目标显示器",
     )
-    spliced_display_label = models.CharField(
-        max_length=255,
-        blank=True,
-        verbose_name="拼接显示器组",
-    )
-    is_spliced = models.BooleanField(
-        default=False,
-        verbose_name="是否拼接",
-    )
     # ── PPT / 翻页型源状态 ──
     current_slide = models.IntegerField(
         default=0,
@@ -107,7 +98,7 @@ class PlaybackSession(models.Model):
         help_text="视频/音频播放完毕后是否自动重头播放",
     )
 
-    # ── 兼容指令镜像（新代码只读，ControlCommand 才是真值） ──
+    # ── 控制指令分发（Django 写入 → 播放器消费） ──
     pending_command = models.CharField(
         max_length=32,
         choices=PlaybackCommand.choices,
@@ -119,6 +110,11 @@ class PlaybackSession(models.Model):
         default=dict,
         blank=True,
         verbose_name="指令参数",
+    )
+    player_last_seen_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="播放器最后心跳",
     )
 
     # ── 时间戳 ──
@@ -135,3 +131,45 @@ class PlaybackSession(models.Model):
     def __str__(self) -> str:
         source_label = self.media_source.name if self.media_source else "无"
         return f"窗口{self.window_id} / {source_label} / {self.get_playback_state_display()}"
+
+
+class PlaybackCommandRecord(models.Model):
+    """按写入顺序持久化的播放器指令，避免单槽 pending_command 丢失操作。"""
+
+    session = models.ForeignKey(
+        PlaybackSession,
+        on_delete=models.CASCADE,
+        related_name="command_queue",
+        verbose_name="播放会话",
+    )
+    command = models.CharField(
+        max_length=32,
+        choices=PlaybackCommand.choices,
+        verbose_name="播放指令",
+    )
+    command_args = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name="指令参数",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
+    status = models.CharField(
+        max_length=16,
+        choices=(("pending", "待领取"), ("processing", "处理中")),
+        default="pending",
+        db_index=True,
+        verbose_name="处理状态",
+    )
+    claimed_by = models.CharField(max_length=128, blank=True, default="", verbose_name="领取消费者")
+    claimed_at = models.DateTimeField(null=True, blank=True, verbose_name="领取时间")
+    attempt_count = models.PositiveIntegerField(default=0, verbose_name="尝试次数")
+    last_error = models.TextField(blank=True, default="", verbose_name="最后错误")
+
+    class Meta:
+        ordering = ["id"]
+        indexes = [
+            models.Index(fields=["session", "id"], name="playback_cmd_session_idx"),
+            models.Index(fields=["session", "status", "id"], name="playback_cmd_status_idx"),
+        ]
+        verbose_name = "播放指令队列项"
+        verbose_name_plural = "播放指令队列项"

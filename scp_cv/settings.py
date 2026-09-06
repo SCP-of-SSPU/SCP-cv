@@ -16,7 +16,6 @@ env = environ.Env(
     DJANGO_DEBUG=(bool, False),
     DJANGO_LANGUAGE_CODE=(str, "zh-hans"),
     DJANGO_TIME_ZONE=(str, "Asia/Shanghai"),
-    GRPC_PORT=(int, 50051),
     MEDIAMTX_SRT_PORT=(int, 8890),
     MEDIAMTX_RTSP_PORT=(int, 8554),
     MEDIAMTX_SRT_READ_HOST=(str, ""),
@@ -33,6 +32,7 @@ env = environ.Env(
     STREAM_PREHEAT_NETWORK_CACHING_MS=(int, 100),
     STREAM_PREHEAT_LIVE_CACHING_MS=(int, 100),
     STREAM_PREHEAT_TTL_SECONDS=(float, 60.0),
+    PLAYBACK_COMMAND_LEASE_SECONDS=(float, 30.0),
 )
 environ.Env.read_env(BASE_DIR / ".env")
 
@@ -57,7 +57,6 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
-    "django_socio_grpc",
     "scp_cv.apps.dashboard.apps.DashboardConfig",
     "scp_cv.apps.playback.apps.PlaybackConfig",
     "scp_cv.apps.streams.apps.StreamsConfig",
@@ -169,12 +168,16 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+_configured_local_media_roots = env.list("LOCAL_MEDIA_ALLOWED_ROOTS", default=[])
+LOCAL_MEDIA_ALLOWED_ROOTS = [
+    Path(configured_root).expanduser().resolve()
+    for configured_root in _configured_local_media_roots
+    if str(configured_root).strip()
+] or [MEDIA_ROOT.resolve()]
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
-GRPC_HOST = env("GRPC_HOST", default="127.0.0.1")
-GRPC_PORT = env.int("GRPC_PORT")
 MEDIAMTX_BIN_PATH = env("MEDIAMTX_BIN_PATH", default="")
 MEDIAMTX_API_BASE = env("MEDIAMTX_API_BASE", default="http://127.0.0.1:9997")
 MEDIAMTX_SRT_PORT = env.int("MEDIAMTX_SRT_PORT")
@@ -194,6 +197,7 @@ STREAM_VLC_SKIP_FRAMES = env.bool("STREAM_VLC_SKIP_FRAMES")
 STREAM_PREHEAT_NETWORK_CACHING_MS = env.int("STREAM_PREHEAT_NETWORK_CACHING_MS")
 STREAM_PREHEAT_LIVE_CACHING_MS = env.int("STREAM_PREHEAT_LIVE_CACHING_MS")
 STREAM_PREHEAT_TTL_SECONDS = env.float("STREAM_PREHEAT_TTL_SECONDS")
+PLAYBACK_COMMAND_LEASE_SECONDS = env.float("PLAYBACK_COMMAND_LEASE_SECONDS")
 LIBREOFFICE_BIN_PATH = env("LIBREOFFICE_BIN_PATH", default="")
 LIBREOFFICE_CONNECT_TIMEOUT_SECONDS = env.float(
     "LIBREOFFICE_CONNECT_TIMEOUT_SECONDS",
@@ -211,6 +215,8 @@ PPT_PLAYBACK_EXPORT_TIMEOUT_SECONDS = env.float(
     "PPT_PLAYBACK_EXPORT_TIMEOUT_SECONDS",
     default=180.0,
 )
+# 新上传演示文稿是否自动检测静态内容并导出 PDF；关闭后统一走 PowerPoint 模式。
+SLIDES_PDF_AUTO_CONVERT = env.bool("SLIDES_PDF_AUTO_CONVERT", default=True)
 
 LOGGING = {
     "version": 1,
@@ -245,29 +251,4 @@ LOGGING = {
             "propagate": False,
         },
     },
-}
-
-def _grpc_server_interceptors() -> list:
-    """
-    返回 gRPC 服务端拦截器实例列表。
-    socio-grpc 不把 SERVER_INTERCEPTORS 加入 IMPORT_STRINGS，必须传具体实例；
-    使用工厂函数延迟到 import 完成后再实例化，避免 settings 加载阶段的循环依赖。
-    :return: List[grpc.aio.ServerInterceptor]
-    """
-    from scp_cv.grpc_auth import GrpcAuthInterceptor
-
-    return [GrpcAuthInterceptor()]
-
-
-GRPC_FRAMEWORK = {
-    "ROOT_HANDLERS_HOOK": "scp_cv.grpc_handlers.grpc_handlers",
-    "GRPC_ASYNC": True,
-    "SERVER_OPTIONS": [
-        ("grpc.max_send_message_length", 100 * 1024 * 1024),
-        ("grpc.max_receive_message_length", 100 * 1024 * 1024),
-    ],
-    # gRPC 与 REST 共用 Django session：每个 RPC 必须携带有效 sessionid metadata
-    # （或 cookie 头），未登录返回 UNAUTHENTICATED。
-    "SERVER_INTERCEPTORS": _grpc_server_interceptors(),
-    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
 }

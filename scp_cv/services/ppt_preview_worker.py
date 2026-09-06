@@ -1,7 +1,7 @@
 #!/user/bin/env python
 # -*- coding: UTF-8 -*-
 '''
-PPT 预览导出兼容 worker；只转发到 PowerPoint Broker，不创建 COM。
+PPT 预览导出隔离 worker，避免 Office/UNO 原生库影响 Django 主进程。
 @Project : SCP-cv
 @File : ppt_preview_worker.py
 @Author : Qintsg

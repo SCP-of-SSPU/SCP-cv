@@ -13,15 +13,10 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from django.http import FileResponse, HttpRequest, JsonResponse
+from django.http import FileResponse, HttpRequest, JsonResponse, StreamingHttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_http_methods
 
-from scp_cv.services.background_audio_payloads import get_background_audio_snapshot
-from scp_cv.services.command_status import (
-    capture_enqueued_commands,
-    control_command_payloads,
-)
 from scp_cv.services.media import (
     MediaError,
     add_local_path,
@@ -43,8 +38,14 @@ from scp_cv.services.media import (
     update_source,
 )
 from scp_cv.services.mediamtx import sync_stream_states
-from scp_cv.services.playback import get_all_sessions_snapshot
-from scp_cv.services.sse import publish_event
+from scp_cv.services.device import (
+    DeviceError,
+    list_devices,
+    power_off_device,
+    power_on_device,
+    toggle_device,
+)
+from scp_cv.services.sse import event_stream
 
 
 def _json_response(payload: dict[str, Any], status: int = 200) -> JsonResponse:
@@ -194,8 +195,15 @@ def folder_detail_api(request: HttpRequest, folder_id: int) -> JsonResponse:
     :return: 操作结果
     """
     if request.method == "DELETE":
+        # 支持 DELETE body 中的 delete_contents 选项，也兼容 query param。
+        delete_contents = False
+        body_result = _body_or_error(request)
+        if body_result[1] is None:
+            delete_contents = bool(body_result[0].get("delete_contents", False))
+        elif request.GET.get("delete_contents", "").lower() in ("true", "1", "yes"):
+            delete_contents = True
         try:
-            delete_folder(int(folder_id))
+            delete_folder(int(folder_id), delete_contents=delete_contents)
         except MediaError as media_error:
             return _error_response(str(media_error), code="media_error", status=404)
         return _json_response({"success": True})
@@ -426,21 +434,75 @@ def source_detail_api(request: HttpRequest, source_id: int) -> JsonResponse:
         return update_source_api(request, source_id)
 
     try:
-        with capture_enqueued_commands() as accepted_commands:
-            delete_media_source(int(source_id))
+        delete_media_source(int(source_id))
     except MediaError as media_error:
         return _error_response(str(media_error), code="media_error", status=404)
-    command_payloads = control_command_payloads(accepted_commands)
-    if command_payloads:
-        publish_event("playback_state", {
-            "sessions": get_all_sessions_snapshot(),
-            "background_audio": get_background_audio_snapshot(),
-        })
-    return _json_response({
-        "success": True,
-        "commands": command_payloads,
-    })
+    return _json_response({"success": True})
 
 
 # 兼容旧导入：早期路由仅暴露 DELETE，保留别名避免外部脚本失效。
 delete_source_api = source_detail_api
+
+
+@require_GET
+def list_devices_api(request: HttpRequest) -> JsonResponse:
+    """
+    获取可控制设备列表。
+    :param request: HTTP 请求
+    :return: 设备状态列表
+    """
+    return _json_response({"success": True, "devices": list_devices()})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def toggle_device_api(request: HttpRequest, device_type: str) -> JsonResponse:
+    """
+    切换设备开关机状态。
+    :param request: HTTP 请求
+    :param device_type: 设备类型
+    :return: 更新后的设备状态
+    """
+    try:
+        return _json_response({"success": True, "device": toggle_device(device_type)})
+    except DeviceError as device_error:
+        return _error_response(str(device_error), code="device_error", status=404)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def power_device_api(request: HttpRequest, device_type: str, action: str) -> JsonResponse:
+    """
+    设置设备开机或关机状态。
+    :param request: HTTP 请求
+    :param device_type: 设备类型
+    :param action: on 或 off
+    :return: 更新后的设备状态
+    """
+    try:
+        if action == "on":
+            device = power_on_device(device_type)
+        elif action == "off":
+            device = power_off_device(device_type)
+        else:
+            return _error_response("action 必须是 on 或 off", code="invalid_action")
+    except DeviceError as device_error:
+        return _error_response(str(device_error), code="device_error", status=404)
+    return _json_response({"success": True, "device": device})
+
+
+@require_GET
+def events_api(request: HttpRequest) -> StreamingHttpResponse:
+    """
+    播放状态 SSE 事件流。
+    :param request: HTTP 请求
+    :return: SSE 响应
+    """
+    try:
+        last_sequence = int(request.GET.get("last_id", "0"))
+    except (TypeError, ValueError):
+        last_sequence = 0
+    response = StreamingHttpResponse(event_stream(last_sequence), content_type="text/event-stream")
+    response["Cache-Control"] = "no-cache"
+    response["X-Accel-Buffering"] = "no"
+    return response

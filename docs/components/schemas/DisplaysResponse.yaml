@@ -3,11 +3,8 @@ allOf:
   - type: object
     required:
       - targets
-      - splice_label
     properties:
       targets:
         type: array
         items:
           $ref: ./DisplayTarget.yaml
-      splice_label:
-        type: string

@@ -11,20 +11,157 @@ from __future__ import annotations
 
 import pytest
 
-from scp_cv.player import controller_adapter_lifecycle
 from scp_cv.player.controller import PlayerController
-from tests.player_controller_open_recovery_test_support import (
-    FailingCloseAdapter as _FailingCloseAdapter,
-    OpenAdapter as _OpenAdapter,
-    PreheatPoolStub as _PreheatPoolStub,
-    WindowStub as _WindowStub,
-)
+from scp_cv.player import controller_handlers
+
+
+class _OpenAdapter:
+    """记录 OPEN/close 调用的 adapter 替身。"""
+
+    def __init__(self) -> None:
+        """
+        初始化调用状态。
+        :return: None
+        """
+        self.open_args: dict[str, object] = {}
+        self.goto_items: list[int] = []
+        self.volumes: list[int] = []
+        self.mutes: list[bool] = []
+        self.closed = False
+        self.fail_open = False
+        self.detached_for_fast_switch = False
+        self.restored_after_failed_switch = False
+
+    def open(self, uri: str, window_handle: int, autoplay: bool = True) -> None:
+        """
+        模拟打开媒体源。
+        :param uri: 媒体 URI
+        :param window_handle: 窗口句柄
+        :param autoplay: 是否自动播放
+        :return: None
+        :raises RuntimeError: fail_open 为 True 时抛出
+        """
+        self.open_args = {
+            "uri": uri,
+            "window_handle": window_handle,
+            "autoplay": autoplay,
+        }
+        if self.fail_open:
+            raise RuntimeError("open failed")
+
+    def close(self) -> None:
+        """
+        记录关闭调用。
+        :return: None
+        """
+        self.closed = True
+
+    def detach_for_fast_switch(self) -> None:
+        """
+        记录 PPT 嵌入子窗口隐藏调用。
+        :return: None
+        """
+        self.detached_for_fast_switch = True
+
+    def restore_after_failed_switch(self) -> None:
+        """
+        记录 PPT 嵌入子窗口恢复调用。
+        :return: None
+        """
+        self.restored_after_failed_switch = True
+
+    def goto_item(self, index: int) -> None:
+        """
+        记录跳页参数。
+        :param index: 目标页码
+        :return: None
+        """
+        self.goto_items.append(index)
+
+    def set_volume(self, volume: int) -> None:
+        """
+        模拟设置音量。
+        :param volume: 音量
+        :return: None
+        """
+        self.volumes.append(volume)
+
+    def set_mute(self, muted: bool) -> None:
+        """
+        模拟设置静音。
+        :param muted: 是否静音
+        :return: None
+        """
+        self.mutes.append(muted)
+
+
+class _WindowStub:
+    """记录播放器窗口显示状态的替身。"""
+
+    def __init__(self) -> None:
+        """
+        初始化调用记录。
+        :return: None
+        """
+        self.calls: list[str] = []
+        self.web_container = object()
+        self.topmost: list[bool] = []
+        self.top_level_window_handle = 5001
+
+    def show_black_screen(self) -> None:
+        """
+        记录黑屏显示。
+        :return: None
+        """
+        self.calls.append("black")
+
+    def show(self) -> None:
+        """
+        记录显示窗口。
+        :return: None
+        """
+        self.calls.append("show")
+
+    def raise_(self) -> None:
+        """
+        记录置顶窗口。
+        :return: None
+        """
+        self.calls.append("raise")
+
+    def set_always_on_top(self, enabled: bool) -> None:
+        """
+        记录置顶状态切换。
+        :param enabled: 是否置顶
+        :return: None
+        """
+        self.topmost.append(enabled)
+
+    def show_web_container(self) -> None:
+        """
+        记录网页容器显示。
+        :return: None
+        """
+        self.calls.append("web")
+
+    def show_video_container(self) -> None:
+        """
+        记录视频容器显示。
+        :return: None
+        """
+        self.calls.append("video")
+
+    def prepare_ppt_container(self) -> None:
+        """
+        记录 PPT 嵌入容器预激活。
+        :return: None
+        """
+        self.calls.append("ppt_container")
 
 
 def test_handle_open_ignores_legacy_ppt_backend_option(monkeypatch: pytest.MonkeyPatch) -> None:
     """播放器处理 OPEN 指令时应忽略旧 ppt_backend 字段。"""
-    broker = object()
-    controller = PlayerController(ppt_broker=broker)
+    controller = PlayerController()
     adapter = _OpenAdapter()
     window = _WindowStub()
     created_options: dict[str, object] = {}
@@ -59,20 +196,50 @@ def test_handle_open_ignores_legacy_ppt_backend_option(monkeypatch: pytest.Monke
         "muted": True,
     })
 
-    assert created_options["source_type"] == "ppt"
-    assert created_options["broker"] is broker
-    assert created_options["window_id"] == 1
-    assert str(created_options["owner_prefix"]).startswith("player-")
-    assert "ppt_backend" not in created_options
+    assert created_options == {"source_type": "powerpoint"}
     assert adapter.open_args == {"uri": "C:/demo/demo.pptx", "window_handle": 2001, "autoplay": True}
     assert adapter.goto_items == [4]
     assert adapter.volumes == [88]
     assert adapter.mutes == [True]
     assert controller._adapters[1] is adapter
     assert controller._adapter_source_ids[1] == 7
+    assert controller._adapter_kinds[1] == "powerpoint"
     assert states == [(1, "playing")]
     assert window.calls == ["black", "show", "raise", "ppt_container", "video", "show", "raise"]
     assert window.topmost == [True, True]
+
+
+def test_handle_open_routes_pdf_demo_to_pdf_adapter(monkeypatch: pytest.MonkeyPatch) -> None:
+    """PDF 演示文稿应创建 PDF 适配器并记录 pdf 放映模式。"""
+    controller = PlayerController()
+    adapter = _OpenAdapter()
+    window = _WindowStub()
+    created_types: list[str] = []
+
+    def create_adapter_stub(source_type: str, **_adapter_options: object) -> _OpenAdapter:
+        """记录适配器类型。"""
+        created_types.append(source_type)
+        return adapter
+
+    monkeypatch.setattr(
+        "scp_cv.player.controller_handlers.create_adapter",
+        create_adapter_stub,
+    )
+    monkeypatch.setattr(controller, "get_window_handle", lambda _window_id: 2001)
+    monkeypatch.setattr(controller, "get_window", lambda _window_id: window)
+    monkeypatch.setattr(controller, "_cleanup_temporary_source", lambda _command_args: None)
+    monkeypatch.setattr(controller, "_update_session_state", lambda _window_id, _state: None)
+
+    controller._handle_open(1, {
+        "source_id": 7,
+        "source_type": "ppt",
+        "uri": "C:/demo/slides.pdf",
+        "autoplay": True,
+    })
+
+    assert created_types == ["pdf"]
+    assert controller._adapters[1] is adapter
+    assert controller._adapter_kinds[1] == "pdf"
 
 
 def test_handle_open_keeps_ppt_container_visible_when_autoplay_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -262,7 +429,7 @@ def test_handle_open_detaches_previous_ppt_before_new_source(
 def test_handle_open_detaches_previous_ppt_before_reopening_ppt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """PPT 切 PPT 时应先隐藏旧嵌入子窗口，新 PPT 可见后再调度关闭旧 PPT。"""
+    """PPT 切 PPT 时应先隐藏并关闭旧放映，再打开新 PPT。"""
     controller = PlayerController()
     previous_adapter = _OpenAdapter()
     new_adapter = _OpenAdapter()
@@ -280,7 +447,12 @@ def test_handle_open_detaches_previous_ppt_before_reopening_ppt(
         calls.append("new_open")
         new_adapter.open_args = {"uri": uri, "window_handle": window_handle, "autoplay": autoplay}
 
-    previous_adapter.detach_for_fast_switch = lambda: calls.append("previous_detach")  # type: ignore[method-assign]
+    def close_previous() -> None:
+        """记录旧放映完整关闭。"""
+        calls.append("previous_close")
+        previous_adapter.closed = True
+
+    previous_adapter.close = close_previous  # type: ignore[method-assign]
     new_adapter.open = open_new  # type: ignore[method-assign]
     controller._adapters[1] = previous_adapter  # type: ignore[assignment]
     controller._adapter_source_types[1] = "ppt"
@@ -304,10 +476,13 @@ def test_handle_open_detaches_previous_ppt_before_reopening_ppt(
         "autoplay": True,
     })
 
-    assert calls == ["previous_detach", "new_open", "scheduled_close"]
-    assert previous_adapter.closed is False
+    assert calls == ["previous_close", "new_open"]
+    assert previous_adapter.closed is True
     assert controller._adapters[1] is new_adapter
     assert window.calls == [
+        "black",
+        "show",
+        "raise",
         "black",
         "show",
         "raise",
@@ -316,7 +491,75 @@ def test_handle_open_detaches_previous_ppt_before_reopening_ppt(
         "show",
         "raise",
     ]
-    assert window.topmost == [True, True]
+    assert window.topmost == [True, True, True]
+
+
+@pytest.mark.django_db
+def test_open_powerpoint_does_not_close_other_window_before_slot_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """新 PowerPoint 请求不能在槽位判断前关闭其它窗口。"""
+    controller = PlayerController()
+    window1_adapter = _OpenAdapter()
+    window1_adapter.closed = False
+    window2_adapter = _OpenAdapter()
+    close_calls: list[int] = []
+
+    def close_window1() -> None:
+        """记录窗口 1 完整关闭。"""
+        close_calls.append(1)
+        window1_adapter.closed = True
+
+    window1_adapter.close = close_window1  # type: ignore[method-assign]
+    controller._adapters[1] = window1_adapter  # type: ignore[assignment]
+    controller._adapter_source_types[1] = "ppt"
+    controller._adapter_source_ids[1] = 77
+    controller._adapter_kinds[1] = "powerpoint"
+
+    monkeypatch.setattr(
+        "scp_cv.player.controller_handlers.create_adapter",
+        lambda *_args, **_kwargs: window2_adapter,
+    )
+    monkeypatch.setattr(controller, "get_window_handle", lambda _window_id: 2001)
+    monkeypatch.setattr(controller, "get_window", lambda _window_id: None)
+    monkeypatch.setattr(controller, "_cleanup_temporary_source", lambda _command_args: None)
+    monkeypatch.setattr(controller, "_update_session_state", lambda _window_id, _state: None)
+
+    controller._handle_open(2, {
+        "source_id": 8,
+        "source_type": "ppt",
+        "uri": "C:/demo/next.pptx",
+        "autoplay": True,
+        "adapter_kind": "powerpoint",
+    })
+
+    assert close_calls == []
+    assert window1_adapter.closed is False
+    assert controller._adapters[1] is window1_adapter
+    assert controller._adapters[2] is window2_adapter
+    assert controller._adapter_kinds[2] == "powerpoint"
+
+
+def test_temporary_cleanup_failure_logs_window_source_and_stage(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """临时源删除失败必须保留可定位日志。"""
+    from scp_cv.services.media import MediaError
+
+    monkeypatch.setattr(
+        "scp_cv.services.media.delete_temporary_source_if_unused",
+        lambda _source_id: (_ for _ in ()).throw(MediaError("locked")),
+    )
+    with caplog.at_level("WARNING"):
+        PlayerController._cleanup_temporary_source({
+            "cleanup_source_id": 42,
+            "_window_id": 3,
+        })
+
+    assert "window_id=3" in caplog.text
+    assert "source_id=42" in caplog.text
+    assert "stage=delete" in caplog.text
 
 
 def test_schedule_close_detached_adapter_delays_ppt_close(
@@ -328,7 +571,7 @@ def test_schedule_close_detached_adapter_delays_ppt_close(
     scheduled: list[tuple[int, object]] = []
     close_calls: list[tuple[int, str | None]] = []
     monkeypatch.setattr(
-        "scp_cv.player.controller_adapter_lifecycle.QTimer.singleShot",
+        "scp_cv.player.controller_handlers.QTimer.singleShot",
         lambda delay_ms, callback: scheduled.append((delay_ms, callback)),
     )
     monkeypatch.setattr(
@@ -348,7 +591,7 @@ def test_schedule_close_detached_adapter_delays_ppt_close(
         reheat=True,
     )
 
-    assert scheduled[0][0] == controller_adapter_lifecycle._PPT_DETACHED_CLOSE_DELAY_MS
+    assert scheduled[0][0] == controller_handlers._PPT_DETACHED_CLOSE_DELAY_MS
     assert close_calls == []
 
     scheduled[0][1]()
@@ -363,7 +606,7 @@ def test_schedule_close_detached_adapter_keeps_non_ppt_immediate(
     controller = PlayerController()
     scheduled: list[int] = []
     monkeypatch.setattr(
-        "scp_cv.player.controller_adapter_lifecycle.QTimer.singleShot",
+        "scp_cv.player.controller_handlers.QTimer.singleShot",
         lambda delay_ms, _callback: scheduled.append(delay_ms),
     )
 
@@ -377,32 +620,6 @@ def test_schedule_close_detached_adapter_keeps_non_ppt_immediate(
     )
 
     assert scheduled == [0]
-
-
-def test_scheduled_detached_close_is_best_effort(
-    monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """切源已成功后的旧适配器清理失败不得逃逸到 Qt 事件循环。"""
-    controller = PlayerController()
-    scheduled_callbacks: list[object] = []
-    monkeypatch.setattr(
-        "scp_cv.player.controller_adapter_lifecycle.QTimer.singleShot",
-        lambda _delay_ms, callback: scheduled_callbacks.append(callback),
-    )
-
-    controller._schedule_close_detached_adapter(
-        1,
-        _FailingCloseAdapter(),
-        "ppt",
-        None,
-        restore_window=False,
-        reheat=False,
-    )
-
-    scheduled_callbacks[0]()  # type: ignore[operator]
-
-    assert "detached adapter close failed" in caplog.text
 
 
 def test_stop_polling_closes_adapters_without_reheat(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -428,22 +645,65 @@ def test_stop_polling_closes_adapters_without_reheat(monkeypatch: pytest.MonkeyP
     assert close_calls == [(1, False)]
 
 
-def test_stop_polling_continues_cleanup_after_adapter_close_failure() -> None:
-    """退出清理应隔离单窗口关闭异常，并继续释放其余本地资源。"""
+def test_stop_polling_does_not_teardown_resources_while_poll_thread_is_alive(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """轮询线程未确认退出时，控制器不能开始释放适配器资源。"""
     controller = PlayerController()
-    remaining_adapter = _OpenAdapter()
-    background_adapter = _OpenAdapter()
-    preheat_pool = _PreheatPoolStub()
-    controller._adapters[1] = _FailingCloseAdapter()  # type: ignore[assignment]
-    controller._adapters[2] = remaining_adapter  # type: ignore[assignment]
-    controller._preheat_pool = preheat_pool
-    controller._background_audio_adapter = background_adapter
+    close_calls: list[int] = []
 
-    controller.stop_polling()
+    class _AliveThread:
+        """模拟 join 超时后仍存活的轮询线程。"""
 
-    assert remaining_adapter.closed is True
-    assert preheat_pool.closed is True
-    assert background_adapter.closed is True
+        def join(self, timeout: float) -> None:
+            """模拟等待超时。"""
+
+        def is_alive(self) -> bool:
+            """返回线程仍存活。"""
+            return True
+
+    controller._poll_thread = _AliveThread()  # type: ignore[assignment]
+    controller._adapters[1] = _OpenAdapter()  # type: ignore[assignment]
+    monkeypatch.setattr(
+        controller,
+        "_close_adapter",
+        lambda window_id, **_kwargs: close_calls.append(window_id),
+    )
+
+    with caplog.at_level("ERROR"):
+        controller.stop_polling()
+
+    assert close_calls == []
+    assert "轮询线程在超时后仍未退出" in caplog.text
+
+
+def test_com_worker_shutdown_timeout_does_not_kill_powerpoint_processes(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """COM worker 未退出时不能终止它可能仍在访问的 PowerPoint。"""
+    controller = PlayerController()
+    terminated: list[bool] = []
+
+    class _Worker:
+        """模拟关闭超时的 COM worker。"""
+
+        def shutdown(self, timeout_seconds: float) -> bool:
+            """返回未退出。"""
+            return False
+
+    controller._ppt_com_worker = _Worker()
+    monkeypatch.setattr(
+        "scp_cv.player.adapters.ppt_process.terminate_spawned_ppt_processes",
+        lambda: terminated.append(True),
+    )
+
+    with caplog.at_level("ERROR"):
+        controller._shutdown_ppt_com_worker()
+
+    assert terminated == []
+    assert "未确认退出" in caplog.text
 
 
 def test_handle_open_stops_stream_preheat_when_reuse_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -482,3 +742,132 @@ def test_handle_open_stops_stream_preheat_when_reuse_disabled(monkeypatch: pytes
     assert stop_stream_calls == [9]
     assert states == [(1, "loading")]
     assert window.calls == ["black", "show", "raise", "video", "show", "raise", "video"]
+
+
+def test_handle_open_keeps_previous_ppt_when_factory_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    """PPT 切换前的新 adapter 创建失败时不应提前关闭旧 PPT。"""
+    controller = PlayerController()
+    previous_adapter = _OpenAdapter()
+    window = _WindowStub()
+
+    controller._adapters[1] = previous_adapter  # type: ignore[assignment]
+    controller._adapter_source_types[1] = "ppt"
+    controller._adapter_source_ids[1] = 77
+    monkeypatch.setattr(
+        "scp_cv.player.controller_handlers.create_adapter",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("bad ppt")),
+    )
+    monkeypatch.setattr(controller, "get_window", lambda _window_id: window)
+
+    with pytest.raises(ValueError, match="bad ppt"):
+        controller._handle_open(1, {
+            "source_id": 8,
+            "source_type": "ppt",
+            "uri": "C:/demo/bad.pptx",
+            "autoplay": True,
+        })
+
+    assert previous_adapter.closed is False
+    assert previous_adapter.restored_after_failed_switch is True
+    assert controller._adapters[1] is previous_adapter
+    assert controller._adapter_source_types[1] == "ppt"
+    assert controller._adapter_source_ids[1] == 77
+    assert window.calls == ["video", "show", "raise"]
+    assert window.topmost == [True]
+
+
+@pytest.mark.django_db
+def test_handle_open_keeps_previous_ppt_when_window_handle_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """窗口句柄不可用时不应提前关闭旧 PPT，且应释放新 adapter。"""
+    controller = PlayerController()
+    previous_adapter = _OpenAdapter()
+    new_adapter = _OpenAdapter()
+    window = _WindowStub()
+
+    controller._adapters[1] = previous_adapter  # type: ignore[assignment]
+    controller._adapter_source_types[1] = "ppt"
+    controller._adapter_source_ids[1] = 77
+    monkeypatch.setattr("scp_cv.player.controller_handlers.create_adapter", lambda *_args, **_kwargs: new_adapter)
+    monkeypatch.setattr(controller, "get_window_handle", lambda _window_id: 0)
+    monkeypatch.setattr(controller, "get_window", lambda _window_id: window)
+
+    controller._handle_open(1, {
+        "source_id": 8,
+        "source_type": "ppt",
+        "uri": "C:/demo/next.pptx",
+        "autoplay": True,
+    })
+
+    assert previous_adapter.closed is False
+    assert previous_adapter.restored_after_failed_switch is True
+    assert new_adapter.closed is True
+    assert controller._adapters[1] is previous_adapter
+    assert controller._adapter_source_types[1] == "ppt"
+    assert controller._adapter_source_ids[1] == 77
+    assert window.calls == ["video", "show", "raise"]
+    assert window.topmost == [True]
+
+
+def test_handle_open_restores_previous_ppt_after_new_source_open_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """新源打开失败时应恢复旧 PPT 嵌入窗口，而不是预关闭旧 PPT。"""
+    controller = PlayerController()
+    previous_adapter = _OpenAdapter()
+    new_adapter = _OpenAdapter()
+    new_adapter.fail_open = True
+    window = _WindowStub()
+    calls: list[str] = []
+
+    def detach_previous() -> None:
+        """
+        记录旧 PPT 隐藏调用。
+        :return: None
+        """
+        calls.append("previous_detach")
+        previous_adapter.detached_for_fast_switch = True
+
+    def restore_previous() -> None:
+        """
+        记录旧 PPT 恢复调用。
+        :return: None
+        """
+        calls.append("previous_restore")
+        previous_adapter.restored_after_failed_switch = True
+
+    previous_adapter.detach_for_fast_switch = detach_previous  # type: ignore[method-assign]
+    previous_adapter.restore_after_failed_switch = restore_previous  # type: ignore[method-assign]
+    controller._adapters[1] = previous_adapter  # type: ignore[assignment]
+    controller._adapter_source_types[1] = "ppt"
+    controller._adapter_source_ids[1] = 77
+
+    monkeypatch.setattr("scp_cv.player.controller_handlers.create_adapter", lambda *_args, **_kwargs: new_adapter)
+    monkeypatch.setattr(controller, "get_window_handle", lambda _window_id: 2001)
+    monkeypatch.setattr(controller, "get_window", lambda _window_id: window)
+    monkeypatch.setattr(controller, "_reheat_source_if_enabled", lambda source_id: calls.append(f"reheat:{source_id}"))
+
+    with pytest.raises(RuntimeError, match="open failed"):
+        controller._handle_open(1, {
+            "source_id": 8,
+            "source_type": "video",
+            "uri": "C:/demo/fail.mp4",
+            "autoplay": True,
+        })
+
+    assert calls == ["previous_detach", "previous_restore"]
+    assert previous_adapter.closed is False
+    assert previous_adapter.detached_for_fast_switch is True
+    assert previous_adapter.restored_after_failed_switch is True
+    assert new_adapter.closed is True
+    assert controller._adapters[1] is previous_adapter
+    assert controller._adapter_source_types[1] == "ppt"
+    assert controller._adapter_source_ids[1] == 77
+    assert window.calls == [
+        "black",
+        "show",
+        "raise",
+        "video",
+        "show",
+        "raise",
+    ]
+    assert window.topmost == [True, True]

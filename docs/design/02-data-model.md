@@ -9,11 +9,10 @@
 | `MediaFolder` | `scp_cv/apps/playback/models/media.py` | 媒体文件夹树，当前 UI 已弱化但 API 仍支持 |
 | `MediaSource` | `scp_cv/apps/playback/models/media.py` | 所有可播放媒体源的统一注册表 |
 | `PptResource` | `scp_cv/apps/playback/models/media.py` | PPT 页资源、预览图、备注、嵌入媒体清单 |
-| `PlaybackSession` | `scp_cv/apps/playback/models/session.py` | 四个播放窗口的可观察状态和兼容命令镜像 |
-| `ControlCommand` | `scp_cv/apps/playback/models/control_command.py` | 窗口 1-4 与背景音频共用的持久化有序命令队列 |
+| `PlaybackSession` | `scp_cv/apps/playback/models/session.py` | 四个播放窗口的命令和状态表 |
 | `RuntimeState` | `scp_cv/apps/playback/models/runtime.py` | 全局大屏模式和系统音量状态 |
 | `Scenario` | `scp_cv/apps/playback/models/scenario_models.py` | 预案和四窗口快照 |
-| `BackgroundAudioState` | `scp_cv/apps/playback/models/background_audio.py` | 背景音频状态和兼容命令镜像单例 |
+| `BackgroundAudioState` | `scp_cv/apps/playback/models/background_audio.py` | 背景音频命令和状态单例 |
 | `BackgroundAudioPlaylistItem` | `scp_cv/apps/playback/models/background_audio.py` | 背景音频播放列表 |
 | `StreamSource` | `scp_cv/apps/streams/models.py` | MediaMTX 自动发现的外部推流记录 |
 | `DeviceEndpoint` | `scp_cv/apps/playback/models/device.py` | 已废弃 unmanaged 占位，保留给历史迁移兼容 |
@@ -25,7 +24,7 @@
 | 枚举 | 值 | 语义 |
 | --- | --- | --- |
 | `SourceType` | `ppt`, `video`, `audio`, `image`, `web`, `custom_stream`, `rtsp_stream`, `srt_stream` | 媒体源类型，前端筛选、服务校验和 adapter 工厂都依赖这些值 |
-| `PlaybackMode` | `single`, `left_right_splice` | 会话显示模式，拼接字段当前偏数据语义 |
+| `PlaybackMode` | `single` | 每个播放器窗口绑定一个物理显示器 |
 | `BigScreenMode` | `single`, `double` | 大屏单/双画面运行模式 |
 | `PlaybackState` | `idle`, `loading`, `playing`, `paused`, `stopped`, `error` | 前端、服务层、播放器共同使用的播放状态 |
 | `PlaybackCommand` | `open`, `play`, `pause`, `stop`, `close`, `seek`, `next`, `prev`, `goto`, `set_loop`, `set_volume`, `set_mute`, `ppt_media`, `reset_ppt`, `show_id` | 四窗口命令 |
@@ -33,7 +32,7 @@
 | `SourceState` | `unset`, `empty`, `set` | 预案 tri-state，区分不修改、清空、设置 |
 | `DeviceType` | `splice_screen`, `tv_left`, `tv_right` | 物理电源控制设备类型 |
 
-迁移时不要随意改枚举字符串。前端 API 类型、OpenAPI、gRPC 兼容层、历史数据和场景 JSON 都依赖字符串值。
+迁移时不要随意改枚举字符串。前端 API 类型、OpenAPI、历史数据和场景 JSON 都依赖字符串值。
 
 ## `MediaFolder`
 
@@ -83,7 +82,7 @@
 | SRT | `srt://host:port?streamid=...` |
 | RTSP | `rtsp://host:8554/<stream_identifier>` |
 | custom stream | libVLC 可读取的自定义 URL |
-| PPT | 原始 PPT 路径，播放时可由 `resolve_ppt_playback_uri()` 替换为 `.ppsx/.pps` 缓存 |
+| PPT | 原始 PPT 路径，播放时可由 `resolve_slide_playback_uri()` 替换为 PDF 或 `.ppsx/.pps` 缓存 |
 
 迁移到多主机或容器后，必须重新设计 `uri` 的可访问性。当前系统假设 Django、播放器和媒体文件在同一 Windows 主机上。
 
@@ -123,7 +122,7 @@
 
 ## `PlaybackSession`
 
-`PlaybackSession` 是四窗口状态表。命令真值位于 `ControlCommand`；会话上的旧命令字段只保留兼容镜像。
+`PlaybackSession` 是四窗口命令总线和状态表。
 
 关键字段：
 
@@ -133,10 +132,8 @@
 | `media_source` | 当前媒体源 | 后端服务层和关闭逻辑 |
 | `playback_state` | UI 可见状态 | 服务层初始化，播放器回写 |
 | `error_message` | 错误说明 | 播放器回写，服务层清空 |
-| `display_mode` | 单窗口或左右拼接 | 显示选择服务 |
+| `display_mode` | 单窗口 | 显示选择服务 |
 | `target_display_label` | 目标显示器标签 | run_player 和显示选择服务 |
-| `spliced_display_label` | 拼接目标标签 | 显示选择服务 |
-| `is_spliced` | 是否拼接 | 显示选择服务 |
 | `current_slide` | PPT 当前页，1-based | 播放器回写 |
 | `total_slides` | PPT 总页数 | 播放器回写 |
 | `position_ms` | 视频/音频/流进度 | 播放器回写 |
@@ -144,11 +141,11 @@
 | `volume` | 窗口音量 0-100 | REST 窗口控制 |
 | `is_muted` | 窗口静音 | 运行策略和窗口控制 |
 | `loop_enabled` | 循环播放 | REST 窗口控制 |
-| `pending_command` | 目标通道最早未完成命令的只读兼容镜像 | 命令队列同步逻辑 |
-| `command_args` | 上述兼容镜像的参数 | 命令队列同步逻辑 |
+| `pending_command` | 待执行命令 | 后端服务层 |
+| `command_args` | 命令 JSON 参数 | 后端服务层 |
 | `last_updated_at` | 更新时间 | Django auto_now |
 
-`ControlCommand.arguments` 写入示例：
+命令写入示例：
 
 | 命令 | 关键 `command_args` |
 | --- | --- |
@@ -162,39 +159,12 @@
 | `reset_ppt` | `restart_sessions` |
 | `close` | `reset_all_windows`, `cleanup_source_id` |
 
-兼容注意：
+迁移注意：
 
-- `pending_command/command_args` 只镜像最早的未完成命令；服务、播放器和新客户端不得把它们当作写入入口、队列或完成证明。
+- `pending_command` 不是队列，迁移时不要误以为可以保留多个未执行动作。
+- 播放器消费命令后会立即清空 pending，再执行实际 adapter 操作。
 - `last_updated_at` 被前端 `sessions.ts` 用来避免旧 SSE/REST 帧覆盖较新的本地状态。
 - `window_id` 的 1-4 语义是业务契约，不只是数据库编号。
-
-## `ControlCommand`
-
-`ControlCommand` 是窗口 1-4 与背景音频的命令真值来源。每个目标通道按 ID 顺序消费，同一目标最多一条 `executing` 记录。
-
-| 字段 | 语义 |
-| --- | --- |
-| `target` | `window:1` 至 `window:4` 或 `background_audio` |
-| `command` | `PlaybackCommand` 或 `BackgroundAudioCommand` 字符串 |
-| `arguments` | 命令参数 JSON |
-| `status` | `pending`、`executing`、`succeeded`、`failed` 或 `cancelled` |
-| `batch_id` | 终止/重置批次和同组命令关联 ID |
-| `consumer_id` | 原子领取后的逻辑消费者身份 |
-| `consumer_pid`, `consumer_process_started_at` | 防止 PID 复用误判的进程身份 |
-| `consumer_heartbeat_at` | 执行中消费者租约心跳 |
-| `cancel_requested` | 在途命令完成后必须转为取消并释放结果的标记 |
-| `error_message` | 失败或恢复原因 |
-| `created_at`, `started_at`, `finished_at` | 入队、领取和终态时间 |
-
-队列规则：
-
-- 消费者用条件更新原子领取最早的 `pending` 记录；只有实际领取者可以确认终态。
-- `next/prev/goto` 等导航严格追加；音量、静音和循环只合并尚未领取的同类设置。
-- `open/close/reset` 通过事务批次取消未执行旧命令，并给在途旧命令设置 `cancel_requested`。
-- 播放器重启只把进程已消失、身份不匹配或租约过期消费者留下的 `executing` 记录标记失败，不重放可能已经生效的操作。
-- 完成记录默认保留七天；升级迁移会把非空的旧命令镜像导入队列。
-
-迁移时必须保留 `(target, status, id)` 索引、每目标最多一条执行中记录的约束以及上述领取/确认语义。
 
 ## `RuntimeState`
 
@@ -255,8 +225,8 @@ tri-state 设计的价值是避免预案激活时无意清空未配置窗口。�
 | `volume` | 背景音乐音量 |
 | `is_muted` | 是否静音 |
 | `loop_enabled` | 播放列表循环 |
-| `pending_command` | 背景音频通道最早未完成命令的只读兼容镜像 |
-| `command_args` | 上述兼容镜像的参数 |
+| `pending_command` | 背景音频待执行命令 |
+| `command_args` | 背景音频命令参数 |
 | `updated_at` | 更新时间 |
 
 `BackgroundAudioState` 同样是逻辑单例，服务层通过 `get_instance()` 获取。
@@ -309,7 +279,7 @@ tri-state 设计的价值是避免预案激活时无意清空未配置窗口。�
 | `0021_add_wps_ppt_backend.py` | 支持 WPS 演示 |
 | `0023_background_audio.py` | 引入背景音频状态和播放列表 |
 | `0024_default_powerpoint_ppt_backend.py` | 默认 PPT 后端改为 PowerPoint |
-| `0025_remove_ppt_backend_fields.py` | 删除媒体源和会话 PPT 后端字段，统一 PowerPoint-only |
+| `0025_remove_ppt_backend_fields.py` | 删除媒体源和会话 PPT 后端字段；运行时由单 COM 槽位与 PDF 回退策略决定 |
 
 ## 数据迁移原则
 
@@ -318,5 +288,5 @@ tri-state 设计的价值是避免预案激活时无意清空未配置窗口。�
 - 保留 `MediaSource.metadata` 中的 PPT 解析和播放缓存信息，除非重新生成缓存。
 - 保留临时源字段和清理语义，避免迁移后上传临时音频或临时媒体残留。
 - 保留 `PptResource` 的 1-based 页码，前端和播放器都按 1-based 显示和跳转。
-- 如果改用 PostgreSQL，可以用事务和行锁优化 `ControlCommand` 消费，但 REST/SSE 快照与确认语义应保持兼容。
-- 如果用外部消息系统替换数据库轮询，仍应保留可持久查询的命令结果和 `PlaybackSession` 最终可观察状态。
+- 如果改用 PostgreSQL，可以用事务和行锁优化命令消费，但 REST/SSE 快照格式应保持兼容。
+- 如果引入消息队列，仍建议把 `PlaybackSession` 保留为最终可观察状态表。

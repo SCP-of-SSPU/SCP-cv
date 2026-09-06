@@ -10,8 +10,6 @@
 from __future__ import annotations
 
 import logging
-import threading
-import uuid
 from pathlib import Path
 
 from PySide6.QtCore import QUrl
@@ -19,9 +17,9 @@ from PySide6.QtGui import QPixmap
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 
 from scp_cv.apps.playback.models import SourceType
-from scp_cv.player.ppt_broker.contracts import PptBroker, PptPreheatRequest
+from scp_cv.player.preheat_ppt import PptApplicationPreheater
 from scp_cv.player.preheat_stream import StreamPreheatHandle
-from scp_cv.player.preheat_types import PreheatedAudioSource, PreheatedStreamSource, PreheatedVideoSource
+from scp_cv.player.preheat_types import PreheatedAudioSource, PreheatedPptApplication, PreheatedStreamSource, PreheatedVideoSource
 from scp_cv.player.web_preheat import WebPreheatPool
 
 logger = logging.getLogger(__name__)
@@ -30,10 +28,9 @@ logger = logging.getLogger(__name__)
 class PlayerPreheatPool:
     """播放器统一预热池。"""
 
-    def __init__(self, ppt_broker: PptBroker | None = None) -> None:
+    def __init__(self) -> None:
         """
         初始化各类型预热容器。
-        :param ppt_broker: 唯一 PowerPoint Broker 客户端
         :return: None
         """
         self.web_pool = WebPreheatPool()
@@ -41,7 +38,17 @@ class PlayerPreheatPool:
         self._videos: dict[int, PreheatedVideoSource] = {}
         self._audios: dict[int, PreheatedAudioSource] = {}
         self._streams: dict[int, StreamPreheatHandle] = {}
-        self._ppt_broker = ppt_broker
+        self._ppt_apps = PptApplicationPreheater()
+        # PPT COM 工作线程；注入后 PPT 预热在该线程后台执行，不阻塞主线程。
+        self._ppt_com_worker: object | None = None
+
+    def attach_ppt_com_worker(self, com_worker: object | None) -> None:
+        """
+        注入共享 PPT COM 工作线程。
+        :param com_worker: PptComWorker 实例；None 表示内联执行
+        :return: None
+        """
+        self._ppt_com_worker = com_worker
 
     def preheat_source(
         self,
@@ -72,7 +79,9 @@ class PlayerPreheatPool:
             elif str(source_type).endswith("_stream"):
                 self._preheat_stream(source_id, uri, force)
             elif source_type == SourceType.PPT:
-                self.preheat_ppt_source(source_id, uri)
+                # PPT 预热本轮已停用：PowerPoint 播放改为按需单槽位启动，
+                # PDF 播放无需预热。保留 preheat_ppt_source 作为后续扩展入口。
+                logger.debug("演示文稿预热已停用：source_id=%d", source_id)
         except Exception as preheat_error:
             logger.warning(
                 "媒体源预热失败：source_id=%d, type=%s, error=%s",
@@ -146,6 +155,8 @@ class PlayerPreheatPool:
         handle = self._streams.pop(source_id, None)
         if handle is None:
             return None
+        if handle.is_stale():
+            handle.refresh()
         if handle.is_stale() or not handle.matches(source_id, uri):
             handle.close()
             return None
@@ -155,42 +166,40 @@ class PlayerPreheatPool:
             return None
         return claimed
 
+    def maintain(self) -> None:
+        """维护长期 keep_alive 直播资源，续热或在后台重建。"""
+        for handle in list(self._streams.values()):
+            if not handle.is_ready:
+                continue
+            if handle.is_stale() and not handle.refresh():
+                self._streams.pop(handle.source_id, None)
+
     def preheat_ppt_source(self, source_id: int = 0, uri: str = "") -> None:
         """
-        通过 Broker 后台预热 PowerPoint 应用或指定 PPT 文件。
-        :param source_id: 可选媒体源 ID，用于文件级预热
-        :param uri: 可选 PPT 文件路径，用于文件级预热
+        预热共享 PowerPoint 应用（当前已停用，保留扩展入口）。
+        后续如需恢复，应按“预建隐藏窗口/资源槽，切换时直接接管”的模型实现。
+        :param source_id: 保留的兼容参数
+        :param uri: 保留的兼容参数
         :return: None
         """
-        broker = getattr(self, "_ppt_broker", None)
-        if broker is None:
-            logger.warning(
-                "跳过 PPT 预热：播放器未连接 PowerPoint Broker；"
-                "请通过 runall 或先运行 manage.py run_ppt_broker。"
-            )
-            return
-        request = PptPreheatRequest(
-            uri=uri if source_id > 0 else "",
-            source_id=source_id,
-            request_id=uuid.uuid4().hex,
-        )
+        logger.debug("PowerPoint 预热已停用：source_id=%d", source_id)
 
-        def run_preheat() -> None:
-            try:
-                broker.preheat(request)
-            except Exception as preheat_error:
-                logger.warning(
-                    "PowerPoint Broker 预热失败：source_id=%d, uri=%s, error=%s",
-                    source_id,
-                    uri,
-                    preheat_error,
-                )
+    def take_ppt_application(self, source_id: int = 0, uri: str = "") -> PreheatedPptApplication | None:
+        """
+        取出 PowerPoint 预热应用。
+        :param source_id: 可选媒体源 ID，用于取文件级预热项
+        :param uri: 可选 PPT 文件路径，用于取文件级预热项
+        :return: 预热应用或 None
+        """
+        return self._ppt_apps.take(source_id, uri)
 
-        threading.Thread(
-            target=run_preheat,
-            daemon=True,
-            name=f"ppt-broker-preheat-{source_id or 'application'}",
-        ).start()
+    def return_ppt_application(self, item: PreheatedPptApplication) -> None:
+        """
+        归还 PowerPoint 应用到预热池。
+        :param item: 预热应用
+        :return: None
+        """
+        self._ppt_apps.return_item(item)
 
     def stop_stream_preheat(self, source_id: int) -> None:
         """
@@ -218,6 +227,29 @@ class PlayerPreheatPool:
         for stream in list(self._streams.values()):
             stream.close()
         self._streams.clear()
+        self._close_ppt_preheats()
+
+    def _close_ppt_preheats(self) -> None:
+        """
+        关闭 PPT 预热资源；COM 对象属于工作线程时同步等待其在该线程释放。
+        :return: None
+        """
+        worker = getattr(self, "_ppt_com_worker", None)
+        if worker is None or getattr(worker, "is_current_thread", False):
+            self._ppt_apps.close_all()
+            return
+        # 先丢弃排队中的预热任务，避免池关闭后旧预热再拉起新 PowerPoint
+        discard_low_priority = getattr(worker, "discard_low_priority_jobs", None)
+        if callable(discard_low_priority):
+            discard_low_priority()
+        try:
+            worker.submit_and_wait(
+                "关闭 PPT 预热资源",
+                self._ppt_apps.close_all,
+                timeout_seconds=10.0,
+            )
+        except Exception as close_error:
+            logger.warning("关闭 PPT 预热资源失败：%s", close_error)
 
     def _preheat_image(self, source_id: int, uri: str, force: bool) -> None:
         """

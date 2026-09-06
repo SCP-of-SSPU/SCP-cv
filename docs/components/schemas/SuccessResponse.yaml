@@ -5,8 +5,3 @@ properties:
   success:
     type: boolean
     example: true
-  commands:
-    type: array
-    description: 操作产生异步控制副作用时实际持久化并接受的命令
-    items:
-      $ref: ./ControlCommandState.yaml

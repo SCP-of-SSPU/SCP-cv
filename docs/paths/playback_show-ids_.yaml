@@ -5,7 +5,7 @@ post:
   operationId: showWindowIds
   responses:
     '200':
-      description: 显示窗口编号指令已持久化并接受
+      description: 操作成功
       content:
         application/json:
           schema:

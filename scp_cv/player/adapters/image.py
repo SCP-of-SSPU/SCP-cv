@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 class ImageSourceAdapter(SourceAdapter):
+    capabilities = frozenset()
     """
     图片显示适配器。
 

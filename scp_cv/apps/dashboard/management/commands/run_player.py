@@ -16,32 +16,17 @@ import subprocess
 import signal
 import sys
 import time
+import logging
+from pathlib import Path
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from scp_cv.apps.dashboard.management.run_player_ppt_broker import (
-    RunPlayerPptBrokerLifecycle,
-)
+logger = logging.getLogger(__name__)
 
 
-class Command(RunPlayerPptBrokerLifecycle, BaseCommand):
+class Command(BaseCommand):
     help = "启动 PySide6 多窗口本地播放器"
-
-    def __init__(self, *args: object, **kwargs: object) -> None:
-        """
-        初始化播放器命令的 Broker 生命周期状态。
-        :param args: Django BaseCommand 参数
-        :param kwargs: Django BaseCommand 关键字参数
-        :return: None
-        """
-        super().__init__(*args, **kwargs)
-        self._ppt_broker_client: object | None = None
-        self._owned_ppt_broker_process: object | None = None
-
-    def _spawn_ppt_broker_process(self) -> subprocess.Popen[bytes]:
-        """创建由当前 run_player 管理的 PowerPoint Broker 子进程。"""
-        return subprocess.Popen([sys.executable, "manage.py", "run_ppt_broker"])
 
     def add_arguments(self, parser: object) -> None:
         """
@@ -97,6 +82,12 @@ class Command(RunPlayerPptBrokerLifecycle, BaseCommand):
             default=False,
             help="禁用背景音频命令消费；多播放器进程中仅一个进程应负责背景音频",
         )
+        parser.add_argument(
+            "--shutdown-file",
+            type=str,
+            default="",
+            help="父进程用于协作式关闭播放器的本地 IPC 文件",
+        )
 
     def handle(self, **options: object) -> None:
         """
@@ -133,6 +124,11 @@ class Command(RunPlayerPptBrokerLifecycle, BaseCommand):
         qt_app = QApplication.instance()
         if qt_app is None:
             qt_app = QApplication(sys.argv)
+        shutdown_watcher = self._install_shutdown_file_watcher(
+            qt_app,
+            str(options.get("shutdown_file") or ""),
+            shutdown_requested,
+        )
 
         def request_qt_shutdown(signum: int, _frame: object) -> None:
             """
@@ -179,28 +175,54 @@ class Command(RunPlayerPptBrokerLifecycle, BaseCommand):
                 )
             )
 
-        self._prepare_ppt_broker(only_window_id)
-
-        try:
-            if only_window_id <= 0 and assigned_count > 1:
-                self._run_isolated_window_players(
-                    launch_result,
-                    dev_mode,
-                    poll_interval,
-                    shutdown_requested,
-                )
-                return
-
-            # ═══ 根据分配结果创建播放窗口 ═══
-            self._start_player(
-                qt_app,
+        if only_window_id <= 0 and assigned_count > 1:
+            self._run_isolated_window_players(
                 launch_result,
                 dev_mode,
                 poll_interval,
-                background_audio_enabled,
+                shutdown_requested,
             )
-        finally:
-            self._cleanup_owned_ppt_broker()
+            return
+
+        # ═══ 根据分配结果创建播放窗口 ═══
+        self._start_player(
+            qt_app,
+            launch_result,
+            dev_mode,
+            poll_interval,
+            background_audio_enabled,
+        )
+        # 保持 Qt timer 引用到 handle 退出，避免被 Python GC 提前销毁。
+        _ = shutdown_watcher
+
+    def _install_shutdown_file_watcher(
+        self,
+        qt_app: object,
+        raw_path: str,
+        shutdown_requested: dict[str, bool],
+    ) -> object | None:
+        """安装父子进程协作式退出文件监听器。"""
+        if not raw_path:
+            return None
+        from PySide6.QtCore import QTimer
+
+        shutdown_path = Path(raw_path).resolve()
+        shutdown_path.parent.mkdir(parents=True, exist_ok=True)
+        shutdown_path.unlink(missing_ok=True)
+        timer = QTimer(qt_app)
+
+        def check_shutdown_request() -> None:
+            """检测父进程退出请求并退出 Qt 事件循环。"""
+            if not shutdown_path.exists():
+                return
+            shutdown_requested["value"] = True
+            logger.info("收到父进程协作退出请求：%s", shutdown_path)
+            shutdown_path.unlink(missing_ok=True)
+            qt_app.quit()
+
+        timer.timeout.connect(check_shutdown_request)
+        timer.start(200)
+        return timer
 
     def _collect_launcher_result(self, qt_app: object, dev_mode: bool) -> object | None:
         """
@@ -278,7 +300,7 @@ class Command(RunPlayerPptBrokerLifecycle, BaseCommand):
         shutdown_requested: dict[str, bool],
     ) -> None:
         """
-        将多个播放窗口拆成独立 run_player 子进程，隔离各窗口的 Qt/渲染生命周期。
+        将多个播放窗口拆成独立 run_player 子进程，隔离 PowerPoint COM 生命周期。
         :param launch_result: LauncherResult
         :param dev_mode: 是否开发模式
         :param poll_interval: 轮询间隔
@@ -291,9 +313,16 @@ class Command(RunPlayerPptBrokerLifecycle, BaseCommand):
         window_ids = sorted(result.window_assignments.keys())
         background_audio_owner = window_ids[0]
         processes: list[subprocess.Popen[bytes]] = []
+        shutdown_files: dict[subprocess.Popen[bytes], Path] = {}
         try:
             for window_id in window_ids:
                 display_target = result.window_assignments[window_id]
+                shutdown_path = (
+                    Path(settings.LOG_DIR)
+                    / f"run-player-{id(self)}-{window_id}-{time.time_ns()}.shutdown"
+                )
+                shutdown_path.parent.mkdir(parents=True, exist_ok=True)
+                shutdown_path.unlink(missing_ok=True)
                 command_args = [
                     sys.executable,
                     "manage.py",
@@ -305,6 +334,8 @@ class Command(RunPlayerPptBrokerLifecycle, BaseCommand):
                     str(window_id),
                     f"--window{window_id}",
                     str(display_target.index),
+                    "--shutdown-file",
+                    str(shutdown_path),
                 ]
                 if dev_mode:
                     command_args.append("--dev")
@@ -313,7 +344,9 @@ class Command(RunPlayerPptBrokerLifecycle, BaseCommand):
                     command_args.extend(["--gpu", str(selected_gpu.index)])
                 if window_id != background_audio_owner:
                     command_args.append("--disable-background-audio")
-                processes.append(subprocess.Popen(command_args))
+                process = subprocess.Popen(command_args)
+                processes.append(process)
+                shutdown_files[process] = shutdown_path
                 self.stdout.write(
                     self.style.SUCCESS(
                         f"独立播放器窗口 {window_id} 已启动（显示器 ID={display_target.index}）"
@@ -321,7 +354,7 @@ class Command(RunPlayerPptBrokerLifecycle, BaseCommand):
                 )
             self._monitor_isolated_players(processes, shutdown_requested)
         finally:
-            self._terminate_isolated_players(processes)
+            self._terminate_isolated_players(processes, shutdown_files)
 
     def _monitor_isolated_players(
         self,
@@ -353,22 +386,42 @@ class Command(RunPlayerPptBrokerLifecycle, BaseCommand):
             shutdown_requested["value"] = True
 
     @staticmethod
-    def _terminate_isolated_players(processes: list[subprocess.Popen[bytes]]) -> None:
+    def _terminate_isolated_players(
+        processes: list[subprocess.Popen[bytes]],
+        shutdown_files: dict[subprocess.Popen[bytes], Path] | None = None,
+    ) -> None:
         """
         关闭仍在运行的独立播放器子进程。
         :param processes: 子进程列表
         :return: None
         """
+        shutdown_files = shutdown_files or {}
         for process in processes:
-            if process.poll() is None:
-                process.terminate()
+            if process.poll() is not None:
+                continue
+            shutdown_path = shutdown_files.get(process)
+            if shutdown_path is None:
+                continue
+            try:
+                shutdown_path.write_text("shutdown\n", encoding="utf-8")
+                logger.info("已请求播放器协作退出：pid=%s file=%s", process.pid, shutdown_path)
+            except OSError as signal_error:
+                logger.warning("协作式通知播放器退出失败：pid=%s error=%s", process.pid, signal_error)
         for process in processes:
             if process.poll() is not None:
                 continue
             try:
                 process.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                process.kill()
+                logger.warning("播放器协作退出超时，执行 terminate：pid=%s", process.pid)
+                process.terminate()
+                try:
+                    process.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    logger.warning("播放器 terminate 超时，执行 kill：pid=%s", process.pid)
+                    process.kill()
+        for shutdown_path in shutdown_files.values():
+            shutdown_path.unlink(missing_ok=True)
 
     def _start_player(
         self,
@@ -387,6 +440,7 @@ class Command(RunPlayerPptBrokerLifecycle, BaseCommand):
         """
         from PySide6.QtCore import QRect
 
+        from scp_cv.player.adapters.ppt_com_worker import PptComWorker
         from scp_cv.player.controller import PlayerController
         from scp_cv.player.launcher_gui import LauncherResult
         from scp_cv.player.window import PlayerWindow
@@ -394,15 +448,10 @@ class Command(RunPlayerPptBrokerLifecycle, BaseCommand):
 
         result: LauncherResult = launch_result
 
-        if self._ppt_broker_client is None:
-            raise RuntimeError(
-                "播放器缺少 PowerPoint Broker 客户端；请先完成 Broker 准备。"
-            )
-
-        # 创建控制器；PowerPoint 操作只通过 Broker 普通数据接口执行。
+        # 创建控制器；PPT COM 操作统一走专用工作线程，避免阻塞 Qt 主线程
         controller = PlayerController(
             enable_background_audio=background_audio_enabled,
-            ppt_broker=self._ppt_broker_client,
+            ppt_com_worker=PptComWorker(),
         )
         if not dev_mode:
             controller.set_window_closed_callback(qt_app.quit)
@@ -437,6 +486,12 @@ class Command(RunPlayerPptBrokerLifecycle, BaseCommand):
                     f"({display_target.geometry_label})"
                 )
             )
+
+        # dev 模式下额外处理：调整窗口尺寸显示
+        if dev_mode:
+            for player_window in all_windows:
+                player_window.resize(960, 540)
+                player_window.show()
 
         # 启动时恢复上次保存的显示器目标，确保播放器窗口与 Web 控制台一致。
         controller.apply_current_layout()

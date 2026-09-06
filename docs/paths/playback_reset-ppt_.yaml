@@ -1,15 +1,12 @@
 post:
   tags:
     - playback
-  summary: 重置 PPT 放映后端并恢复页码
-  description: >-
-    为每个正在放映 PPT 的窗口追加有序的 CLOSE、OPEN(target_slide) 指令批次；
-    每个窗口只重开自己的源并恢复重置前页码，不再广播单槽 RESET_PPT。
-    HTTP 响应只表示批次已持久化并接受，最终结果通过 SSE 会话状态确认。
+  summary: 重置当前 PowerPoint 放映并恢复页码
+  description: 关闭全局单槽位中当前活跃的 PowerPoint 放映窗口与文档，再回到重置前页码；PDF 演示文稿不受影响。
   operationId: resetPptPlayback
   responses:
     '200':
-      description: 各 PPT 窗口的有序关闭、重开批次已持久化并接受
+      description: 操作成功
       content:
         application/json:
           schema:

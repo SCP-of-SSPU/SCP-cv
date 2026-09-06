@@ -11,15 +11,14 @@
 | 1 | [系统架构](01-system-architecture.md) | 架构师、迁移负责人 | 系统边界、进程关系、核心控制流、运行约束 |
 | 2 | [数据模型](02-data-model.md) | 后端、DB 迁移负责人 | Django 模型、状态枚举、关键字段、持久化约束 |
 | 3 | [后端服务设计](03-backend-services.md) | Django 后端开发 | settings、URL、服务层、媒体/PPT/场景/设备/音量逻辑 |
-| 4 | [接口与实时通信](04-api-realtime-grpc.md) | 前后端、自动化集成 | REST、SSE、gRPC、认证、错误格式、契约稳定点 |
-| 5 | [前端 Fluent Vue 设计](05-frontend-fluent-vue.md) | Vue/Fluent 前端开发 | 路由、Pinia、API 客户端、Fluent token、页面模块 |
-| 6 | [播放器与媒体运行时](06-player-media-runtime.md) | 桌面播放器、媒体开发 | PySide6、adapter、PPT 后端、预热、四屏窗口 |
-| 7 | [部署运维与验收](07-deployment-operations-testing.md) | 运维、现场交付 | Windows 部署、runall、日志、备份、测试、故障定位 |
-| 8 | [迁移合并指南](08-migration-guide.md) | 迁移实施团队 | 迁移策略、模块拆分、风险、验收清单 |
+| 4 | [前端 Fluent Vue 设计](05-frontend-fluent-vue.md) | Vue/Fluent 前端开发 | 路由、Pinia、API 客户端、Fluent token、页面模块 |
+| 5 | [播放器与媒体运行时](06-player-media-runtime.md) | 桌面播放器、媒体开发 | PySide6、adapter、PPT 后端、预热、四屏窗口 |
+| 6 | [部署运维与验收](07-deployment-operations-testing.md) | 运维、现场交付 | Windows 部署、runall、日志、备份、测试、故障定位 |
+| 7 | [迁移合并指南](08-migration-guide.md) | 迁移实施团队 | 迁移策略、模块拆分、风险、验收清单 |
 
 ## 项目一句话定义
 
-SCP-cv 是一个 Windows-first、单主机、多进程播放控制平台，用 Django REST/SSE/gRPC 管理媒体源和会话状态，用 Vue 控制台进行播控，用 PySide6/libVLC/PowerPoint 播放器进程把内容输出到四个物理窗口。
+SCP-cv 是一个 Windows-first、单主机、多进程播放控制平台，用 Django REST/SSE 管理媒体源和会话状态，用 Vue 控制台进行播控，用 PySide6/libVLC/PowerPoint 播放器进程把内容输出到四个物理窗口。
 
 ## 当前系统边界
 
@@ -52,8 +51,6 @@ SCP-cv 是一个 Windows-first、单主机、多进程播放控制平台，用 D
 | 服务层 | `scp_cv/services/` |
 | 播放模型 | `scp_cv/apps/playback/models/` |
 | 流模型 | `scp_cv/apps/streams/models.py` |
-| gRPC proto | `protos/scp_cv/v1/control.proto` |
-| gRPC servicer | `scp_cv/grpc_servicers/` |
 | 播放器 | `scp_cv/player/` |
 | 前端 API | `frontend/src/services/api.ts` |
 | 前端状态 | `frontend/src/stores/` |

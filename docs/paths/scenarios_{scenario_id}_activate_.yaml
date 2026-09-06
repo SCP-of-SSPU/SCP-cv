@@ -4,13 +4,10 @@ post:
   tags:
     - scenarios
   summary: 激活预案
-  description: >-
-    响应成功只表示预案产生的控制命令已接受。若后续目标校验失败，400 响应仍会在 commands
-    中列出失败前已持久化的命令，调用方必须继续通过 SSE 追踪这些 ID 的终态。
   operationId: activateScenario
   responses:
     '200':
-      description: 预案控制命令已接受
+      description: 激活成功
       content:
         application/json:
           schema:

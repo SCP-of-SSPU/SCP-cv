@@ -58,8 +58,8 @@
 uv run python manage.py check
 uv run python manage.py makemigrations --check --dry-run
 uv run pytest tests/ -v
-npm --prefix frontend run typecheck
-npm --prefix frontend run build
+pnpm --prefix frontend run typecheck
+pnpm --prefix frontend run build
 ```
 
 针对性修复可先运行相关测试，但交付前应说明完整验证是否完成。

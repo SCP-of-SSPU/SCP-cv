@@ -7,7 +7,7 @@ post:
   operationId: closeWindowSource
   responses:
     '200':
-      description: 关闭指令已持久化并接受；不表示播放器已释放资源，最终状态通过 SSE 会话更新确认
+      description: 操作成功
       content:
         application/json:
           schema:

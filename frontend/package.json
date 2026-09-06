@@ -4,6 +4,7 @@
   "private": true,
   "license": "Artistic-2.0",
   "type": "module",
+  "packageManager": "pnpm@11.22.0",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit -p tsconfig.json && vite build",
@@ -12,19 +13,19 @@
     "gen:fluent-tokens": "node scripts/generate-fluent-tokens.mjs"
   },
   "dependencies": {
-    "@fluentui/tokens": "^1.0.0-alpha.23",
-    "@vicons/fluent": "^0.13.0",
-    "@vitejs/plugin-vue": "latest",
-    "naive-ui": "^2.44.1",
-    "pinia": "latest",
-    "vite": "latest",
-    "vue": "latest",
-    "vue-i18n": "^11.4.2",
-    "vue-router": "latest"
+    "@fluentui/tokens": "1.0.0-alpha.23",
+    "@vicons/fluent": "0.13.0",
+    "@vitejs/plugin-vue": "6.0.8",
+    "naive-ui": "2.44.1",
+    "pinia": "4.0.2",
+    "vite": "8.2.0",
+    "vue": "3.5.41",
+    "vue-i18n": "11.4.8",
+    "vue-router": "5.2.0"
   },
   "devDependencies": {
-    "@types/node": "^25.6.0",
-    "typescript": "latest",
-    "vue-tsc": "latest"
+    "@types/node": "26.1.2",
+    "typescript": "6.0.3",
+    "vue-tsc": "3.3.9"
   }
 }

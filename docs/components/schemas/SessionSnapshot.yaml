@@ -6,14 +6,13 @@ required:
   - source_type
   - source_type_label
   - source_uri
+  - playback_mode
   - playback_state
   - playback_state_label
   - error_message
   - display_mode
   - display_mode_label
   - target_display_label
-  - spliced_display_label
-  - is_spliced
   - current_slide
   - total_slides
   - position_ms
@@ -23,6 +22,8 @@ required:
   - volume
   - is_muted
   - loop_enabled
+  - player_online
+  - player_last_seen_at
 properties:
   window_id:
     type: integer
@@ -39,6 +40,13 @@ properties:
     type: string
   source_uri:
     type: string
+  playback_mode:
+    type: string
+    enum:
+      - ''
+      - pdf
+      - powerpoint
+    description: 当前演示文稿播放模式；其它源为空字符串
   playback_state:
     $ref: ./PlaybackState.yaml
   playback_state_label:
@@ -51,10 +59,6 @@ properties:
     type: string
   target_display_label:
     type: string
-  spliced_display_label:
-    type: string
-  is_spliced:
-    type: boolean
   current_slide:
     type: integer
   total_slides:
@@ -66,10 +70,6 @@ properties:
   pending_command:
     type: string
     nullable: true
-    readOnly: true
-    description: >-
-      只读兼容镜像，显示该窗口最早的未完成 ControlCommand；空字符串或 null 表示当前没有未完成指令。
-      新客户端不得把此字段当作命令真值或执行完成证明，最终播放结果应依据 SSE 中持续更新的状态与错误信息。
   last_updated_at:
     type: string
     format: date-time
@@ -81,3 +81,11 @@ properties:
     type: boolean
   loop_enabled:
     type: boolean
+  player_online:
+    type: boolean
+    description: 播放器窗口最近 5 秒内是否上报过心跳
+  player_last_seen_at:
+    type: string
+    format: date-time
+    nullable: true
+    description: 对应窗口播放器最后一次上报心跳的时间

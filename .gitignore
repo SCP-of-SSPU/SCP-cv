@@ -165,7 +165,6 @@ cython_debug/
 .idea/
 
 # Local agent artifacts
-AGENTS.md
 CLAUDE.md
 DESIGN.md
 AGENT_TODO.md
@@ -197,3 +196,9 @@ logs/*
 tools/third_party/*.zip
 tools/third_party/vlc/runtime/*
 !tools/third_party/vlc/runtime/libvlc.dll
+
+# Local review and change tracking (not for git)
+CHANGES_TO_CONFIRM.md
+REVIEW.md
+review_raw/
+screenshot_*.png

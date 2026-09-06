@@ -32,11 +32,6 @@ from scp_cv.services.scenario import (
     update_scenario,
 )
 from scp_cv.services.background_audio_payloads import get_background_audio_snapshot
-from scp_cv.services.command_status import (
-    capture_enqueued_commands,
-    control_command_payloads,
-)
-from scp_cv.services.playback import get_all_sessions_snapshot
 from scp_cv.services.sse import publish_event
 
 
@@ -191,30 +186,13 @@ def activate_scenario_api(request: HttpRequest, scenario_id: int) -> JsonRespons
     :param scenario_id: 预案主键
     :return: 激活后的会话状态
     """
-    with capture_enqueued_commands() as accepted_commands:
-        try:
-            sessions = activate_scenario(int(scenario_id))
-        except ScenarioError as scenario_error:
-            payload = {
-                "sessions": get_all_sessions_snapshot(),
-                "background_audio": get_background_audio_snapshot(),
-            }
-            publish_event("playback_state", payload)
-            return json_response({
-                "detail": str(scenario_error),
-                "code": "scenario_error",
-                "commands": control_command_payloads(accepted_commands),
-            }, status=400)
-    payload = {
-        "sessions": sessions,
-        "background_audio": get_background_audio_snapshot(),
-    }
-    publish_event("playback_state", payload)
-    return json_response({
-        "success": True,
-        **payload,
-        "commands": control_command_payloads(accepted_commands),
-    })
+    try:
+        sessions = activate_scenario(int(scenario_id))
+        payload = {"sessions": sessions, "background_audio": get_background_audio_snapshot()}
+        publish_event("playback_state", payload)
+        return json_response({"success": True, **payload})
+    except ScenarioError as scenario_error:
+        return error_response(str(scenario_error), code="scenario_error")
 
 
 @csrf_exempt

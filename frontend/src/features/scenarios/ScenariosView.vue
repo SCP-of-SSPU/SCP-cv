@@ -305,6 +305,17 @@ async function togglePin(scenario: ScenarioItem): Promise<void> {
   gap: var(--spacingHorizontalL);
 }
 
+.scenarios-view__grid > .n-empty {
+  grid-column: 1 / -1;
+  justify-self: center;
+  align-self: center;
+  padding: var(--spacingVerticalXXL) var(--spacingHorizontalL);
+}
+
+.scenarios-view__grid:has(.n-empty) {
+  min-height: 50vh;
+}
+
 .scenarios-view__card--pinned {
   border-left: 4px solid var(--colorBrandBackground);
 }

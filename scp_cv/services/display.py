@@ -26,19 +26,6 @@ class DisplayTarget:
         return f"({self.x}, {self.y})"
 
 
-@dataclass(frozen=True)
-class SplicedDisplayTarget:
-    """左右拼接后的逻辑播放区域。"""
-
-    left: DisplayTarget
-    right: DisplayTarget
-    width: int
-    height: int
-
-    @property
-    def geometry_label(self) -> str:
-        return f"{self.width}×{self.height}"
-
 
 def list_display_targets() -> list[DisplayTarget]:
     """读取当前主机可见的显示器信息。"""
@@ -58,20 +45,3 @@ def list_display_targets() -> list[DisplayTarget]:
             )
         )
     return display_targets
-
-
-def build_left_right_splice_target(display_targets: list[DisplayTarget]) -> SplicedDisplayTarget | None:
-    """把最左与次左显示器组合成一个逻辑拼接区域。"""
-
-    if len(display_targets) < 2:
-        return None
-
-    ordered_targets = sorted(display_targets, key=lambda item: (item.x, item.y))
-    left_target = ordered_targets[0]
-    right_target = ordered_targets[1]
-    return SplicedDisplayTarget(
-        left=left_target,
-        right=right_target,
-        width=left_target.width + right_target.width,
-        height=max(left_target.height, right_target.height),
-    )

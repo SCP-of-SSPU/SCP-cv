@@ -5,7 +5,6 @@ allOf:
       - runtime
       - sessions
       - background_audio
-      - commands
     properties:
       runtime:
         $ref: ./RuntimeSnapshot.yaml
@@ -15,8 +14,3 @@ allOf:
           $ref: ./SessionSnapshot.yaml
       background_audio:
         $ref: ./BackgroundAudioSnapshot.yaml
-      commands:
-        type: array
-        description: 大屏模式变更实际下发的窗口音频策略命令
-        items:
-          $ref: ./ControlCommandState.yaml

@@ -24,6 +24,7 @@ import {
 } from 'naive-ui';
 
 import { useToast } from '@/composables/useToast';
+import { sliderAriaLabel as vSliderAriaLabel } from '@/design-system/sliderAriaLabel';
 import { useScenarioStore } from '@/stores/scenarios';
 import { useSourceStore } from '@/stores/sources';
 import {
@@ -228,7 +229,8 @@ function close(): void {
               <n-radio value="unset">{{ t('scenarios.edit.keep') }}</n-radio>
               <n-radio value="set">{{ t('scenarios.edit.set') }}</n-radio>
             </n-radio-group>
-            <n-slider v-if="draft.volumeState === 'set'" v-model:value="draft.volumeLevel" :min="0" :max="100"
+            <n-slider v-if="draft.volumeState === 'set'" v-slider-aria-label="t('scenarios.edit.systemVolumeAria')"
+              v-model:value="draft.volumeLevel" :min="0" :max="100"
               :aria-label="t('scenarios.edit.systemVolumeAria')" />
           </div>
         </n-form-item>
