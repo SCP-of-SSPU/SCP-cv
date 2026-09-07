@@ -31,6 +31,8 @@ import { useSessionStore } from '@/stores/sessions';
 import { useSourceStore } from '@/stores/sources';
 import { formatDuration } from '@/design-system/utils';
 import { api, buildBackendUrl, type PptResourceItem, type SessionSnapshot } from '@/services/api';
+import { supportsWindowAudioControls } from './playbackCapabilities';
+import { isCurrentPptResourceRequest } from './pptResourceRequest';
 import { usePlaybackErrorGate } from './usePlaybackErrorGate';
 
 const props = defineProps<{ session: SessionSnapshot }>();
@@ -43,6 +45,10 @@ const sourceStore = useSourceStore();
 const category = computed(() => sourceStore.resolveCategory(props.session.source_type));
 const isPdfMode = computed(() => props.session.playback_mode === 'pdf');
 const currentSource = computed(() => sourceStore.findById(props.session.source_id) ?? null);
+const canAdjustWindowAudio = computed(() => (
+  Boolean(props.session.source_id)
+  && supportsWindowAudioControls(props.session.source_type)
+));
 
 type NTagType = 'default' | 'primary' | 'info' | 'success' | 'warning' | 'error';
 
@@ -140,17 +146,34 @@ function onClose(): void {
 
 const pptResources = ref<PptResourceItem[]>([]);
 const pptError = ref('');
+const pptRequestSequence = ref(0);
 
 async function loadPptResources(): Promise<void> {
-  if (category.value !== 'ppt' || !props.session.source_id) {
-    pptResources.value = [];
+  const requestSequence = ++pptRequestSequence.value;
+  const sourceId = props.session.source_id;
+  pptResources.value = [];
+  pptError.value = '';
+  if (category.value !== 'ppt' || !sourceId) {
     return;
   }
   try {
-    pptError.value = '';
-    const payload = await api.listPptResources(props.session.source_id);
+    const payload = await api.listPptResources(sourceId);
+    if (!isCurrentPptResourceRequest(
+      requestSequence,
+      pptRequestSequence.value,
+      sourceId,
+      props.session.source_id,
+      category.value === 'ppt',
+    )) return;
     pptResources.value = payload.resources;
   } catch (error) {
+    if (!isCurrentPptResourceRequest(
+      requestSequence,
+      pptRequestSequence.value,
+      sourceId,
+      props.session.source_id,
+      category.value === 'ppt',
+    )) return;
     pptError.value = error instanceof Error ? error.message : t('playback.loadFailGeneric');
   }
 }
@@ -401,7 +424,7 @@ const errorBarDescription = computed(() => {
           :min="0"
           :max="100"
           :aria-label="t('playback.windowVolumeAria')"
-          :disabled="!session.source_id || category === 'audio' || category === 'image' || category === 'web'"
+          :disabled="!canAdjustWindowAudio"
           class="playback-control__seek"
           @update:value="windowVolume.handleInput"
           @dragend="windowVolume.handleChange(windowVolume.value.value)"
@@ -414,7 +437,7 @@ const errorBarDescription = computed(() => {
           <n-switch
             :value="session.is_muted"
             :aria-label="t('playback.windowMute')"
-            :disabled="!session.source_id || category === 'audio' || category === 'image' || category === 'web'"
+            :disabled="!canAdjustWindowAudio"
             @update:value="onMuteToggle"
           />
         </div>

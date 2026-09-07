@@ -295,6 +295,7 @@ class PlayerCommandHandlersMixin(
             session.error_message = ""
             session.current_slide = 0
             session.total_slides = 0
+            session.playback_mode = ""
             session.position_ms = 0
             session.duration_ms = 0
             session.save()
@@ -340,6 +341,7 @@ class PlayerCommandHandlersMixin(
         session.error_message = ""
         session.current_slide = 0
         session.total_slides = 0
+        session.playback_mode = ""
         session.position_ms = 0
         session.duration_ms = 0
         session.save(update_fields=[
@@ -348,6 +350,7 @@ class PlayerCommandHandlersMixin(
             "error_message",
             "current_slide",
             "total_slides",
+            "playback_mode",
             "position_ms",
             "duration_ms",
             "last_updated_at",

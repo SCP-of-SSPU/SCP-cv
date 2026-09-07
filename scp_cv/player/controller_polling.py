@@ -146,6 +146,7 @@ class PlayerPollingMixin:
                     adapter_state.total_slides,
                     adapter_state.position_ms,
                     adapter_state.duration_ms,
+                    self._adapter_kinds.get(window_id, ""),
                 )
                 if state_signature == self._last_reported_states.get(window_id):
                     continue
@@ -157,6 +158,7 @@ class PlayerPollingMixin:
                     total_slides=adapter_state.total_slides,
                     position_ms=adapter_state.position_ms,
                     duration_ms=adapter_state.duration_ms,
+                    playback_mode=self._adapter_kinds.get(window_id, ""),
                 )
                 self._last_reported_states[window_id] = state_signature
             if self._enable_background_audio:

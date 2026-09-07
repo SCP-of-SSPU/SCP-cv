@@ -136,6 +136,7 @@
 | `target_display_label` | 目标显示器标签 | run_player 和显示选择服务 |
 | `current_slide` | PPT 当前页，1-based | 播放器回写 |
 | `total_slides` | PPT 总页数 | 播放器回写 |
+| `playback_mode` | PPT 实际适配器：`powerpoint` / `pdf`；未确认或非 PPT 为空 | 播放器回写 |
 | `position_ms` | 视频/音频/流进度 | 播放器回写 |
 | `duration_ms` | 视频/音频总时长 | 播放器回写 |
 | `volume` | 窗口音量 0-100 | REST 窗口控制 |
@@ -165,6 +166,7 @@
 - 播放器消费命令后会立即清空 pending，再执行实际 adapter 操作。
 - `last_updated_at` 被前端 `sessions.ts` 用来避免旧 SSE/REST 帧覆盖较新的本地状态。
 - `window_id` 的 1-4 语义是业务契约，不只是数据库编号。
+- `playback_mode` 记录实际运行适配器，不能从媒体源首选模式推导；COM 槽位冲突回退后必须为 `pdf`。
 
 ## `RuntimeState`
 

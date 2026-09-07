@@ -132,7 +132,12 @@ class TestPptResetOperations:
         :return: None
         """
         open_source(1, media_source_ppt.pk)
-        update_playback_progress(1, current_slide=5, total_slides=10)
+        update_playback_progress(
+            1,
+            current_slide=5,
+            total_slides=10,
+            playback_mode="powerpoint",
+        )
         clear_pending_command(1)
         reset_ppt_playback()
         session = get_or_create_session(1)
@@ -147,18 +152,20 @@ class TestPptResetOperations:
         media_source_ppt: MediaSource,
     ) -> None:
         """
-    多窗口请求由运行时单槽位区分；服务层不得预先假定哪个窗口持有 COM。
+        多窗口中只重置实际持有 COM 的窗口，PDF fallback 保持原模式。
 
         :param media_source_ppt: PowerPoint 媒体源
         :return: None
         """
         open_source(1, media_source_ppt.pk)
         open_source(2, media_source_ppt.pk)
+        update_playback_progress(1, playback_mode="powerpoint")
+        update_playback_progress(2, playback_mode="pdf")
         clear_pending_command(1)
         clear_pending_command(2)
         reset_ppt_playback()
         assert get_or_create_session(1).pending_command == PlaybackCommand.RESET_PPT
-        assert get_or_create_session(2).pending_command == PlaybackCommand.RESET_PPT
+        assert get_or_create_session(2).pending_command == PlaybackCommand.NONE
 
     def test_reset_uses_ready_playback_cache(
         self,
@@ -179,7 +186,12 @@ class TestPptResetOperations:
         }
         media_source_ppt.save(update_fields=["metadata"])
         open_source(1, media_source_ppt.pk)
-        update_playback_progress(1, current_slide=2, total_slides=5)
+        update_playback_progress(
+            1,
+            current_slide=2,
+            total_slides=5,
+            playback_mode="powerpoint",
+        )
         clear_pending_command(1)
         reset_ppt_playback()
         restart_args = get_or_create_session(1).command_args["restart_sessions"][0]
@@ -207,6 +219,21 @@ class TestPptResetOperations:
         session = get_or_create_session(1)
         assert session.pending_command == PlaybackCommand.NONE
         assert session.playback_state == PlaybackState.LOADING
+
+    def test_reset_ignores_runtime_pdf_fallback(
+        self,
+        media_source_ppt: MediaSource,
+    ) -> None:
+        """源首选 PowerPoint 但实际回退 PDF 时不得被 COM 重置误重开。"""
+        open_source(1, media_source_ppt.pk)
+        update_playback_progress(1, playback_mode="pdf")
+        clear_pending_command(1)
+
+        reset_ppt_playback()
+
+        session = get_or_create_session(1)
+        assert session.pending_command == PlaybackCommand.NONE
+        assert session.playback_mode == "pdf"
 
 
 @pytest.mark.django_db

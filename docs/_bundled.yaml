@@ -1877,7 +1877,7 @@ components:
             - ''
             - pdf
             - powerpoint
-          description: 当前演示文稿播放模式；其它源为空字符串
+          description: 播放器上报的当前演示文稿实际放映模式；尚未确认或其它源为空字符串
         playback_state:
           $ref: '#/components/schemas/PlaybackState'
         playback_state_label:

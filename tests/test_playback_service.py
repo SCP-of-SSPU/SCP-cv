@@ -132,6 +132,18 @@ class TestGetSessionSnapshot:
         assert snapshot["current_slide"] == 3
         assert snapshot["total_slides"] == 10
 
+    def test_snapshot_uses_reported_runtime_mode_instead_of_source_preference(
+        self,
+        media_source_ppt: MediaSource,
+    ) -> None:
+        """COM 打开失败并回退 PDF 后，快照必须展示播放器实际模式。"""
+        session = get_or_create_session(1)
+        session.media_source = media_source_ppt
+        session.playback_mode = "pdf"
+        session.save(update_fields=["media_source", "playback_mode"])
+
+        assert get_session_snapshot(1)["playback_mode"] == "pdf"
+
     def test_snapshot_contains_all_required_keys(self) -> None:
         """快照字典应包含所有必要的键。"""
         snapshot = get_session_snapshot(1)

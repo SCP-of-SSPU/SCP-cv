@@ -35,6 +35,8 @@ Windows 内核在播放器崩溃时自动释放命名互斥体；释放或超时
 
 沿用 `MediaSource.metadata` 中的 `slides_pdf` 摘要：`status`、`source_digest`、`path/relative_path`、`generated_at`、`original_extension`。运行时 OPEN 参数携带实际 `adapter_kind` 和 `uri`。当 `adapter_kind=pdf` 时，`uri` 必须存在且摘要与当前源匹配；不可用直接进入 error/安全画面。
 
+`PlaybackSession.playback_mode` 持久化当前窗口实际采用的 `powerpoint` / `pdf` 适配器；打开新源时先清空，播放器成功打开或状态轮询时回写。REST/SSE 会话快照只能读取此运行时事实，不得用 `MediaSource.metadata.playback_mode` 的首选值代替。
+
 ## PreheatedResource
 
 预热池各类型记录必须至少能验证：`source_id`、规范化 `uri`、源版本/摘要（若源支持）、资源状态、归属容器、创建/最近续热时间。网页资源保留同一个 `QWebEngineView` 实例，切换只改变父容器和可见性；直播句柄在 TTL 前续热或重建，不得在认领时无条件冷启动。
@@ -51,3 +53,4 @@ Windows 内核在播放器崩溃时自动释放命名互斥体；释放或超时
 2. 新建 `BackgroundAudioCommandRecord` 表。
 3. 将所有 `PlaybackSession` 的 `display_mode` 归一为 `single`，清空 `is_spliced` 和 `spliced_display_label`；随后删除这些废弃字段及 `PlaybackMode.LEFT_RIGHT_SPLICE` 的新合同引用。历史 migration 文件保持不可变。
 4. 旧 `pending_command` 字段继续保留为兼容投影，既有记录按 pending 状态初始化。
+5. 新增 `PlaybackSession.playback_mode`，历史会话初始化为空并等待播放器上报，避免升级时伪造实际放映模式。

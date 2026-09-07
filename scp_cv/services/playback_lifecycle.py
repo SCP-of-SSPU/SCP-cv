@@ -50,6 +50,7 @@ def reset_playback_fields(session: PlaybackSession) -> None:
     session.error_message = ""
     session.current_slide = 0
     session.total_slides = 0
+    session.playback_mode = ""
     session.position_ms = 0
     session.duration_ms = 0
     session.loop_enabled = False

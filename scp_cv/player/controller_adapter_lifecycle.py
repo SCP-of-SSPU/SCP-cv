@@ -359,6 +359,14 @@ class PlayerAdapterLifecycleMixin:
                 update_fields.append("media_source")
             session.playback_state = playback_state
             session.error_message = ""
+            actual_mode = (
+                self._adapter_kinds.get(window_id, "")
+                if self._adapter_source_types.get(window_id) == "ppt"
+                else ""
+            )
+            if session.playback_mode != actual_mode:
+                session.playback_mode = actual_mode
+                update_fields.append("playback_mode")
             session.save(update_fields=update_fields)
 
     def _update_session_error(self, window_id: int, error_message: str) -> None:
@@ -383,6 +391,14 @@ class PlayerAdapterLifecycleMixin:
                 update_fields.append("media_source")
             session.playback_state = "error"
             session.error_message = error_message
+            actual_mode = (
+                self._adapter_kinds.get(window_id, "")
+                if self._adapter_source_types.get(window_id) == "ppt"
+                else ""
+            )
+            if session.playback_mode != actual_mode:
+                session.playback_mode = actual_mode
+                update_fields.append("playback_mode")
             session.save(update_fields=update_fields)
 
 

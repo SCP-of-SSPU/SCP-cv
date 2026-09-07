@@ -352,7 +352,8 @@ def test_reset_ppt_playback_api_requests_ppt_reset(media_source_ppt: MediaSource
     session = PlaybackSession.objects.get(window_id=1)
     session.current_slide = 6
     session.total_slides = 9
-    session.save(update_fields=["current_slide", "total_slides"])
+    session.playback_mode = "powerpoint"
+    session.save(update_fields=["current_slide", "total_slides", "playback_mode"])
 
     response = client.post("/api/playback/reset-ppt/")
     session.refresh_from_db()

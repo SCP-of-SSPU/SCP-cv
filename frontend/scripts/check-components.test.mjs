@@ -66,3 +66,23 @@ test('媒体列表溢出时可横向滚动，导航不会被表格挤窄', () =>
   const navigation = shell.match(/\.app-shell__nav\s*\{([^}]+)\}/)?.[1];
   assert.match(navigation, /flex-shrink:\s*0/);
 });
+
+test('窗口音量与静音只对后端声明支持的源类型开放', async () => {
+  const { supportsWindowAudioControls } = await import('../src/features/display/playbackCapabilities.ts');
+
+  for (const sourceType of ['video', 'custom_stream', 'rtsp_stream', 'srt_stream']) {
+    assert.equal(supportsWindowAudioControls(sourceType), true, sourceType);
+  }
+  for (const sourceType of ['', 'ppt', 'audio', 'image', 'web', 'unknown']) {
+    assert.equal(supportsWindowAudioControls(sourceType), false, sourceType || 'empty');
+  }
+});
+
+test('PPT 资源过期请求不能覆盖当前源', async () => {
+  const { isCurrentPptResourceRequest } = await import('../src/features/display/pptResourceRequest.ts');
+
+  assert.equal(isCurrentPptResourceRequest(2, 2, 20, 20, true), true);
+  assert.equal(isCurrentPptResourceRequest(1, 2, 10, 20, true), false);
+  assert.equal(isCurrentPptResourceRequest(1, 3, 10, 10, true), false, 'A→B→A 也必须按序号拒绝旧 A');
+  assert.equal(isCurrentPptResourceRequest(2, 2, 20, 20, false), false);
+});

@@ -73,6 +73,14 @@ class PlaybackSession(models.Model):
         default=0,
         verbose_name="总页数",
     )
+    playback_mode = models.CharField(
+        max_length=16,
+        choices=(("", "无"), ("powerpoint", "PowerPoint"), ("pdf", "PDF")),
+        default="",
+        blank=True,
+        verbose_name="演示文稿实际放映模式",
+        help_text="由播放器按当前实际适配器上报，不表示媒体源的首选模式",
+    )
     # ── 时间线型源状态（视频/音频） ──
     position_ms = models.BigIntegerField(
         default=0,

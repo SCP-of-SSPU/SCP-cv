@@ -177,3 +177,26 @@ def test_command_queue_migration_preserves_legacy_background_command() -> None:
     finally:
         final_executor = MigrationExecutor(connection)
         final_executor.migrate(final_executor.loader.graph.leaf_nodes())
+
+
+@pytest.mark.django_db(transaction=True)
+def test_runtime_playback_mode_migration_starts_without_assuming_an_adapter() -> None:
+    """0030 升级后旧会话模式应为空，等待播放器上报真实适配器。"""
+    migrate_from = [("playback", "0029_remove_playbacksession_is_spliced_and_more")]
+    migrate_to = [("playback", "0030_playbacksession_playback_mode")]
+    executor = MigrationExecutor(connection)
+    try:
+        executor.migrate(migrate_from)
+        old_apps = executor.loader.project_state(migrate_from).apps
+        OldSession = old_apps.get_model("playback", "PlaybackSession")
+        session = OldSession.objects.create(window_id=1)
+
+        executor = MigrationExecutor(connection)
+        executor.migrate(migrate_to)
+        new_apps = executor.loader.project_state(migrate_to).apps
+        NewSession = new_apps.get_model("playback", "PlaybackSession")
+
+        assert NewSession.objects.get(pk=session.pk).playback_mode == ""
+    finally:
+        final_executor = MigrationExecutor(connection)
+        final_executor.migrate(final_executor.loader.graph.leaf_nodes())

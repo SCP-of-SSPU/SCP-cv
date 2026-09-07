@@ -21,7 +21,6 @@ from scp_cv.apps.playback.models import (
 from scp_cv.services.playback_commands import enqueue_playback_command
 from scp_cv.services.playback_sessions import VALID_WINDOW_IDS, get_or_create_session
 from scp_cv.services.slides_pdf import (
-    get_slides_playback_mode,
     resolve_slide_playback_uri,
 )
 
@@ -56,7 +55,7 @@ def reset_ppt_playback() -> list[PlaybackSession]:
         if (
             session.media_source is None
             or session.media_source.source_type != SourceType.PPT
-            or get_slides_playback_mode(session.media_source) != "powerpoint"
+            or session.playback_mode != "powerpoint"
             or session.playback_state == PlaybackState.IDLE
         ):
             continue
@@ -113,7 +112,7 @@ def _ppt_restart_args(session: PlaybackSession) -> dict[str, object]:
         "source_type": source.source_type,
         "uri": playback_uri,
         "original_uri": source.uri,
-        "adapter_kind": get_slides_playback_mode(source),
+        "adapter_kind": session.playback_mode,
         "autoplay": True,
         "volume": session.volume,
         "muted": session.is_muted,

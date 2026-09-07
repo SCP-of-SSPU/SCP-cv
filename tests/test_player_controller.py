@@ -238,6 +238,22 @@ def test_report_persists_adapter_error_message(media_source_video: MediaSource) 
 
 
 @pytest.mark.django_db
+def test_report_persists_actual_pdf_fallback_mode(media_source_ppt: MediaSource) -> None:
+    """播放器从 PowerPoint 回退 PDF 后应把实际 adapter 类型写入会话。"""
+    open_source(1, media_source_ppt.pk)
+
+    controller = PlayerController()
+    controller._adapters[1] = _StateAdapter(AdapterState(playback_state=PlaybackState.PLAYING))
+    controller._adapter_source_ids[1] = media_source_ppt.pk
+    controller._adapter_source_types[1] = SourceType.PPT
+    controller._adapter_kinds[1] = "pdf"
+
+    controller._report_all_adapter_states()
+
+    assert get_session_snapshot(1)["playback_mode"] == "pdf"
+
+
+@pytest.mark.django_db
 def test_open_confirms_session_source_after_stale_close_cleared_it(
     media_source_ppt: MediaSource,
     monkeypatch: pytest.MonkeyPatch,

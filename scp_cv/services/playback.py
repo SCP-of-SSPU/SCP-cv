@@ -386,6 +386,7 @@ def close_source(window_id: int) -> PlaybackSession:
         session.error_message = ""
         session.current_slide = 0
         session.total_slides = 0
+        session.playback_mode = ""
         session.position_ms = 0
         session.duration_ms = 0
         enqueue_playback_command(session, PlaybackCommand.CLOSE, cleanup_args)
@@ -426,6 +427,7 @@ def update_playback_progress(
     total_slides: Optional[int] = None,
     position_ms: Optional[int] = None,
     duration_ms: Optional[int] = None,
+    playback_mode: Optional[str] = None,
 ) -> PlaybackSession:
     """
     播放器进程上报指定窗口的播放进度（通过 DB 写入）。
@@ -436,6 +438,7 @@ def update_playback_progress(
     :param total_slides: 总页数（PPT）
     :param position_ms: 当前位置毫秒（视频）
     :param duration_ms: 总时长毫秒（视频）
+    :param playback_mode: 演示文稿实际放映模式（powerpoint/pdf/空）
     :return: 更新后的播放会话
     """
     session = get_or_create_session(window_id)
@@ -453,6 +456,14 @@ def update_playback_progress(
         session.position_ms = position_ms
     if duration_ms is not None:
         session.duration_ms = duration_ms
+    if playback_mode is not None:
+        session.playback_mode = (
+            playback_mode
+            if session.media_source is not None
+            and session.media_source.source_type == SourceType.PPT
+            and playback_mode in {"powerpoint", "pdf"}
+            else ""
+        )
     session.save()
     return session
 

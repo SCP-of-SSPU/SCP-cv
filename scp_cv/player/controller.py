@@ -113,7 +113,7 @@ class PlayerController(PlayerDisplayLayoutMixin, PlayerPollingMixin, PlayerComma
         self._last_player_heartbeat_monotonic = 0.0
 
         # 每个窗口上一次已上报状态，避免轮询线程无变化时频繁写库。
-        self._last_reported_states: dict[int, tuple[str, int, int, int, int]] = {}
+        self._last_reported_states: dict[int, tuple[str, str, int, int, int, int, str]] = {}
         self._state_report_pending = False
         self._state_report_lock = threading.Lock()
 

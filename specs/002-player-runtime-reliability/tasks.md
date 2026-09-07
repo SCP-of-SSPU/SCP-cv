@@ -210,3 +210,6 @@ description: "播放器 Runtime 可靠性、单 COM/PDF 放映与媒体热切换
 - [X] T065 修复 `frontend/src/layouts/AppNavigation.vue` 中“更多”打开抽屉同时误跳首页的问题，在 `frontend/scripts/check-components.test.mjs` 补充导航回归约束并用手机视口验证保留当前页面；依据宪章 III 和用户前端无展示 bug 的验收要求（partial）
 - [X] T066 限制 `frontend/src/features/sources/*Drawer.vue`、`frontend/src/features/scenarios/*Drawer.vue` 的侧边抽屉宽度，并清理 `frontend/src/features/display/PlaybackControl.vue` 空闲提示重复；通过 `frontend/scripts/check-components.test.mjs` 和 390px 手机视口验证，依据宪章 III 和用户展示检查要求（partial）
 - [X] T067 修复 `frontend/src/features/sources/SourcesView.vue` 表格在平板宽度下操作列不可达及 `frontend/src/layouts/AppShell.css` 导航被挤窄的问题，并在 `frontend/scripts/check-components.test.mjs` 增加约束；依据宪章 III 和用户展示检查要求（partial）
+- [X] T068 对齐 `frontend/src/features/display/PlaybackControl.vue` 与服务层真实媒体能力，PPT/PDF 等不支持类型禁用窗口音量与静音，视频和三种直播流保持可用；先在 `frontend/scripts/check-components.test.mjs` 增加源类型能力回归测试，再做浏览器复测；依据 FR-009、FR-021 和宪章 III
+- [X] T069 修复 `scp_cv/services/playback_sessions.py` 从源首选模式推导会话 `playback_mode` 导致 PDF fallback 徽标误报的问题：持久化并由播放器上报实际 adapter 类型，补充服务与控制器回归测试及迁移；依据 contracts、FR-010、FR-012、FR-021 和宪章 III/IV
+- [X] T070 修复 `frontend/src/features/display/PlaybackControl.vue` 快速切换 PPT 源时旧资源请求覆盖新源、等待期间残留旧缩略图的问题；使用源 ID 与请求序号守卫成功/失败写回并补充回归测试；依据 FR-010、FR-021 和宪章 III
