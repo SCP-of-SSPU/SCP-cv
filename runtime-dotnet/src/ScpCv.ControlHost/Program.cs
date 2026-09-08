@@ -6,6 +6,7 @@ using ScpCv.ControlHost.Endpoints;
 using ScpCv.ControlHost.Health;
 using ScpCv.ControlHost.Logging;
 using ScpCv.Infrastructure.Auth;
+using ScpCv.Infrastructure.Audio;
 using ScpCv.Infrastructure.Commands;
 using ScpCv.Infrastructure.Configuration;
 using ScpCv.Infrastructure.Devices;
@@ -46,6 +47,7 @@ builder.Services.AddSingleton<RuntimeAuthorityRepository>();
 builder.Services.AddSingleton<MediaSourceService>();
 builder.Services.AddSingleton<RuntimeStateService>();
 builder.Services.AddSingleton<ScenarioService>();
+builder.Services.AddSingleton<BackgroundAudioService>();
 if (safetyMode.IsSimulation)
 {
     builder.Services.AddSingleton<SimulationDeviceCommandTransport>();
@@ -109,6 +111,7 @@ app.MapMediaEndpoints();
 app.MapPlaybackEndpoints();
 app.MapScenarioEndpoints();
 app.MapSystemEndpoints();
+app.MapBackgroundAudioEndpoints();
 
 ControlHostLog.Initialized(
     app.Logger,

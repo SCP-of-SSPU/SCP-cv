@@ -16,6 +16,9 @@ public sealed record BackgroundAudioStateDto
     [JsonPropertyName("source_uri")]
     public string SourceUri { get; init; } = string.Empty;
 
+    [JsonPropertyName("source")]
+    public MediaSourceDto? Source { get; init; }
+
     [JsonPropertyName("current_item_id")]
     public long? CurrentItemId { get; init; }
 
