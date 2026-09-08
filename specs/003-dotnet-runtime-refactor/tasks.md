@@ -87,8 +87,8 @@
 - [X] T035 [US1] 映射既有媒体与文件夹路由和响应外观到 `runtime-dotnet/src/ScpCv.ControlHost/Endpoints/MediaEndpoints.cs`
 - [X] T036 [P] [US1] 实现运行状态、四窗口、显示器选择和系统音量领域服务到 `runtime-dotnet/src/ScpCv.Infrastructure/Playback/RuntimeStateService.cs`
 - [X] T037 [US1] 映射 sessions、runtime、displays、playback 与 volume 路由到 `runtime-dotnet/src/ScpCv.ControlHost/Endpoints/PlaybackEndpoints.cs`
-- [ ] T038 [P] [US1] 实现场景排序、捕获、更新与三态激活服务到 `runtime-dotnet/src/ScpCv.Infrastructure/Scenarios/ScenarioService.cs`
-- [ ] T039 [US1] 映射 scenarios 路由和兼容响应到 `runtime-dotnet/src/ScpCv.ControlHost/Endpoints/ScenarioEndpoints.cs`
+- [X] T038 [P] [US1] 实现场景排序、捕获、更新与三态激活服务到 `runtime-dotnet/src/ScpCv.Infrastructure/Scenarios/ScenarioService.cs`
+- [X] T039 [US1] 映射 scenarios 路由和兼容响应到 `runtime-dotnet/src/ScpCv.ControlHost/Endpoints/ScenarioEndpoints.cs`
 - [ ] T040 [P] [US1] 实现配置驱动的设备查询/控制与 simulation 适配器到 `runtime-dotnet/src/ScpCv.Infrastructure/Devices/DeviceService.cs`
 - [ ] T041 [US1] 映射 devices、system/restart 与 system/shutdown 路由到 `runtime-dotnet/src/ScpCv.ControlHost/Endpoints/SystemEndpoints.cs`
 - [ ] T042 [US1] 实现初始快照、最新事件、心跳和重连全量同步 SSE 到 `runtime-dotnet/src/ScpCv.ControlHost/Events/SseEventStream.cs`

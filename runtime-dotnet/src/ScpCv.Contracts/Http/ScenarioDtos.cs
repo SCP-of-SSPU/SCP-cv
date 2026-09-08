@@ -55,6 +55,30 @@ public sealed record ScenarioDto
     [JsonPropertyName("targets")]
     public IReadOnlyList<ScenarioTargetDto> Targets { get; init; } = [];
 
+    [JsonPropertyName("window1_source_id")]
+    public long? Window1SourceId { get; init; }
+
+    [JsonPropertyName("window1_source_name")]
+    public string Window1SourceName { get; init; } = string.Empty;
+
+    [JsonPropertyName("window1_autoplay")]
+    public bool Window1Autoplay { get; init; } = true;
+
+    [JsonPropertyName("window1_resume")]
+    public bool Window1Resume { get; init; } = true;
+
+    [JsonPropertyName("window2_source_id")]
+    public long? Window2SourceId { get; init; }
+
+    [JsonPropertyName("window2_source_name")]
+    public string Window2SourceName { get; init; } = string.Empty;
+
+    [JsonPropertyName("window2_autoplay")]
+    public bool Window2Autoplay { get; init; } = true;
+
+    [JsonPropertyName("window2_resume")]
+    public bool Window2Resume { get; init; } = true;
+
     [JsonPropertyName("created_at")]
     public string CreatedAt { get; init; } = string.Empty;
 

@@ -12,6 +12,7 @@ using ScpCv.Infrastructure.Media;
 using ScpCv.Infrastructure.Persistence;
 using ScpCv.Infrastructure.Playback;
 using ScpCv.Infrastructure.Runtime;
+using ScpCv.Infrastructure.Scenarios;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -40,6 +41,7 @@ builder.Services.AddSingleton<CommandRepository>();
 builder.Services.AddSingleton<RuntimeAuthorityRepository>();
 builder.Services.AddSingleton<MediaSourceService>();
 builder.Services.AddSingleton<RuntimeStateService>();
+builder.Services.AddSingleton<ScenarioService>();
 builder.Services.AddScpCvAuthentication(builder.Configuration);
 builder.Services.AddHealthChecks()
     .AddCheck<ControlDatabaseHealthCheck>("control_database", tags: ["ready"]);
@@ -90,6 +92,7 @@ app.MapGet(
 app.MapAuthEndpoints();
 app.MapMediaEndpoints();
 app.MapPlaybackEndpoints();
+app.MapScenarioEndpoints();
 
 ControlHostLog.Initialized(
     app.Logger,
