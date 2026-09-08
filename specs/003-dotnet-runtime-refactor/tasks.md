@@ -83,8 +83,8 @@
 
 - [X] T032 [US1] 实现 ASP.NET Core Identity/会话 Cookie、权限、CSRF token 与精确 Origin 策略到 `runtime-dotnet/src/ScpCv.Infrastructure/Auth/AuthServiceCollectionExtensions.cs` 和 `runtime-dotnet/src/ScpCv.ControlHost/Auth/AuthEndpoints.cs`
 - [X] T033 [US1] 实现账户 seed、登录、状态、me、改密和登出端点到 `runtime-dotnet/src/ScpCv.ControlHost/Auth/AuthEndpoints.cs` 和 `runtime-dotnet/src/ScpCv.Infrastructure/Auth/DevelopmentAccountSeeder.cs`
-- [ ] T034 [P] [US1] 实现文件夹、媒体源、上传、播放主机路径、下载与预览服务到 `runtime-dotnet/src/ScpCv.Infrastructure/Media/MediaSourceService.cs`
-- [ ] T035 [US1] 映射既有媒体与文件夹路由和响应外观到 `runtime-dotnet/src/ScpCv.ControlHost/Endpoints/MediaEndpoints.cs`
+- [X] T034 [P] [US1] 实现文件夹、媒体源、上传、播放主机路径、下载与预览服务到 `runtime-dotnet/src/ScpCv.Infrastructure/Media/MediaSourceService.cs`
+- [X] T035 [US1] 映射既有媒体与文件夹路由和响应外观到 `runtime-dotnet/src/ScpCv.ControlHost/Endpoints/MediaEndpoints.cs`
 - [ ] T036 [P] [US1] 实现运行状态、四窗口、显示器选择和系统音量领域服务到 `runtime-dotnet/src/ScpCv.Infrastructure/Playback/RuntimeStateService.cs`
 - [ ] T037 [US1] 映射 sessions、runtime、displays、playback 与 volume 路由到 `runtime-dotnet/src/ScpCv.ControlHost/Endpoints/PlaybackEndpoints.cs`
 - [ ] T038 [P] [US1] 实现场景排序、捕获、更新与三态激活服务到 `runtime-dotnet/src/ScpCv.Infrastructure/Scenarios/ScenarioService.cs`

@@ -272,6 +272,8 @@ internal sealed class ControlHostApplicationFactory : WebApplicationFactory<Prog
         "scp-cv-control-host-tests",
         Guid.NewGuid().ToString("N"));
 
+    public string TemporaryRoot => _temporaryRoot;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");

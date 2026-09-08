@@ -2,11 +2,13 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using ScpCv.ControlHost.Auth;
 using ScpCv.ControlHost.Configuration;
+using ScpCv.ControlHost.Endpoints;
 using ScpCv.ControlHost.Health;
 using ScpCv.ControlHost.Logging;
 using ScpCv.Infrastructure.Auth;
 using ScpCv.Infrastructure.Commands;
 using ScpCv.Infrastructure.Configuration;
+using ScpCv.Infrastructure.Media;
 using ScpCv.Infrastructure.Persistence;
 using ScpCv.Infrastructure.Runtime;
 
@@ -22,9 +24,12 @@ if (!string.IsNullOrWhiteSpace(flatDataRoot))
 
 var safetyMode = SafetyModeOptions.Parse(builder.Configuration["SafetyMode"]);
 var controlDbFactory = new ControlDbContextFactory(dataRootOptions, builder.Environment.ContentRootPath);
+var mediaOptions = builder.Configuration.GetSection(MediaStorageOptions.SectionName)
+    .Get<MediaStorageOptions>() ?? new MediaStorageOptions();
 
 builder.Services.AddSingleton(dataRootOptions);
 builder.Services.AddSingleton(safetyMode);
+builder.Services.AddSingleton(mediaOptions);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(controlDbFactory);
 builder.Services.AddSingleton<IDbContextFactory<ControlDbContext>>(controlDbFactory);
@@ -32,6 +37,7 @@ builder.Services.AddSingleton<DatabaseInitializer>();
 builder.Services.AddSingleton<WriteCoordinator>();
 builder.Services.AddSingleton<CommandRepository>();
 builder.Services.AddSingleton<RuntimeAuthorityRepository>();
+builder.Services.AddSingleton<MediaSourceService>();
 builder.Services.AddScpCvAuthentication(builder.Configuration);
 builder.Services.AddHealthChecks()
     .AddCheck<ControlDatabaseHealthCheck>("control_database", tags: ["ready"]);
@@ -80,6 +86,7 @@ app.MapGet(
         database = Path.GetFileName(database.Layout.DatabasePath),
     }));
 app.MapAuthEndpoints();
+app.MapMediaEndpoints();
 
 ControlHostLog.Initialized(
     app.Logger,
