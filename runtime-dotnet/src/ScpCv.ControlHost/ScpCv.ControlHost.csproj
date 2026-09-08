@@ -8,6 +8,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\ScpCv.Contracts\ScpCv.Contracts.csproj" />
     <ProjectReference Include="..\ScpCv.Domain\ScpCv.Domain.csproj" />
     <ProjectReference Include="..\ScpCv.Infrastructure\ScpCv.Infrastructure.csproj" />
