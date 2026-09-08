@@ -192,6 +192,7 @@ frontend/vite.config.js
 frontend/vite.config.d.ts
 .validation/
 data/dotnet/
+runtime-dotnet/**/data/dotnet/
 runtime-dotnet/**/bin/
 runtime-dotnet/**/obj/
 runtime-dotnet/TestResults/

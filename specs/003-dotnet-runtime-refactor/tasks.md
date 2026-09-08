@@ -74,15 +74,15 @@
 
 ### Tests for User Story 1
 
-- [ ] T028 [P] [US1] 先编写认证、CSRF、改密、权限和登出合同测试到 `runtime-dotnet/tests/ScpCv.ControlHost.Tests/AuthEndpointTests.cs`
+- [X] T028 [P] [US1] 先编写认证、CSRF、改密、权限和登出合同测试到 `runtime-dotnet/tests/ScpCv.ControlHost.Tests/AuthEndpointTests.cs`
 - [ ] T029 [P] [US1] 先编写媒体、会话、场景、设备和音频旧 HTTP 外观合同测试到 `runtime-dotnet/tests/ScpCv.ControlHost.Tests/LegacyHttpContractTests.cs`
 - [ ] T030 [P] [US1] 先编写切主机 generation、迟到响应、SSE 重连和无离线重放前端测试到 `frontend/scripts/client-connection.test.mjs`
 - [ ] T031 [P] [US1] 先编写 history/hash 路由、返回键和文件传输平台适配测试到 `frontend/scripts/platform-adapters.test.mjs`
 
 ### Implementation for User Story 1
 
-- [ ] T032 [US1] 实现 ASP.NET Core Identity/会话 Cookie、权限、CSRF token 与精确 Origin 策略到 `runtime-dotnet/src/ScpCv.Infrastructure/Auth/AuthServiceCollectionExtensions.cs` 和 `runtime-dotnet/src/ScpCv.ControlHost/Auth/AuthEndpoints.cs`
-- [ ] T033 [US1] 实现账户 seed、登录、状态、me、改密和登出端点到 `runtime-dotnet/src/ScpCv.ControlHost/Auth/AuthEndpoints.cs` 和 `runtime-dotnet/src/ScpCv.Infrastructure/Auth/DevelopmentAccountSeeder.cs`
+- [X] T032 [US1] 实现 ASP.NET Core Identity/会话 Cookie、权限、CSRF token 与精确 Origin 策略到 `runtime-dotnet/src/ScpCv.Infrastructure/Auth/AuthServiceCollectionExtensions.cs` 和 `runtime-dotnet/src/ScpCv.ControlHost/Auth/AuthEndpoints.cs`
+- [X] T033 [US1] 实现账户 seed、登录、状态、me、改密和登出端点到 `runtime-dotnet/src/ScpCv.ControlHost/Auth/AuthEndpoints.cs` 和 `runtime-dotnet/src/ScpCv.Infrastructure/Auth/DevelopmentAccountSeeder.cs`
 - [ ] T034 [P] [US1] 实现文件夹、媒体源、上传、播放主机路径、下载与预览服务到 `runtime-dotnet/src/ScpCv.Infrastructure/Media/MediaSourceService.cs`
 - [ ] T035 [US1] 映射既有媒体与文件夹路由和响应外观到 `runtime-dotnet/src/ScpCv.ControlHost/Endpoints/MediaEndpoints.cs`
 - [ ] T036 [P] [US1] 实现运行状态、四窗口、显示器选择和系统音量领域服务到 `runtime-dotnet/src/ScpCv.Infrastructure/Playback/RuntimeStateService.cs`

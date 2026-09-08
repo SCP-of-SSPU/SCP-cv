@@ -16,6 +16,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\ScpCv.Contracts\ScpCv.Contracts.csproj" />
     <ProjectReference Include="..\ScpCv.Domain\ScpCv.Domain.csproj" />
   </ItemGroup>
