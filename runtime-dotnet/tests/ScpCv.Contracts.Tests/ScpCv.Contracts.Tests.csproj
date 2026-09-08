@@ -23,4 +23,13 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\..\..\docs\components\schemas\**\*.yaml"
+          Link="OpenApiSchemas\%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\..\specs\003-dotnet-runtime-refactor\contracts\runtime-ipc.md"
+          Link="Contracts\runtime-ipc.md"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

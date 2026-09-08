@@ -43,12 +43,12 @@
 
 **⚠️ CRITICAL**: 本阶段完成前不进入业务用户故事。
 
-- [ ] T010 [P] 定义窗口、媒体、场景、播放模式、命令状态与运行组值对象到 `runtime-dotnet/src/ScpCv.Domain/Model/DomainPrimitives.cs`
-- [ ] T011 [P] 定义账户、媒体、会话、场景、音频、流与派生资源实体到 `runtime-dotnet/src/ScpCv.Domain/Model/Entities.cs`
-- [ ] T012 实现四窗静音、媒体能力、场景三态和 PowerPoint/PDF 模式规则到 `runtime-dotnet/src/ScpCv.Domain/Rules/PlaybackRules.cs` 和 `runtime-dotnet/tests/ScpCv.Domain.Tests/PlaybackRulesTests.cs`
-- [ ] T013 [P] 定义保持 snake_case 外观的认证、媒体、显控、场景、设备和音频 HTTP DTO 到 `runtime-dotnet/src/ScpCv.Contracts/Http/*.cs`
-- [ ] T014 [P] 定义版本化 IPC 帧、握手、领取、续租、结果、状态、Office 与关闭消息到 `runtime-dotnet/src/ScpCv.Contracts/Ipc/*.cs`
-- [ ] T015 编写 DTO 序列化与 `docs/openapi.yaml` 样例兼容测试到 `runtime-dotnet/tests/ScpCv.Contracts.Tests/HttpContractTests.cs` 和 `runtime-dotnet/tests/ScpCv.Contracts.Tests/IpcContractTests.cs`
+- [X] T010 [P] 定义窗口、媒体、场景、播放模式、命令状态与运行组值对象到 `runtime-dotnet/src/ScpCv.Domain/Model/DomainPrimitives.cs`
+- [X] T011 [P] 定义账户、媒体、会话、场景、音频、流与派生资源实体到 `runtime-dotnet/src/ScpCv.Domain/Model/Entities.cs`
+- [X] T012 实现四窗静音、媒体能力、场景三态和 PowerPoint/PDF 模式规则到 `runtime-dotnet/src/ScpCv.Domain/Rules/PlaybackRules.cs` 和 `runtime-dotnet/tests/ScpCv.Domain.Tests/PlaybackRulesTests.cs`
+- [X] T013 [P] 定义保持 snake_case 外观的认证、媒体、显控、场景、设备和音频 HTTP DTO 到 `runtime-dotnet/src/ScpCv.Contracts/Http/*.cs`
+- [X] T014 [P] 定义版本化 IPC 帧、握手、领取、续租、结果、状态、Office 与关闭消息到 `runtime-dotnet/src/ScpCv.Contracts/Ipc/*.cs`
+- [X] T015 编写 DTO 序列化与 `docs/openapi.yaml` 样例兼容测试到 `runtime-dotnet/tests/ScpCv.Contracts.Tests/HttpContractTests.cs` 和 `runtime-dotnet/tests/ScpCv.Contracts.Tests/IpcContractTests.cs`
 - [ ] T016 创建仅供 ControlHost 使用的 EF Core 上下文与实体配置到 `runtime-dotnet/src/ScpCv.Infrastructure/Persistence/ControlDbContext.cs` 和 `runtime-dotnet/src/ScpCv.Infrastructure/Persistence/Configurations/*.cs`
 - [ ] T017 创建新库初始 EF Core schema 到 `runtime-dotnet/src/ScpCv.Infrastructure/Persistence/Migrations/*_InitialControlSchema.cs` 和 `runtime-dotnet/src/ScpCv.Infrastructure/Persistence/Migrations/ControlDbContextModelSnapshot.cs`
 - [ ] T018 实现独立 DataRoot、SQLite WAL/busy timeout、已有不兼容库拒绝和非破坏性初始化到 `runtime-dotnet/src/ScpCv.Infrastructure/Configuration/DataRootOptions.cs`、`runtime-dotnet/src/ScpCv.Infrastructure/Persistence/DatabaseInitializer.cs` 和 `runtime-dotnet/tests/ScpCv.Infrastructure.Tests/DatabaseInitializerTests.cs`
