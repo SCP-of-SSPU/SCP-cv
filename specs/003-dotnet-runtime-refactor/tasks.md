@@ -89,8 +89,8 @@
 - [X] T037 [US1] 映射 sessions、runtime、displays、playback 与 volume 路由到 `runtime-dotnet/src/ScpCv.ControlHost/Endpoints/PlaybackEndpoints.cs`
 - [X] T038 [P] [US1] 实现场景排序、捕获、更新与三态激活服务到 `runtime-dotnet/src/ScpCv.Infrastructure/Scenarios/ScenarioService.cs`
 - [X] T039 [US1] 映射 scenarios 路由和兼容响应到 `runtime-dotnet/src/ScpCv.ControlHost/Endpoints/ScenarioEndpoints.cs`
-- [ ] T040 [P] [US1] 实现配置驱动的设备查询/控制与 simulation 适配器到 `runtime-dotnet/src/ScpCv.Infrastructure/Devices/DeviceService.cs`
-- [ ] T041 [US1] 映射 devices、system/restart 与 system/shutdown 路由到 `runtime-dotnet/src/ScpCv.ControlHost/Endpoints/SystemEndpoints.cs`
+- [X] T040 [P] [US1] 实现配置驱动的设备查询/控制与 simulation 适配器到 `runtime-dotnet/src/ScpCv.Infrastructure/Devices/DeviceService.cs`
+- [X] T041 [US1] 映射 devices、system/restart 与 system/shutdown 路由到 `runtime-dotnet/src/ScpCv.ControlHost/Endpoints/SystemEndpoints.cs`
 - [ ] T042 [US1] 实现初始快照、最新事件、心跳和重连全量同步 SSE 到 `runtime-dotnet/src/ScpCv.ControlHost/Events/SseEventStream.cs`
 - [ ] T043 [US1] 实现服务器配置、cookie fetch/EventSource、connection_generation 和切主机清理到 `frontend/src/services/api.ts`、`frontend/src/platform/connection.ts` 和 `frontend/src/stores/runtime.ts`
 - [ ] T044 [US1] 新增播放主机连接页和断线/播放器离线分层状态到 `frontend/src/features/settings/ServerConnectionView.vue` 和 `frontend/src/router/index.ts`

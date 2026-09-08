@@ -8,6 +8,7 @@ using ScpCv.ControlHost.Logging;
 using ScpCv.Infrastructure.Auth;
 using ScpCv.Infrastructure.Commands;
 using ScpCv.Infrastructure.Configuration;
+using ScpCv.Infrastructure.Devices;
 using ScpCv.Infrastructure.Media;
 using ScpCv.Infrastructure.Persistence;
 using ScpCv.Infrastructure.Playback;
@@ -28,10 +29,13 @@ var safetyMode = SafetyModeOptions.Parse(builder.Configuration["SafetyMode"]);
 var controlDbFactory = new ControlDbContextFactory(dataRootOptions, builder.Environment.ContentRootPath);
 var mediaOptions = builder.Configuration.GetSection(MediaStorageOptions.SectionName)
     .Get<MediaStorageOptions>() ?? new MediaStorageOptions();
+var deviceOptions = builder.Configuration.GetSection(DeviceOptions.SectionName)
+    .Get<DeviceOptions>() ?? new DeviceOptions();
 
 builder.Services.AddSingleton(dataRootOptions);
 builder.Services.AddSingleton(safetyMode);
 builder.Services.AddSingleton(mediaOptions);
+builder.Services.AddSingleton(deviceOptions);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(controlDbFactory);
 builder.Services.AddSingleton<IDbContextFactory<ControlDbContext>>(controlDbFactory);
@@ -42,6 +46,17 @@ builder.Services.AddSingleton<RuntimeAuthorityRepository>();
 builder.Services.AddSingleton<MediaSourceService>();
 builder.Services.AddSingleton<RuntimeStateService>();
 builder.Services.AddSingleton<ScenarioService>();
+if (safetyMode.IsSimulation)
+{
+    builder.Services.AddSingleton<SimulationDeviceCommandTransport>();
+    builder.Services.AddSingleton<IDeviceCommandTransport>(services =>
+        services.GetRequiredService<SimulationDeviceCommandTransport>());
+}
+else
+{
+    builder.Services.AddSingleton<IDeviceCommandTransport, TcpDeviceCommandTransport>();
+}
+builder.Services.AddSingleton<DeviceService>();
 builder.Services.AddScpCvAuthentication(builder.Configuration);
 builder.Services.AddHealthChecks()
     .AddCheck<ControlDatabaseHealthCheck>("control_database", tags: ["ready"]);
@@ -93,6 +108,7 @@ app.MapAuthEndpoints();
 app.MapMediaEndpoints();
 app.MapPlaybackEndpoints();
 app.MapScenarioEndpoints();
+app.MapSystemEndpoints();
 
 ControlHostLog.Initialized(
     app.Logger,
