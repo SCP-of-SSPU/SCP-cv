@@ -1,7 +1,7 @@
 # Implementation Plan: 共享多端控制台与.NET播控运行时
 
 **Branch**: `refactor/003-dotnet-runtime` | **Date**: 2026-09-08 | **Spec**: [spec.md](./spec.md)
-**Status**: Phase 0/1 设计完成；已生成 [tasks.md](./tasks.md)，从工程骨架开始实施。
+**Status**: Phase 0/1 设计完成；US1–US6 软件实现已推进，实机验证与跨产物门禁仍待执行。
 
 ## Summary
 

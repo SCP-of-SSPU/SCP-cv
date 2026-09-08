@@ -127,8 +127,8 @@
 - [X] T059 [US2] 接线 Claim、Renew、Result、StateReport 与 Wake IPC 到 `runtime-dotnet/src/ScpCv.ControlHost/Ipc/RuntimeMessageDispatcher.cs`
 - [X] T060 [US2] 创建 Worker 通用管道客户端、重连退避、结果缓存和停止闩锁处理到 `runtime-dotnet/src/ScpCv.Contracts/Runtime/RuntimePipeClient.cs`
 - [X] T061 [US2] 将有效完成状态和错误发布到兼容 SSE 投影到 `runtime-dotnet/src/ScpCv.ControlHost/Events/RuntimeProjectionPublisher.cs`
-- [ ] T062 [US2] 调整前端 accepted/online/actual state 展示，禁止请求返回即伪报 playing 到 `frontend/src/stores/sessions.ts` 和 `frontend/src/features/display/DisplayView.vue`
-- [ ] T063 [US2] 实现 SC-002/003 样本化故障注入测试与结果输出到 `runtime-dotnet/tests/ScpCv.Integration.Tests/ReliabilityAcceptanceTests.cs`
+- [X] T062 [US2] 调整前端 accepted/online/actual state 展示，禁止请求返回即伪报 playing 到 `frontend/src/stores/sessions.ts` 和 `frontend/src/features/display/DisplayView.vue`
+- [X] T063 [US2] 实现 SC-002/003 样本化故障注入测试与结果输出到 `runtime-dotnet/tests/ScpCv.Integration.Tests/ReliabilityAcceptanceTests.cs`
 
 **Checkpoint**: 命令恢复和不确定副作用判定可仅凭 simulation 独立验证，不宣称 exactly-once。
 
@@ -142,22 +142,22 @@
 
 ### Tests for User Story 3
 
-- [ ] T064 [P] [US3] 先编写单槽、摘要匹配 PDF、缺失失败、不自动升级和 reset 模式测试到 `runtime-dotnet/tests/ScpCv.Domain.Tests/PresentationPolicyTests.cs`
-- [ ] T065 [P] [US3] 先编写 Office operation 去重、STA 出队再验权、超时 inflight 与迟到结果测试到 `runtime-dotnet/tests/ScpCv.Integration.Tests/OfficeOperationTests.cs`
-- [ ] T066 [P] [US3] 先编写准备作业优先级、原子发布和旧 source digest 清理测试到 `runtime-dotnet/tests/ScpCv.Infrastructure.Tests/MediaPreparationTests.cs`
+- [X] T064 [P] [US3] 先编写单槽、摘要匹配 PDF、缺失失败、不自动升级和 reset 模式测试到 `runtime-dotnet/tests/ScpCv.Domain.Tests/PresentationPolicyTests.cs`
+- [X] T065 [P] [US3] 先编写 Office operation 去重、STA 出队再验权、超时 inflight 与迟到结果测试到 `runtime-dotnet/tests/ScpCv.Integration.Tests/OfficeOperationTests.cs`
+- [X] T066 [P] [US3] 先编写准备作业优先级、原子发布和旧 source digest 清理测试到 `runtime-dotnet/tests/ScpCv.Infrastructure.Tests/MediaPreparationTests.cs`
 
 ### Implementation for User Story 3
 
-- [ ] T067 [US3] 实现主机唯一命名互斥锁、Office PID/start-time 与持续所有权诊断到 `runtime-dotnet/src/ScpCv.PowerPointHost/Ownership/PowerPointOwnershipGuard.cs`
-- [ ] T068 [US3] 实现独立 STA 线程、消息泵、operation 去重和取消边界到 `runtime-dotnet/src/ScpCv.PowerPointHost/Sta/OfficeStaDispatcher.cs`
-- [ ] T069 [US3] 实现明确自有 Presentation 的打开、放映、导航、媒体控制、导出和关闭到 `runtime-dotnet/src/ScpCv.PowerPointHost/Interop/PowerPointComAdapter.cs`
-- [ ] T070 [US3] 实现 HWND/PID/start-time/DPI/样式验证与 AttachSurface 到 `runtime-dotnet/src/ScpCv.PowerPointHost/Windows/SlideShowWindowAttacher.cs`
-- [ ] T071 [US3] 实现 PowerPoint 槽位、PDF 回退、实际 playback_mode 和 reset 协调到 `runtime-dotnet/src/ScpCv.Infrastructure/Presentations/PresentationCoordinator.cs`
-- [ ] T072 [US3] 实现持久准备作业、无 Showing 时 Office 调度和制品 manifest 原子发布到 `runtime-dotnet/src/ScpCv.Infrastructure/Media/MediaPreparationService.cs`
-- [ ] T073 [P] [US3] 实现 Windows.Data.Pdf 页渲染、邻页预取和 1-based 页码到 `runtime-dotnet/src/ScpCv.PlayerWorker/Adapters/PdfPlaybackAdapter.cs`
-- [ ] T074 [US3] 映射 ppt-resources、navigate、ppt-media 与 reset-ppt 兼容路由到 `runtime-dotnet/src/ScpCv.ControlHost/Endpoints/PresentationEndpoints.cs`
-- [ ] T075 [US3] 保持实际 PowerPoint/PDF 模式和快速切源请求序列 UI 防护到 `frontend/src/features/display/pptResourceRequest.ts` 和 `frontend/src/features/display/playbackCapabilities.ts`
-- [ ] T076 [US3] 在开发 Windows/Office 环境记录 HWND、混合 DPI、模态、用户 Office 共存与长导出探针结果到 `docs/qa/003-office-interop.md`
+- [X] T067 [US3] 实现主机唯一命名互斥锁、Office PID/start-time 与持续所有权诊断到 `runtime-dotnet/src/ScpCv.PowerPointHost/Ownership/PowerPointOwnershipGuard.cs`
+- [X] T068 [US3] 实现独立 STA 线程、消息泵、operation 去重和取消边界到 `runtime-dotnet/src/ScpCv.PowerPointHost/Sta/OfficeStaDispatcher.cs`
+- [X] T069 [US3] 实现明确自有 Presentation 的打开、放映、导航、媒体控制、导出和关闭到 `runtime-dotnet/src/ScpCv.PowerPointHost/Interop/PowerPointComAdapter.cs`
+- [X] T070 [US3] 实现 HWND/PID/start-time/DPI/样式验证与 AttachSurface 到 `runtime-dotnet/src/ScpCv.PowerPointHost/Windows/SlideShowWindowAttacher.cs`
+- [X] T071 [US3] 实现 PowerPoint 槽位、PDF 回退、实际 playback_mode 和 reset 协调到 `runtime-dotnet/src/ScpCv.Infrastructure/Presentations/PresentationCoordinator.cs`
+- [X] T072 [US3] 实现持久准备作业、无 Showing 时 Office 调度和制品 manifest 原子发布到 `runtime-dotnet/src/ScpCv.Infrastructure/Media/MediaPreparationService.cs`
+- [X] T073 [P] [US3] 实现 Windows.Data.Pdf 页渲染、邻页预取和 1-based 页码到 `runtime-dotnet/src/ScpCv.PlayerWorker/Adapters/PdfPlaybackAdapter.cs`
+- [X] T074 [US3] 映射 ppt-resources、navigate、ppt-media 与 reset-ppt 兼容路由到 `runtime-dotnet/src/ScpCv.ControlHost/Endpoints/PresentationEndpoints.cs`
+- [X] T075 [US3] 保持实际 PowerPoint/PDF 模式和快速切源请求序列 UI 防护到 `frontend/src/features/display/pptResourceRequest.ts` 和 `frontend/src/features/display/playbackCapabilities.ts`
+- [X] T076 [US3] 在开发 Windows/Office 环境记录 HWND、混合 DPI、模态、用户 Office 共存与长导出探针结果到 `docs/qa/003-office-interop.md`
 
 **Checkpoint**: 软件测试证明仲裁和回退语义；实机项未执行时明确保留为未验证，不降级安全策略。
 
@@ -171,20 +171,20 @@
 
 ### Tests for User Story 4
 
-- [ ] T077 [P] [US4] 先编写资源 key、source generation、旧结果和切换失败恢复测试到 `runtime-dotnet/tests/ScpCv.Domain.Tests/ResourceSwitchTests.cs`
-- [ ] T078 [P] [US4] 先编写 WebView 导航计数、隐藏保活、renderer 故障和预算拒绝测试到 `runtime-dotnet/tests/ScpCv.Windows.Tests/WebViewPreheatTests.cs`
-- [ ] T079 [P] [US4] 先编写 VLC seek/loop/音量/结束回调与 SRT/RTSP 能力测试到 `runtime-dotnet/tests/ScpCv.Windows.Tests/VlcAdapterTests.cs`
+- [X] T077 [P] [US4] 先编写资源 key、source generation、旧结果和切换失败恢复测试到 `runtime-dotnet/tests/ScpCv.Domain.Tests/ResourceSwitchTests.cs`
+- [X] T078 [P] [US4] 先编写 WebView 导航计数、隐藏保活、renderer 故障和预算拒绝测试到 `runtime-dotnet/tests/ScpCv.Windows.Tests/WebViewPreheatTests.cs`
+- [X] T079 [P] [US4] 先编写 VLC seek/loop/音量/结束回调与 SRT/RTSP 能力测试到 `runtime-dotnet/tests/ScpCv.Windows.Tests/VlcAdapterTests.cs`
 
 ### Implementation for User Story 4
 
-- [ ] T080 [US4] 实现每实例一个显示器的 WPF Worker 宿主、几何和生命周期到 `runtime-dotnet/src/ScpCv.PlayerWorker/App.xaml.cs` 和 `runtime-dotnet/src/ScpCv.PlayerWorker/PlayerWindow.xaml.cs`
-- [ ] T081 [US4] 定义 Prepare/Open/Control/Observe/Hide/Close 适配器合同和资源状态机到 `runtime-dotnet/src/ScpCv.PlayerWorker/Adapters/IPlaybackAdapter.cs` 和 `runtime-dotnet/src/ScpCv.PlayerWorker/Resources/WarmResource.cs`
-- [ ] T082 [US4] 实现 Worker 独立 UDF 的 WebView2 实例池、ProcessFailed 与健康检查到 `runtime-dotnet/src/ScpCv.PlayerWorker/Adapters/WebViewPlaybackAdapter.cs`
-- [ ] T083 [US4] 实现 Worker 生命周期 LibVLC、媒体池、回调调度和安全释放到 `runtime-dotnet/src/ScpCv.PlayerWorker/Adapters/VlcPlaybackAdapter.cs`
-- [ ] T084 [P] [US4] 实现 WPF 图片适配器和文件版本校验到 `runtime-dotnet/src/ScpCv.PlayerWorker/Adapters/ImagePlaybackAdapter.cs`
-- [ ] T085 [US4] 实现新资源 Ready 后显隐切换、旧画面恢复和迟到 generation 隔离到 `runtime-dotnet/src/ScpCv.PlayerWorker/Playback/SourceSwitchCoordinator.cs`
-- [ ] T086 [US4] 接入 MediaMTX 流发现、在线探测和 10 分钟预热健康续检到 `runtime-dotnet/src/ScpCv.Infrastructure/Streams/StreamDiscoveryService.cs`
-- [ ] T087 [US4] 记录 50 次网页切换和流预热的导航、延迟与资源趋势到 `docs/qa/003-preheat-performance.md`
+- [X] T080 [US4] 实现每实例一个显示器的 WPF Worker 宿主、几何和生命周期到 `runtime-dotnet/src/ScpCv.PlayerWorker/App.xaml.cs` 和 `runtime-dotnet/src/ScpCv.PlayerWorker/PlayerWindow.xaml.cs`
+- [X] T081 [US4] 定义 Prepare/Open/Control/Observe/Hide/Close 适配器合同和资源状态机到 `runtime-dotnet/src/ScpCv.PlayerWorker/Adapters/IPlaybackAdapter.cs` 和 `runtime-dotnet/src/ScpCv.PlayerWorker/Resources/WarmResource.cs`
+- [X] T082 [US4] 实现 Worker 独立 UDF 的 WebView2 实例池、ProcessFailed 与健康检查到 `runtime-dotnet/src/ScpCv.PlayerWorker/Adapters/WebViewPlaybackAdapter.cs`
+- [X] T083 [US4] 实现 Worker 生命周期 LibVLC、媒体池、回调调度和安全释放到 `runtime-dotnet/src/ScpCv.PlayerWorker/Adapters/VlcPlaybackAdapter.cs`
+- [X] T084 [P] [US4] 实现 WPF 图片适配器和文件版本校验到 `runtime-dotnet/src/ScpCv.PlayerWorker/Adapters/ImagePlaybackAdapter.cs`
+- [X] T085 [US4] 实现新资源 Ready 后显隐切换、旧画面恢复和迟到 generation 隔离到 `runtime-dotnet/src/ScpCv.PlayerWorker/Playback/SourceSwitchCoordinator.cs`
+- [X] T086 [US4] 接入 MediaMTX 流发现、在线探测和 10 分钟预热健康续检到 `runtime-dotnet/src/ScpCv.Infrastructure/Streams/StreamDiscoveryService.cs`
+- [X] T087 [US4] 记录 50 次网页切换和流预热的导航、延迟与资源趋势到 `docs/qa/003-preheat-performance.md`
 
 **Checkpoint**: 同一 Worker 健康资源可复用，崩溃后如实冷重建，未承诺跨进程保存 DOM。
 
@@ -198,23 +198,23 @@
 
 ### Tests for User Story 5
 
-- [ ] T088 [P] [US5] 先编写列表顺序、自然结束、重复/旧 Finished、循环和删除当前项测试到 `runtime-dotnet/tests/ScpCv.Domain.Tests/BackgroundAudioTests.cs`
-- [ ] T089 [P] [US5] 先编写成员退出、停止闩锁、协作超时、PID 复用和不误杀测试到 `runtime-dotnet/tests/ScpCv.Integration.Tests/RuntimeLifecycleTests.cs`
+- [X] T088 [P] [US5] 先编写列表顺序、自然结束、重复/旧 Finished、循环和删除当前项测试到 `runtime-dotnet/tests/ScpCv.Domain.Tests/BackgroundAudioTests.cs`
+- [X] T089 [P] [US5] 先编写成员退出、停止闩锁、协作超时、PID 复用和不误杀测试到 `runtime-dotnet/tests/ScpCv.Integration.Tests/RuntimeLifecycleTests.cs`
 
 ### Implementation for User Story 5
 
-- [ ] T090 [US5] 创建 AudioWorker 管道宿主和单播放实例生命周期到 `runtime-dotnet/src/ScpCv.AudioWorker/Program.cs`
-- [ ] T091 [US5] 实现背景音频 LibVLC 播放、进度、音量、循环与 generation 结束事件到 `runtime-dotnet/src/ScpCv.AudioWorker/Audio/VlcAudioAdapter.cs`
-- [ ] T092 [US5] 实现列表、立即播放、上一首/下一首、删除源与自然推进服务到 `runtime-dotnet/src/ScpCv.Infrastructure/Audio/BackgroundAudioService.cs`
-- [ ] T093 [US5] 映射 background-audio 全部兼容路由和响应到 `runtime-dotnet/src/ScpCv.ControlHost/Endpoints/BackgroundAudioEndpoints.cs`
-- [ ] T094 [US5] 实现 AudioFinished event_id/source_generation 幂等推进到 `runtime-dotnet/src/ScpCv.ControlHost/Ipc/AudioEventHandler.cs`
-- [ ] T095 [US5] 实现 Supervisor 子进程登记、PID/start-time/会话校验和日志汇聚到 `runtime-dotnet/src/ScpCv.Supervisor/Processes/ProcessRegistry.cs`
-- [ ] T096 [US5] 实现四 PlayerWorker、一 AudioWorker、一 PowerPointHost 和 MediaMTX 的交互桌面启动编排到 `runtime-dotnet/src/ScpCv.Supervisor/Runtime/RuntimeLauncher.cs`
-- [ ] T097 [P] [US5] 实现显示器枚举、设备路径、负坐标、混合 DPI 与目标分配到 `runtime-dotnet/src/ScpCv.Supervisor/Windows/DisplayTopologyService.cs`
-- [ ] T098 [US5] 实现 draining、5 秒协作等待、3 秒自有进程终止和 Office 特殊保护到 `runtime-dotnet/src/ScpCv.Supervisor/Runtime/ShutdownCoordinator.cs`
-- [ ] T099 [US5] 实现项目自有 MediaMTX 启停、健康和外部实例边界到 `runtime-dotnet/src/ScpCv.Supervisor/Runtime/MediaMtxProcess.cs`
-- [ ] T100 [US5] 提供 start/stop/restart/status 开发入口到 `runtime-dotnet/scripts/runtime.ps1` 和 `runtime-dotnet/README.md`
-- [ ] T101 [US5] 执行 20 次正常启停、10 次故障退出与客户端关闭测试并记录到 `docs/qa/003-runtime-lifecycle.md`
+- [X] T090 [US5] 创建 AudioWorker 管道宿主和单播放实例生命周期到 `runtime-dotnet/src/ScpCv.AudioWorker/Program.cs`
+- [X] T091 [US5] 实现背景音频 LibVLC 播放、进度、音量、循环与 generation 结束事件到 `runtime-dotnet/src/ScpCv.AudioWorker/Audio/VlcAudioAdapter.cs`
+- [X] T092 [US5] 实现列表、立即播放、上一首/下一首、删除源与自然推进服务到 `runtime-dotnet/src/ScpCv.Infrastructure/Audio/BackgroundAudioService.cs`
+- [X] T093 [US5] 映射 background-audio 全部兼容路由和响应到 `runtime-dotnet/src/ScpCv.ControlHost/Endpoints/BackgroundAudioEndpoints.cs`
+- [X] T094 [US5] 实现 AudioFinished event_id/source_generation 幂等推进到 `runtime-dotnet/src/ScpCv.ControlHost/Ipc/AudioEventHandler.cs`
+- [X] T095 [US5] 实现 Supervisor 子进程登记、PID/start-time/会话校验和日志汇聚到 `runtime-dotnet/src/ScpCv.Supervisor/Processes/ProcessRegistry.cs`
+- [X] T096 [US5] 实现四 PlayerWorker、一 AudioWorker、一 PowerPointHost 和 MediaMTX 的交互桌面启动编排到 `runtime-dotnet/src/ScpCv.Supervisor/Runtime/RuntimeLauncher.cs`
+- [X] T097 [P] [US5] 实现显示器枚举、设备路径、负坐标、混合 DPI 与目标分配到 `runtime-dotnet/src/ScpCv.Supervisor/Windows/DisplayTopologyService.cs`
+- [X] T098 [US5] 实现 draining、5 秒协作等待、3 秒自有进程终止和 Office 特殊保护到 `runtime-dotnet/src/ScpCv.Supervisor/Runtime/ShutdownCoordinator.cs`
+- [X] T099 [US5] 实现项目自有 MediaMTX 启停、健康和外部实例边界到 `runtime-dotnet/src/ScpCv.Supervisor/Runtime/MediaMtxProcess.cs`
+- [X] T100 [US5] 提供 start/stop/restart/status 开发入口到 `runtime-dotnet/scripts/runtime.ps1` 和 `runtime-dotnet/README.md`
+- [X] T101 [US5] 执行 20 次正常启停、10 次故障退出与客户端关闭测试并记录到 `docs/qa/003-runtime-lifecycle.md`
 
 **Checkpoint**: 控制客户端和播放主机生命周期解耦；无交互桌面时如实 unavailable。
 
@@ -228,14 +228,14 @@
 
 ### Tests for User Story 6
 
-- [ ] T102 [P] [US6] 先编写全新目录 seed、重复初始化和不兼容 schema 拒绝测试到 `runtime-dotnet/tests/ScpCv.Integration.Tests/DevelopmentDataTests.cs`
-- [ ] T103 [P] [US6] 先编写 DataRoot 越界、旧 `db.sqlite3` 与媒体不被触碰测试到 `runtime-dotnet/tests/ScpCv.Infrastructure.Tests/DataBoundaryTests.cs`
+- [X] T102 [P] [US6] 先编写全新目录 seed、重复初始化和不兼容 schema 拒绝测试到 `runtime-dotnet/tests/ScpCv.Integration.Tests/DevelopmentDataTests.cs`
+- [X] T103 [P] [US6] 先编写 DataRoot 越界、旧 `db.sqlite3` 与媒体不被触碰测试到 `runtime-dotnet/tests/ScpCv.Infrastructure.Tests/DataBoundaryTests.cs`
 
 ### Implementation for User Story 6
 
-- [ ] T104 [US6] 实现显式 `db init`、`db seed-development` 和 schema 状态命令到 `runtime-dotnet/src/ScpCv.ControlHost/Commands/DatabaseCommands.cs`
-- [ ] T105 [US6] 将独立验证目录、Git 恢复范围和禁止自动清空规则写入 `runtime-dotnet/README.md` 和 `docs/维护文档.md`
-- [ ] T106 [US6] 更新规范状态并移除已完成的旧“仅规划”声明到 `specs/003-dotnet-runtime-refactor/spec.md`、`specs/003-dotnet-runtime-refactor/plan.md`、`specs/003-dotnet-runtime-refactor/governance.md` 和 `specs/003-dotnet-runtime-refactor/quickstart.md`
+- [X] T104 [US6] 实现显式 `db init`、`db seed-development` 和 schema 状态命令到 `runtime-dotnet/src/ScpCv.ControlHost/Commands/DatabaseCommands.cs`
+- [X] T105 [US6] 将独立验证目录、Git 恢复范围和禁止自动清空规则写入 `runtime-dotnet/README.md` 和 `docs/维护文档.md`
+- [X] T106 [US6] 更新规范状态并移除已完成的旧“仅规划”声明到 `specs/003-dotnet-runtime-refactor/spec.md`、`specs/003-dotnet-runtime-refactor/plan.md`、`specs/003-dotnet-runtime-refactor/governance.md` 和 `specs/003-dotnet-runtime-refactor/quickstart.md`
 
 **Checkpoint**: 数据初始化不依赖旧库；Git 操作不被描述为数据库/媒体恢复方案。
 
@@ -245,19 +245,19 @@
 
 **Purpose**: 收敛合同、文档、性能、真实平台验证和旧实现清理。
 
-- [ ] T107 [P] 建立全部 `docs/openapi.yaml` 路由、方法、状态码与 .NET endpoint 的自动对照测试到 `runtime-dotnet/tests/ScpCv.Contracts.Tests/OpenApiCoverageTests.cs`
-- [ ] T108 [P] 补齐日志脱敏、路径越界、CSRF/CORS、外链与 IPC 假身份安全测试到 `runtime-dotnet/tests/ScpCv.Integration.Tests/SecurityBoundaryTests.cs` 和 `frontend/scripts/security-boundary.test.mjs`
-- [ ] T109 建立 Q1–Q11、FR-001–030、SC-001–010 到自动/人工证据的验收矩阵到 `specs/003-dotnet-runtime-refactor/verification.md`
-- [ ] T110 运行并修复全部非实机 .NET 测试，记录命令和结果到 `specs/003-dotnet-runtime-refactor/verification.md`
-- [ ] T111 运行并修复共享前端测试、typecheck、web/app/Electron 构建，记录结果到 `specs/003-dotnet-runtime-refactor/verification.md`
-- [ ] T112 在真实浏览器检查桌面/平板/手机布局、活动/错误/媒体状态和控制台日志，记录到 `docs/qa/003-browser-ui.md`
+- [X] T107 [P] 建立全部 `docs/openapi.yaml` 路由、方法、状态码与 .NET endpoint 的自动对照测试到 `runtime-dotnet/tests/ScpCv.Contracts.Tests/OpenApiCoverageTests.cs`
+- [X] T108 [P] 补齐日志脱敏、路径越界、CSRF/CORS、外链与 IPC 假身份安全测试到 `runtime-dotnet/tests/ScpCv.Integration.Tests/SecurityBoundaryTests.cs` 和 `frontend/scripts/security-boundary.test.mjs`
+- [X] T109 建立 Q1–Q11、FR-001–030、SC-001–010 到自动/人工证据的验收矩阵到 `specs/003-dotnet-runtime-refactor/verification.md`
+- [X] T110 运行并修复全部非实机 .NET 测试，记录命令和结果到 `specs/003-dotnet-runtime-refactor/verification.md`
+- [X] T111 运行并修复共享前端测试、typecheck、web/app/Electron 构建，记录结果到 `specs/003-dotnet-runtime-refactor/verification.md`
+- [X] T112 在真实浏览器检查桌面/平板/手机布局、活动/错误/媒体状态和控制台日志，记录到 `docs/qa/003-browser-ui.md`
 - [ ] T113 在实际打包 Electron 中验证安全协议、认证/SSE、路由、文件和关闭行为，记录到 `docs/qa/003-electron.md`
 - [ ] T114 在实际 Android APK 与 WebView>=111 设备验证认证/SSE、前后台、返回键、文件和外链限制，记录到 `docs/qa/003-android.md`
 - [ ] T115 执行普通命令 1000 样本与健康热切换 100 样本基准，记录 p95 和测试条件到 `docs/qa/003-performance.md`
 - [ ] T116 执行开发 Windows 四屏/Office/VLC/MediaMTX/音频 60 分钟混合测试，记录硬件条件和未通过项到 `docs/qa/003-windows-runtime.md`
-- [ ] T117 更新目标架构、开发运行、客户端连接和故障诊断文档到 `README.md`、`docs/使用文档.md`、`docs/维护文档.md` 和 `docs/CHANGELOG.md`
+- [X] T117 更新目标架构、开发运行、客户端连接和故障诊断文档到 `README.md`、`docs/使用文档.md`、`docs/维护文档.md` 和 `docs/CHANGELOG.md`
 - [ ] T118 在 T107–T116 所需门禁通过后删除被完整替代的 Django/Python 运行时代码与依赖，并同步 `pyproject.toml`、`uv.lock`、`manage.py`、`scp_cv/` 和 `tests/`
-- [ ] T119 运行 Spec Kit 校验、`git diff --check` 与跨产物一致性分析，并记录最终结论到 `specs/003-dotnet-runtime-refactor/verification.md`
+- [X] T119 运行 Spec Kit 校验、`git diff --check` 与跨产物一致性分析，并记录最终结论到 `specs/003-dotnet-runtime-refactor/verification.md`
 
 ---
 

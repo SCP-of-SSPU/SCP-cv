@@ -13,7 +13,9 @@ public sealed class CommandPolicyTests
         var result = DisplayCommandPolicy.Evaluate(" open ", [first, second]);
 
         Assert.Equal("OPEN", result.NormalizedCommand);
-        Assert.Equal([first.CommandId, second.CommandId], result.SupersededCommandIds.OrderBy(id => id));
+        Assert.Equal(
+            new[] { first.CommandId, second.CommandId }.OrderBy(id => id),
+            result.SupersededCommandIds.OrderBy(id => id));
     }
 
     [Fact]

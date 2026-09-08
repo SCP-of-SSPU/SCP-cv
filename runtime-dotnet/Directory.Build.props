@@ -10,5 +10,15 @@
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <!-- WPF/console workers do not package WinUI resources; LibVLCSharp's transitive
+         WindowsAppSDK tooling must stay disabled for SDK-only builds. -->
+    <EnableCoreMrtTooling>false</EnableCoreMrtTooling>
+    <EnablePriGenTooling>false</EnablePriGenTooling>
   </PropertyGroup>
+
+  <!-- LibVLCSharp 在 Windows TFM 上声明 WindowsAppSDK 仅用于 WinUI/UWP。播放端是纯 WPF，
+       排除其传递构建目标，避免 SDK 尝试构建不存在的 MSIX/PRI 任务和非 x64 RID。 -->
+  <ItemGroup>
+    <PackageReference Update="Microsoft.WindowsAppSDK" ExcludeAssets="all" PrivateAssets="all" />
+  </ItemGroup>
 </Project>

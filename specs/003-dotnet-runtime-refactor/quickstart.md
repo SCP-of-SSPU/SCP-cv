@@ -1,6 +1,6 @@
 # Quickstart: 开发验证与三端联调
 
-**Status**: 实施中；新 .NET/Electron/Capacitor 工程按 `tasks.md` 逐步交付。当前可运行检查与
+**Status**: US1–US6 软件实现阶段；新 .NET/Electron/Capacitor 工程按 `tasks.md` 逐步交付。当前可运行检查与
 目标命令分开列出，不自动授权启动真实设备/Office。
 
 ## 当前文档检查

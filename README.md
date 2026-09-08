@@ -23,19 +23,21 @@ SCP-cv 是用于控制 **上海第二工业大学 28#108 多媒体显示系统**
 - **REST + SSE 控制台**：Vue 前端通过 REST 下发指令，通过 SSE 同步播放状态。
 - **设备控制**：支持拼接屏、电视电源 TCP 指令和 Windows 系统音量同步。
 
-## 架构概览
+## 当前 .NET 架构概览
 
 ```text
-Vue 控制台 (frontend/)
+Vue 3 + Tailwind 4 + Vite 控制台 (frontend/)
   REST / SSE
         |
-Django 服务端 (REST + SSE)
+ASP.NET Core ControlHost（SQLite + EF Core）
         |
-SQLite 播放会话状态
+Named Pipe + 持久命令队列
         |
-PySide6 播放器 (PPT / 视频 / 图片 / 网页 / SRT / 背景音乐)
+Windows Supervisor → PlayerWorker×4 / AudioWorker / PowerPointHost
         |
 MediaMTX (SRT publish/read + RTSP read)
+
+Windows 控制客户端使用 Electron，Android 控制客户端使用 Capacitor；两者与 Web 共享同一套 Vue 页面和 API。旧 Django/Python 实现仍由 Git 保留，当前快速迭代期不做数据迁移或删除。
 ```
 
 ## 环境要求

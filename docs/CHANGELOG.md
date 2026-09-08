@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-09-08
+
+### .NET 播控运行时与共享客户端重构（进行中）
+
+- 建立 ASP.NET Core ControlHost、SQLite/EF Core、持久命令队列、Named Pipe、Supervisor、PlayerWorker、AudioWorker、PowerPointHost 和 MediaMTX 的 Windows x64 工程骨架与自动化测试。
+- 前端保持 Vue 3 + Vite + pnpm，接入 Tailwind CSS 4；网页、Electron Windows 控制端和 Capacitor Android 控制端共享页面、路由、Pinia store 与 REST/SSE 合同。
+- 补充 OpenAPI 路由覆盖、安全边界、开发数据隔离和客户端浏览器 QA 记录。真实 Electron/Android、四屏 Office 和性能长稳测试仍待执行；旧 Django/Python 运行时暂不删除。
+
 ## 2026-09-07
 
 ### 播放控制能力与实际模式展示修复

@@ -2,12 +2,19 @@
   "version": 2,
   "dependencies": {
     "net10.0-windows10.0.19041": {
+      "Microsoft.Office.Interop.PowerPoint": {
+        "type": "Direct",
+        "requested": "[15.0.4420.1018, )",
+        "resolved": "15.0.4420.1018",
+        "contentHash": "3XkJAqbYq93MqqSOPusNE+6Tve5yBkbE92n9W8f+k8Z9AzXeoTMqMYqhZMrzVOp4saHhMMbOD78JkCjvk+qIzw=="
+      },
       "scpcv.contracts": {
         "type": "Project"
       },
       "scpcv.domain": {
         "type": "Project"
       }
-    }
+    },
+    "net10.0-windows10.0.19041/win-x64": {}
   }
 }

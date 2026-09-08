@@ -4,6 +4,7 @@ using ScpCv.Contracts.Http;
 using ScpCv.Domain.Model;
 using ScpCv.Infrastructure.Media;
 using ScpCv.Infrastructure.Persistence;
+using ScpCv.Domain.Rules;
 
 namespace ScpCv.Infrastructure.Audio;
 
@@ -13,6 +14,9 @@ public sealed class BackgroundAudioService(
     TimeProvider? timeProvider = null)
 {
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
+    private long _sourceGeneration;
+    private readonly HashSet<Guid> _finishedEvents = [];
+    private readonly object _finishedGate = new();
 
     public async Task<BackgroundAudioDto> GetAsync(CancellationToken cancellationToken = default)
     {
@@ -63,6 +67,7 @@ public sealed class BackgroundAudioService(
                 state.PositionMs = 0;
                 state.DurationMs = 0;
                 state.PendingCommand = "OPEN";
+                Interlocked.Increment(ref _sourceGeneration);
                 state.CommandArgsJson = JsonSerializer.Serialize(new
                 {
                     source_id = sourceId,
@@ -76,6 +81,172 @@ public sealed class BackgroundAudioService(
                 return await LoadAsync(database, token).ConfigureAwait(false);
             },
             cancellationToken);
+    }
+
+    public Task<BackgroundAudioDto> AddToPlaylistAsync(
+        long sourceId,
+        CancellationToken cancellationToken = default) =>
+        writes.ExecuteAsync(async (database, token) =>
+        {
+            var source = await database.MediaSources.SingleOrDefaultAsync(
+                    item => item.Id == sourceId,
+                    token).ConfigureAwait(false)
+                ?? throw new BackgroundAudioServiceException($"媒体源 id={sourceId} 不存在");
+            if (source.SourceType != MediaSourceType.Audio)
+            {
+                throw new BackgroundAudioServiceException("背景音频仅支持 audio 类型媒体源");
+            }
+
+            var existing = await database.BackgroundAudioPlaylistItems.SingleOrDefaultAsync(
+                item => item.SourceId == sourceId,
+                token).ConfigureAwait(false);
+            if (existing is null)
+            {
+                var nextOrder = checked((await database.BackgroundAudioPlaylistItems
+                    .MaxAsync(item => (int?)item.SortOrder, token).ConfigureAwait(false) ?? 0) + 10);
+                database.BackgroundAudioPlaylistItems.Add(new BackgroundAudioPlaylistItem
+                {
+                    SourceId = sourceId,
+                    SortOrder = nextOrder,
+                    CreatedAt = _timeProvider.GetUtcNow(),
+                });
+                await database.SaveChangesAsync(token).ConfigureAwait(false);
+            }
+
+            return await LoadAsync(database, token).ConfigureAwait(false);
+        }, cancellationToken);
+
+    public Task<BackgroundAudioDto> ClearPlaylistAsync(CancellationToken cancellationToken = default) =>
+        writes.ExecuteAsync(async (database, token) =>
+        {
+            database.BackgroundAudioPlaylistItems.RemoveRange(
+                await database.BackgroundAudioPlaylistItems.ToListAsync(token).ConfigureAwait(false));
+            var state = await database.BackgroundAudioStates.SingleAsync(token).ConfigureAwait(false);
+            state.CurrentSourceId = null;
+            state.PlaybackState = PlaybackState.Idle;
+            state.PendingCommand = "STOP";
+            state.UpdatedAt = NextTimestamp(state.UpdatedAt);
+            await database.SaveChangesAsync(token).ConfigureAwait(false);
+            return await LoadAsync(database, token).ConfigureAwait(false);
+        }, cancellationToken);
+
+    public async Task<BackgroundAudioDto> PlayPlaylistItemAsync(
+        long itemId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var database = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        var sourceId = await database.BackgroundAudioPlaylistItems
+            .Where(item => item.Id == itemId)
+            .Select(item => (long?)item.SourceId)
+            .SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false)
+            ?? throw new BackgroundAudioServiceException($"背景音乐列表项 id={itemId} 不存在", "not_found");
+        return await PlaySourceAsync(sourceId, cancellationToken).ConfigureAwait(false);
+    }
+
+    public Task<BackgroundAudioDto> SetPlaylistAsync(IReadOnlyList<long> sourceIds, CancellationToken cancellationToken = default) =>
+        writes.ExecuteAsync(async (database, token) =>
+        {
+            var valid = await database.MediaSources.Where(source => sourceIds.Contains(source.Id) && source.SourceType == MediaSourceType.Audio)
+                .ToDictionaryAsync(source => source.Id, token).ConfigureAwait(false);
+            if (valid.Count != sourceIds.Distinct().Count()) throw new BackgroundAudioServiceException("播放列表包含不存在或非音频源", "invalid_playlist");
+            var state = await database.BackgroundAudioStates.SingleAsync(token).ConfigureAwait(false);
+            database.BackgroundAudioPlaylistItems.RemoveRange(await database.BackgroundAudioPlaylistItems.ToListAsync(token).ConfigureAwait(false));
+            var order = 10;
+            foreach (var id in sourceIds.Distinct()) database.BackgroundAudioPlaylistItems.Add(new BackgroundAudioPlaylistItem { SourceId = id, SortOrder = order, CreatedAt = _timeProvider.GetUtcNow() });
+            state.UpdatedAt = NextTimestamp(state.UpdatedAt);
+            await database.SaveChangesAsync(token).ConfigureAwait(false);
+            return await LoadAsync(database, token).ConfigureAwait(false);
+        }, cancellationToken);
+
+    public Task<BackgroundAudioDto> RemoveFromPlaylistAsync(long sourceId, CancellationToken cancellationToken = default) =>
+        writes.ExecuteAsync(async (database, token) =>
+        {
+            var item = await database.BackgroundAudioPlaylistItems.SingleOrDefaultAsync(candidate => candidate.SourceId == sourceId, token).ConfigureAwait(false);
+            if (item is not null) database.BackgroundAudioPlaylistItems.Remove(item);
+            var state = await database.BackgroundAudioStates.SingleAsync(token).ConfigureAwait(false);
+            if (state.CurrentSourceId == sourceId) { state.CurrentSourceId = null; state.PlaybackState = PlaybackState.Idle; state.PendingCommand = "STOP"; }
+            state.UpdatedAt = NextTimestamp(state.UpdatedAt);
+            await database.SaveChangesAsync(token).ConfigureAwait(false);
+            return await LoadAsync(database, token).ConfigureAwait(false);
+        }, cancellationToken);
+
+    public Task<BackgroundAudioDto> RemovePlaylistItemAsync(long itemId, CancellationToken cancellationToken = default) =>
+        writes.ExecuteAsync(async (database, token) =>
+        {
+            var item = await database.BackgroundAudioPlaylistItems.SingleOrDefaultAsync(
+                candidate => candidate.Id == itemId,
+                token).ConfigureAwait(false)
+                ?? throw new BackgroundAudioServiceException($"背景音乐列表项 id={itemId} 不存在", "not_found");
+            database.BackgroundAudioPlaylistItems.Remove(item);
+            var state = await database.BackgroundAudioStates.SingleAsync(token).ConfigureAwait(false);
+            if (state.CurrentSourceId == item.SourceId)
+            {
+                state.CurrentSourceId = null;
+                state.PlaybackState = PlaybackState.Idle;
+                state.PendingCommand = "STOP";
+            }
+
+            state.UpdatedAt = NextTimestamp(state.UpdatedAt);
+            await database.SaveChangesAsync(token).ConfigureAwait(false);
+            return await LoadAsync(database, token).ConfigureAwait(false);
+        }, cancellationToken);
+
+    public Task<BackgroundAudioDto> AdvanceAsync(bool previous = false, CancellationToken cancellationToken = default) =>
+        writes.ExecuteAsync(async (database, token) =>
+        {
+            var items = await database.BackgroundAudioPlaylistItems.Include(item => item.Source).OrderBy(item => item.SortOrder).ThenBy(item => item.Id).ToListAsync(token).ConfigureAwait(false);
+            var state = await database.BackgroundAudioStates.SingleAsync(token).ConfigureAwait(false);
+            if (items.Count > 0)
+            {
+                var index = items.FindIndex(item => item.SourceId == state.CurrentSourceId);
+                index = previous ? (index <= 0 ? items.Count - 1 : index - 1) : (index + 1) % items.Count;
+                state.CurrentSourceId = items[index].SourceId;
+                state.PlaybackState = PlaybackState.Loading;
+                state.PendingCommand = "OPEN";
+                state.CommandArgsJson = JsonSerializer.Serialize(new { source_id = state.CurrentSourceId, autoplay = true });
+                Interlocked.Increment(ref _sourceGeneration);
+            }
+            state.UpdatedAt = NextTimestamp(state.UpdatedAt);
+            await database.SaveChangesAsync(token).ConfigureAwait(false);
+            return await LoadAsync(database, token).ConfigureAwait(false);
+        }, cancellationToken);
+
+    public long CurrentGeneration => Volatile.Read(ref _sourceGeneration);
+
+    public Task<BackgroundAudioDto> ControlAsync(string action, CancellationToken cancellationToken = default) =>
+        action.Trim().ToLowerInvariant() switch
+        {
+            "next" => AdvanceAsync(false, cancellationToken),
+            "previous" or "prev" => AdvanceAsync(true, cancellationToken),
+            "stop" => writes.ExecuteAsync(async (database, token) => { var state = await database.BackgroundAudioStates.SingleAsync(token).ConfigureAwait(false); state.PlaybackState = PlaybackState.Stopped; state.PendingCommand = "STOP"; await database.SaveChangesAsync(token).ConfigureAwait(false); return await LoadAsync(database, token).ConfigureAwait(false); }, cancellationToken),
+            "play" or "pause" => SetPlaybackStateAsync(action.Trim().Equals("play", StringComparison.OrdinalIgnoreCase) ? PlaybackState.Playing : PlaybackState.Paused, cancellationToken),
+            _ => throw new BackgroundAudioServiceException($"无效的背景音频动作：{action}", "invalid_action"),
+        };
+
+    public Task<BackgroundAudioDto> SetVolumeAsync(int volume, CancellationToken cancellationToken = default) =>
+        volume is < 0 or > 100 ? throw new BackgroundAudioServiceException("音量必须在 0 到 100 之间", "invalid_volume") : writes.ExecuteAsync(async (database, token) => { var state = await database.BackgroundAudioStates.SingleAsync(token).ConfigureAwait(false); state.Volume = volume; state.PendingCommand = "SET_VOLUME"; await database.SaveChangesAsync(token).ConfigureAwait(false); return await LoadAsync(database, token).ConfigureAwait(false); }, cancellationToken);
+
+    public Task<BackgroundAudioDto> SetMuteAsync(bool muted, CancellationToken cancellationToken = default) =>
+        writes.ExecuteAsync(async (database, token) => { var state = await database.BackgroundAudioStates.SingleAsync(token).ConfigureAwait(false); state.IsMuted = muted; state.PendingCommand = "SET_MUTE"; await database.SaveChangesAsync(token).ConfigureAwait(false); return await LoadAsync(database, token).ConfigureAwait(false); }, cancellationToken);
+
+    public Task<BackgroundAudioDto> SetLoopAsync(bool enabled, CancellationToken cancellationToken = default) =>
+        writes.ExecuteAsync(async (database, token) => { var state = await database.BackgroundAudioStates.SingleAsync(token).ConfigureAwait(false); state.LoopEnabled = enabled; state.PendingCommand = "SET_LOOP"; await database.SaveChangesAsync(token).ConfigureAwait(false); return await LoadAsync(database, token).ConfigureAwait(false); }, cancellationToken);
+
+    private Task<BackgroundAudioDto> SetPlaybackStateAsync(PlaybackState playbackState, CancellationToken cancellationToken) =>
+        writes.ExecuteAsync(async (database, token) => { var state = await database.BackgroundAudioStates.SingleAsync(token).ConfigureAwait(false); state.PlaybackState = playbackState; state.PendingCommand = playbackState == PlaybackState.Playing ? "PLAY" : "PAUSE"; await database.SaveChangesAsync(token).ConfigureAwait(false); return await LoadAsync(database, token).ConfigureAwait(false); }, cancellationToken);
+
+    public async Task<BackgroundAudioDto> HandleFinishedAsync(AudioFinishedEvent finished, CancellationToken cancellationToken = default)
+    {
+        bool duplicate;
+        lock (_finishedGate)
+        {
+            duplicate = !AudioPlaybackPolicy.TryAcceptFinished(finished.EventId, _finishedEvents);
+        }
+        if (duplicate) return await GetAsync(cancellationToken).ConfigureAwait(false);
+        await using var database = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        var state = await database.BackgroundAudioStates.AsNoTracking().SingleAsync(cancellationToken).ConfigureAwait(false);
+        if (!AudioPlaybackPolicy.ShouldAdvance(state, finished, CurrentGeneration)) return await GetAsync(cancellationToken).ConfigureAwait(false);
+        return await AdvanceAsync(false, cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task<BackgroundAudioDto> LoadAsync(

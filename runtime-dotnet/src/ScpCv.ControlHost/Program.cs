@@ -7,6 +7,7 @@ using ScpCv.ControlHost.Events;
 using ScpCv.ControlHost.Health;
 using ScpCv.ControlHost.Ipc;
 using ScpCv.ControlHost.Logging;
+using ScpCv.ControlHost.Commands;
 using ScpCv.Infrastructure.Auth;
 using ScpCv.Infrastructure.Audio;
 using ScpCv.Infrastructure.Commands;
@@ -15,6 +16,7 @@ using ScpCv.Infrastructure.Devices;
 using ScpCv.Infrastructure.Media;
 using ScpCv.Infrastructure.Persistence;
 using ScpCv.Infrastructure.Playback;
+using ScpCv.Infrastructure.Presentations;
 using ScpCv.Infrastructure.Runtime;
 using ScpCv.Infrastructure.Scenarios;
 
@@ -43,9 +45,15 @@ builder.Services.AddSingleton(mediaOptions);
 builder.Services.AddSingleton(deviceOptions);
 builder.Services.AddSingleton(sseOptions);
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddHttpClient("stream-probe", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(5);
+    client.DefaultRequestHeaders.UserAgent.Add(new System.Net.Http.Headers.ProductInfoHeaderValue("SCP-cv", "1.0"));
+});
 builder.Services.AddSingleton(controlDbFactory);
 builder.Services.AddSingleton<IDbContextFactory<ControlDbContext>>(controlDbFactory);
 builder.Services.AddSingleton<DatabaseInitializer>();
+builder.Services.AddScoped<DatabaseCommands>();
 builder.Services.AddSingleton<WriteCoordinator>();
 builder.Services.AddSingleton<CommandRepository>();
 builder.Services.AddSingleton<QueuedCommandWakeNotifier>();
@@ -56,12 +64,15 @@ builder.Services.AddSingleton<CommandLeaseService>();
 builder.Services.AddSingleton<CommandResultService>();
 builder.Services.AddSingleton<RuntimeAuthorityRepository>();
 builder.Services.AddSingleton<MediaSourceService>();
+builder.Services.AddSingleton<MediaPreparationService>();
 builder.Services.AddSingleton<RuntimeStateService>();
+builder.Services.AddSingleton<PresentationCoordinator>();
 builder.Services.AddSingleton<ScenarioService>();
 builder.Services.AddSingleton<BackgroundAudioService>();
 builder.Services.AddSingleton<SseEventHub>();
 builder.Services.AddSingleton<RuntimeProjectionPublisher>();
 builder.Services.AddSingleton<RuntimeMessageDispatcher>();
+builder.Services.AddSingleton<AudioFinishedEventProcessor>();
 if (safetyMode.IsSimulation)
 {
     builder.Services.AddSingleton<SimulationDeviceCommandTransport>();
@@ -123,6 +134,7 @@ app.MapGet(
 app.MapAuthEndpoints();
 app.MapMediaEndpoints();
 app.MapPlaybackEndpoints();
+app.MapPresentationEndpoints();
 app.MapScenarioEndpoints();
 app.MapSystemEndpoints();
 app.MapBackgroundAudioEndpoints();

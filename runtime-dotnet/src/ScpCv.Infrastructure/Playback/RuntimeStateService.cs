@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using ScpCv.Contracts.Http;
 using ScpCv.Domain.Model;
@@ -178,6 +179,79 @@ public sealed class RuntimeStateService(
             session => session.PendingCommand = normalized.ToUpperInvariant(),
             cancellationToken);
     }
+
+    public Task<IReadOnlyList<PlaybackSessionDto>> NavigateAsync(
+        int windowId,
+        string action,
+        int? targetIndex,
+        long? positionMs,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateWindow(windowId);
+        var normalized = action.Trim().ToLowerInvariant();
+        if (normalized is not ("next" or "previous" or "first" or "last" or "goto" or "seek"))
+        {
+            throw new PlaybackServiceException($"无效的导航动作：{action}", "invalid_navigation");
+        }
+
+        return MutateSessionAsync(windowId, session =>
+        {
+            if ((normalized is "goto" or "first" or "last") && targetIndex is < 1)
+            {
+                throw new PlaybackServiceException("target_index 必须大于 0", "invalid_navigation");
+            }
+
+            if (normalized == "seek" && positionMs is < 0)
+            {
+                throw new PlaybackServiceException("position_ms 不能为负数", "invalid_navigation");
+            }
+
+            session.PendingCommand = "NAVIGATE";
+            session.CommandArgsJson = JsonSerializer.Serialize(new { action = normalized, target_index = targetIndex, position_ms = positionMs });
+        }, cancellationToken);
+    }
+
+    public Task<IReadOnlyList<PlaybackSessionDto>> ControlPptMediaAsync(
+        int windowId,
+        string action,
+        string? mediaId,
+        int? mediaIndex,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateWindow(windowId);
+        var normalized = action.Trim().ToLowerInvariant();
+        if (normalized is not ("play" or "pause" or "stop" or "toggle"))
+        {
+            throw new PlaybackServiceException($"无效的 PPT 媒体动作：{action}", "invalid_media_action");
+        }
+
+        return MutateSessionAsync(windowId, session =>
+        {
+            session.PendingCommand = "PPT_MEDIA";
+            session.CommandArgsJson = JsonSerializer.Serialize(new { action = normalized, media_id = mediaId ?? string.Empty, media_index = mediaIndex });
+        }, cancellationToken);
+    }
+
+    public Task<IReadOnlyList<PlaybackSessionDto>> ResetPowerPointAsync(CancellationToken cancellationToken = default) =>
+        writes.ExecuteAsync(
+            async (database, token) =>
+            {
+                var sessions = await database.PlaybackSessions
+                    .Where(session => session.PlaybackMode == PlaybackMode.PowerPoint)
+                    .ToListAsync(token).ConfigureAwait(false);
+                foreach (var session in sessions)
+                {
+                    session.MediaSourceId = null;
+                    session.PlaybackMode = PlaybackMode.None;
+                    session.PlaybackState = PlaybackState.Idle;
+                    session.ErrorMessage = string.Empty;
+                    session.PendingCommand = "RESET_PPT";
+                    session.DesiredGeneration = checked(session.DesiredGeneration + 1);
+                    session.LastUpdatedAt = NextTimestamp(session.LastUpdatedAt);
+                }
+
+                return await LoadSessionsAsync(database, token).ConfigureAwait(false);
+            }, cancellationToken);
 
     public Task<IReadOnlyList<PlaybackSessionDto>> CloseAsync(int windowId, CancellationToken cancellationToken = default) =>
         MutateSessionAsync(

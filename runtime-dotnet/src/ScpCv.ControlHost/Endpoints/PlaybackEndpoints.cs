@@ -26,8 +26,13 @@ public static class PlaybackEndpoints
         api.MapPatch("/playback/{windowId:int}/mute/", SetWindowMuteAsync);
         api.MapPost("/playback/show-ids/", ShowIdsAsync);
         api.MapPost("/playback/reset-all/", ResetAllAsync);
+        api.MapPost("/playback/physical-smoke/", PhysicalSmokeUnavailable);
         return endpoints;
     }
+
+    private static IResult PhysicalSmokeUnavailable() => ApiEndpointSupport.Error(
+        "物理冒烟测试必须由开发机验证入口在受控交互桌面中执行；当前 ControlHost 未配置该入口",
+        "physical_smoke_unavailable");
 
     private static async Task<IResult> GetSessionsAsync(RuntimeStateService runtime, CancellationToken cancellationToken) =>
         Results.Ok(new { success = true, sessions = await runtime.GetSessionsAsync(cancellationToken).ConfigureAwait(false) });

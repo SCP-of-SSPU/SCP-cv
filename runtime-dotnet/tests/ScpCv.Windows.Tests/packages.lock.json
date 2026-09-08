@@ -40,6 +40,11 @@
         "resolved": "17.14.1",
         "contentHash": "pmTrhfFIoplzFVbhVwUquT+77CbGH+h4/3mBpdmIlYtBi9nAB+kKI6dN3A/nV4DFi3wLLx/BlHIPK+MkbQ6Tpg=="
       },
+      "Microsoft.NETCore.Platforms": {
+        "type": "Transitive",
+        "resolved": "1.1.0",
+        "contentHash": "kz0PEW2lhqygehI/d6XsPCQzD7ff7gUJaVGPVETX611eadGsA3A877GdSlU0LRVMCTH/+P3o2iDTak+S08V2+A=="
+      },
       "Microsoft.TestPlatform.ObjectModel": {
         "type": "Transitive",
         "resolved": "17.14.1",
@@ -54,10 +59,58 @@
           "Newtonsoft.Json": "13.0.3"
         }
       },
+      "Microsoft.Windows.SDK.BuildTools": {
+        "type": "Transitive",
+        "resolved": "10.0.22621.756",
+        "contentHash": "7ZL2sFSioYm1Ry067Kw1hg0SCcW5kuVezC2SwjGbcPE61Nn+gTbH86T73G3LcEOVj0S3IZzNuE/29gZvOLS7VA=="
+      },
+      "Microsoft.WindowsAppSDK": {
+        "type": "Transitive",
+        "resolved": "1.5.240627000",
+        "contentHash": "qzzWG8rxZyzKzBuUdwr4ApezMINf+NT2b8EiEE5fchczNJJmDwlHImMWxX1pHK1W8Yby99alqLyC8DB0fIrhuA==",
+        "dependencies": {
+          "Microsoft.Windows.SDK.BuildTools": "10.0.22621.756"
+        }
+      },
+      "NETStandard.Library": {
+        "type": "Transitive",
+        "resolved": "1.6.1",
+        "contentHash": "WcSp3+vP+yHNgS8EV5J7pZ9IRpeDuARBPN28by8zqff1wJQXm26PVU8L3/fYLBJVU7BtDyqNVWq2KlCVvSSR4A==",
+        "dependencies": {
+          "Microsoft.NETCore.Platforms": "1.1.0"
+        }
+      },
       "Newtonsoft.Json": {
         "type": "Transitive",
         "resolved": "13.0.3",
         "contentHash": "HrC5BXdl00IP9zeV+0Z848QWPAoCr9P3bDEZguI+gkLcBKAOxix/tLEAAHC+UvDNPv4a2d18lOReHMOagPa+zQ=="
+      },
+      "SharpDX": {
+        "type": "Transitive",
+        "resolved": "4.2.0",
+        "contentHash": "3pv0LFMvfK/dv1qISJnn8xBeeT6R/FRvr0EV4KI2DGsL84Qlv6P7isWqxGyU0LCwlSVCJN3jgHJ4Bl0KI2PJww==",
+        "dependencies": {
+          "NETStandard.Library": "1.6.1"
+        }
+      },
+      "SharpDX.Direct3D11": {
+        "type": "Transitive",
+        "resolved": "4.2.0",
+        "contentHash": "oTm/iT5X/IIuJ8kNYP+DTC/MhBhqtRF5dbgPPFgLBdQv0BKzNTzXQQXd7SveBFjQg6hXEAJ2jGCAzNYvGFc9LA==",
+        "dependencies": {
+          "NETStandard.Library": "1.6.1",
+          "SharpDX": "4.2.0",
+          "SharpDX.DXGI": "4.2.0"
+        }
+      },
+      "SharpDX.DXGI": {
+        "type": "Transitive",
+        "resolved": "4.2.0",
+        "contentHash": "UjKqkgWc8U+SP+j3LBzFP6OB6Ntapjih7Xo+g1rLcsGbIb5KwewBrBChaUu7sil8rWoeVU/k0EJd3SMN4VqNZw==",
+        "dependencies": {
+          "NETStandard.Library": "1.6.1",
+          "SharpDX": "4.2.0"
+        }
       },
       "xunit.abstractions": {
         "type": "Transitive",
@@ -102,8 +155,10 @@
       "scpcv.audioworker": {
         "type": "Project",
         "dependencies": {
+          "LibVLCSharp": "[3.9.4, )",
           "ScpCv.Contracts": "[1.0.0, )",
-          "ScpCv.Domain": "[1.0.0, )"
+          "ScpCv.Domain": "[1.0.0, )",
+          "VideoLAN.LibVLC.Windows": "[3.0.23, )"
         }
       },
       "scpcv.contracts": {
@@ -115,13 +170,17 @@
       "scpcv.playerworker": {
         "type": "Project",
         "dependencies": {
+          "LibVLCSharp.WPF": "[3.9.4, )",
+          "Microsoft.Web.WebView2": "[1.0.3537.50, )",
           "ScpCv.Contracts": "[1.0.0, )",
-          "ScpCv.Domain": "[1.0.0, )"
+          "ScpCv.Domain": "[1.0.0, )",
+          "VideoLAN.LibVLC.Windows": "[3.0.23, )"
         }
       },
       "scpcv.powerpointhost": {
         "type": "Project",
         "dependencies": {
+          "Microsoft.Office.Interop.PowerPoint": "[15.0.4420.1018, )",
           "ScpCv.Contracts": "[1.0.0, )",
           "ScpCv.Domain": "[1.0.0, )"
         }
@@ -131,6 +190,59 @@
         "dependencies": {
           "ScpCv.Contracts": "[1.0.0, )"
         }
+      },
+      "LibVLCSharp": {
+        "type": "CentralTransitive",
+        "requested": "[3.9.4, )",
+        "resolved": "3.9.4",
+        "contentHash": "SmapcnMarT7eoiZeSIq0UhTrK/fdw+NDodfMft/S4Bnqlnz98zYtaAsQ3fO9U+O2KZKrOOf0R3jONUEShpjK4g==",
+        "dependencies": {
+          "Microsoft.WindowsAppSDK": "1.5.240627000",
+          "SharpDX.Direct3D11": "4.2.0"
+        }
+      },
+      "LibVLCSharp.WPF": {
+        "type": "CentralTransitive",
+        "requested": "[3.9.4, )",
+        "resolved": "3.9.4",
+        "contentHash": "mU575rJM02MtTXqZG1sYiJF5DpPO6HRFKIYGFK0R9m0BRQKNvbYgIk6FkJPt6OC1Y04WAz+JykYz/MBBJfdpSw==",
+        "dependencies": {
+          "LibVLCSharp": "3.9.4"
+        }
+      },
+      "Microsoft.Office.Interop.PowerPoint": {
+        "type": "CentralTransitive",
+        "requested": "[15.0.4420.1018, )",
+        "resolved": "15.0.4420.1018",
+        "contentHash": "3XkJAqbYq93MqqSOPusNE+6Tve5yBkbE92n9W8f+k8Z9AzXeoTMqMYqhZMrzVOp4saHhMMbOD78JkCjvk+qIzw=="
+      },
+      "Microsoft.Web.WebView2": {
+        "type": "CentralTransitive",
+        "requested": "[1.0.3537.50, )",
+        "resolved": "1.0.3537.50",
+        "contentHash": "6RQRMIcc/xnhDCdBmyc+YoPxPlYHjmg/mfVpQb4iYWr+K/cs28dTxCyOYFZjUFtiwupXN9nCqxOSMumn2ZKAIg=="
+      },
+      "VideoLAN.LibVLC.Windows": {
+        "type": "CentralTransitive",
+        "requested": "[3.0.23, )",
+        "resolved": "3.0.23",
+        "contentHash": "O/Elo/AxXutSJ/3Z0lIuXEm9tr1iVmUYcws4WB1X9zHgGcAHBBFk29u9B7GX8mxLLMx9e1A6n3h6C0WyTk3KeQ=="
+      }
+    },
+    "net10.0-windows10.0.19041/win-x64": {
+      "Microsoft.WindowsAppSDK": {
+        "type": "Transitive",
+        "resolved": "1.5.240627000",
+        "contentHash": "qzzWG8rxZyzKzBuUdwr4ApezMINf+NT2b8EiEE5fchczNJJmDwlHImMWxX1pHK1W8Yby99alqLyC8DB0fIrhuA==",
+        "dependencies": {
+          "Microsoft.Windows.SDK.BuildTools": "10.0.22621.756"
+        }
+      },
+      "Microsoft.Web.WebView2": {
+        "type": "CentralTransitive",
+        "requested": "[1.0.3537.50, )",
+        "resolved": "1.0.3537.50",
+        "contentHash": "6RQRMIcc/xnhDCdBmyc+YoPxPlYHjmg/mfVpQb4iYWr+K/cs28dTxCyOYFZjUFtiwupXN9nCqxOSMumn2ZKAIg=="
       }
     }
   }

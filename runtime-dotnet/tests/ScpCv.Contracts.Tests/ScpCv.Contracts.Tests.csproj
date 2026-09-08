@@ -10,6 +10,7 @@
   <ItemGroup>
     <PackageReference Include="coverlet.collector" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
   </ItemGroup>
@@ -17,6 +18,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\ScpCv.Contracts\ScpCv.Contracts.csproj" />
     <ProjectReference Include="..\..\src\ScpCv.Domain\ScpCv.Domain.csproj" />
+    <ProjectReference Include="..\..\src\ScpCv.ControlHost\ScpCv.ControlHost.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -29,6 +31,12 @@
           CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\..\specs\003-dotnet-runtime-refactor\contracts\runtime-ipc.md"
           Link="Contracts\runtime-ipc.md"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\..\docs\openapi.yaml"
+          Link="OpenApi\openapi.yaml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\..\docs\paths\*.yaml"
+          Link="OpenApi\paths\%(Filename)%(Extension)"
           CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
