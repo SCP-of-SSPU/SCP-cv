@@ -76,8 +76,8 @@
 
 - [X] T028 [P] [US1] 先编写认证、CSRF、改密、权限和登出合同测试到 `runtime-dotnet/tests/ScpCv.ControlHost.Tests/AuthEndpointTests.cs`
 - [X] T029 [P] [US1] 先编写媒体、会话、场景、设备和音频旧 HTTP 外观合同测试到 `runtime-dotnet/tests/ScpCv.ControlHost.Tests/LegacyHttpContractTests.cs`
-- [ ] T030 [P] [US1] 先编写切主机 generation、迟到响应、SSE 重连和无离线重放前端测试到 `frontend/scripts/client-connection.test.mjs`
-- [ ] T031 [P] [US1] 先编写 history/hash 路由、返回键和文件传输平台适配测试到 `frontend/scripts/platform-adapters.test.mjs`
+- [X] T030 [P] [US1] 先编写切主机 generation、迟到响应、SSE 重连和无离线重放前端测试到 `frontend/scripts/client-connection.test.mjs`
+- [X] T031 [P] [US1] 先编写 history/hash 路由、返回键和文件传输平台适配测试到 `frontend/scripts/platform-adapters.test.mjs`
 
 ### Implementation for User Story 1
 
