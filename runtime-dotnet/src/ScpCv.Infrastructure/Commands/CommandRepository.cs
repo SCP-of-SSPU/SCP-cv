@@ -4,8 +4,11 @@ using ScpCv.Infrastructure.Persistence;
 
 namespace ScpCv.Infrastructure.Commands;
 
-public sealed class CommandRepository(WriteCoordinator writes)
+public sealed class CommandRepository(
+    WriteCoordinator writes,
+    TimeProvider? timeProvider = null)
 {
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
     private static readonly HashSet<string> DisplayReplacementCommands =
         new(StringComparer.Ordinal) { "OPEN", "CLOSE", "RESET_PPT" };
 
@@ -44,7 +47,7 @@ public sealed class CommandRepository(WriteCoordinator writes)
                 foreach (var command in superseded)
                 {
                     command.Status = CommandStatus.Superseded;
-                    command.CompletedAt = DateTimeOffset.UtcNow;
+                    command.CompletedAt = _timeProvider.GetUtcNow();
                     command.ResultCode = "superseded_by_newer_intent";
                 }
 
@@ -65,7 +68,7 @@ public sealed class CommandRepository(WriteCoordinator writes)
                     SourceGeneration = request.SourceGeneration,
                     SourceRevision = request.SourceRevision,
                     Deadline = request.Deadline,
-                    CreatedAt = DateTimeOffset.UtcNow,
+                    CreatedAt = _timeProvider.GetUtcNow(),
                 };
                 context.CommandRecords.Add(record);
                 return record;
@@ -115,7 +118,7 @@ public sealed class CommandRepository(WriteCoordinator writes)
                     return null;
                 }
 
-                var now = DateTimeOffset.UtcNow;
+                var now = _timeProvider.GetUtcNow();
                 command.Status = CommandStatus.Processing;
                 command.ConsumerInstanceId = request.WorkerInstanceId;
                 command.OwnerEpoch = request.OwnerEpoch;
@@ -152,7 +155,7 @@ public sealed class CommandRepository(WriteCoordinator writes)
                     return false;
                 }
 
-                command.LeaseExpiresAt = DateTimeOffset.UtcNow.Add(leaseDuration);
+                command.LeaseExpiresAt = _timeProvider.GetUtcNow().Add(leaseDuration);
                 return true;
             },
             cancellationToken);
@@ -202,7 +205,7 @@ public sealed class CommandRepository(WriteCoordinator writes)
                 command.ResultCode = result.ResultCode;
                 command.ResultHash = result.ResultHash;
                 command.ResultEvidenceJson = result.ResultEvidenceJson;
-                command.CompletedAt = DateTimeOffset.UtcNow;
+                command.CompletedAt = _timeProvider.GetUtcNow();
                 command.LeaseExpiresAt = null;
                 return new CommandResultAcceptance(Accepted: true, Duplicate: false);
             },

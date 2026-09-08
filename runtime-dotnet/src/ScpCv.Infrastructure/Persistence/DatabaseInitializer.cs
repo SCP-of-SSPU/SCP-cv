@@ -4,8 +4,12 @@ using ScpCv.Domain.Model;
 
 namespace ScpCv.Infrastructure.Persistence;
 
-public sealed class DatabaseInitializer(ControlDbContextFactory contextFactory)
+public sealed class DatabaseInitializer(
+    ControlDbContextFactory contextFactory,
+    TimeProvider? timeProvider = null)
 {
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
+
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         Directory.CreateDirectory(contextFactory.Layout.RootPath);
@@ -72,7 +76,7 @@ public sealed class DatabaseInitializer(ControlDbContextFactory contextFactory)
                 cancellationToken)
             .ConfigureAwait(false);
 
-        var now = DateTimeOffset.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         if (!await context.RuntimeStates.AnyAsync(cancellationToken).ConfigureAwait(false))
         {
             context.RuntimeStates.Add(new RuntimeState { UpdatedAt = now });

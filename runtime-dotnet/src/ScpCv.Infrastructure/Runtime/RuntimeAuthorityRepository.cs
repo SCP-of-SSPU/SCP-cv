@@ -6,8 +6,10 @@ namespace ScpCv.Infrastructure.Runtime;
 
 public sealed class RuntimeAuthorityRepository(
     IDbContextFactory<ControlDbContext> contextFactory,
-    WriteCoordinator writes)
+    WriteCoordinator writes,
+    TimeProvider? timeProvider = null)
 {
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
     public async Task<RuntimeGroupControl> GetGroupAsync(CancellationToken cancellationToken = default)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
@@ -131,7 +133,7 @@ public sealed class RuntimeAuthorityRepository(
                         throw new RuntimeAuthorityException("相同 Worker instance_id 的进程身份不一致。");
                     }
 
-                    ownership.LastTransportHeartbeat = DateTimeOffset.UtcNow;
+                    ownership.LastTransportHeartbeat = _timeProvider.GetUtcNow();
                     ownership.CapabilitiesJson = request.CapabilitiesJson;
                     ownership.Status = WorkerOwnershipState.Online;
                     return ownership;
@@ -158,7 +160,7 @@ public sealed class RuntimeAuthorityRepository(
                 ownership.ProcessStartTime = request.ProcessStartTime;
                 ownership.LogonSessionId = request.LogonSessionId;
                 ownership.OwnerEpoch = nextOwnerEpoch;
-                ownership.LastTransportHeartbeat = DateTimeOffset.UtcNow;
+                ownership.LastTransportHeartbeat = _timeProvider.GetUtcNow();
                 ownership.LastUiProgress = null;
                 ownership.CapabilitiesJson = request.CapabilitiesJson;
                 ownership.Status = WorkerOwnershipState.Online;
@@ -188,7 +190,7 @@ public sealed class RuntimeAuthorityRepository(
                     return false;
                 }
 
-                var now = DateTimeOffset.UtcNow;
+                var now = _timeProvider.GetUtcNow();
                 ownership.LastTransportHeartbeat = now;
                 if (uiProgress)
                 {

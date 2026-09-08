@@ -23,6 +23,7 @@ var controlDbFactory = new ControlDbContextFactory(dataRootOptions, builder.Envi
 
 builder.Services.AddSingleton(dataRootOptions);
 builder.Services.AddSingleton(safetyMode);
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(controlDbFactory);
 builder.Services.AddSingleton<IDbContextFactory<ControlDbContext>>(controlDbFactory);
 builder.Services.AddSingleton<DatabaseInitializer>();
