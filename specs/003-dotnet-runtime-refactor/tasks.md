@@ -113,15 +113,15 @@
 
 ### Tests for User Story 2
 
-- [ ] T051 [P] [US2] 先编写显示 OPEN/CLOSE/RESET 与音频 OPEN 的合并/取代差异测试到 `runtime-dotnet/tests/ScpCv.Domain.Tests/CommandPolicyTests.cs`
+- [X] T051 [P] [US2] 先编写显示 OPEN/CLOSE/RESET 与音频 OPEN 的合并/取代差异测试到 `runtime-dotnet/tests/ScpCv.Domain.Tests/CommandPolicyTests.cs`
 - [ ] T052 [P] [US2] 先编写 claim token、owner/group epoch、租约和迟到 generation 拒绝测试到 `runtime-dotnet/tests/ScpCv.Integration.Tests/CommandFencingTests.cs`
 - [ ] T053 [P] [US2] 先编写执行前崩溃、ACK 丢失、重复结果与 uncertain 非幂等动作测试到 `runtime-dotnet/tests/ScpCv.Integration.Tests/CommandRecoveryTests.cs`
 
 ### Implementation for User Story 2
 
 - [ ] T054 [US2] 实现事务内入队、目标序列、兼容 pending 投影和提交后 Wake 到 `runtime-dotnet/src/ScpCv.Infrastructure/Commands/CommandCoordinator.cs`
-- [ ] T055 [P] [US2] 实现显示命令验证、合并和 pending-only 取代策略到 `runtime-dotnet/src/ScpCv.Domain/Commands/DisplayCommandPolicy.cs`
-- [ ] T056 [P] [US2] 实现背景音频有序合并且 OPEN 不清队列的策略到 `runtime-dotnet/src/ScpCv.Domain/Commands/AudioCommandPolicy.cs`
+- [X] T055 [P] [US2] 实现显示命令验证、合并和 pending-only 取代策略到 `runtime-dotnet/src/ScpCv.Domain/Commands/DisplayCommandPolicy.cs`
+- [X] T056 [P] [US2] 实现背景音频有序合并且 OPEN 不清队列的策略到 `runtime-dotnet/src/ScpCv.Domain/Commands/AudioCommandPolicy.cs`
 - [ ] T057 [US2] 实现 armed 闸门、最早命令领取、租约续期和安全重新领取到 `runtime-dotnet/src/ScpCv.Infrastructure/Commands/CommandLeaseService.cs`
 - [ ] T058 [US2] 实现幂等结果确认、结果指纹、实际/意图区分和 uncertain 处置到 `runtime-dotnet/src/ScpCv.Infrastructure/Commands/CommandResultService.cs`
 - [ ] T059 [US2] 接线 Claim、Renew、Result、StateReport 与 Wake IPC 到 `runtime-dotnet/src/ScpCv.ControlHost/Ipc/RuntimeMessageDispatcher.cs`
