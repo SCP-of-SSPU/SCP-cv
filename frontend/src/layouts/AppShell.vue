@@ -82,10 +82,14 @@ onBeforeUnmount(() => {
 <template>
   <a class="skip-link" href="#main-content">{{ t('app.skipToMain') }}</a>
 
-  <div class="app-shell" :data-size="sizeClass" :data-nav="navVariant">
+  <div
+    class="app-shell flex min-h-[var(--app-height,100dvh)] flex-1 flex-col bg-surface"
+    :data-size="sizeClass"
+    :data-nav="navVariant"
+  >
     <AppTopBar :scrolled="scrolled" />
 
-    <div class="app-shell__body">
+    <div class="app-shell__body flex min-h-0 flex-1">
       <AppNavigation
         v-if="!isCompact"
         v-model:more-open="moreOpen"
@@ -96,7 +100,13 @@ onBeforeUnmount(() => {
         @bottom-click="onBottomClick"
       />
 
-      <main id="main-content" ref="mainRef" class="app-shell__content" tabindex="-1">
+      <main
+        id="main-content"
+        ref="mainRef"
+        class="app-shell__content min-w-0 flex-1 overflow-x-hidden overflow-y-auto py-8 pb-12 scroll-smooth"
+        :class="navVariant === 'bottom' ? 'px-4' : 'px-8'"
+        tabindex="-1"
+      >
         <RouterView />
       </main>
     </div>

@@ -57,16 +57,20 @@ const playerLabel = computed(() => (sessions.hasOnlinePlayer
 </script>
 
 <template>
-  <header class="app-shell__bar" :class="{ 'app-shell__bar--scrolled': scrolled }" role="banner">
-    <div class="app-shell__brand">
-      <span class="app-shell__brand-mark" aria-hidden="true">S</span>
-      <div class="app-shell__brand-meta">
-        <p class="app-shell__brand-eyebrow">{{ t('app.brandEyebrow') }}</p>
-        <h1 class="app-shell__brand-title">{{ t('app.brandTitle') }}</h1>
+  <header
+    class="app-shell__bar sticky top-0 z-[var(--z-sticky)] flex min-h-14 items-center justify-between gap-1 bg-surface px-3 py-2 text-foreground transition-[background,box-shadow] sm:gap-4 sm:px-4"
+    :class="{ 'app-shell__bar--scrolled': scrolled }"
+    role="banner"
+  >
+    <div class="app-shell__brand inline-flex min-w-0 shrink-0 items-center gap-2">
+      <span class="app-shell__brand-mark grid size-7 place-items-center rounded-md bg-brand font-semibold text-white sm:size-8" aria-hidden="true">S</span>
+      <div class="app-shell__brand-meta hidden min-w-0 flex-col leading-none sm:flex">
+        <p class="app-shell__brand-eyebrow m-0 text-xs tracking-[0.08em] text-foreground-muted uppercase">{{ t('app.brandEyebrow') }}</p>
+        <h1 class="app-shell__brand-title m-0 text-base font-semibold text-foreground">{{ t('app.brandTitle') }}</h1>
       </div>
     </div>
 
-    <div class="app-shell__bar-meta">
+    <div class="app-shell__bar-meta inline-flex min-w-0 items-center gap-1 sm:gap-2">
       <n-tag :type="runtime.isDoubleScreen ? 'info' : 'default'" round size="small">
         {{ runtime.bigScreenLabel }}
       </n-tag>
@@ -76,9 +80,12 @@ const playerLabel = computed(() => (sessions.hasOnlinePlayer
       <n-tag :type="playerType" round size="small">
         {{ playerLabel }}
       </n-tag>
-      <span v-if="runtime.systemVolume.muted" class="app-shell__mute">
-        <span class="app-shell__mute-full">{{ t('app.systemMuted') }}</span>
-        <span class="app-shell__mute-compact">{{ t('app.systemMutedCompact') }}</span>
+      <span
+        v-if="runtime.systemVolume.muted"
+        class="app-shell__mute inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-[var(--colorStatusWarningBackground1)] px-2 py-0.5 text-xs font-semibold text-warning"
+      >
+        <span class="app-shell__mute-full hidden sm:inline">{{ t('app.systemMuted') }}</span>
+        <span class="app-shell__mute-compact sm:hidden">{{ t('app.systemMutedCompact') }}</span>
       </span>
       <ThemeToggle />
       <EmergencyMenu />

@@ -39,7 +39,7 @@ test('所有 Naive UI 模板组件必须显式注册', () => {
 test('移动底栏在路由动作之前阻止原生导航，更多只打开抽屉', () => {
   const filename = join(sourceRoot, 'layouts/AppNavigation.vue');
   const { descriptor } = parse(readFileSync(filename, 'utf8'), { filename });
-  const bottom = descriptor.template.content.match(/<nav v-if="compact"[\s\S]*?<\/nav>/)?.[0];
+  const bottom = descriptor.template.content.match(/<nav\s+v-if="compact"[\s\S]*?<\/nav>/)?.[0];
   assert.ok(bottom, '必须存在移动底栏');
   assert.doesNotMatch(bottom, /<RouterLink\b/, '自动导航的 RouterLink 会先访问不存在的 /more');
   assert.match(bottom, /@click\.prevent=/, '导航必须由底栏 handler 显式负责');
@@ -62,9 +62,23 @@ test('空闲窗口只展示一次操作提示', () => {
 test('媒体列表溢出时可横向滚动，导航不会被表格挤窄', () => {
   const sources = readFileSync(join(sourceRoot, 'features/sources/SourcesView.vue'), 'utf8');
   assert.match(sources, /content-style="padding:0; overflow-x:auto"/);
-  const shell = readFileSync(join(sourceRoot, 'layouts/AppShell.css'), 'utf8');
-  const navigation = shell.match(/\.app-shell__nav\s*\{([^}]+)\}/)?.[1];
-  assert.match(navigation, /flex-shrink:\s*0/);
+  const navigation = readFileSync(join(sourceRoot, 'layouts/AppNavigation.vue'), 'utf8');
+  assert.match(navigation, /app-shell__nav[^"\n]*[\s\S]*?shrink-0/);
+});
+
+test('共享壳层使用 Tailwind utilities 表达响应式几何并保留 Fluent 状态层', () => {
+  const shell = readFileSync(join(sourceRoot, 'layouts/AppShell.vue'), 'utf8');
+  const navigation = readFileSync(join(sourceRoot, 'layouts/AppNavigation.vue'), 'utf8');
+  const topBar = readFileSync(join(sourceRoot, 'layouts/AppTopBar.vue'), 'utf8');
+  const stateCss = readFileSync(join(sourceRoot, 'layouts/AppShell.css'), 'utf8');
+
+  assert.match(shell, /flex min-h-\[var\(--app-height,100dvh\)\] flex-1 flex-col/);
+  assert.match(shell, /navVariant === 'bottom' \? 'px-4' : 'px-8'/);
+  assert.match(navigation, /grid grid-cols-5/);
+  assert.match(navigation, /pb-\[calc\(0\.5rem\+env\(safe-area-inset-bottom,0px\)\)\]/);
+  assert.match(topBar, /hidden min-w-0 flex-col leading-none sm:flex/);
+  assert.match(stateCss, /colorNeutralBackground3/);
+  assert.doesNotMatch(stateCss, /\.app-shell\s*\{[\s\S]*?display:\s*flex/);
 });
 
 test('窗口音量与静音只对后端声明支持的源类型开放', async () => {
