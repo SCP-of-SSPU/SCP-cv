@@ -1,4 +1,9 @@
 import { t } from '@/locales';
+import {
+  clientConnection,
+  StaleConnectionResponseError,
+  type ServerProfile,
+} from '@/platform/connection';
 
 export interface MediaFolderItem {
   id: number;
@@ -256,12 +261,25 @@ const RUNTIME_MODE_TIMEOUT_MS = 120000;
 export const PHYSICAL_SMOKE_TOTAL_TIMEOUT_SECONDS = 9 * 60;
 const PHYSICAL_SMOKE_TIMEOUT_MS = (PHYSICAL_SMOKE_TOTAL_TIMEOUT_SECONDS + 60) * 1000;
 const DEFAULT_BACKEND_PORT = '8000';
+let csrfRequestToken = '';
+
+export function configureApiServer(profile: ServerProfile | null): void {
+  csrfRequestToken = '';
+  if (profile) clientConnection.restoreProfile(profile);
+}
+
+export function clearApiSessionState(): void {
+  csrfRequestToken = '';
+}
 
 function resolveBackendBase(): string {
   // dev 模式下统一走 Vite 反向代理：相对路径 → 前端 origin → vite proxy → Django。
   // 这样请求与页面同 origin，浏览器不再发起跨 origin 预检，SameSite=Lax 的
   // csrftoken cookie 也能正常携带，避免登录失败。
   if (import.meta.env.DEV) return '';
+
+  const runtimeProfile = clientConnection.profile;
+  if (runtimeProfile) return runtimeProfile.origin;
 
   const configuredTarget = String(import.meta.env.VITE_BACKEND_TARGET || '').trim();
   if (configuredTarget) {
@@ -365,11 +383,12 @@ async function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs =
 }
 
 async function requestJson<T>(url: string, init: RequestInit = {}, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> {
+  const requestGeneration = clientConnection.captureGeneration();
   const absoluteUrl = buildBackendUrl(url);
   const method = (init.method || 'GET').toUpperCase();
   const csrfHeader: Record<string, string> = {};
   if (UNSAFE_METHODS.has(method)) {
-    const token = readCookie('csrftoken');
+    const token = csrfRequestToken || readCookie('csrftoken');
     if (token) csrfHeader['X-CSRFToken'] = token;
   }
   const response = await fetchWithTimeout(absoluteUrl, {
@@ -384,6 +403,9 @@ async function requestJson<T>(url: string, init: RequestInit = {}, timeoutMs = R
     },
   }, timeoutMs);
   const responseText = await response.text();
+  if (requestGeneration !== clientConnection.captureGeneration()) {
+    throw new StaleConnectionResponseError();
+  }
   const payload = parseJsonText<T>(responseText, response.status, response.headers.get('Content-Type') || '');
   if (response.status === 401) {
     unauthorizedHandler?.();
@@ -450,7 +472,11 @@ export interface AuthUser {
 
 export const api = {
   // 鉴权：首次进入应用先触发 csrf cookie 下发；后续 login/logout/me 走同一会话。
-  fetchCsrfToken: () => requestJson<{ csrfToken: string }>('/api/auth/csrf/'),
+  fetchCsrfToken: async () => {
+    const payload = await requestJson<{ csrfToken: string }>('/api/auth/csrf/');
+    csrfRequestToken = payload.csrfToken;
+    return payload;
+  },
   login: (payload: { username: string; password: string }) =>
     requestJson<{ user: AuthUser }>('/api/auth/login/', { method: 'POST', body: JSON.stringify(payload) }),
   logout: () => requestJson<{ detail: string }>('/api/auth/logout/', { method: 'POST' }),

@@ -3,6 +3,8 @@ import { createWebHashHistory, createWebHistory, type RouterHistory } from 'vue-
 export type ClientBuildTarget = 'web' | 'app';
 export type ClientPlatform = 'web' | 'electron' | 'android';
 export type ClientLifecycleState = 'active' | 'inactive';
+export type ClientHistoryKind = 'history' | 'hash';
+export type BackAction = 'dismiss-layer' | 'router-back' | 'exit-client';
 
 export interface PlatformFile {
   readonly name: string;
@@ -35,9 +37,21 @@ export function getClientBuildTarget(mode = import.meta.env.MODE): ClientBuildTa
   return mode === 'app' ? 'app' : 'web';
 }
 
+export function getClientHistoryKind(target: ClientBuildTarget): ClientHistoryKind {
+  return target === 'app' ? 'hash' : 'history';
+}
+
+export function resolveBackAction(input: {
+  readonly hasDismissibleLayer: boolean;
+  readonly canGoBack: boolean;
+}): BackAction {
+  if (input.hasDismissibleLayer) return 'dismiss-layer';
+  return input.canGoBack ? 'router-back' : 'exit-client';
+}
+
 /** Web 使用 history 与服务器 fallback；本地 Electron/Capacitor 资源使用 hash。 */
 export function createClientHistory(
   target: ClientBuildTarget = getClientBuildTarget(),
 ): RouterHistory {
-  return target === 'app' ? createWebHashHistory() : createWebHistory();
+  return getClientHistoryKind(target) === 'hash' ? createWebHashHistory() : createWebHistory();
 }

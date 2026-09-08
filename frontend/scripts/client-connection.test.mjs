@@ -4,7 +4,25 @@ import test from 'node:test';
 import {
   ClientConnectionCoordinator,
   OfflineCommandError,
+  loadStoredServerProfile,
+  normalizeServerProfile,
 } from '../src/platform/connection.ts';
+
+test('服务器配置只接受 HTTPS origin 或显式本机 HTTP 开发地址', () => {
+  assert.equal(normalizeServerProfile({ origin: 'https://host.test/', displayName: '' }).origin, 'https://host.test');
+  assert.equal(
+    normalizeServerProfile({
+      origin: 'http://127.0.0.1:18000',
+      displayName: '本机',
+      allowInsecureDevelopment: true,
+    }).origin,
+    'http://127.0.0.1:18000',
+  );
+  assert.throws(() => normalizeServerProfile({ origin: 'http://host.test', displayName: '不安全' }));
+  assert.throws(() => normalizeServerProfile({ origin: 'https://user:pass@host.test', displayName: '凭据' }));
+  assert.throws(() => normalizeServerProfile({ origin: 'https://host.test/api', displayName: '路径' }));
+  assert.equal(loadStoredServerProfile({ getItem: () => '{invalid' }), null);
+});
 
 test('切换播放主机递增 generation 并清理旧 SSE、会话和业务状态', async () => {
   const calls = [];

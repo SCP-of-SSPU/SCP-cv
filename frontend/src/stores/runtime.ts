@@ -6,10 +6,28 @@
  */
 import { defineStore } from 'pinia';
 
-import { api, type BackgroundAudioSnapshot, type RuntimeSnapshot, type SessionSnapshot, buildBackendUrl } from '@/services/api';
+import {
+  api,
+  buildBackendUrl,
+  clearApiSessionState,
+  type BackgroundAudioSnapshot,
+  type RuntimeSnapshot,
+  type SessionSnapshot,
+} from '@/services/api';
+import {
+  clientConnection,
+  loadStoredServerProfile,
+  saveServerProfile,
+  type ServerProfile,
+} from '@/platform/connection';
 import { t } from '@/locales';
 import { useBackgroundAudioStore } from './backgroundAudio';
+import { useAuthStore } from './auth';
+import { useDeviceStore } from './devices';
+import { useDisplayStore } from './displays';
+import { useScenarioStore } from './scenarios';
 import { useSessionStore } from './sessions';
+import { useSourceStore } from './sources';
 
 interface SystemVolumeState {
   level: number;
@@ -30,9 +48,13 @@ interface RuntimeState {
   /** 内部 EventSource 引用，避免重复建连。 */
   _eventSource: EventSource | null;
   _reconnectTimer: number | null;
+  connectionGeneration: number;
+  serverProfile: ServerProfile | null;
 }
 
 const SSE_RECONNECT_INTERVAL_MS = 2000;
+const restoredServerProfile = typeof window === 'undefined' ? null : loadStoredServerProfile();
+if (restoredServerProfile) clientConnection.restoreProfile(restoredServerProfile);
 
 export const useRuntimeStore = defineStore('runtime', {
   state: (): RuntimeState => ({
@@ -47,6 +69,8 @@ export const useRuntimeStore = defineStore('runtime', {
     sseLastUpdate: 0,
     _eventSource: null,
     _reconnectTimer: null,
+    connectionGeneration: clientConnection.captureGeneration(),
+    serverProfile: clientConnection.profile,
   }),
   getters: {
     /** 当前是否处于双屏模式；仪表盘、Nav、预案预览均会用到。 */
@@ -87,6 +111,33 @@ export const useRuntimeStore = defineStore('runtime', {
       const payload = await api.setSystemVolume(level, muted);
       this.applyVolume(payload.volume);
     },
+    async switchServer(profile: ServerProfile): Promise<void> {
+      this.disconnectEvents();
+      try {
+        await api.logout();
+      } catch {
+        // 旧主机离线时只能清本端状态，不能声称服务端 session 已撤销。
+      }
+      this.connectionGeneration = await clientConnection.switchServer(profile, {
+        closeEvents: () => this.disconnectEvents(),
+        clearSession: async () => clearApiSessionState(),
+        clearStores: () => {
+          useAuthStore().clearLocal();
+          useSessionStore().$reset();
+          useBackgroundAudioStore().$reset();
+          useSourceStore().$reset();
+          useScenarioStore().$reset();
+          useDeviceStore().$reset();
+          useDisplayStore().$reset();
+          this.runtime = null;
+          this.sseLastUpdate = 0;
+        },
+        saveProfile: async (nextProfile) => {
+          saveServerProfile(nextProfile);
+        },
+      });
+      this.serverProfile = clientConnection.profile;
+    },
     /**
      * 建立 SSE 长连接：监听 `playback_state` 事件，刷新会话快照。
      * 自动重连：连接关闭后 2 s 重试一次，期间 sseStatus = 'reconnecting'。
@@ -94,6 +145,8 @@ export const useRuntimeStore = defineStore('runtime', {
     connectEvents(): void {
       this.disconnectEvents();
       this.sseStatus = 'connecting';
+      clientConnection.markConnecting();
+      const connectionGeneration = clientConnection.captureGeneration();
       // dev 下经 Vite proxy 到 Django，prod 下直连 VITE_BACKEND_TARGET；
       // 后者属于跨 origin，必须 withCredentials 才能带 Django session cookie，
       // 否则被 ApiAuthMiddleware 直接 401 关闭流。
@@ -103,12 +156,22 @@ export const useRuntimeStore = defineStore('runtime', {
       this._eventSource = source;
 
       source.onopen = (): void => {
+        if (connectionGeneration !== clientConnection.captureGeneration()) {
+          source.close();
+          return;
+        }
         this.sseStatus = 'connected';
+        clientConnection.markConnected();
         this.sseLastUpdate = Date.now();
       };
 
       source.onerror = (): void => {
+        if (connectionGeneration !== clientConnection.captureGeneration()) {
+          source.close();
+          return;
+        }
         this.sseStatus = 'reconnecting';
+        clientConnection.markReconnecting();
         // 服务器异常时按 fallback 抓一次 sessions，避免页面状态长时间漂移。
         void useSessionStore().refresh().catch(() => undefined);
         void useBackgroundAudioStore().refresh().catch(() => undefined);
@@ -121,6 +184,7 @@ export const useRuntimeStore = defineStore('runtime', {
       };
 
       source.addEventListener('playback_state', (event: MessageEvent): void => {
+        if (connectionGeneration !== clientConnection.captureGeneration()) return;
         try {
           const payload = JSON.parse(event.data) as {
             sessions?: SessionSnapshot[];
@@ -149,6 +213,7 @@ export const useRuntimeStore = defineStore('runtime', {
         this._reconnectTimer = null;
       }
       this.sseStatus = 'closed';
+      clientConnection.markDisconnected();
     },
   },
 });
