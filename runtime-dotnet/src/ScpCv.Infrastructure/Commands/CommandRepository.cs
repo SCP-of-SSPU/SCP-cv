@@ -18,6 +18,16 @@ public sealed class CommandRepository(
     public Task<CommandRecord> EnqueueAsync(
         EnqueueCommand request,
         CancellationToken cancellationToken = default)
+        => EnqueueAsync(request, projection: null, cancellationToken);
+
+    /// <summary>
+    /// 在同一短事务中写入 durable command 与兼容 pending 投影。
+    /// 投影只允许修改当前事务中的实体，提交完成前不会触发 Wake。
+    /// </summary>
+    public Task<CommandRecord> EnqueueAsync(
+        EnqueueCommand request,
+        Func<ControlDbContext, CommandRecord, CancellationToken, Task>? projection,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         ValidateTarget(request.TargetKind, request.TargetId);
@@ -71,6 +81,11 @@ public sealed class CommandRepository(
                     CreatedAt = _timeProvider.GetUtcNow(),
                 };
                 context.CommandRecords.Add(record);
+                if (projection is not null)
+                {
+                    await projection(context, record, token).ConfigureAwait(false);
+                }
+
                 return record;
             },
             cancellationToken);

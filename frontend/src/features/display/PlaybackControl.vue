@@ -211,6 +211,7 @@ const pptProgressPercentage = computed(() => {
 });
 
 const isPlaying = computed(() => props.session.playback_state === 'playing');
+const controlsDisabled = computed(() => !props.session.player_online);
 
 async function reopenCurrentSource(): Promise<void> {
   if (!props.session.source_id) return;
@@ -293,7 +294,7 @@ const errorBarDescription = computed(() => {
     <n-alert v-if="showErrorBar" type="error" :title="errorBarTitle" closable @close="dismissErrorBar">
       <div class="playback-control__alert-body">
         <span>{{ errorBarDescription }}</span>
-        <n-button size="small" :disabled="!session.source_id" @click="reopenCurrentSource">
+        <n-button size="small" :disabled="!session.source_id || controlsDisabled" @click="reopenCurrentSource">
           {{ t('playback.reopen') }}
         </n-button>
       </div>
@@ -301,17 +302,17 @@ const errorBarDescription = computed(() => {
 
     <section v-if="category === 'ppt'" class="playback-control__section">
       <div class="playback-control__row playback-control__row--ppt">
-        <n-button @click="onPrev">
+        <n-button :disabled="controlsDisabled" @click="onPrev">
           <template #icon><FIcon name="previous_24_regular" /></template>
           {{ t('playback.prevPage') }}
         </n-button>
-        <n-button type="primary" @click="onNext">
+        <n-button type="primary" :disabled="controlsDisabled" @click="onNext">
           <template #icon><FIcon name="next_24_regular" /></template>
           {{ t('playback.nextPage') }}
         </n-button>
         <div class="playback-control__jump">
           <n-input v-model:value="jumpInput" type="text" :placeholder="t('playback.jumpPlaceholder')" :maxlength="4" />
-          <n-button @click="onJump">{{ t('playback.jump') }}</n-button>
+          <n-button :disabled="controlsDisabled" @click="onJump">{{ t('playback.jump') }}</n-button>
         </div>
       </div>
       <div v-if="session.total_slides > 0" class="playback-control__row playback-control__row--progress">
@@ -334,15 +335,15 @@ const errorBarDescription = computed(() => {
           <li v-for="media in currentResource.media_items" :key="media.id" class="playback-control__media-item">
             <span class="playback-control__media-name">{{ media.name }}</span>
             <span class="playback-control__media-actions">
-              <n-button size="small" circle :aria-label="t('playback.playMedia')"
+              <n-button size="small" circle :disabled="controlsDisabled" :aria-label="t('playback.playMedia')"
                 @click="pptMediaAction(media.id, media.media_index, 'play')">
                 <template #icon><FIcon name="play_24_regular" /></template>
               </n-button>
-              <n-button size="small" circle :aria-label="t('playback.pauseMedia')"
+              <n-button size="small" circle :disabled="controlsDisabled" :aria-label="t('playback.pauseMedia')"
                 @click="pptMediaAction(media.id, media.media_index, 'pause')">
                 <template #icon><FIcon name="pause_24_regular" /></template>
               </n-button>
-              <n-button size="small" circle type="error" :aria-label="t('playback.stopMedia')"
+              <n-button size="small" circle type="error" :disabled="controlsDisabled" :aria-label="t('playback.stopMedia')"
                 @click="pptMediaAction(media.id, media.media_index, 'stop')">
                 <template #icon><FIcon name="stop_24_regular" /></template>
               </n-button>
@@ -354,21 +355,21 @@ const errorBarDescription = computed(() => {
 
     <section v-else-if="category === 'video'" class="playback-control__section">
       <div class="playback-control__row">
-        <n-button v-if="!isPlaying" type="primary" @click="onPlay">
+        <n-button v-if="!isPlaying" type="primary" :disabled="controlsDisabled" @click="onPlay">
           <template #icon><FIcon name="play_24_regular" /></template>
           {{ t('playback.play') }}
         </n-button>
-        <n-button v-else type="primary" @click="onPause">
+        <n-button v-else type="primary" :disabled="controlsDisabled" @click="onPause">
           <template #icon><FIcon name="pause_24_regular" /></template>
           {{ t('playback.pause') }}
         </n-button>
-        <n-button @click="onStop">
+        <n-button :disabled="controlsDisabled" @click="onStop">
           <template #icon><FIcon name="stop_24_regular" /></template>
           {{ t('playback.stop') }}
         </n-button>
         <div class="playback-control__switch">
           <span>{{ t('playback.loop') }}</span>
-          <n-switch :value="session.loop_enabled" :aria-label="t('playback.loop')"
+          <n-switch :value="session.loop_enabled" :disabled="controlsDisabled" :aria-label="t('playback.loop')"
             @update:value="onLoopToggle" />
         </div>
       </div>
@@ -394,7 +395,7 @@ const errorBarDescription = computed(() => {
     <section v-else-if="category === 'image' || category === 'web'" class="playback-control__section">
       <p v-if="session.source_uri" class="playback-control__uri">{{ session.source_uri }}</p>
       <p v-else class="playback-control__uri">{{ t('playback.uriMissing') }}</p>
-      <n-button v-if="category === 'web'" size="small" :disabled="!session.source_id" @click="refreshWebSource">
+      <n-button v-if="category === 'web'" size="small" :disabled="!session.source_id || controlsDisabled" @click="refreshWebSource">
         <template #icon><FIcon name="arrow_clockwise_24_regular" /></template>
         {{ t('playback.refresh') }}
       </n-button>
@@ -405,7 +406,7 @@ const errorBarDescription = computed(() => {
         {{ session.source_uri ? t('playback.live') : t('playback.notStreaming') }}
       </n-tag>
       <p v-if="session.source_uri" class="playback-control__uri">{{ session.source_uri }}</p>
-      <n-button size="small" :disabled="!session.source_id" @click="refreshWebSource">
+      <n-button size="small" :disabled="!session.source_id || controlsDisabled" @click="refreshWebSource">
         <template #icon><FIcon name="arrow_clockwise_24_regular" /></template>
         {{ t('playback.refresh') }}
       </n-button>
@@ -424,7 +425,7 @@ const errorBarDescription = computed(() => {
           :min="0"
           :max="100"
           :aria-label="t('playback.windowVolumeAria')"
-          :disabled="!canAdjustWindowAudio"
+          :disabled="!canAdjustWindowAudio || controlsDisabled"
           class="playback-control__seek"
           @update:value="windowVolume.handleInput"
           @dragend="windowVolume.handleChange(windowVolume.value.value)"
@@ -437,11 +438,11 @@ const errorBarDescription = computed(() => {
           <n-switch
             :value="session.is_muted"
             :aria-label="t('playback.windowMute')"
-            :disabled="!canAdjustWindowAudio"
+            :disabled="!canAdjustWindowAudio || controlsDisabled"
             @update:value="onMuteToggle"
           />
         </div>
-        <n-button v-if="session.source_id" type="error" @click="onClose">
+        <n-button v-if="session.source_id" type="error" :disabled="controlsDisabled" @click="onClose">
           <template #icon><FIcon name="dismiss_24_regular" /></template>
           {{ t('playback.closeDisplay') }}
         </n-button>

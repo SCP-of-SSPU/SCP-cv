@@ -9,6 +9,7 @@ import { useRoute, useRouter } from 'vue-router';
 import {
   NCard,
   NEmpty,
+  NAlert,
   NRadio,
   NRadioGroup,
   NTabs,
@@ -61,6 +62,10 @@ const availableTargets = computed(() =>
 type TabId = 'source' | 'control';
 const mobileTab = ref<TabId>('source');
 
+const commandObservation = computed(() => (
+  targetMeta.value ? sessionStore.commandObservation(targetMeta.value.windowId) : null
+));
+
 function changeTarget(value: string): void {
   void router.push(`/display/${value}`);
 }
@@ -98,6 +103,23 @@ const segmentValue = computed({
         {{ targetCaption }}
       </p>
     </header>
+
+    <n-alert
+      v-if="commandObservation && !commandObservation.playerOnline"
+      type="warning"
+      :title="t('playback.playerOfflineTitle')"
+      :bordered="false"
+    >
+      {{ t('playback.playerOfflineHint') }}
+    </n-alert>
+    <n-alert
+      v-else-if="commandObservation?.accepted"
+      type="info"
+      :title="t('playback.commandAcceptedTitle')"
+      :bordered="false"
+    >
+      {{ t('playback.commandAcceptedHint', { state: commandObservation.actualState }) }}
+    </n-alert>
 
     <n-card v-if="blocksForSingleMode">
       <n-empty :description="t('display.blockedDesc')">

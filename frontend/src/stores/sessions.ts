@@ -12,6 +12,13 @@ interface SessionState {
   sessions: SessionSnapshot[];
 }
 
+export interface SessionCommandObservation {
+  accepted: boolean;
+  playerOnline: boolean;
+  actualState: string;
+  confirmed: boolean;
+}
+
 function snapshotUpdatedAt(session: SessionSnapshot): number {
   const updatedAt = Date.parse(session.last_updated_at);
   return Number.isFinite(updatedAt) ? updatedAt : 0;
@@ -41,8 +48,25 @@ export const useSessionStore = defineStore('sessions', {
     windowIds(state): number[] {
       return state.sessions.map((session) => session.window_id).sort((a, b) => a - b);
     },
+    commandObservation(state): (windowId: number) => SessionCommandObservation {
+      return (windowId: number) => {
+        const session = state.sessions.find((item) => item.window_id === windowId);
+        if (!session) return { accepted: false, playerOnline: false, actualState: 'idle', confirmed: false };
+        const accepted = Boolean(session.pending_command);
+        return {
+          accepted,
+          playerOnline: session.player_online,
+          actualState: session.playback_state,
+          confirmed: session.player_online && !accepted,
+        };
+      };
+    },
   },
   actions: {
+    ensurePlayerOnline(windowId: number): void {
+      const session = this.sessions.find((item) => item.window_id === windowId);
+      if (!session?.player_online) throw new Error('PlayerWorker 当前离线，已拒绝发送控制命令。');
+    },
     /** 拉取最新四窗口快照，常用于初始化和兜底重试。 */
     async refresh(): Promise<void> {
       const payload = await api.listSessions();
@@ -63,36 +87,44 @@ export const useSessionStore = defineStore('sessions', {
       this.sessions = mergedSessions.sort((left, right) => left.window_id - right.window_id);
     },
     async openSource(windowId: number, sourceId: number, autoplay = true, targetSlide = 0): Promise<void> {
+      this.ensurePlayerOnline(windowId);
       const payload = targetSlide > 0
         ? await api.openSourceWithOptions(windowId, { source_id: sourceId, autoplay, target_slide: targetSlide || undefined })
         : await api.openSource(windowId, sourceId, autoplay);
       this.applyRemoteSessions(payload.sessions);
     },
     async closeSource(windowId: number): Promise<void> {
+      this.ensurePlayerOnline(windowId);
       const payload = await api.closeSource(windowId);
       this.applyRemoteSessions(payload.sessions);
     },
     async control(windowId: number, action: string): Promise<void> {
+      this.ensurePlayerOnline(windowId);
       const payload = await api.controlPlayback(windowId, action);
       this.applyRemoteSessions(payload.sessions);
     },
     async navigate(windowId: number, action: string, targetIndex = 0, positionMs = 0): Promise<void> {
+      this.ensurePlayerOnline(windowId);
       const payload = await api.navigateContent(windowId, action, targetIndex, positionMs);
       this.applyRemoteSessions(payload.sessions);
     },
     async controlPptMedia(windowId: number, action: string, mediaId: string, mediaIndex: number): Promise<void> {
+      this.ensurePlayerOnline(windowId);
       const payload = await api.controlPptMedia(windowId, action, mediaId, mediaIndex);
       this.applyRemoteSessions(payload.sessions);
     },
     async setLoop(windowId: number, enabled: boolean): Promise<void> {
+      this.ensurePlayerOnline(windowId);
       const payload = await api.setLoop(windowId, enabled);
       this.applyRemoteSessions(payload.sessions);
     },
     async setWindowVolume(windowId: number, volume: number): Promise<void> {
+      this.ensurePlayerOnline(windowId);
       const payload = await api.setWindowVolume(windowId, volume);
       this.applyRemoteSessions(payload.sessions);
     },
     async setWindowMute(windowId: number, muted: boolean): Promise<void> {
+      this.ensurePlayerOnline(windowId);
       const payload = await api.setWindowMute(windowId, muted);
       this.applyRemoteSessions(payload.sessions);
     },

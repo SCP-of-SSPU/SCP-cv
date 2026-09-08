@@ -114,19 +114,19 @@
 ### Tests for User Story 2
 
 - [X] T051 [P] [US2] 先编写显示 OPEN/CLOSE/RESET 与音频 OPEN 的合并/取代差异测试到 `runtime-dotnet/tests/ScpCv.Domain.Tests/CommandPolicyTests.cs`
-- [ ] T052 [P] [US2] 先编写 claim token、owner/group epoch、租约和迟到 generation 拒绝测试到 `runtime-dotnet/tests/ScpCv.Integration.Tests/CommandFencingTests.cs`
-- [ ] T053 [P] [US2] 先编写执行前崩溃、ACK 丢失、重复结果与 uncertain 非幂等动作测试到 `runtime-dotnet/tests/ScpCv.Integration.Tests/CommandRecoveryTests.cs`
+- [X] T052 [P] [US2] 先编写 claim token、owner/group epoch、租约和迟到 generation 拒绝测试到 `runtime-dotnet/tests/ScpCv.Integration.Tests/CommandFencingTests.cs`
+- [X] T053 [P] [US2] 先编写执行前崩溃、ACK 丢失、重复结果与 uncertain 非幂等动作测试到 `runtime-dotnet/tests/ScpCv.Integration.Tests/CommandRecoveryTests.cs`
 
 ### Implementation for User Story 2
 
-- [ ] T054 [US2] 实现事务内入队、目标序列、兼容 pending 投影和提交后 Wake 到 `runtime-dotnet/src/ScpCv.Infrastructure/Commands/CommandCoordinator.cs`
+- [X] T054 [US2] 实现事务内入队、目标序列、兼容 pending 投影和提交后 Wake 到 `runtime-dotnet/src/ScpCv.Infrastructure/Commands/CommandCoordinator.cs`
 - [X] T055 [P] [US2] 实现显示命令验证、合并和 pending-only 取代策略到 `runtime-dotnet/src/ScpCv.Domain/Commands/DisplayCommandPolicy.cs`
 - [X] T056 [P] [US2] 实现背景音频有序合并且 OPEN 不清队列的策略到 `runtime-dotnet/src/ScpCv.Domain/Commands/AudioCommandPolicy.cs`
-- [ ] T057 [US2] 实现 armed 闸门、最早命令领取、租约续期和安全重新领取到 `runtime-dotnet/src/ScpCv.Infrastructure/Commands/CommandLeaseService.cs`
-- [ ] T058 [US2] 实现幂等结果确认、结果指纹、实际/意图区分和 uncertain 处置到 `runtime-dotnet/src/ScpCv.Infrastructure/Commands/CommandResultService.cs`
-- [ ] T059 [US2] 接线 Claim、Renew、Result、StateReport 与 Wake IPC 到 `runtime-dotnet/src/ScpCv.ControlHost/Ipc/RuntimeMessageDispatcher.cs`
-- [ ] T060 [US2] 创建 Worker 通用管道客户端、重连退避、结果缓存和停止闩锁处理到 `runtime-dotnet/src/ScpCv.Contracts/Runtime/RuntimePipeClient.cs`
-- [ ] T061 [US2] 将有效完成状态和错误发布到兼容 SSE 投影到 `runtime-dotnet/src/ScpCv.ControlHost/Events/RuntimeProjectionPublisher.cs`
+- [X] T057 [US2] 实现 armed 闸门、最早命令领取、租约续期和安全重新领取到 `runtime-dotnet/src/ScpCv.Infrastructure/Commands/CommandLeaseService.cs`
+- [X] T058 [US2] 实现幂等结果确认、结果指纹、实际/意图区分和 uncertain 处置到 `runtime-dotnet/src/ScpCv.Infrastructure/Commands/CommandResultService.cs`
+- [X] T059 [US2] 接线 Claim、Renew、Result、StateReport 与 Wake IPC 到 `runtime-dotnet/src/ScpCv.ControlHost/Ipc/RuntimeMessageDispatcher.cs`
+- [X] T060 [US2] 创建 Worker 通用管道客户端、重连退避、结果缓存和停止闩锁处理到 `runtime-dotnet/src/ScpCv.Contracts/Runtime/RuntimePipeClient.cs`
+- [X] T061 [US2] 将有效完成状态和错误发布到兼容 SSE 投影到 `runtime-dotnet/src/ScpCv.ControlHost/Events/RuntimeProjectionPublisher.cs`
 - [ ] T062 [US2] 调整前端 accepted/online/actual state 展示，禁止请求返回即伪报 playing 到 `frontend/src/stores/sessions.ts` 和 `frontend/src/features/display/DisplayView.vue`
 - [ ] T063 [US2] 实现 SC-002/003 样本化故障注入测试与结果输出到 `runtime-dotnet/tests/ScpCv.Integration.Tests/ReliabilityAcceptanceTests.cs`
 

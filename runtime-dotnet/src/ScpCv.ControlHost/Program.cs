@@ -5,6 +5,7 @@ using ScpCv.ControlHost.Configuration;
 using ScpCv.ControlHost.Endpoints;
 using ScpCv.ControlHost.Events;
 using ScpCv.ControlHost.Health;
+using ScpCv.ControlHost.Ipc;
 using ScpCv.ControlHost.Logging;
 using ScpCv.Infrastructure.Auth;
 using ScpCv.Infrastructure.Audio;
@@ -47,12 +48,20 @@ builder.Services.AddSingleton<IDbContextFactory<ControlDbContext>>(controlDbFact
 builder.Services.AddSingleton<DatabaseInitializer>();
 builder.Services.AddSingleton<WriteCoordinator>();
 builder.Services.AddSingleton<CommandRepository>();
+builder.Services.AddSingleton<QueuedCommandWakeNotifier>();
+builder.Services.AddSingleton<ICommandWakeNotifier>(services =>
+    services.GetRequiredService<QueuedCommandWakeNotifier>());
+builder.Services.AddSingleton<CommandCoordinator>();
+builder.Services.AddSingleton<CommandLeaseService>();
+builder.Services.AddSingleton<CommandResultService>();
 builder.Services.AddSingleton<RuntimeAuthorityRepository>();
 builder.Services.AddSingleton<MediaSourceService>();
 builder.Services.AddSingleton<RuntimeStateService>();
 builder.Services.AddSingleton<ScenarioService>();
 builder.Services.AddSingleton<BackgroundAudioService>();
 builder.Services.AddSingleton<SseEventHub>();
+builder.Services.AddSingleton<RuntimeProjectionPublisher>();
+builder.Services.AddSingleton<RuntimeMessageDispatcher>();
 if (safetyMode.IsSimulation)
 {
     builder.Services.AddSingleton<SimulationDeviceCommandTransport>();

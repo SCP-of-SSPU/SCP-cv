@@ -85,6 +85,10 @@ export default {
     refresh: '刷新',
     refreshOk: '已刷新',
     refreshFail: '刷新失败',
+    playerOfflineTitle: '播放器离线',
+    playerOfflineHint: '当前仅 ControlHost 可达，未收到 PlayerWorker 有效心跳；控制命令已禁用。',
+    commandAcceptedTitle: '命令已受理，等待实际结果',
+    commandAcceptedHint: '当前实际状态：{state}。播放中状态只能由播放器上报确认。',
   },
   sourcePicker: {
     title: '切换源',
