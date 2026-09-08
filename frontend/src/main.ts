@@ -14,6 +14,8 @@ import router from './router';
 import { i18n } from './locales';
 import { registerUnauthorizedHandler } from './services/api';
 import { useAuthStore } from './stores/auth';
+import { resolveNativePlatformAdapter } from './platform/native';
+import { installClientLifecycle } from './platform/lifecycle';
 import './styles/base.css';
 import './styles/tailwind.css';
 
@@ -33,3 +35,9 @@ registerUnauthorizedHandler(() => {
 });
 
 app.mount('#app');
+
+void resolveNativePlatformAdapter().then((adapter) => {
+  if (!adapter) return;
+  const uninstall = installClientLifecycle(adapter, router);
+  window.addEventListener('beforeunload', uninstall, { once: true });
+});

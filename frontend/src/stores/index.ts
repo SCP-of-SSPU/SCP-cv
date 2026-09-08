@@ -31,7 +31,7 @@ export {
  *
  * @return Promise<void>
  */
-export async function bootstrapStores(): Promise<void> {
+export async function refreshStores(): Promise<void> {
   const runtime = useRuntimeStore();
   const backgroundAudio = useBackgroundAudioStore();
   const session = useSessionStore();
@@ -61,5 +61,9 @@ export async function bootstrapStores(): Promise<void> {
     );
   }
 
-  runtime.connectEvents();
+}
+
+export async function bootstrapStores(): Promise<void> {
+  await refreshStores();
+  useRuntimeStore().connectEvents();
 }

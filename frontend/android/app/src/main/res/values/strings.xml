@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SCP-cv Control</string>
+    <string name="title_activity_main">SCP-cv Control</string>
+    <string name="package_name">cn.edu.sspu.scpcv.control</string>
+    <string name="custom_url_scheme">cn.edu.sspu.scpcv.control</string>
+</resources>

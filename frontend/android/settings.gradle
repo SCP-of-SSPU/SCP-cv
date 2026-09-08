@@ -1,0 +1,21 @@
+// Capacitor includes Gradle projects from node_modules and those projects
+// declare their own buildscript repositories. Register mirrors before every
+// project is evaluated so dependency resolution does not depend on dl.google.com.
+gradle.beforeProject { project ->
+    project.buildscript.repositories {
+        maven { url 'https://maven.aliyun.com/repository/google' }
+        maven { url 'https://maven.aliyun.com/repository/public' }
+        maven { url 'https://mirrors.cernet.edu.cn/maven' }
+    }
+    project.repositories {
+        maven { url 'https://maven.aliyun.com/repository/google' }
+        maven { url 'https://maven.aliyun.com/repository/public' }
+        maven { url 'https://mirrors.cernet.edu.cn/maven' }
+    }
+}
+
+include ':app'
+include ':capacitor-cordova-android-plugins'
+project(':capacitor-cordova-android-plugins').projectDir = new File('./capacitor-cordova-android-plugins/')
+
+apply from: 'capacitor.settings.gradle'

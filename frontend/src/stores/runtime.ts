@@ -21,7 +21,6 @@ import {
   saveServerProfile,
   type ServerProfile,
 } from '@/platform/connection';
-import { createElectronPlatformAdapter, saveElectronServerProfile } from '@/platform/electron';
 import { t } from '@/locales';
 import { useBackgroundAudioStore } from './backgroundAudio';
 import { useAuthStore } from './auth';
@@ -127,7 +126,7 @@ export const useRuntimeStore = defineStore('runtime', {
         clearSession: async () => {
           clearApiSessionState();
           if (typeof window !== 'undefined' && window.scpCvElectron) {
-            await createElectronPlatformAdapter(window.scpCvElectron).clearSession();
+            await window.scpCvElectron.clearSession();
           }
         },
         clearStores: () => {
@@ -144,7 +143,7 @@ export const useRuntimeStore = defineStore('runtime', {
         saveProfile: async (nextProfile) => {
           saveServerProfile(nextProfile);
           if (typeof window !== 'undefined' && window.scpCvElectron) {
-            await saveElectronServerProfile(nextProfile, window.scpCvElectron);
+            await window.scpCvElectron.saveServerProfile(nextProfile);
           }
         },
       });

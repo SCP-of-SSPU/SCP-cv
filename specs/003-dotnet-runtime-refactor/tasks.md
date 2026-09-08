@@ -97,8 +97,8 @@
 - [X] T045 [US1] 用 Tailwind utilities 重整共享响应式壳层并保持 Fluent tokens/Naive UI 行为到 `frontend/src/layouts/AppShell.vue`、`frontend/src/layouts/AppNavigation.vue` 和 `frontend/src/styles/tailwind.css`
 - [X] T046 [US1] 实现安全 `app://scp-cv` 协议、CSP、导航/权限限制和窗口生命周期到 `frontend/electron/main.ts`
 - [X] T047 [US1] 实现 contextIsolation preload 的受限文件选择/保存与主机配置 API 到 `frontend/electron/preload.ts` 和 `frontend/src/platform/electron.ts`
-- [ ] T048 [US1] 配置 Capacitor 本地资源、受限 HTTPS origin 和必要插件到 `frontend/capacitor.config.ts`、`frontend/src/platform/capacitor.ts` 和 `frontend/android/app/src/main/AndroidManifest.xml`
-- [ ] T049 [US1] 实现 Android 前后台/SSE 重建、返回键、安全区域和文件上传下载到 `frontend/src/platform/capacitor.ts` 和 `frontend/src/platform/lifecycle.ts`
+- [X] T048 [US1] 配置 Capacitor 本地资源、受限 HTTPS origin 和必要插件到 `frontend/capacitor.config.ts`、`frontend/src/platform/capacitor.ts` 和 `frontend/android/app/src/main/AndroidManifest.xml`
+- [X] T049 [US1] 实现 Android 前后台/SSE 重建、返回键、安全区域和文件上传下载到 `frontend/src/platform/capacitor.ts` 和 `frontend/src/platform/lifecycle.ts`
 - [ ] T050 [US1] 在真实 Web、打包 Electron 与 Android 测试设备记录共享用例和会话/SSE 结果到 `docs/qa/003-client-matrix.md`
 
 **Checkpoint**: US1 可在 simulation 主机独立演示；关闭任一客户端不停止主机，三端均不复制业务页面。

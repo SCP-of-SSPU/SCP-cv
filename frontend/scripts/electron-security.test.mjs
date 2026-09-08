@@ -56,6 +56,6 @@ test('preload 不向 renderer 暴露 ipcRenderer 或任意文件 API', async () 
 test('切换主机通过 Electron 薄适配清理 Cookie 并保存非敏感配置', async () => {
   const { readFile } = await import('node:fs/promises');
   const runtime = await readFile(new URL('../src/stores/runtime.ts', import.meta.url), 'utf8');
-  assert.match(runtime, /createElectronPlatformAdapter\(window\.scpCvElectron\)\.clearSession\(\)/);
-  assert.match(runtime, /saveElectronServerProfile\(nextProfile, window\.scpCvElectron\)/);
+  assert.match(runtime, /window\.scpCvElectron\.clearSession\(\)/);
+  assert.match(runtime, /window\.scpCvElectron\.saveServerProfile\(nextProfile\)/);
 });

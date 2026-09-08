@@ -58,7 +58,7 @@ const playerLabel = computed(() => (sessions.hasOnlinePlayer
 
 <template>
   <header
-    class="app-shell__bar sticky top-0 z-[var(--z-sticky)] flex min-h-14 items-center justify-between gap-1 bg-surface px-3 py-2 text-foreground transition-[background,box-shadow] sm:gap-4 sm:px-4"
+    class="app-shell__bar sticky top-0 z-[var(--z-sticky)] flex min-h-14 items-center justify-between gap-1 bg-surface px-3 pt-[calc(0.5rem+env(safe-area-inset-top,0px))] pb-2 text-foreground transition-[background,box-shadow] sm:gap-4 sm:px-4"
     :class="{ 'app-shell__bar--scrolled': scrolled }"
     role="banner"
   >

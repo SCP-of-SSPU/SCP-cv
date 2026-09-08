@@ -74,7 +74,9 @@ export function createAppRouter(): Router {
   // 路由守卫：保证 auth store 完成首屏 me 探活；未登录访问非公开页统一跳 /login。
   router.beforeEach(async (to) => {
     const auth = useAuthStore();
-    if (!auth.initialized) {
+    const packagedNeedsProfile = getClientBuildTarget() === 'app' && !loadStoredServerProfile();
+    if (packagedNeedsProfile && to.path !== '/connect') return { path: '/connect' };
+    if (!auth.initialized && !packagedNeedsProfile) {
       await auth.ensureInitialized();
     }
     const isPublic = Boolean(to.meta?.public);
