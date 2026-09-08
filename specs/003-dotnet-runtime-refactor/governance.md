@@ -1,12 +1,14 @@
 # 最小治理同步说明
 
-**Status**: 设计说明；不替代现行`.specify/memory/constitution.md`，本轮未改宪章。
+**Status**: 已执行；`.specify/memory/constitution.md` 已更新到 2.0.0。
 
 ## G01 - 同步技术栈与阶段
 
 用户已确认新方案：共享Vue 3/Tailwind4/Router/Pinia/Vite；Windows Electron、Android Capacitor；后端.NET/WPF运行时。项目当前无现场维护需求，开发版本恢复靠Git。
 
-实施前使用speckit-constitution将固定Python/Django栈描述同步为目标栈，并说明开发期不安排生产迁移/回滚。保留权限、契约、测试、进程/资源安全原则；代码/规范回退采用Git，数据库不是Git恢复范围。此同步可与正常Spec Kit开发衔接，不扩展成生产变更审批工程。
+已使用 speckit-constitution 将固定 Python/Django 栈描述同步为目标栈，并明确开发期不安排
+生产迁移/回滚。权限、契约、测试、进程/资源安全原则继续保留；代码/规范回退采用 Git，
+数据库不是 Git 恢复范围。此次同步不扩展成生产变更审批工程。
 
 ## G02 - 行为与技术调整边界
 
@@ -19,6 +21,8 @@
 
 ## G03 - 正常开发要求
 
-随相应实现同步STYLE/CONTRIBUTING、API文档、依赖锁与必要测试。Tailwind工具类映射现有设计token，组件可复用，注释/文档继续中文。分支/提交由正常Git流程管理，本轮不创建提交或PR。
+随相应实现同步 STYLE/CONTRIBUTING、API 文档、依赖锁与必要测试。Tailwind 工具类映射现有
+设计 token，组件可复用，注释/文档继续中文。实现使用
+`refactor/003-dotnet-runtime` 分支和符合项目格式的小提交管理。
 
 原002未完成的硬件验证只作为历史风险参考，不作为当前必须先完成的现场上线门槛；涉及的新播放能力在开发测试机上验证并如实报告。无需生产回退演练、商店上架或自动更新服务才能进行下一步tasks。

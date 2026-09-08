@@ -1,6 +1,7 @@
 # Quickstart: 开发验证与三端联调
 
-**Status**: 仅规划；没有新.NET/Electron/Capacitor工程或包。当前可运行检查与未来命令分开列出，不自动授权启动真实设备/Office。
+**Status**: 实施中；新 .NET/Electron/Capacitor 工程按 `tasks.md` 逐步交付。当前可运行检查与
+目标命令分开列出，不自动授权启动真实设备/Office。
 
 ## 当前文档检查
 
@@ -11,7 +12,8 @@
 git diff --check
 ```
 
-本地feature指向003、Git分支main；新未跟踪文档另查链接、代码围栏、空白和需求编号。
+本地 feature 指向 003，Git 分支为 `refactor/003-dotnet-runtime`；规范变更继续检查链接、
+代码围栏、空白和需求编号。
 
 ## 已有代码的参考测试
 
@@ -30,7 +32,7 @@ pnpm --prefix frontend run build
 
 ## 实施后开发入口
 
-以下项目/scripts目前不存在，是后续tasks需要交付的命令约定：
+以下是 `tasks.md` 正在交付的命令约定；在对应任务完成前不得把命令存在视为功能已实现：
 
 ```powershell
 dotnet restore runtime-dotnet/ScpCv.sln --locked-mode
@@ -86,4 +88,7 @@ Android工程在cap sync后用匹配SDK/Gradle构建开发APK，安装到测试�
 
 规范质量清单按新范围重新自查（由speckit-specify更新陈旧迁移条目）结果16/16；本轮全仓Spec Kit、13份文档的本地链接/代码围栏/空白/需求引用检查、git diff --check全部通过；30项FR、10项SC、1条已确认问答，无残留旧迁移阶段或工具实体。
 
-本次澄清覆盖结论：客户端平台、开发范围、版本恢复边界已解决；核心领域、交互、可靠性、安全、外部接口与验收边界明确。未执行依赖安装、代码实现、打包、软件完整测试或任何数据库/设备操作；未生成tasks、未创建Git提交。
+本次澄清覆盖结论：客户端平台、开发范围、版本恢复边界已解决；核心领域、交互、可靠性、
+安全、外部接口与验收边界明确。规划阶段未执行依赖安装、代码实现、打包、软件完整测试或
+任何数据库/设备操作。当前已生成 `tasks.md` 并创建实施分支/提交；后续结果以任务勾选和
+验证记录为准。

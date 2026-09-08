@@ -1,7 +1,7 @@
 # Implementation Plan: 共享多端控制台与.NET播控运行时
 
-**Branch**: `main` | **Date**: 2026-09-08 | **Spec**: [spec.md](./spec.md)
-**Status**: 依据用户澄清修订的Phase 0/1设计；只改规划，不实施、不打包、不操作设备。
+**Branch**: `refactor/003-dotnet-runtime` | **Date**: 2026-09-08 | **Spec**: [spec.md](./spec.md)
+**Status**: Phase 0/1 设计完成；已生成 [tasks.md](./tasks.md)，从工程骨架开始实施。
 
 ## Summary
 
@@ -33,16 +33,18 @@
 
 ## Constitution Check
 
-现行宪章1.0.0仍限定Python/Django，本次不擅自改写。用户已明确选择目标技术栈和开发期范围；后续实现前通过speckit-constitution将治理文字同步为目标栈，不额外制造生产审批/切流阶段。见[governance.md](./governance.md)。
+项目宪章已通过 speckit-constitution 更新到 2.0.0，正式采用共享 Vue/Electron/Capacitor
+控制端与 .NET Windows 播放主机，并明确快速迭代期不建设生产迁移、长期双栈和现场回退工程。
+见 [governance.md](./governance.md)。
 
 | 原则 | Phase 0 / Phase 1复核 |
 | --- | --- |
-| 现场安全优先 | 当前没有现场维护；保留操作设备时的安全行为、授权、日志、清理测试，不安排停播窗口或生产回滚 |
+| 运行安全优先 | 保留操作设备时的安全行为、授权、日志、清理测试，不安排停播窗口或生产回滚 |
 | 规范可追溯 | 同一003功能，澄清已入spec；需求→设计→验证映射，后续tasks另生成 |
-| 可验证交付 | 按功能小步测试，三端与真实Windows播放各有用例；无测试结论冒充实现完成 |
-| 集成边界 | 共享前端与原生壳分开，HTTP/SSE与本机Named Pipe分开，DTO保持兼容 |
-| 简单可维护 | 删除不需要的数据搬迁/双轨/逆迁移模块，保留必要命令与媒体所有权 |
-| 固定旧技术栈 | 设计变更理由明确；正式实现需同步宪章，不把此规划说成现行宪章已经修改 |
+| 分层验证交付 | 按功能小步测试，三端与真实Windows播放各有用例；无测试结论冒充实现完成 |
+| 合同与进程边界 | 共享前端与原生壳分开，HTTP/SSE与本机Named Pipe分开，DTO保持兼容 |
+| 快速迭代与最小复杂度 | 删除不需要的数据搬迁/双轨/逆迁移模块，保留必要命令与媒体所有权 |
+| 目标技术栈 | 宪章已同步；实现必须遵循目标栈与平台范围，不额外引入生产发布治理 |
 
 ## Project Structure
 
@@ -177,4 +179,6 @@ Electron/Capacitor只是控制台。客户端可以与主机同机或远程，�
 
 ## Completion Record
 
-澄清问答1项已接受；沿用003目录和main分支。已执行项目路径前置检查与setup_plan.py；没有注册clarify/specify/plan前后hook。规范质量检查和最终静态验证见quickstart。没有生成tasks、修改业务代码、安装依赖或操作数据库/设备。
+澄清问答 1 项已接受；003 目录位于 `refactor/003-dotnet-runtime` 分支。规划、宪章同步和
+119 项依赖有序任务已经生成并通过 Spec Kit 校验；没有注册相关 extension hook。实现从
+Phase 1 工程骨架开始，数据库、播放器、设备和真实客户端验证结果按任务逐项记录。

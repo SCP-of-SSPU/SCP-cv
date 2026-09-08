@@ -1,10 +1,10 @@
 # Feature Specification: 共享多端控制台与Windows播控重构
 
-**Feature Branch**: `main`（本次仅新增规划产物，功能目录与 Git 分支独立）
+**Feature Branch**: `refactor/003-dotnet-runtime`
 
 **Created**: 2026-09-08
 
-**Status**: Draft / 已按快速迭代期与Android客户端澄清更新；仅规划，未实现
+**Status**: Implementation / 规范与设计已完成，按 `tasks.md` 从 Phase 1 开始实施
 
 **Input**: 用户要求采用 Vue 3 控制台、ASP.NET Core ControlHost、SQLite/EF Core、持久命令队列、Named Pipe、交互桌面 Supervisor、四个 WPF PlayerWorker、独立 AudioWorker、唯一 STA/COM PowerPointHost 和 MediaMTX 对本仓库进行重构规划；保持现有 REST/SSE 合同与核心逻辑。指定技术选择记录于 [plan.md](./plan.md)，下文定义与技术实现无关的验收行为。
 
@@ -182,7 +182,7 @@
 ## Assumptions
 
 - 业务基线为仓库提交 `029a28577fa3d4b9224d45f229726c7bd26c9964`；先冻结现行代码、测试和合同，文档漂移单列，不随意“修复”为新行为。
-- 本次交付截至规范与Phase 1设计，不生成实现代码、不处理现有数据库、不启动播放器、不修改现行宪章，不自动创建issue/PR或提交。
+- 实施在 `refactor/003-dotnet-runtime` 分支按 `tasks.md` 小步推进；数据库、播放器和设备操作仍须遵守各任务的验证边界，不因进入实现阶段获得隐式授权。
 - 用户已选定技术架构，详细选型在计划中展开；不存在要求重新比较或另选前端框架的前提。
 - 默认播放执行端仍为单台Windows主机、四个输出和一个背景音频；控制客户端可经局域网连接，不增加多播放节点、云部署或多动态文稿并发。
 - 网页、Windows客户端与Android客户端在本轮范围内；Linux/macOS原生客户端、商店上架和自动更新平台不作为当前交付要求。

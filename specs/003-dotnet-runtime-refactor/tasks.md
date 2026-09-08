@@ -23,7 +23,7 @@
 
 **Purpose**: 建立可还原、可构建的 .NET 多进程工程和三端共享前端构建入口。
 
-- [ ] T001 更新实施分支、状态和宪章检查记录到 `specs/003-dotnet-runtime-refactor/spec.md`、`specs/003-dotnet-runtime-refactor/plan.md`、`specs/003-dotnet-runtime-refactor/governance.md` 与 `specs/003-dotnet-runtime-refactor/quickstart.md`
+- [X] T001 更新实施分支、状态和宪章检查记录到 `specs/003-dotnet-runtime-refactor/spec.md`、`specs/003-dotnet-runtime-refactor/plan.md`、`specs/003-dotnet-runtime-refactor/governance.md` 与 `specs/003-dotnet-runtime-refactor/quickstart.md`
 - [ ] T002 创建锁定 .NET 10 SDK 的 `runtime-dotnet/global.json` 和解决方案 `runtime-dotnet/ScpCv.sln`
 - [ ] T003 [P] 建立统一编译、分析器与集中包版本配置 `runtime-dotnet/Directory.Build.props`、`runtime-dotnet/Directory.Packages.props` 和 `runtime-dotnet/NuGet.Config`
 - [ ] T004 创建 Domain、Contracts、Infrastructure、ControlHost、Supervisor、PlayerWorker、AudioWorker、PowerPointHost 工程及引用关系到 `runtime-dotnet/src/*/*.csproj`
