@@ -15,6 +15,7 @@ import { i18n } from './locales';
 import { registerUnauthorizedHandler } from './services/api';
 import { useAuthStore } from './stores/auth';
 import './styles/base.css';
+import './styles/tailwind.css';
 
 const pinia = createPinia();
 const app = createApp(App).use(pinia).use(i18n).use(router);

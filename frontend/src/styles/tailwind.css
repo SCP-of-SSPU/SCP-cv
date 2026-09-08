@@ -1,0 +1,32 @@
+/*
+ * Tailwind 4 只提供主题变量和 utilities。项目现有 base.css 继续负责受控重置，
+ * 不导入 tailwindcss/preflight.css，避免改变 Naive UI 与既有组件的默认行为。
+ */
+@layer theme, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+/* 将 Tailwind 语义类映射到现有 Fluent/Qingyuan 令牌，不维护第二套色板。 */
+@theme inline {
+  --color-brand: var(--colorBrandBackground);
+  --color-brand-hover: var(--colorBrandBackgroundHover);
+  --color-brand-pressed: var(--colorBrandBackgroundPressed);
+  --color-surface: var(--colorNeutralBackground1);
+  --color-surface-subtle: var(--colorNeutralBackground2);
+  --color-canvas: var(--colorNeutralBackgroundCanvas);
+  --color-foreground: var(--colorNeutralForeground1);
+  --color-foreground-muted: var(--colorNeutralForeground2);
+  --color-stroke: var(--colorNeutralStroke1);
+  --color-danger: var(--colorStatusDangerForeground1);
+  --color-success: var(--colorStatusSuccessForeground1);
+  --color-warning: var(--colorStatusWarningForeground1);
+
+  --font-sans: var(--fontFamilyBase);
+  --radius-sm: var(--borderRadiusSmall);
+  --radius-md: var(--borderRadiusMedium);
+  --radius-lg: var(--borderRadiusLarge);
+  --radius-xl: var(--borderRadiusXLarge);
+  --shadow-panel: var(--shadow-card);
+  --shadow-overlay: var(--shadow-flyout);
+}

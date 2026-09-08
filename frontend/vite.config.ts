@@ -1,5 +1,6 @@
 import { fileURLToPath, URL } from 'node:url';
 
+import tailwindcss from '@tailwindcss/vite';
 import vue from '@vitejs/plugin-vue';
 import { defineConfig, loadEnv } from 'vite';
 
@@ -16,6 +17,7 @@ import { defineConfig, loadEnv } from 'vite';
  *    避免跨 origin + SameSite cookie 导致 csrftoken 不随登录请求发送的问题。
  */
 export default defineConfig(({ mode }) => {
+  const isPackagedApp = mode === 'app';
   const envDir = fileURLToPath(new URL('.', import.meta.url));
   const env = loadEnv(mode, envDir, '');
   const fallbackPort = 5173;
@@ -35,8 +37,10 @@ export default defineConfig(({ mode }) => {
   } as const;
 
   return {
+    // Electron 与 Capacitor 都消费相对路径的本地资源构建；网页继续部署在站点根路径。
+    base: isPackagedApp ? './' : '/',
     envDir,
-    plugins: [vue()],
+    plugins: [vue(), tailwindcss()],
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
@@ -64,6 +68,10 @@ export default defineConfig(({ mode }) => {
         '/static': proxyRule,
         '/admin': proxyRule,
       },
+    },
+    build: {
+      outDir: isPackagedApp ? 'dist-app' : 'dist',
+      emptyOutDir: true,
     },
   };
 });

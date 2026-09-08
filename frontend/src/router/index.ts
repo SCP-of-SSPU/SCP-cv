@@ -9,7 +9,7 @@
  *   - /about → /settings 重定向；
  *   - 全局守卫：除 meta.public=true 外，未登录一律跳 /login？redirect=...。
  */
-import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
+import { createRouter, type RouteRecordRaw, type Router } from 'vue-router';
 
 import { t } from '@/locales';
 
@@ -22,6 +22,7 @@ import ScenariosView from '@/features/scenarios/ScenariosView.vue';
 import SettingsView from '@/features/settings/SettingsView.vue';
 import SourcesView from '@/features/sources/SourcesView.vue';
 import { useAuthStore } from '@/stores/auth';
+import { createClientHistory } from '@/platform';
 
 const routes: RouteRecordRaw[] = [
   {
@@ -51,42 +52,48 @@ const routes: RouteRecordRaw[] = [
   { path: '/:pathMatch(.*)*', redirect: '/dashboard' },
 ];
 
-const router = createRouter({
-  history: createWebHistory(),
-  routes,
-  scrollBehavior() {
-    return { top: 0 };
-  },
-});
+export function createAppRouter(): Router {
+  const router = createRouter({
+    history: createClientHistory(),
+    routes,
+    scrollBehavior() {
+      return { top: 0 };
+    },
+  });
 
-// 路由守卫：保证 auth store 完成首屏 me 探活；未登录访问非公开页统一跳 /login。
-router.beforeEach(async (to) => {
-  const auth = useAuthStore();
-  if (!auth.initialized) {
-    await auth.ensureInitialized();
-  }
-  const isPublic = Boolean(to.meta?.public);
-  if (!isPublic && !auth.isAuthenticated) {
-    return {
-      path: '/login',
-      query: to.fullPath && to.fullPath !== '/' ? { redirect: to.fullPath } : undefined,
-    };
-  }
-  // 已登录用户进 /login，直接放回首页。
-  if (auth.isAuthenticated && to.path === '/login') {
-    return { path: '/dashboard' };
-  }
-  return true;
-});
+  // 路由守卫：保证 auth store 完成首屏 me 探活；未登录访问非公开页统一跳 /login。
+  router.beforeEach(async (to) => {
+    const auth = useAuthStore();
+    if (!auth.initialized) {
+      await auth.ensureInitialized();
+    }
+    const isPublic = Boolean(to.meta?.public);
+    if (!isPublic && !auth.isAuthenticated) {
+      return {
+        path: '/login',
+        query: to.fullPath && to.fullPath !== '/' ? { redirect: to.fullPath } : undefined,
+      };
+    }
+    // 已登录用户进 /login，直接放回首页。
+    if (auth.isAuthenticated && to.path === '/login') {
+      return { path: '/dashboard' };
+    }
+    return true;
+  });
 
-router.afterEach((to) => {
-  if (typeof document !== 'undefined') {
-    const baseTitle = t('app.baseTitle');
-    const titleKey = to.meta?.titleKey as string | undefined;
-    document.title = titleKey
-      ? t('app.titleWithPage', { page: t(titleKey), base: baseTitle })
-      : baseTitle;
-  }
-});
+  router.afterEach((to) => {
+    if (typeof document !== 'undefined') {
+      const baseTitle = t('app.baseTitle');
+      const titleKey = to.meta?.titleKey as string | undefined;
+      document.title = titleKey
+        ? t('app.titleWithPage', { page: t(titleKey), base: baseTitle })
+        : baseTitle;
+    }
+  });
+
+  return router;
+}
+
+const router = createAppRouter();
 
 export default router;

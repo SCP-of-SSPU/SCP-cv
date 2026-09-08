@@ -24,14 +24,14 @@
 **Purpose**: 建立可还原、可构建的 .NET 多进程工程和三端共享前端构建入口。
 
 - [X] T001 更新实施分支、状态和宪章检查记录到 `specs/003-dotnet-runtime-refactor/spec.md`、`specs/003-dotnet-runtime-refactor/plan.md`、`specs/003-dotnet-runtime-refactor/governance.md` 与 `specs/003-dotnet-runtime-refactor/quickstart.md`
-- [ ] T002 创建锁定 .NET 10 SDK 的 `runtime-dotnet/global.json` 和解决方案 `runtime-dotnet/ScpCv.sln`
-- [ ] T003 [P] 建立统一编译、分析器与集中包版本配置 `runtime-dotnet/Directory.Build.props`、`runtime-dotnet/Directory.Packages.props` 和 `runtime-dotnet/NuGet.Config`
-- [ ] T004 创建 Domain、Contracts、Infrastructure、ControlHost、Supervisor、PlayerWorker、AudioWorker、PowerPointHost 工程及引用关系到 `runtime-dotnet/src/*/*.csproj`
-- [ ] T005 [P] 创建 Domain、Contracts、Infrastructure、ControlHost、Integration、Windows 测试工程及分类约定到 `runtime-dotnet/tests/*/*.csproj` 和 `runtime-dotnet/tests/README.md`
-- [ ] T006 扩充 .NET、Electron、Capacitor、Android 与验证数据忽略规则到 `.gitignore`
-- [ ] T007 为 Tailwind 4、Electron、Capacitor 和多目标构建添加锁定依赖及脚本到 `frontend/package.json` 和 `pnpm-lock.yaml`
-- [ ] T008 接入 `@tailwindcss/vite` 并映射现有 Fluent tokens、保持无 Preflight 策略到 `frontend/vite.config.ts`、`frontend/src/styles/tailwind.css` 和 `frontend/src/main.ts`
-- [ ] T009 建立 web/app 构建模式、共享路由工厂与平台适配接口到 `frontend/src/platform/index.ts`、`frontend/src/router/index.ts`、`frontend/vite.config.ts` 和 `frontend/tsconfig.json`
+- [X] T002 创建锁定 .NET 10 SDK 的 `runtime-dotnet/global.json` 和解决方案 `runtime-dotnet/ScpCv.sln`
+- [X] T003 [P] 建立统一编译、分析器与集中包版本配置 `runtime-dotnet/Directory.Build.props`、`runtime-dotnet/Directory.Packages.props` 和 `runtime-dotnet/NuGet.Config`
+- [X] T004 创建 Domain、Contracts、Infrastructure、ControlHost、Supervisor、PlayerWorker、AudioWorker、PowerPointHost 工程及引用关系到 `runtime-dotnet/src/*/*.csproj`
+- [X] T005 [P] 创建 Domain、Contracts、Infrastructure、ControlHost、Integration、Windows 测试工程及分类约定到 `runtime-dotnet/tests/*/*.csproj` 和 `runtime-dotnet/tests/README.md`
+- [X] T006 扩充 .NET、Electron、Capacitor、Android 与验证数据忽略规则到 `.gitignore`
+- [X] T007 为 Tailwind 4、Electron、Capacitor 和多目标构建添加锁定依赖及脚本到 `frontend/package.json` 和 `pnpm-lock.yaml`
+- [X] T008 接入 `@tailwindcss/vite` 并映射现有 Fluent tokens、保持无 Preflight 策略到 `frontend/vite.config.ts`、`frontend/src/styles/tailwind.css` 和 `frontend/src/main.ts`
+- [X] T009 建立 web/app 构建模式、共享路由工厂与平台适配接口到 `frontend/src/platform/index.ts`、`frontend/src/router/index.ts`、`frontend/vite.config.ts` 和 `frontend/tsconfig.json`
 
 **Checkpoint**: `dotnet restore`、空解决方案构建、现有前端测试/类型检查/构建均可运行。
 
