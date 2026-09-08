@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using ScpCv.ControlHost.Auth;
 using ScpCv.ControlHost.Configuration;
 using ScpCv.ControlHost.Endpoints;
+using ScpCv.ControlHost.Events;
 using ScpCv.ControlHost.Health;
 using ScpCv.ControlHost.Logging;
 using ScpCv.Infrastructure.Auth;
@@ -32,11 +33,14 @@ var mediaOptions = builder.Configuration.GetSection(MediaStorageOptions.SectionN
     .Get<MediaStorageOptions>() ?? new MediaStorageOptions();
 var deviceOptions = builder.Configuration.GetSection(DeviceOptions.SectionName)
     .Get<DeviceOptions>() ?? new DeviceOptions();
+var sseOptions = builder.Configuration.GetSection("Sse")
+    .Get<SseEventStreamOptions>() ?? new SseEventStreamOptions();
 
 builder.Services.AddSingleton(dataRootOptions);
 builder.Services.AddSingleton(safetyMode);
 builder.Services.AddSingleton(mediaOptions);
 builder.Services.AddSingleton(deviceOptions);
+builder.Services.AddSingleton(sseOptions);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(controlDbFactory);
 builder.Services.AddSingleton<IDbContextFactory<ControlDbContext>>(controlDbFactory);
@@ -48,6 +52,7 @@ builder.Services.AddSingleton<MediaSourceService>();
 builder.Services.AddSingleton<RuntimeStateService>();
 builder.Services.AddSingleton<ScenarioService>();
 builder.Services.AddSingleton<BackgroundAudioService>();
+builder.Services.AddSingleton<SseEventHub>();
 if (safetyMode.IsSimulation)
 {
     builder.Services.AddSingleton<SimulationDeviceCommandTransport>();
@@ -112,6 +117,7 @@ app.MapPlaybackEndpoints();
 app.MapScenarioEndpoints();
 app.MapSystemEndpoints();
 app.MapBackgroundAudioEndpoints();
+app.MapSseEventEndpoints();
 
 ControlHostLog.Initialized(
     app.Logger,

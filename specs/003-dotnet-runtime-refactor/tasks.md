@@ -91,7 +91,7 @@
 - [X] T039 [US1] 映射 scenarios 路由和兼容响应到 `runtime-dotnet/src/ScpCv.ControlHost/Endpoints/ScenarioEndpoints.cs`
 - [X] T040 [P] [US1] 实现配置驱动的设备查询/控制与 simulation 适配器到 `runtime-dotnet/src/ScpCv.Infrastructure/Devices/DeviceService.cs`
 - [X] T041 [US1] 映射 devices、system/restart 与 system/shutdown 路由到 `runtime-dotnet/src/ScpCv.ControlHost/Endpoints/SystemEndpoints.cs`
-- [ ] T042 [US1] 实现初始快照、最新事件、心跳和重连全量同步 SSE 到 `runtime-dotnet/src/ScpCv.ControlHost/Events/SseEventStream.cs`
+- [X] T042 [US1] 实现初始快照、最新事件、心跳和重连全量同步 SSE 到 `runtime-dotnet/src/ScpCv.ControlHost/Events/SseEventStream.cs`
 - [ ] T043 [US1] 实现服务器配置、cookie fetch/EventSource、connection_generation 和切主机清理到 `frontend/src/services/api.ts`、`frontend/src/platform/connection.ts` 和 `frontend/src/stores/runtime.ts`
 - [ ] T044 [US1] 新增播放主机连接页和断线/播放器离线分层状态到 `frontend/src/features/settings/ServerConnectionView.vue` 和 `frontend/src/router/index.ts`
 - [ ] T045 [US1] 用 Tailwind utilities 重整共享响应式壳层并保持 Fluent tokens/Naive UI 行为到 `frontend/src/layouts/AppShell.vue`、`frontend/src/layouts/AppNavigation.vue` 和 `frontend/src/styles/tailwind.css`
