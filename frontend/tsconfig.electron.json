@@ -3,6 +3,7 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
+    "moduleDetection": "legacy",
     "strict": true,
     "outDir": "electron-dist",
     "rootDir": "electron",

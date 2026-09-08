@@ -6,7 +6,7 @@
 
 | 范围 | 自动化证据 | 人工/实机证据 | 当前结论 |
 | --- | --- | --- | --- |
-| Q1 三端共享功能 | `frontend/scripts/platform-adapters.test.mjs`、`client-connection.test.mjs`、ControlHost 合同测试 | `docs/qa/003-client-matrix.md` | Web 软件链路具备；Electron/Android 实包待验证 |
+| Q1 三端共享功能 | `frontend/scripts/platform-adapters.test.mjs`、`client-connection.test.mjs`、ControlHost 合同测试 | `docs/qa/003-client-matrix.md` | Web 通过；Electron/Android 实包已完成基础启动与页面验证，主机联调待补 |
 | Q2 会话与 SSE | `AuthEndpointTests`、`SseEndpointTests`、`verify-packaged-session.test.mjs`、`client-connection.test.mjs` | 三端各 10 次恢复记录待补 | 自动化通过；实包恢复待验证 |
 | Q3 业务规则 | Domain/ControlHost 全套测试、`OpenApiCoverageTests` | 浏览器业务状态见 `docs/qa/003-browser-ui.md` | 自动化通过；浏览器复核待执行 |
 | Q4 可靠命令 | `CommandFencingTests`、`CommandRecoveryTests`、`ReliabilityAcceptanceTests`、`SecurityBoundaryTests` | 无 | 自动化通过 |
@@ -16,7 +16,7 @@
 | Q8 启停/音频 | `BackgroundAudioTests`、`RuntimeLifecycleTests`、`ReliabilityAcceptanceTests` | `docs/qa/003-windows-runtime.md` | 自动化通过；完整实机循环待执行 |
 | Q9 开发数据/Git | `DatabaseInitializerTests`、`DevelopmentDataTests`、`DataBoundaryTests` | `runtime-dotnet/README.md` | 通过；新库与旧库边界明确 |
 | Q10 Windows 运行 | Windows/Integration 测试工程 | `docs/qa/003-windows-runtime.md` | 软件探针通过；四屏 60 分钟待实机 |
-| Q11 原生壳/UI 安全 | `electron-security.test.mjs`、`capacitor-platform.test.mjs`、`security-boundary.test.mjs` | `docs/qa/003-electron.md`、`003-android.md`、`003-browser-ui.md` | 静态与自动化边界通过；实包/UI 待验证 |
+| Q11 原生壳/UI 安全 | `electron-security.test.mjs`、`capacitor-platform.test.mjs`、`security-boundary.test.mjs` | `docs/qa/003-electron.md`、`003-android.md`、`003-browser-ui.md` | 静态、自动化及 Electron/Android 基础实包边界通过；交互式文件/外链场景待补 |
 
 ## FR-001–FR-030 映射
 
@@ -56,11 +56,13 @@
 - `dotnet restore runtime-dotnet/ScpCv.sln --force-evaluate`：通过。
 - `dotnet build runtime-dotnet/ScpCv.sln --no-restore`：通过，0 警告、0 错误。
 - `dotnet test runtime-dotnet/ScpCv.sln --no-build --no-restore`：通过，Domain 38、Contracts 18、Windows 5、Integration 26、Infrastructure 18、ControlHost 45，共 150 项。
-- `pnpm --dir frontend test`：通过，35/35。
+- `pnpm --dir frontend test`：通过，36/36。
 - `pnpm --dir frontend typecheck`：通过。
 - `pnpm --dir frontend build:web`、`build:app`、`build:electron-main`：通过；Vite 提示主入口压缩前约 1.07 MB，记录为后续代码分割优化项。
 - Playwright + Chrome（Vite preview + simulation ControlHost，1440×900/768×1024/390×844）：通过；截图见 `docs/qa/003-browser-*.png`，console/pageerror 为 0。
 - `pnpm build:electron`：未完成；electron-builder 下载阶段遇到本机证书链错误（`unable to verify the first certificate`），未修改安全配置绕过。
+- Electron unpacked 包实测：修复持久化 partition 协议注册和 sandbox preload 后，`app://scp-cv/#/connect` 正常渲染，CDP 页面标题和 `window.scpCvElectron` API 均可检查；完整 ControlHost 认证/SSE、文件对话框仍待联调。
+- Android AVD 实测：Pixel_9_Pro / API 37 / WebView 145.0.7632.218 安装并启动 debug APK，连接页可见，HOME/重启生命周期可恢复；认证/SSE、文件和外链场景仍待联调。
 
 ## 尚未验证
 

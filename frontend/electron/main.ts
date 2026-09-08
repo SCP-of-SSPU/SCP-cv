@@ -1,13 +1,12 @@
 import { readFile, writeFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { basename, extname, join } from 'node:path';
-import { pathToFileURL } from 'node:url';
 
 import {
   app,
   BrowserWindow,
   dialog,
   ipcMain,
-  net,
   protocol,
   session,
   type IpcMainInvokeEvent,
@@ -66,19 +65,22 @@ function contentType(path: string): string {
   }
 }
 
-async function registerAppProtocol(): Promise<void> {
+function registerAppProtocol(): void {
   const rendererRoot = join(app.getAppPath(), 'dist-app');
-  await protocol.handle(APP_SCHEME, async (request) => {
+  // 渲染窗口使用持久化 partition；协议处理器必须注册到同一个 session，
+  // 仅注册默认 session 会导致打包客户端导航到 app:// 时得到空白页。
+  session.fromPartition(controlPartition).protocol.handle(APP_SCHEME, async (request) => {
     try {
       const assetPath = safeResolveAppAsset(rendererRoot, request.url);
-      const response = await net.fetch(pathToFileURL(assetPath).href);
-      if (!response.ok) return new Response('Not found', { status: 404 });
-      const headers = new Headers(response.headers);
-      headers.set('Content-Type', contentType(assetPath));
-      headers.set('Content-Security-Policy', PACKAGED_CSP);
-      headers.set('X-Content-Type-Options', 'nosniff');
-      return new Response(response.body, { status: response.status, headers });
-    } catch {
+      return new Response(readFileSync(assetPath), {
+        headers: {
+          'Content-Type': contentType(assetPath),
+          'Content-Security-Policy': PACKAGED_CSP,
+          'X-Content-Type-Options': 'nosniff',
+        },
+      });
+    } catch (error) {
+      console.error('app protocol resource failure', request.url, error);
       return new Response('Not found', {
         status: 404,
         headers: { 'Content-Security-Policy': PACKAGED_CSP },
@@ -188,6 +190,10 @@ function createWindow(): BrowserWindow {
   window.webContents.on('will-navigate', (event, url) => {
     if (!isTrustedRendererUrl(url, developmentUrl)) event.preventDefault();
   });
+  window.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    console.error('renderer load failure', errorCode, errorDescription, validatedURL);
+  });
+  window.webContents.on('did-finish-load', () => console.error('renderer load finished', window.webContents.getURL()));
   window.on('focus', () => window.webContents.send(IPC.lifecycle, 'active'));
   window.on('blur', () => window.webContents.send(IPC.lifecycle, 'inactive'));
   window.once('ready-to-show', () => window.show());
@@ -197,7 +203,7 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(async () => {
-  await registerAppProtocol();
+  registerAppProtocol();
   setupSessionSecurity();
   setupIpc();
   mainWindow = createWindow();

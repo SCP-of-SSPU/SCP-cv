@@ -1,7 +1,22 @@
-import { contextBridge, ipcRenderer } from 'electron';
+// Electron sandboxed preload 只允许通过受限的 CommonJS require 取得 Electron API；
+// 不使用 ESM import，否则打包后 Chromium 会在 sandbox wrapper 中拒绝执行脚本。
+const { contextBridge, ipcRenderer } = require('electron') as typeof import('electron');
 
-import { IPC } from './channels.js';
-import type { StoredServerProfile } from './security.js';
+const IPC = Object.freeze({
+  pickFile: 'scp-cv:file:pick',
+  saveFile: 'scp-cv:file:save',
+  clearSession: 'scp-cv:session:clear',
+  loadServerProfile: 'scp-cv:server-profile:load',
+  saveServerProfile: 'scp-cv:server-profile:save',
+  lifecycle: 'scp-cv:lifecycle',
+  backRequested: 'scp-cv:back-requested',
+});
+
+type StoredServerProfile = {
+  origin: string;
+  displayName: string;
+  allowInsecureDevelopment?: boolean;
+};
 
 type LifecycleState = 'active' | 'inactive';
 

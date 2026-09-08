@@ -20,6 +20,13 @@ test('app 协议只解析打包根目录内资源', () => {
   assert.equal(isAbsolute(safeResolveAppAsset(root, 'app://scp-cv/index.html')), true);
 });
 
+test('打包协议通过受信路径读取资源，避免 file:// fetch 在 Electron 中返回空响应', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const main = await readFile(new URL('../electron/main.ts', import.meta.url), 'utf8');
+  assert.match(main, /readFileSync\(assetPath\)/);
+  assert.doesNotMatch(main, /net\.fetch\(pathToFileURL/);
+});
+
 test('打包 CSP 和渲染器信任边界禁止任意导航与原生对象', () => {
   assert.match(PACKAGED_CSP, /object-src 'none'/);
   assert.match(PACKAGED_CSP, /frame-src 'none'/);
