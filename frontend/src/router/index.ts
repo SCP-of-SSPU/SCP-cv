@@ -23,7 +23,8 @@ import ScenariosView from '@/features/scenarios/ScenariosView.vue';
 import SettingsView from '@/features/settings/SettingsView.vue';
 import SourcesView from '@/features/sources/SourcesView.vue';
 import { useAuthStore } from '@/stores/auth';
-import { createClientHistory } from '@/platform';
+import { createClientHistory, getClientBuildTarget, resolveInitialRoute } from '@/platform';
+import { loadStoredServerProfile } from '@/platform/connection';
 
 const routes: RouteRecordRaw[] = [
   {
@@ -36,7 +37,10 @@ const routes: RouteRecordRaw[] = [
     component: LoginView,
     meta: { titleKey: 'auth.routeTitle', public: true, focus: true },
   },
-  { path: '/', redirect: '/dashboard' },
+  {
+    path: '/',
+    redirect: () => resolveInitialRoute(getClientBuildTarget(), Boolean(loadStoredServerProfile())),
+  },
   { path: '/dashboard', component: DashboardView, meta: { titleKey: 'nav.dashboard' } },
   {
     path: '/display/:target',

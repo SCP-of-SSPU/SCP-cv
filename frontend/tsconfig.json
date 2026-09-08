@@ -33,6 +33,7 @@
     "src/**/*.d.ts",
     "src/**/*.vue",
     "src/platform/**/*.ts",
+    "electron/**/*.ts",
     "vite.config.ts"
   ]
 }

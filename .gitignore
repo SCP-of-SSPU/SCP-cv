@@ -178,6 +178,8 @@ AGENT_TODO.md
 node_modules/
 frontend/dist/
 frontend/dist-app/
+frontend/electron-dist/
+frontend/release-electron/
 frontend/dist-electron/
 frontend/release/
 frontend/.vite/

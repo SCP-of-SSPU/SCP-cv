@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   getClientHistoryKind,
+  resolveInitialRoute,
   resolveBackAction,
 } from '../src/platform/index.ts';
 import {
@@ -13,6 +14,12 @@ import {
 test('网页使用 history，本地 Electron/Android 资源包使用 hash', () => {
   assert.equal(getClientHistoryKind('web'), 'history');
   assert.equal(getClientHistoryKind('app'), 'hash');
+});
+
+test('打包客户端首次启动进入主机连接页，网页仍进入控制台', () => {
+  assert.equal(resolveInitialRoute('app', false), '/connect');
+  assert.equal(resolveInitialRoute('app', true), '/dashboard');
+  assert.equal(resolveInitialRoute('web', false), '/dashboard');
 });
 
 test('返回键先关闭浮层，再回退路由，根页面才请求退出客户端', () => {

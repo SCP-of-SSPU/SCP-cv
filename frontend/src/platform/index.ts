@@ -41,6 +41,11 @@ export function getClientHistoryKind(target: ClientBuildTarget): ClientHistoryKi
   return target === 'app' ? 'hash' : 'history';
 }
 
+/** 本地资源包首次启动先配置播放主机；网页仍进入同源控制台。 */
+export function resolveInitialRoute(target: ClientBuildTarget, hasServerProfile: boolean): string {
+  return target === 'app' && !hasServerProfile ? '/connect' : '/dashboard';
+}
+
 export function resolveBackAction(input: {
   readonly hasDismissibleLayer: boolean;
   readonly canGoBack: boolean;

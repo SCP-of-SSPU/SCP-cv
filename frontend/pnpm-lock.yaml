@@ -7,13 +7,16 @@ settings:
 importers:
 
   .:
-    dependencies:
+    devDependencies:
       '@capacitor/android':
         specifier: 8.5.1
         version: 8.5.1(@capacitor/core@8.5.1)
       '@capacitor/app':
         specifier: 8.1.1
         version: 8.1.1(@capacitor/core@8.5.1)
+      '@capacitor/cli':
+        specifier: 8.5.1
+        version: 8.5.1(supports-color@7.2.0)
       '@capacitor/core':
         specifier: 8.5.1
         version: 8.5.1
@@ -23,18 +26,36 @@ importers:
       '@fluentui/tokens':
         specifier: 1.0.0-alpha.23
         version: 1.0.0-alpha.23
+      '@tailwindcss/vite':
+        specifier: 4.3.3
+        version: 4.3.3(vite@8.2.0(@types/node@26.1.2)(jiti@2.7.0)(yaml@2.9.0))
+      '@types/node':
+        specifier: 26.1.2
+        version: 26.1.2
       '@vicons/fluent':
         specifier: 0.13.0
         version: 0.13.0
       '@vitejs/plugin-vue':
         specifier: 6.0.8
         version: 6.0.8(vite@8.2.0(@types/node@26.1.2)(jiti@2.7.0)(yaml@2.9.0))(vue@3.5.41(typescript@6.0.3))
+      electron:
+        specifier: 44.2.0
+        version: 44.2.0(supports-color@7.2.0)
+      electron-builder:
+        specifier: 26.15.3
+        version: 26.15.3(electron-builder-squirrel-windows@26.15.3)(supports-color@7.2.0)
       naive-ui:
         specifier: 2.44.1
         version: 2.44.1(vue@3.5.41(typescript@6.0.3))
       pinia:
         specifier: 4.0.2
         version: 4.0.2(@vue/devtools-api@8.2.1)(typescript@6.0.3)(vue@3.5.41(typescript@6.0.3))
+      tailwindcss:
+        specifier: 4.3.3
+        version: 4.3.3
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
       vite:
         specifier: 8.2.0
         version: 8.2.0(@types/node@26.1.2)(jiti@2.7.0)(yaml@2.9.0)
@@ -47,28 +68,6 @@ importers:
       vue-router:
         specifier: 5.2.0
         version: 5.2.0(@vue/compiler-sfc@3.5.41)(pinia@4.0.2(@vue/devtools-api@8.2.1)(typescript@6.0.3)(vue@3.5.41(typescript@6.0.3)))(rolldown@1.2.5)(vite@8.2.0(@types/node@26.1.2)(jiti@2.7.0)(yaml@2.9.0))(vue@3.5.41(typescript@6.0.3))
-    devDependencies:
-      '@capacitor/cli':
-        specifier: 8.5.1
-        version: 8.5.1(supports-color@7.2.0)
-      '@tailwindcss/vite':
-        specifier: 4.3.3
-        version: 4.3.3(vite@8.2.0(@types/node@26.1.2)(jiti@2.7.0)(yaml@2.9.0))
-      '@types/node':
-        specifier: 26.1.2
-        version: 26.1.2
-      electron:
-        specifier: 44.2.0
-        version: 44.2.0(supports-color@7.2.0)
-      electron-builder:
-        specifier: 26.15.3
-        version: 26.15.3(electron-builder-squirrel-windows@26.15.3)(supports-color@7.2.0)
-      tailwindcss:
-        specifier: 4.3.3
-        version: 4.3.3
-      typescript:
-        specifier: 6.0.3
-        version: 6.0.3
       vue-tsc:
         specifier: 3.3.9
         version: 3.3.9(typescript@6.0.3)

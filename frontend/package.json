@@ -1,7 +1,10 @@
 {
   "name": "scp-cv-frontend",
   "version": "1.0.0",
+  "description": "SCP-cv 共享播放控制台",
+  "author": "Qintsg (饶弘玮)",
   "private": true,
+  "main": "electron-dist/main.js",
   "license": "Artistic-2.0",
   "type": "module",
   "packageManager": "pnpm@11.22.0+sha512.1ff870c4c6133dfd88fb2afc46dd13d47f09c9794b438c6fdb47ca98caf3bc16381ee0be93a091b8e3824cf01f889f46d7d9e20910fb0be1ab0fb5baa80dd621",
@@ -11,36 +14,52 @@
     "build": "pnpm run build:web",
     "build:web": "vue-tsc --noEmit -p tsconfig.json && vite build --mode web",
     "build:app": "vue-tsc --noEmit -p tsconfig.json && vite build --mode app",
-    "build:electron": "pnpm run build:app && electron-builder --dir",
+    "build:electron-main": "tsc -p tsconfig.electron.json",
+    "build:electron": "pnpm run build:app && pnpm run build:electron-main && electron-builder --dir",
     "cap:sync": "pnpm run build:app && cap sync android",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
     "test": "node --test scripts/*.test.mjs",
     "preview": "vite preview --host 0.0.0.0 --port 4173",
     "gen:fluent-tokens": "node scripts/generate-fluent-tokens.mjs"
   },
-  "dependencies": {
+  "dependencies": {},
+  "devDependencies": {
     "@capacitor/android": "8.5.1",
     "@capacitor/app": "8.1.1",
+    "@capacitor/cli": "8.5.1",
     "@capacitor/core": "8.5.1",
     "@capacitor/filesystem": "8.1.3",
     "@fluentui/tokens": "1.0.0-alpha.23",
+    "@tailwindcss/vite": "4.3.3",
+    "@types/node": "26.1.2",
     "@vicons/fluent": "0.13.0",
     "@vitejs/plugin-vue": "6.0.8",
+    "electron": "44.2.0",
+    "electron-builder": "26.15.3",
     "naive-ui": "2.44.1",
     "pinia": "4.0.2",
+    "tailwindcss": "4.3.3",
+    "typescript": "6.0.3",
     "vite": "8.2.0",
     "vue": "3.5.41",
     "vue-i18n": "11.4.8",
-    "vue-router": "5.2.0"
-  },
-  "devDependencies": {
-    "@capacitor/cli": "8.5.1",
-    "@tailwindcss/vite": "4.3.3",
-    "@types/node": "26.1.2",
-    "electron": "44.2.0",
-    "electron-builder": "26.15.3",
-    "tailwindcss": "4.3.3",
-    "typescript": "6.0.3",
+    "vue-router": "5.2.0",
     "vue-tsc": "3.3.9"
+  },
+  "build": {
+    "appId": "cn.edu.sspu.scpcv.control",
+    "productName": "SCP-cv Control",
+    "asar": true,
+    "files": [
+      "dist-app/**/*",
+      "electron-dist/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release-electron"
+    },
+    "win": {
+      "target": "dir"
+    }
   }
 }
