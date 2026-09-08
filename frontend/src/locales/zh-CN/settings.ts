@@ -40,6 +40,7 @@ export default {
     backendTag: '后端：{backend}',
     sseStatus: 'SSE 状态',
     reconnect: '重新建立连接',
+    changeServer: '更换播放主机',
     sseNoUpdate: '尚未收到推送',
     sseLastUpdate: '最近一次推送：{time}',
     sseReconnected: 'SSE 已重新建立连接',

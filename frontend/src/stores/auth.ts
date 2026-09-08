@@ -50,6 +50,25 @@ export const useAuthStore = defineStore('auth', {
       }
       this.initialized = true;
     },
+    /** 切换主机后重新探测该主机；网络失败向连接页如实抛出。 */
+    async probeCurrentServer(): Promise<boolean> {
+      this.user = null;
+      this.initialized = false;
+      try {
+        await api.fetchCsrfToken();
+      } catch {
+        // status 探测才是 ControlHost 可达性的最终判据；CSRF 可在登录时重取。
+      }
+      try {
+        const payload = await api.fetchAuthStatus();
+        this.user = payload.authenticated ? payload.user : null;
+        this.initialized = true;
+        return this.user !== null;
+      } catch (error) {
+        this.initialized = true;
+        throw error;
+      }
+    },
     /**
      * 用户登录：username/password 经 /api/auth/login/ 建立 Django session。
      * @param username 用户名

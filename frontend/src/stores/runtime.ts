@@ -17,6 +17,7 @@ import {
 import {
   clientConnection,
   loadStoredServerProfile,
+  normalizeServerProfile,
   saveServerProfile,
   type ServerProfile,
 } from '@/platform/connection';
@@ -112,17 +113,19 @@ export const useRuntimeStore = defineStore('runtime', {
       this.applyVolume(payload.volume);
     },
     async switchServer(profile: ServerProfile): Promise<void> {
+      // 先校验新地址，避免输入错误时提前登出当前仍可用的主机。
+      const normalizedProfile = normalizeServerProfile(profile);
       this.disconnectEvents();
       try {
         await api.logout();
       } catch {
         // 旧主机离线时只能清本端状态，不能声称服务端 session 已撤销。
       }
-      this.connectionGeneration = await clientConnection.switchServer(profile, {
+      this.connectionGeneration = await clientConnection.switchServer(normalizedProfile, {
         closeEvents: () => this.disconnectEvents(),
         clearSession: async () => clearApiSessionState(),
         clearStores: () => {
-          useAuthStore().clearLocal();
+          useAuthStore().$reset();
           useSessionStore().$reset();
           useBackgroundAudioStore().$reset();
           useSourceStore().$reset();

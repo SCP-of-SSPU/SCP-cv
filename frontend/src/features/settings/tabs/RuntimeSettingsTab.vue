@@ -5,6 +5,7 @@
  */
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 import {
   NButton,
   NCard,
@@ -22,6 +23,7 @@ import { useRuntimeStore } from '@/stores/runtime';
 import { useSessionStore } from '@/stores/sessions';
 
 const { t } = useI18n();
+const router = useRouter();
 const runtime = useRuntimeStore();
 const session = useSessionStore();
 const toast = useToast();
@@ -144,6 +146,9 @@ async function resetAll(): Promise<void> {
       <n-button @click="refreshSse">
         <template #icon><FIcon name="arrow_clockwise_24_regular" /></template>
         {{ t('settings.reconnect') }}
+      </n-button>
+      <n-button class="settings-view__connection-button" tertiary @click="router.push('/connect')">
+        {{ t('settings.changeServer') }}
       </n-button>
     </n-card>
   </section>

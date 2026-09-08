@@ -17,6 +17,7 @@ import DashboardView from '@/features/dashboard/DashboardView.vue';
 import BackgroundAudioView from '@/features/backgroundAudio/BackgroundAudioView.vue';
 import DisplayControlView from '@/features/display/DisplayControlView.vue';
 import LoginView from '@/features/auth/LoginView.vue';
+import ServerConnectionView from '@/features/settings/ServerConnectionView.vue';
 import PptFocusView from '@/features/pptFocus/PptFocusView.vue';
 import ScenariosView from '@/features/scenarios/ScenariosView.vue';
 import SettingsView from '@/features/settings/SettingsView.vue';
@@ -25,6 +26,11 @@ import { useAuthStore } from '@/stores/auth';
 import { createClientHistory } from '@/platform';
 
 const routes: RouteRecordRaw[] = [
+  {
+    path: '/connect',
+    component: ServerConnectionView,
+    meta: { titleKey: 'serverConnection.routeTitle', public: true, focus: true },
+  },
   {
     path: '/login',
     component: LoginView,

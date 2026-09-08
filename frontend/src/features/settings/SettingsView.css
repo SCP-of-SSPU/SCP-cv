@@ -82,6 +82,10 @@
   margin-top: var(--spacing-l);
 }
 
+.settings-view__connection-button {
+  margin-inline-start: var(--spacing-s);
+}
+
 .settings-view__danger-zone .n-card {
   border-color: color-mix(in srgb, var(--colorStatusDangerBorder1) 40%, var(--colorNeutralStroke2));
 }

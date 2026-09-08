@@ -273,13 +273,13 @@ export function clearApiSessionState(): void {
 }
 
 function resolveBackendBase(): string {
+  const runtimeProfile = clientConnection.profile;
+  if (runtimeProfile) return runtimeProfile.origin;
+
   // dev 模式下统一走 Vite 反向代理：相对路径 → 前端 origin → vite proxy → Django。
   // 这样请求与页面同 origin，浏览器不再发起跨 origin 预检，SameSite=Lax 的
   // csrftoken cookie 也能正常携带，避免登录失败。
   if (import.meta.env.DEV) return '';
-
-  const runtimeProfile = clientConnection.profile;
-  if (runtimeProfile) return runtimeProfile.origin;
 
   const configuredTarget = String(import.meta.env.VITE_BACKEND_TARGET || '').trim();
   if (configuredTarget) {

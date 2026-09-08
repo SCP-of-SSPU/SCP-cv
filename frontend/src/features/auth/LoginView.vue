@@ -7,7 +7,7 @@
  */
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRoute, useRouter } from 'vue-router';
+import { RouterLink, useRoute, useRouter } from 'vue-router';
 import { NAlert, NButton, NCard, NForm, NFormItem, NInput } from 'naive-ui';
 
 import { useToast } from '@/composables/useToast';
@@ -98,6 +98,9 @@ async function submit(): Promise<void> {
         </n-button>
       </n-form>
       <p class="login-view__hint">{{ t('auth.defaultHint') }}</p>
+      <p class="login-view__server-link">
+        <RouterLink to="/connect">{{ t('auth.changeServer') }}</RouterLink>
+      </p>
     </n-card>
   </main>
 </template>
@@ -159,6 +162,11 @@ async function submit(): Promise<void> {
   text-align: left;
   line-height: 1.65;
   max-width: 380px;
+}
+
+.login-view__server-link {
+  margin: var(--spacingVerticalM) 0 0;
+  text-align: center;
 }
 
 @media (max-width: 767px) {
