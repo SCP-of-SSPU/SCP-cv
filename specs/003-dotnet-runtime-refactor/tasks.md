@@ -49,9 +49,9 @@
 - [X] T013 [P] 定义保持 snake_case 外观的认证、媒体、显控、场景、设备和音频 HTTP DTO 到 `runtime-dotnet/src/ScpCv.Contracts/Http/*.cs`
 - [X] T014 [P] 定义版本化 IPC 帧、握手、领取、续租、结果、状态、Office 与关闭消息到 `runtime-dotnet/src/ScpCv.Contracts/Ipc/*.cs`
 - [X] T015 编写 DTO 序列化与 `docs/openapi.yaml` 样例兼容测试到 `runtime-dotnet/tests/ScpCv.Contracts.Tests/HttpContractTests.cs` 和 `runtime-dotnet/tests/ScpCv.Contracts.Tests/IpcContractTests.cs`
-- [ ] T016 创建仅供 ControlHost 使用的 EF Core 上下文与实体配置到 `runtime-dotnet/src/ScpCv.Infrastructure/Persistence/ControlDbContext.cs` 和 `runtime-dotnet/src/ScpCv.Infrastructure/Persistence/Configurations/*.cs`
-- [ ] T017 创建新库初始 EF Core schema 到 `runtime-dotnet/src/ScpCv.Infrastructure/Persistence/Migrations/*_InitialControlSchema.cs` 和 `runtime-dotnet/src/ScpCv.Infrastructure/Persistence/Migrations/ControlDbContextModelSnapshot.cs`
-- [ ] T018 实现独立 DataRoot、SQLite WAL/busy timeout、已有不兼容库拒绝和非破坏性初始化到 `runtime-dotnet/src/ScpCv.Infrastructure/Configuration/DataRootOptions.cs`、`runtime-dotnet/src/ScpCv.Infrastructure/Persistence/DatabaseInitializer.cs` 和 `runtime-dotnet/tests/ScpCv.Infrastructure.Tests/DatabaseInitializerTests.cs`
+- [X] T016 创建仅供 ControlHost 使用的 EF Core 上下文与实体配置到 `runtime-dotnet/src/ScpCv.Infrastructure/Persistence/ControlDbContext.cs` 和 `runtime-dotnet/src/ScpCv.Infrastructure/Persistence/Configurations/*.cs`
+- [X] T017 创建新库初始 EF Core schema 到 `runtime-dotnet/src/ScpCv.Infrastructure/Persistence/Migrations/*_InitialControlSchema.cs` 和 `runtime-dotnet/src/ScpCv.Infrastructure/Persistence/Migrations/ControlDbContextModelSnapshot.cs`
+- [X] T018 实现独立 DataRoot、SQLite WAL/busy timeout、已有不兼容库拒绝和非破坏性初始化到 `runtime-dotnet/src/ScpCv.Infrastructure/Configuration/DataRootOptions.cs`、`runtime-dotnet/src/ScpCv.Infrastructure/Persistence/DatabaseInitializer.cs` 和 `runtime-dotnet/tests/ScpCv.Infrastructure.Tests/DatabaseInitializerTests.cs`
 - [ ] T019 [P] 实现短事务单写入调度与逐操作 DbContext 工厂到 `runtime-dotnet/src/ScpCv.Infrastructure/Persistence/WriteCoordinator.cs`
 - [ ] T020 实现持久命令、租约、完成证据与目标序列存储到 `runtime-dotnet/src/ScpCv.Infrastructure/Commands/CommandRepository.cs` 和 `runtime-dotnet/src/ScpCv.Infrastructure/Persistence/Configurations/CommandRecordConfiguration.cs`
 - [ ] T021 [P] 实现运行组停止闩锁、Worker 所有权和 Office 操作持久化到 `runtime-dotnet/src/ScpCv.Infrastructure/Runtime/RuntimeAuthorityRepository.cs`
