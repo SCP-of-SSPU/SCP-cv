@@ -182,6 +182,7 @@ public sealed class CommandRecord
     public DateTimeOffset? StartedAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
     public string ResultCode { get; set; } = string.Empty;
+    public string ResultHash { get; set; } = string.Empty;
     public string ResultEvidenceJson { get; set; } = "{}";
     public string LastError { get; set; } = string.Empty;
 }
@@ -220,6 +221,7 @@ public sealed class OfficeOperation
     public Guid? ParentCommandId { get; set; }
     public Guid? ParentJobId { get; set; }
     public Guid? ClaimToken { get; set; }
+    public long SourceGeneration { get; set; }
     public long GroupEpoch { get; set; }
     public long HostEpoch { get; set; }
     public long SlotEpoch { get; set; }

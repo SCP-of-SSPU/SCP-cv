@@ -22,5 +22,6 @@ public sealed class CommandRecordConfiguration : IEntityTypeConfiguration<Comman
             .IsUnique();
         builder.Property(entity => entity.Command).HasMaxLength(80);
         builder.Property(entity => entity.ResultCode).HasMaxLength(100);
+        builder.Property(entity => entity.ResultHash).HasMaxLength(128);
     }
 }

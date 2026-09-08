@@ -52,9 +52,9 @@
 - [X] T016 创建仅供 ControlHost 使用的 EF Core 上下文与实体配置到 `runtime-dotnet/src/ScpCv.Infrastructure/Persistence/ControlDbContext.cs` 和 `runtime-dotnet/src/ScpCv.Infrastructure/Persistence/Configurations/*.cs`
 - [X] T017 创建新库初始 EF Core schema 到 `runtime-dotnet/src/ScpCv.Infrastructure/Persistence/Migrations/*_InitialControlSchema.cs` 和 `runtime-dotnet/src/ScpCv.Infrastructure/Persistence/Migrations/ControlDbContextModelSnapshot.cs`
 - [X] T018 实现独立 DataRoot、SQLite WAL/busy timeout、已有不兼容库拒绝和非破坏性初始化到 `runtime-dotnet/src/ScpCv.Infrastructure/Configuration/DataRootOptions.cs`、`runtime-dotnet/src/ScpCv.Infrastructure/Persistence/DatabaseInitializer.cs` 和 `runtime-dotnet/tests/ScpCv.Infrastructure.Tests/DatabaseInitializerTests.cs`
-- [ ] T019 [P] 实现短事务单写入调度与逐操作 DbContext 工厂到 `runtime-dotnet/src/ScpCv.Infrastructure/Persistence/WriteCoordinator.cs`
-- [ ] T020 实现持久命令、租约、完成证据与目标序列存储到 `runtime-dotnet/src/ScpCv.Infrastructure/Commands/CommandRepository.cs` 和 `runtime-dotnet/src/ScpCv.Infrastructure/Persistence/Configurations/CommandRecordConfiguration.cs`
-- [ ] T021 [P] 实现运行组停止闩锁、Worker 所有权和 Office 操作持久化到 `runtime-dotnet/src/ScpCv.Infrastructure/Runtime/RuntimeAuthorityRepository.cs`
+- [X] T019 [P] 实现短事务单写入调度与逐操作 DbContext 工厂到 `runtime-dotnet/src/ScpCv.Infrastructure/Persistence/WriteCoordinator.cs`
+- [X] T020 实现持久命令、租约、完成证据与目标序列存储到 `runtime-dotnet/src/ScpCv.Infrastructure/Commands/CommandRepository.cs` 和 `runtime-dotnet/src/ScpCv.Infrastructure/Persistence/Configurations/CommandRecordConfiguration.cs`
+- [X] T021 [P] 实现运行组停止闩锁、Worker 所有权和 Office 操作持久化到 `runtime-dotnet/src/ScpCv.Infrastructure/Runtime/RuntimeAuthorityRepository.cs`
 - [ ] T022 [P] 建立稳定错误码、敏感字段脱敏和结构化关联日志到 `runtime-dotnet/src/ScpCv.Contracts/Errors/ErrorCodes.cs` 和 `runtime-dotnet/src/ScpCv.Infrastructure/Diagnostics/LogRedaction.cs`
 - [ ] T023 组装 ControlHost 配置、DI、健康检查和 simulation 安全模式到 `runtime-dotnet/src/ScpCv.ControlHost/Program.cs`、`runtime-dotnet/src/ScpCv.ControlHost/appsettings.json` 和 `runtime-dotnet/src/ScpCv.ControlHost/appsettings.Development.json`
 - [ ] T024 实现 4 字节长度帧、大小/超时限制、Windows 管道 ACL 和已登记进程身份校验到 `runtime-dotnet/src/ScpCv.ControlHost/Ipc/NamedPipeServer.cs` 和 `runtime-dotnet/tests/ScpCv.Integration.Tests/IpcFramingTests.cs`
