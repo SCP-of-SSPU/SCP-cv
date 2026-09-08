@@ -55,8 +55,8 @@
 - [X] T019 [P] 实现短事务单写入调度与逐操作 DbContext 工厂到 `runtime-dotnet/src/ScpCv.Infrastructure/Persistence/WriteCoordinator.cs`
 - [X] T020 实现持久命令、租约、完成证据与目标序列存储到 `runtime-dotnet/src/ScpCv.Infrastructure/Commands/CommandRepository.cs` 和 `runtime-dotnet/src/ScpCv.Infrastructure/Persistence/Configurations/CommandRecordConfiguration.cs`
 - [X] T021 [P] 实现运行组停止闩锁、Worker 所有权和 Office 操作持久化到 `runtime-dotnet/src/ScpCv.Infrastructure/Runtime/RuntimeAuthorityRepository.cs`
-- [ ] T022 [P] 建立稳定错误码、敏感字段脱敏和结构化关联日志到 `runtime-dotnet/src/ScpCv.Contracts/Errors/ErrorCodes.cs` 和 `runtime-dotnet/src/ScpCv.Infrastructure/Diagnostics/LogRedaction.cs`
-- [ ] T023 组装 ControlHost 配置、DI、健康检查和 simulation 安全模式到 `runtime-dotnet/src/ScpCv.ControlHost/Program.cs`、`runtime-dotnet/src/ScpCv.ControlHost/appsettings.json` 和 `runtime-dotnet/src/ScpCv.ControlHost/appsettings.Development.json`
+- [X] T022 [P] 建立稳定错误码、敏感字段脱敏和结构化关联日志到 `runtime-dotnet/src/ScpCv.Contracts/Errors/ErrorCodes.cs` 和 `runtime-dotnet/src/ScpCv.Infrastructure/Diagnostics/LogRedaction.cs`
+- [X] T023 组装 ControlHost 配置、DI、健康检查和 simulation 安全模式到 `runtime-dotnet/src/ScpCv.ControlHost/Program.cs`、`runtime-dotnet/src/ScpCv.ControlHost/appsettings.json` 和 `runtime-dotnet/src/ScpCv.ControlHost/appsettings.Development.json`
 - [ ] T024 实现 4 字节长度帧、大小/超时限制、Windows 管道 ACL 和已登记进程身份校验到 `runtime-dotnet/src/ScpCv.ControlHost/Ipc/NamedPipeServer.cs` 和 `runtime-dotnet/tests/ScpCv.Integration.Tests/IpcFramingTests.cs`
 - [ ] T025 [P] 建立假 Worker、Office、设备和确定性时钟测试宿主到 `runtime-dotnet/tests/ScpCv.Integration.Tests/Fakes/RuntimeFakes.cs` 和 `runtime-dotnet/tests/ScpCv.Integration.Tests/Fixtures/ControlHostFixture.cs`
 - [ ] T026 [P] 创建 Electron/Capacitor Cookie、CSRF 与 EventSource 共享会话风险探针到 `frontend/scripts/verify-packaged-session.mjs` 和 `frontend/scripts/verify-packaged-session.test.mjs`
