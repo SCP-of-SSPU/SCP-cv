@@ -368,7 +368,7 @@ T102–T103 Development data boundary tests
 - [X] T122 CRITICAL 在 ControlHost 托管并发 Named Pipe broker，接入受认证 Supervisor 子进程登记、OS PID/start-time/session/role 校验、命令 dispatch、wake 与停止闩锁 per FR-007, FR-019
 - [ ] T123 CRITICAL 实现 PlayerWorker 启动参数、管道领取/续租/结果/状态循环，以及 WPF 中真实 LibVLCSharp、WebView2、Windows.Data.Pdf、图片表面和健康预热切换 per FR-015–017 (missing)
 - [ ] T124 CRITICAL 为 AudioWorker 接入管道命令循环、LibVLC 执行、状态上报和带 event_id/source_generation 的自然结束通知 per FR-018 (missing)
-- [ ] T125 CRITICAL 将 PowerPointHost 从占位入口改为独立 STA/COM IPC 宿主，并把唯一槽位、HWND 附着、导航、媒体、导出与安全关闭接入 PlayerWorker/ControlHost 流程 per FR-011–014 (missing)
+- [ ] T125 CRITICAL 将 PowerPointHost 接入独立 STA/COM IPC 宿主，并把唯一槽位、HWND 附着、导航、媒体、导出与安全关闭接入 PlayerWorker/ControlHost 流程 per FR-011–014 (partial: 已完成参数解析、Named Pipe 握手、WorkerReady 和 STA 长连接；OfficeRequest/操作闭环仍缺)
 - [ ] T126 将真实 Windows 显示拓扑和 Core Audio 接入非 simulation ControlHost，保留 simulation 的明确虚拟实现和 unavailable 诊断 per FR-004, FR-019–020 (partial)
 - [X] T127 受认证本机 runtime start/stop/restart/status 控制通道已接入 bootstrap、`/api/system/restart/` 与 `/api/system/shutdown/`；Supervisor 回执驱动 Worker ready→armed，启动超时/早退/登记失败会清理自有进程并持久化 faulted per FR-018, FR-020
 - [ ] T128 修复并回归验证 Web 初始导航挂载竞态，完成 Web/Electron/Android 对 HTTPS simulation ControlHost 的认证、SSE 重连、路由、文件与客户端关闭矩阵 per FR-028–030 (partial)

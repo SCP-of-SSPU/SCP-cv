@@ -81,6 +81,7 @@
 - T122：physical ControlHost 托管并发 Named Pipe broker，验证 OS PID/start-time/session/role/instance，支持 Worker 注册、heartbeat、Claim/Renew/Result/State、Wake 和 Supervisor 子进程登记。`RuntimePipeBrokerTests` 3 项通过。
 - Worker 通用管道客户端已改为单 reader loop，按 `correlation_id` 分发最多 64 个在途响应，并将 Wake 等主动消息置于独立流；`RuntimeWorkerSessionTests` 2 项通过。`RuntimeSupervisorControlTests` 覆盖 Supervisor 早退即时失败。
 - T127 已完成软件闭环：`RuntimeSupervisorControl` 通过 broker readiness gate 等待 player-1..4、audio、office 的 `WorkerReady`，仅成功后 `ArmAsync`；缺失角色、错误 group epoch、Office 未 ready、连接断开、Supervisor 早退和启动超时均 fail closed。失败路径调用受控 stop、`FailStartAsync` 持久化 `faulted`，Supervisor 登记失败时清理本次已启动的自有子进程。`RuntimePipeBrokerTests` readiness 场景、`DeviceAndSystemEndpointTests` 8 项及 `RuntimeAuthorityRepositoryTests` 4 项通过。真实四屏/Office/VLC 启停仍保留在 T116/T129，未以 simulation 结果替代。
+- T123/T124/T125 收敛进展：PlayerWorker 已接入真实 WPF/WebView2/LibVLC/PDF/图片资源宿主，PDF 首页/总页数会在 OPEN 后同步，WebView2 ProcessFailed 会撤销健康资格；AudioWorker 已抽出可测试的命令执行器、LibVLC结束回调异步隔离和 AudioFinished 取消闩锁；PowerPointHost 已完成 `--pipe-name/--instance-id`、独立 STA、握手与 WorkerReady 长连接。上述软件构建/测试通过，但真实媒体、Office COM/HWND 和硬件播放仍不等同实机门禁。
 
 ## Spec Kit 一致性分析（T119）
 
