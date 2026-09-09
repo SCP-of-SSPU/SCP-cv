@@ -87,6 +87,7 @@ public sealed record RegisteredProcessIdentity(
 
 public interface IRegisteredProcessRegistry
 {
+    void Register(RegisteredProcessIdentity identity);
     bool TryGet(int processId, out RegisteredProcessIdentity? identity);
 }
 
@@ -210,13 +211,29 @@ public sealed partial class NamedPipeServer(
             throw CreateIdentityError("无法取得本机管道客户端登录会话");
         }
 
-        if (!processRegistry.TryGet(processId, out var registered) || registered is null)
-        {
-            throw CreateIdentityError("客户端进程未由 Supervisor 登记");
-        }
-
         using var process = Process.GetProcessById(processId);
         var actualStartTime = new DateTimeOffset(process.StartTime.ToUniversalTime(), TimeSpan.Zero);
+        if (!processRegistry.TryGet(processId, out var registered) || registered is null)
+        {
+            // Supervisor 是唯一允许由 ControlHost 启动后首次 bootstrap 的角色；
+            // 其余 Worker 必须先由已认证 Supervisor 登记，避免同用户任意进程冒充。
+            var executableName = Path.GetFileNameWithoutExtension(process.MainModule?.FileName ?? string.Empty);
+            if (!string.Equals(expectedRole, "supervisor", StringComparison.Ordinal) ||
+                !string.Equals(executableName, "ScpCv.Supervisor", StringComparison.OrdinalIgnoreCase) ||
+                (int)rawSessionId != logonSessionId)
+            {
+                throw CreateIdentityError("客户端进程未由 Supervisor 登记");
+            }
+
+            registered = new RegisteredProcessIdentity(
+                processId,
+                actualStartTime,
+                (int)rawSessionId,
+                expectedRole,
+                expectedInstanceId);
+            processRegistry.Register(registered);
+        }
+
         if (registered.ProcessStartTime != actualStartTime ||
             registered.LogonSessionId != (int)rawSessionId ||
             registered.LogonSessionId != logonSessionId ||

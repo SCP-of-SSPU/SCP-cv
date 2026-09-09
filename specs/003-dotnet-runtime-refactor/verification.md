@@ -80,6 +80,7 @@
 - T121：Supervisor 的 `start/stop/restart/status` 入口、状态文件、四 Player/Audio/Office/MediaMTX 编排及成员退出整组停止已实现；一次开发构建故障退出证据见 `docs/qa/003-runtime-lifecycle.md`。
 - T122：physical ControlHost 托管并发 Named Pipe broker，验证 OS PID/start-time/session/role/instance，支持 Worker 注册、heartbeat、Claim/Renew/Result/State、Wake 和 Supervisor 子进程登记。`RuntimePipeBrokerTests` 3 项通过。
 - Worker 通用管道客户端已改为单 reader loop，按 `correlation_id` 分发最多 64 个在途响应，并将 Wake 等主动消息置于独立流；`RuntimePipeClientTests` 2 项通过。Supervisor 的首次可信启动入口仍属于 T127，不把预登记测试替代为完整启停控制通道。
+- T127 进行中：新增可配置的 `RuntimeSupervisorControl` 和 `/api/system/start/`；physical Supervisor 启动参数可携带 broker pipe，Supervisor 会通过管道完成自身 bootstrap 与子进程登记。simulation 继续保持原有停闩锁合同；完整 Worker ready→armed、失败回执和真实 start/stop/restart 仍待补齐。
 
 ## Spec Kit 一致性分析（T119）
 

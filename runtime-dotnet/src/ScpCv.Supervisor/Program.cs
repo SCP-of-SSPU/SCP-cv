@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
+using ScpCv.Contracts.Ipc;
+using ScpCv.Contracts.Runtime;
 using ScpCv.Supervisor.Processes;
 using ScpCv.Supervisor.Runtime;
 
@@ -13,14 +15,15 @@ var action = GetOption(args, "action") ?? args.FirstOrDefault()?.ToLowerInvarian
 var runtimeRoot = Path.GetFullPath(GetOption(args, "runtime-root") ?? Path.Combine(AppContext.BaseDirectory, "runtime"));
 var statePath = Path.GetFullPath(GetOption(args, "state") ?? Path.Combine(AppContext.BaseDirectory, "runtime-processes.json"));
 var mediaMtxPath = GetOption(args, "mediamtx");
+var controlPipe = GetOption(args, "control-pipe");
 
 try
 {
     return action switch
     {
-        "start" => await StartAsync(runtimeRoot, statePath, mediaMtxPath),
+        "start" => await StartAsync(runtimeRoot, statePath, mediaMtxPath, controlPipe),
         "stop" => await StopAsync(statePath),
-        "restart" => await RestartAsync(runtimeRoot, statePath, mediaMtxPath),
+        "restart" => await RestartAsync(runtimeRoot, statePath, mediaMtxPath, controlPipe),
         "status" => await StatusAsync(statePath),
         _ => Fail($"未知 Supervisor 动作：{action}。可用值：start、stop、restart、status。"),
     };
@@ -31,7 +34,7 @@ catch (Exception exception) when (exception is not OperationCanceledException)
     return 1;
 }
 
-static async Task<int> StartAsync(string runtimeRoot, string statePath, string? mediaMtxPath)
+static async Task<int> StartAsync(string runtimeRoot, string statePath, string? mediaMtxPath, string? controlPipe)
 {
     var existing = await ReadStateAsync(statePath);
     if (existing.Any(IsAlive))
@@ -42,6 +45,9 @@ static async Task<int> StartAsync(string runtimeRoot, string statePath, string? 
 
     var registry = new ProcessRegistry();
     var owned = new RuntimeLauncher(registry).Start(runtimeRoot, mediaMtxPath);
+    await using var control = string.IsNullOrWhiteSpace(controlPipe)
+        ? null
+        : await RegisterWithControlHostAsync(controlPipe, owned);
     await WriteStateAsync(statePath, owned);
     Console.WriteLine(JsonSerializer.Serialize(owned.Select(ToState), GetJsonOptions()));
 
@@ -83,11 +89,70 @@ static async Task<int> StopAsync(string statePath)
     return 0;
 }
 
-static async Task<int> RestartAsync(string runtimeRoot, string statePath, string? mediaMtxPath)
+static async Task<int> RestartAsync(string runtimeRoot, string statePath, string? mediaMtxPath, string? controlPipe)
 {
     await StopAsync(statePath);
-    return await StartAsync(runtimeRoot, statePath, mediaMtxPath);
+    return await StartAsync(runtimeRoot, statePath, mediaMtxPath, controlPipe);
 }
+
+static async Task<RuntimePipeClient> RegisterWithControlHostAsync(
+    string pipeName,
+    IReadOnlyList<OwnedProcess> owned)
+{
+    var client = new RuntimePipeClient(pipeName);
+    try
+    {
+        await client.ConnectAsync();
+        var instanceId = Guid.NewGuid();
+        using var process = Process.GetCurrentProcess();
+        var hello = Frame("hello", instanceId, null, new HelloDto
+        {
+            Role = "supervisor",
+            ProcessId = process.Id,
+            ProcessStartTime = UtcStart(process).ToString("O"),
+            LogonSessionId = process.SessionId,
+            Capabilities = ["process_registry", "shutdown"],
+        });
+        var welcome = await client.ExchangeAsync(hello);
+        if (!string.Equals(welcome.MessageType, "welcome", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("ControlHost 未接受 Supervisor 握手。");
+
+        foreach (var child in owned)
+        {
+            using var childProcess = Process.GetProcessById(child.ProcessId);
+            var result = await client.ExchangeAsync(Frame("register_process", instanceId, null, new RegisterProcessDto
+            {
+                Role = child.Role,
+                ProcessId = child.ProcessId,
+                ProcessStartTime = child.StartTime.ToString("O"),
+                LogonSessionId = child.SessionId,
+                InstanceId = Guid.NewGuid(),
+            }));
+            var registration = result.Payload.Deserialize<RegistrationResultDto>();
+            if (registration is not { Accepted: true })
+                throw new InvalidOperationException($"ControlHost 拒绝登记 {child.Role}：{registration?.Reason}");
+        }
+
+        return client;
+    }
+    catch
+    {
+        await client.DisposeAsync();
+        throw;
+    }
+}
+
+static DateTimeOffset UtcStart(Process process) =>
+    new(process.StartTime.ToUniversalTime(), TimeSpan.Zero);
+
+static IpcFrameDto Frame<T>(string type, Guid instanceId, IpcTargetDto? target, T payload) => new()
+{
+    MessageType = type,
+    MessageId = Guid.NewGuid(),
+    InstanceId = instanceId,
+    Target = target,
+    Payload = JsonSerializer.SerializeToElement(payload),
+};
 
 static async Task<int> StatusAsync(string statePath)
 {

@@ -10,6 +10,7 @@ using ScpCv.ControlHost.Events;
 using ScpCv.ControlHost.Health;
 using ScpCv.ControlHost.Ipc;
 using ScpCv.ControlHost.Logging;
+using ScpCv.ControlHost.Runtime;
 using ScpCv.ControlHost.Commands;
 using ScpCv.Infrastructure.Auth;
 using ScpCv.Infrastructure.Audio;
@@ -41,12 +42,15 @@ var deviceOptions = builder.Configuration.GetSection(DeviceOptions.SectionName)
     .Get<DeviceOptions>() ?? new DeviceOptions();
 var sseOptions = builder.Configuration.GetSection("Sse")
     .Get<SseEventStreamOptions>() ?? new SseEventStreamOptions();
+var supervisorOptions = builder.Configuration.GetSection(RuntimeSupervisorOptions.SectionName)
+    .Get<RuntimeSupervisorOptions>() ?? new RuntimeSupervisorOptions();
 
 builder.Services.AddSingleton(dataRootOptions);
 builder.Services.AddSingleton(safetyMode);
 builder.Services.AddSingleton(mediaOptions);
 builder.Services.AddSingleton(deviceOptions);
 builder.Services.AddSingleton(sseOptions);
+builder.Services.AddSingleton(supervisorOptions);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddHttpClient("stream-probe", client =>
 {
@@ -78,6 +82,10 @@ else
     builder.Services.AddSingleton<ICommandWakeNotifier>(services => services.GetRequiredService<RuntimePipeBroker>());
     builder.Services.AddHostedService(services => services.GetRequiredService<RuntimePipeBroker>());
 }
+builder.Services.AddSingleton<RuntimeSupervisorControl>(services =>
+    safetyMode.IsSimulation
+        ? new RuntimeSupervisorControl(supervisorOptions)
+        : new RuntimeSupervisorControl(supervisorOptions, services.GetRequiredService<NamedPipeServer>()));
 builder.Services.AddSingleton<CommandCoordinator>();
 builder.Services.AddSingleton<CommandLeaseService>();
 builder.Services.AddSingleton<CommandResultService>();
