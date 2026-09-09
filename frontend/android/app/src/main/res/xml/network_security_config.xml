@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
     <base-config cleartextTrafficPermitted="false" />
+    <!-- 仅 debug APK 允许使用测试设备的用户 CA，便于连接受信的本机 HTTPS
+         ControlHost；release APK 不应用 debug-overrides，仍只信任系统 CA。 -->
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="user" />
+        </trust-anchors>
+    </debug-overrides>
 </network-security-config>

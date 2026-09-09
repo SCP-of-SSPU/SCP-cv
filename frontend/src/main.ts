@@ -34,9 +34,12 @@ registerUnauthorizedHandler(() => {
   });
 });
 
-app.mount('#app');
-
-void resolveNativePlatformAdapter().then((adapter) => {
+// 等待首个导航（包含异步鉴权守卫）完成后再挂载，避免直接访问 /login 或
+// /connect 时 App.vue 读取到 START_LOCATION，短暂或永久渲染错误的外壳。
+void router.isReady().then(() => {
+  app.mount('#app');
+  return resolveNativePlatformAdapter();
+}).then((adapter) => {
   if (!adapter) return;
   const uninstall = installClientLifecycle(adapter, router);
   window.addEventListener('beforeunload', uninstall, { once: true });

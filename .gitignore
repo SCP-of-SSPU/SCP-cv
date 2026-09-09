@@ -193,6 +193,7 @@ frontend/src/**/*.d.ts
 frontend/vite.config.js
 frontend/vite.config.d.ts
 .validation/
+.qa-data*/
 data/dotnet/
 runtime-dotnet/**/data/dotnet/
 runtime-dotnet/**/bin/
@@ -200,6 +201,11 @@ runtime-dotnet/**/obj/
 runtime-dotnet/TestResults/
 runtime-dotnet/artifacts/
 runtime-dotnet/.packages/
+frontend/.qa-pack/
+frontend/.electron-e2e*/
+frontend/android/localhost-dev.cer
+frontend/frontend/
+docs/qa/003-web-controlhost.png
 *.user
 *.suo
 .playwright-mcp/
