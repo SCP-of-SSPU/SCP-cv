@@ -1,5 +1,8 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
+using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using ScpCv.ControlHost.Auth;
 using ScpCv.ControlHost.Configuration;
 using ScpCv.ControlHost.Endpoints;
@@ -56,9 +59,25 @@ builder.Services.AddSingleton<DatabaseInitializer>();
 builder.Services.AddScoped<DatabaseCommands>();
 builder.Services.AddSingleton<WriteCoordinator>();
 builder.Services.AddSingleton<CommandRepository>();
-builder.Services.AddSingleton<QueuedCommandWakeNotifier>();
-builder.Services.AddSingleton<ICommandWakeNotifier>(services =>
-    services.GetRequiredService<QueuedCommandWakeNotifier>());
+builder.Services.AddSingleton<RegisteredProcessRegistry>();
+builder.Services.AddSingleton<IRegisteredProcessRegistry>(services => services.GetRequiredService<RegisteredProcessRegistry>());
+if (safetyMode.IsSimulation)
+{
+    builder.Services.AddSingleton<QueuedCommandWakeNotifier>();
+    builder.Services.AddSingleton<ICommandWakeNotifier>(services => services.GetRequiredService<QueuedCommandWakeNotifier>());
+}
+else
+{
+    var installationId = CreateInstallationId(controlDbFactory.Layout.DatabasePath);
+    var logonSessionId = Process.GetCurrentProcess().SessionId;
+    builder.Services.AddSingleton(services => new NamedPipeServer(
+        installationId,
+        logonSessionId,
+        services.GetRequiredService<IRegisteredProcessRegistry>()));
+    builder.Services.AddSingleton<RuntimePipeBroker>();
+    builder.Services.AddSingleton<ICommandWakeNotifier>(services => services.GetRequiredService<RuntimePipeBroker>());
+    builder.Services.AddHostedService(services => services.GetRequiredService<RuntimePipeBroker>());
+}
 builder.Services.AddSingleton<CommandCoordinator>();
 builder.Services.AddSingleton<CommandLeaseService>();
 builder.Services.AddSingleton<CommandResultService>();
@@ -146,5 +165,11 @@ ControlHostLog.Initialized(
     DataRootOptions.RequiredDatabaseFileName);
 
 await app.RunAsync();
+
+static Guid CreateInstallationId(string databasePath)
+{
+    var digest = SHA256.HashData(Encoding.UTF8.GetBytes(Path.GetFullPath(databasePath).ToUpperInvariant()));
+    return new Guid(digest.AsSpan(0, 16));
+}
 
 public partial class Program;

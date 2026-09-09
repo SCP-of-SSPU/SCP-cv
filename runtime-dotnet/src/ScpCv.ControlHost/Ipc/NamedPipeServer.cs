@@ -125,6 +125,7 @@ public sealed partial class NamedPipeServer(
     IRegisteredProcessRegistry processRegistry)
 {
     private const int FirstPipeInstanceFlag = 0x0008_0000;
+    private int _firstInstance = 1;
 
     public string PipeName { get; } = $"scp-cv.{installationId:N}.{logonSessionId}.runtime.v1";
 
@@ -153,17 +154,47 @@ public sealed partial class NamedPipeServer(
         }
     }
 
-    private NamedPipeServerStream CreateStream() =>
+    public async Task<NamedPipeServerStream> AcceptAsync(CancellationToken cancellationToken = default)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new PlatformNotSupportedException("SCP-cv Named Pipe server 仅支持 Windows。");
+        }
+
+        var stream = CreateStream();
+        try
+        {
+            await stream.WaitForConnectionAsync(cancellationToken).ConfigureAwait(false);
+            return stream;
+        }
+        catch
+        {
+            await stream.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    public RegisteredProcessIdentity VerifyClient(
+        NamedPipeServerStream stream,
+        string expectedRole,
+        Guid expectedInstanceId) =>
+        VerifyClientIdentity(stream, expectedRole, expectedInstanceId);
+
+    private NamedPipeServerStream CreateStream()
+    {
+        var firstInstance = Interlocked.Exchange(ref _firstInstance, 0) == 1;
+        return
         new(
             pipeName: PipeName,
             direction: PipeDirection.InOut,
-            maxNumberOfServerInstances: 1,
+            maxNumberOfServerInstances: NamedPipeServerStream.MaxAllowedServerInstances,
             transmissionMode: PipeTransmissionMode.Byte,
-            options: PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly | (PipeOptions)FirstPipeInstanceFlag,
+            options: PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly | (firstInstance ? (PipeOptions)FirstPipeInstanceFlag : 0),
             inBufferSize: 64 * 1024,
             outBufferSize: 64 * 1024);
+    }
 
-    private RegisteredProcessIdentity VerifyClient(
+    private RegisteredProcessIdentity VerifyClientIdentity(
         NamedPipeServerStream stream,
         string expectedRole,
         Guid expectedInstanceId)

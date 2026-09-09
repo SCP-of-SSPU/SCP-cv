@@ -1,12 +1,14 @@
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.IO.Pipes;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Threading.Channels;
 using ScpCv.Contracts.Ipc;
 
 namespace ScpCv.Contracts.Runtime;
 
-/// <summary>Worker 共用的单连接 Named Pipe 客户端；停止闩锁一旦设置便不因重连解除。</summary>
+/// <summary>Worker 共用的双工 Named Pipe 客户端；单一 reader 按 correlation_id 路由响应与 Wake。</summary>
 public sealed class RuntimePipeClient(string pipeName) : IAsyncDisposable
 {
     private static readonly TimeSpan[] RetrySchedule =
@@ -18,71 +20,125 @@ public sealed class RuntimePipeClient(string pipeName) : IAsyncDisposable
         TimeSpan.FromSeconds(5),
     ];
 
-    private readonly SemaphoreSlim _exchangeGate = new(1, 1);
+    private readonly SemaphoreSlim _connectGate = new(1, 1);
+    private readonly SemaphoreSlim _sendGate = new(1, 1);
+    private readonly SemaphoreSlim _inflightGate = new(64, 64);
+    private readonly ConcurrentDictionary<Guid, TaskCompletionSource<IpcFrameDto>> _pending = new();
     private readonly ConcurrentDictionary<Guid, IpcFrameDto> _resultCache = new();
+    private readonly Channel<IpcFrameDto> _unsolicited = Channel.CreateUnbounded<IpcFrameDto>(
+        new UnboundedChannelOptions { SingleReader = false, SingleWriter = true });
+    private readonly object _connectionSync = new();
     private NamedPipeClientStream? _stream;
+    private CancellationTokenSource? _readerCancellation;
+    private Task? _readerTask;
     private int _stopped;
 
     public bool IsStopped => Volatile.Read(ref _stopped) != 0;
 
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
     {
-        if (IsStopped)
+        ThrowIfStopped();
+        await _connectGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            throw new InvalidOperationException("运行组停止闩锁已设置，拒绝自动重连。");
-        }
+            ThrowIfStopped();
+            lock (_connectionSync)
+            {
+                if (_stream is { IsConnected: true })
+                {
+                    return;
+                }
+            }
 
-        Exception? lastError = null;
-        for (var attempt = 0; !cancellationToken.IsCancellationRequested; attempt++)
+            Exception? lastError = null;
+            for (var attempt = 0; !cancellationToken.IsCancellationRequested; attempt++)
+            {
+                ThrowIfStopped();
+                var stream = new NamedPipeClientStream(
+                    ".",
+                    pipeName,
+                    PipeDirection.InOut,
+                    PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+                try
+                {
+                    await stream.ConnectAsync(1000, cancellationToken).ConfigureAwait(false);
+                    var readerCancellation = new CancellationTokenSource();
+                    lock (_connectionSync)
+                    {
+                        _stream = stream;
+                        _readerCancellation = readerCancellation;
+                        _readerTask = ReadLoopAsync(stream, readerCancellation.Token);
+                    }
+                    return;
+                }
+                catch (Exception exception) when (exception is IOException or TimeoutException)
+                {
+                    lastError = exception;
+                    await stream.DisposeAsync().ConfigureAwait(false);
+                    var baseDelay = RetrySchedule[Math.Min(attempt, RetrySchedule.Length - 1)];
+                    var jitter = TimeSpan.FromMilliseconds(Random.Shared.Next(0, 101));
+                    await Task.Delay(baseDelay + jitter, cancellationToken).ConfigureAwait(false);
+                }
+            }
+
+            throw new OperationCanceledException("连接 ControlHost Named Pipe 已取消。", lastError, cancellationToken);
+        }
+        finally
         {
-            var stream = new NamedPipeClientStream(
-                ".",
-                pipeName,
-                PipeDirection.InOut,
-                PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
-            try
-            {
-                await stream.ConnectAsync(1000, cancellationToken).ConfigureAwait(false);
-                _stream = stream;
-                return;
-            }
-            catch (Exception exception) when (exception is IOException or TimeoutException)
-            {
-                lastError = exception;
-                await stream.DisposeAsync().ConfigureAwait(false);
-                var baseDelay = RetrySchedule[Math.Min(attempt, RetrySchedule.Length - 1)];
-                var jitter = TimeSpan.FromMilliseconds(Random.Shared.Next(0, 101));
-                await Task.Delay(baseDelay + jitter, cancellationToken).ConfigureAwait(false);
-            }
+            _connectGate.Release();
         }
-
-        throw new OperationCanceledException("连接 ControlHost Named Pipe 已取消。", lastError, cancellationToken);
     }
 
     public async Task<IpcFrameDto> ExchangeAsync(
         IpcFrameDto request,
         CancellationToken cancellationToken = default)
     {
-        if (IsStopped)
+        ThrowIfStopped();
+        request = request.MessageId == Guid.Empty ? request with { MessageId = Guid.NewGuid() } : request;
+        await _inflightGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        var completion = new TaskCompletionSource<IpcFrameDto>(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (!_pending.TryAdd(request.MessageId, completion))
         {
-            throw new InvalidOperationException("运行组停止闩锁已设置。");
+            _inflightGate.Release();
+            throw new InvalidOperationException($"重复的 IPC message_id：{request.MessageId}。");
         }
 
-        await _exchangeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var stream = _stream is { IsConnected: true }
-                ? _stream
-                : throw new IOException("Named Pipe 尚未连接。");
-            var bytes = JsonSerializer.SerializeToUtf8Bytes(request);
-            await WriteFrameAsync(stream, bytes, cancellationToken).ConfigureAwait(false);
-            var response = await ReadFrameAsync(stream, cancellationToken).ConfigureAwait(false);
-            return JsonSerializer.Deserialize<IpcFrameDto>(response)
-                ?? throw new InvalidDataException("ControlHost 返回了空 IPC 帧。");
+            NamedPipeClientStream stream;
+            lock (_connectionSync)
+            {
+                stream = _stream is { IsConnected: true }
+                    ? _stream
+                    : throw new IOException("Named Pipe 尚未连接。");
+            }
+
+            await _sendGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await WriteFrameAsync(stream, JsonSerializer.SerializeToUtf8Bytes(request), cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                _sendGate.Release();
+            }
+
+            return await completion.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
         {
-            _exchangeGate.Release();
+            _pending.TryRemove(request.MessageId, out _);
+            _inflightGate.Release();
+        }
+    }
+
+    public async IAsyncEnumerable<IpcFrameDto> ReadUnsolicitedAsync(
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        await foreach (var frame in _unsolicited.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+        {
+            yield return frame;
         }
     }
 
@@ -96,19 +152,112 @@ public sealed class RuntimePipeClient(string pipeName) : IAsyncDisposable
 
     public async ValueTask LatchStopAsync()
     {
-        Interlocked.Exchange(ref _stopped, 1);
-        var stream = Interlocked.Exchange(ref _stream, null);
+        if (Interlocked.Exchange(ref _stopped, 1) != 0)
+        {
+            return;
+        }
+
+        NamedPipeClientStream? stream;
+        CancellationTokenSource? readerCancellation;
+        Task? readerTask;
+        lock (_connectionSync)
+        {
+            stream = _stream;
+            readerCancellation = _readerCancellation;
+            readerTask = _readerTask;
+            _stream = null;
+            _readerCancellation = null;
+            _readerTask = null;
+        }
+
+        readerCancellation?.Cancel();
         if (stream is not null)
         {
             await stream.DisposeAsync().ConfigureAwait(false);
         }
+        if (readerTask is not null)
+        {
+            try
+            {
+                await readerTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) { }
+            catch (IOException) { }
+        }
+        readerCancellation?.Dispose();
+        FailPending(new OperationCanceledException("运行组停止闩锁已设置。"));
+        _unsolicited.Writer.TryComplete();
     }
 
     public async ValueTask DisposeAsync()
     {
         await LatchStopAsync().ConfigureAwait(false);
-        _exchangeGate.Dispose();
+        _connectGate.Dispose();
+        _sendGate.Dispose();
+        _inflightGate.Dispose();
         GC.SuppressFinalize(this);
+    }
+
+    private async Task ReadLoopAsync(NamedPipeClientStream stream, CancellationToken cancellationToken)
+    {
+        Exception? failure = null;
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested && stream.IsConnected)
+            {
+                var payload = await ReadFrameAsync(stream, cancellationToken).ConfigureAwait(false);
+                var frame = JsonSerializer.Deserialize<IpcFrameDto>(payload)
+                    ?? throw new InvalidDataException("ControlHost 返回了空 IPC 帧。");
+                if (frame.CorrelationId is Guid correlationId)
+                {
+                    if (_pending.TryGetValue(correlationId, out var completion))
+                    {
+                        completion.TrySetResult(frame);
+                    }
+                    continue;
+                }
+
+                await _unsolicited.Writer.WriteAsync(frame, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        catch (Exception exception) when (exception is IOException or EndOfStreamException or InvalidDataException)
+        {
+            failure = exception;
+        }
+        finally
+        {
+            CancellationTokenSource? readerCancellation = null;
+            lock (_connectionSync)
+            {
+                if (ReferenceEquals(_stream, stream))
+                {
+                    FailPending(failure ?? new IOException("Named Pipe 连接已关闭。"));
+                    _stream = null;
+                    readerCancellation = _readerCancellation;
+                    _readerCancellation = null;
+                    _readerTask = null;
+                }
+            }
+            readerCancellation?.Dispose();
+            await stream.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    private void FailPending(Exception exception)
+    {
+        foreach (var pending in _pending.Values)
+        {
+            pending.TrySetException(exception);
+        }
+    }
+
+    private void ThrowIfStopped()
+    {
+        if (IsStopped)
+        {
+            throw new InvalidOperationException("运行组停止闩锁已设置，拒绝自动重连或发送消息。");
+        }
     }
 
     private static async Task WriteFrameAsync(Stream stream, byte[] payload, CancellationToken cancellationToken)

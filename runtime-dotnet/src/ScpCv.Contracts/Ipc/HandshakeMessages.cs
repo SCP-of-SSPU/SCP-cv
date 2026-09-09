@@ -62,3 +62,30 @@ public sealed record HealthReportDto
     [JsonPropertyName("observed_at")]
     public string ObservedAt { get; init; } = string.Empty;
 }
+
+public sealed record RegisterProcessDto
+{
+    [JsonPropertyName("role")]
+    public string Role { get; init; } = string.Empty;
+
+    [JsonPropertyName("process_id")]
+    public int ProcessId { get; init; }
+
+    [JsonPropertyName("process_start_time")]
+    public string ProcessStartTime { get; init; } = string.Empty;
+
+    [JsonPropertyName("logon_session_id")]
+    public int LogonSessionId { get; init; }
+
+    [JsonPropertyName("instance_id")]
+    public Guid InstanceId { get; init; }
+}
+
+public sealed record RegistrationResultDto
+{
+    [JsonPropertyName("accepted")]
+    public bool Accepted { get; init; }
+
+    [JsonPropertyName("reason")]
+    public string Reason { get; init; } = string.Empty;
+}
