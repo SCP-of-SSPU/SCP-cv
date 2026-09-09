@@ -15,7 +15,6 @@ public static class SystemEndpoints
         api.MapPost("/devices/{deviceType}/power/{action}/", PowerDeviceAsync);
         api.MapPost("/system/shutdown/", ShutdownAsync);
         api.MapPost("/system/restart/", RestartAsync);
-        api.MapPost("/system/start/", StartAsync);
         return endpoints;
     }
 
@@ -73,12 +72,6 @@ public static class SystemEndpoints
         RuntimeSupervisorControl supervisor,
         CancellationToken cancellationToken) =>
         RequestRuntimeRestartAsync(authority, runtime, supervisor, cancellationToken);
-
-    private static Task<IResult> StartAsync(
-        RuntimeAuthorityRepository authority,
-        RuntimeSupervisorControl supervisor,
-        CancellationToken cancellationToken) =>
-        RequestRuntimeStartAsync(authority, supervisor, cancellationToken);
 
     private static async Task<IResult> RequestRuntimeStopAsync(
         string action,
