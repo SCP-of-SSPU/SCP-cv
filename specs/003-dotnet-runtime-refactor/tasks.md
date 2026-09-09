@@ -360,3 +360,16 @@ T102–T103 Development data boundary tests
 - 不通过关闭证书校验、Electron `webSecurity` 或 Android 安全限制来伪造封装客户端成功。
 - 不因缺少实机环境勾选真实 Office、显示器、Electron 包或 Android APK 验证任务。
 - 不创建旧业务数据迁移、回滚 SLA、生产切换或现场维护任务。
+
+## Phase 10: Convergence
+
+- [X] T120 CRITICAL 将显示、音频与 Office 相关写操作通过 `CommandCoordinator` 事务入队，并确保兼容 pending 投影仅由队列/执行结果推进 per FR-007–010
+- [X] T121 CRITICAL 实现 Supervisor 可运行入口、持久子进程登记、四 PlayerWorker/AudioWorker/PowerPointHost/MediaMTX 启动及任一输出故障后的整组协作退出 per FR-018–020
+- [X] T122 CRITICAL 在 ControlHost 托管并发 Named Pipe broker，接入受认证 Supervisor 子进程登记、OS PID/start-time/session/role 校验、命令 dispatch、wake 与停止闩锁 per FR-007, FR-019
+- [ ] T123 CRITICAL 实现 PlayerWorker 启动参数、管道领取/续租/结果/状态循环，以及 WPF 中真实 LibVLCSharp、WebView2、Windows.Data.Pdf、图片表面和健康预热切换 per FR-015–017 (missing)
+- [ ] T124 CRITICAL 为 AudioWorker 接入管道命令循环、LibVLC 执行、状态上报和带 event_id/source_generation 的自然结束通知 per FR-018 (missing)
+- [ ] T125 CRITICAL 将 PowerPointHost 从占位入口改为独立 STA/COM IPC 宿主，并把唯一槽位、HWND 附着、导航、媒体、导出与安全关闭接入 PlayerWorker/ControlHost 流程 per FR-011–014 (missing)
+- [ ] T126 将真实 Windows 显示拓扑和 Core Audio 接入非 simulation ControlHost，保留 simulation 的明确虚拟实现和 unavailable 诊断 per FR-004, FR-019–020 (partial)
+- [ ] T127 完成受认证本机 runtime start/stop/restart/status 控制通道，使系统端点和 `runtime.ps1` 得到 Supervisor 回执并完成 group epoch 状态转换 per FR-018, FR-020 (partial)
+- [ ] T128 修复并回归验证 Web 初始导航挂载竞态，完成 Web/Electron/Android 对 HTTPS simulation ControlHost 的认证、SSE 重连、路由、文件与客户端关闭矩阵 per FR-028–030 (partial)
+- [ ] T129 在可运行的真实 Worker 上执行普通命令 1000 样本、健康预热切换 100 样本及具备四屏/Office/VLC/MediaMTX/音频条件时的 60 分钟混合测试，并记录原始证据 per SC-006, SC-009 (partial)

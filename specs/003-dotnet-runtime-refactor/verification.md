@@ -51,11 +51,11 @@
 
 ## 自动化执行记录
 
-执行日期：2026-09-08；环境：Windows x64，.NET SDK 10.0.400。
+执行日期：2026-09-09；环境：Windows x64，.NET SDK 10.0.400。
 
 - `dotnet restore runtime-dotnet/ScpCv.sln --force-evaluate`：通过。
 - `dotnet build runtime-dotnet/ScpCv.sln --no-restore`：通过，0 警告、0 错误。
-- `dotnet test runtime-dotnet/ScpCv.sln --no-build --no-restore`：通过，Domain 38、Contracts 18、Windows 5、Integration 26、Infrastructure 18、ControlHost 45，共 150 项。
+- `dotnet test runtime-dotnet/ScpCv.sln -c Release --no-build --no-restore --filter "Category!=Physical"`：通过，Domain 38、Contracts 18、Windows 5、Integration 32、Infrastructure 18、ControlHost 49，共 160 项。
 - `pnpm --dir frontend test`：通过，36/36。
 - `pnpm --dir frontend typecheck`：通过。
 - `pnpm --dir frontend build:web`、`build:app`、`build:electron-main`：通过；Vite 提示主入口压缩前约 1.07 MB，记录为后续代码分割优化项。
@@ -73,6 +73,13 @@
 - 四屏、Office、VLC、MediaMTX、音频的 60 分钟混合运行。
 
 因此当前不得执行 T118，也不得删除 Django/Python 运行时。
+
+## Convergence 实施记录（2026-09-09）
+
+- T120：显示、音频、场景激活及 PPT 控制写操作已接入 `CommandCoordinator`；大屏模式产生的窗口静音也持久入队。完成结果和后续状态上报均重新投影最早剩余 pending 命令，避免清空尚未执行的意图。`RuntimeIntentQueueTests` 与 `CommandPendingProjectionTests` 通过。
+- T121：Supervisor 的 `start/stop/restart/status` 入口、状态文件、四 Player/Audio/Office/MediaMTX 编排及成员退出整组停止已实现；一次开发构建故障退出证据见 `docs/qa/003-runtime-lifecycle.md`。
+- T122：physical ControlHost 托管并发 Named Pipe broker，验证 OS PID/start-time/session/role/instance，支持 Worker 注册、heartbeat、Claim/Renew/Result/State、Wake 和 Supervisor 子进程登记。`RuntimePipeBrokerTests` 3 项通过。
+- Worker 通用管道客户端已改为单 reader loop，按 `correlation_id` 分发最多 64 个在途响应，并将 Wake 等主动消息置于独立流；`RuntimePipeClientTests` 2 项通过。Supervisor 的首次可信启动入口仍属于 T127，不把预登记测试替代为完整启停控制通道。
 
 ## Spec Kit 一致性分析（T119）
 
