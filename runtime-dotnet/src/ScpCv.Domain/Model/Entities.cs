@@ -171,6 +171,7 @@ public sealed class CommandRecord
     public int SchemaVersion { get; set; } = 1;
     public long SourceGeneration { get; set; }
     public long SourceRevision { get; set; }
+    public Guid? TriggerEventId { get; set; }
     public CommandStatus Status { get; set; } = CommandStatus.Pending;
     public Guid? ConsumerInstanceId { get; set; }
     public long OwnerEpoch { get; set; }

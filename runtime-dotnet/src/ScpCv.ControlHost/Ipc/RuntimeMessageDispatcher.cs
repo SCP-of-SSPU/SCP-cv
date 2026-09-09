@@ -10,9 +10,11 @@ public sealed class RuntimeMessageDispatcher(
     CommandLeaseService leases,
     CommandResultService results,
     RuntimeProjectionPublisher projections,
+    AudioFinishedEventProcessor? audioFinished = null,
     TimeSpan? leaseDuration = null)
 {
     private readonly TimeSpan _leaseDuration = leaseDuration ?? TimeSpan.FromSeconds(30);
+    private readonly AudioFinishedEventProcessor? _audioFinished = audioFinished;
 
     public async Task<IpcFrameDto> DispatchAsync(
         IpcFrameDto frame,
@@ -35,8 +37,32 @@ public sealed class RuntimeMessageDispatcher(
             "lease_renew" => await RenewAsync(frame, cancellationToken).ConfigureAwait(false),
             "command_result" => await ResultAsync(frame, targetKind, targetId, cancellationToken).ConfigureAwait(false),
             "state_report" => await StateAsync(frame, targetKind, targetId, cancellationToken).ConfigureAwait(false),
+            "audio_finished" => await AudioFinishedAsync(frame, cancellationToken).ConfigureAwait(false),
             _ => Response(frame, "error", new { code = "unknown_message_type", retryable = false }),
         };
+    }
+
+    private async Task<IpcFrameDto> AudioFinishedAsync(
+        IpcFrameDto frame,
+        CancellationToken cancellationToken)
+    {
+        var target = frame.Target;
+        if (_audioFinished is null || target is null ||
+            !string.Equals(target.Kind, "audio", StringComparison.OrdinalIgnoreCase) ||
+            target.Id != 1)
+        {
+            return Response(frame, "error", new { code = "audio_handler_unavailable", retryable = false });
+        }
+
+        var request = frame.Payload.Deserialize<AudioFinishedDto>()
+            ?? throw new InvalidDataException("AudioFinished payload 无效。");
+        await _audioFinished.HandleFinishedAsync(
+                request.EventId,
+                request.SourceId,
+                request.SourceGeneration,
+                cancellationToken)
+            .ConfigureAwait(false);
+        return Response(frame, "event_accepted", new { accepted = true, event_id = request.EventId });
     }
 
     private async Task<IpcFrameDto> ClaimAsync(

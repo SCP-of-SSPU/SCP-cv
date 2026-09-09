@@ -143,3 +143,15 @@ public sealed record StateReportDto
     [JsonPropertyName("state")]
     public JsonElement State { get; init; }
 }
+
+public sealed record AudioFinishedDto
+{
+    [JsonPropertyName("event_id")]
+    public Guid EventId { get; init; }
+
+    [JsonPropertyName("source_id")]
+    public long SourceId { get; init; }
+
+    [JsonPropertyName("source_generation")]
+    public long SourceGeneration { get; init; }
+}

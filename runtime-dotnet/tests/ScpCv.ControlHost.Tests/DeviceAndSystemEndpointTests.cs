@@ -100,7 +100,7 @@ public sealed class DeviceAndSystemEndpointTests
 
         var authority = factory.Services.GetRequiredService<RuntimeAuthorityRepository>();
         var group = await authority.GetGroupAsync();
-        Assert.Equal(RuntimeGroupState.Draining, group.State);
+        Assert.Equal(RuntimeGroupState.Stopped, group.State);
         Assert.Equal($"system_{action}", group.StopReason);
     }
 

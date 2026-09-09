@@ -232,7 +232,14 @@ public sealed class ScenarioService(
                     current.ErrorMessage = string.Empty;
                     current.CurrentSlide = 0;
                     current.DesiredGeneration = checked(current.DesiredGeneration + 1);
-                    current.CommandArgsJson = JsonSerializer.Serialize(new { source_id = sourceId, uri = source.Uri, autoplay = target.Autoplay, target_slide = 0 });
+                    current.CommandArgsJson = JsonSerializer.Serialize(new
+                    {
+                        source_id = sourceId,
+                        source_type = SourceTypeName(source.SourceType),
+                        uri = source.Uri,
+                        autoplay = target.Autoplay,
+                        target_slide = 0,
+                    });
                     command.ArgsJson = current.CommandArgsJson;
                     command.SourceGeneration = current.DesiredGeneration;
                     command.SourceRevision = source.SourceRevision;
@@ -282,6 +289,15 @@ public sealed class ScenarioService(
             .OrderBy(session => session.WindowId).ToListAsync(cancellationToken).ConfigureAwait(false);
         return sessions.Select(item => RuntimeStateService.ToSessionDto(item, _timeProvider.GetUtcNow())).ToArray();
     }
+
+    private static string SourceTypeName(MediaSourceType type) => type switch
+    {
+        MediaSourceType.Presentation => "ppt",
+        MediaSourceType.CustomStream => "custom_stream",
+        MediaSourceType.RtspStream => "rtsp",
+        MediaSourceType.SrtStream => "srt",
+        _ => type.ToString().ToLowerInvariant(),
+    };
 
     private static async Task<IReadOnlyList<ScenarioDto>> MapAsync(
         ControlDbContext database,

@@ -85,7 +85,10 @@ else
 builder.Services.AddSingleton<RuntimeSupervisorControl>(services =>
     safetyMode.IsSimulation
         ? new RuntimeSupervisorControl(supervisorOptions)
-        : new RuntimeSupervisorControl(supervisorOptions, services.GetRequiredService<NamedPipeServer>()));
+        : new RuntimeSupervisorControl(
+            supervisorOptions,
+            services.GetRequiredService<NamedPipeServer>(),
+            services.GetRequiredService<RuntimePipeBroker>()));
 builder.Services.AddSingleton<CommandCoordinator>();
 builder.Services.AddSingleton<CommandLeaseService>();
 builder.Services.AddSingleton<CommandResultService>();

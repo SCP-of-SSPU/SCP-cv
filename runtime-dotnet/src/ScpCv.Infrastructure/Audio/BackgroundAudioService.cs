@@ -17,9 +17,6 @@ public sealed class BackgroundAudioService(
 {
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
     private readonly CommandCoordinator _commands = commands;
-    private long _sourceGeneration;
-    private readonly HashSet<Guid> _finishedEvents = [];
-    private readonly object _finishedGate = new();
 
     public async Task<BackgroundAudioDto> GetAsync(CancellationToken cancellationToken = default)
     {
@@ -66,7 +63,7 @@ public sealed class BackgroundAudioService(
                 state.PositionMs = 0;
                 state.DurationMs = 0;
                 state.PendingCommand = command.Command;
-                var generation = Interlocked.Increment(ref _sourceGeneration);
+                var generation = await NextSourceGenerationAsync(database, token).ConfigureAwait(false);
                 state.CommandArgsJson = JsonSerializer.Serialize(new
                 {
                     source_id = sourceId,
@@ -189,32 +186,61 @@ public sealed class BackgroundAudioService(
         return await RemoveFromPlaylistAsync(item.SourceId, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<BackgroundAudioDto> AdvanceAsync(bool previous = false, CancellationToken cancellationToken = default)
-    {
-        await using var lookup = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        var items = await lookup.BackgroundAudioPlaylistItems.AsNoTracking().OrderBy(item => item.SortOrder).ThenBy(item => item.Id).ToArrayAsync(cancellationToken).ConfigureAwait(false);
-        var currentSourceId = await lookup.BackgroundAudioStates.Select(state => state.CurrentSourceId).SingleAsync(cancellationToken).ConfigureAwait(false);
-        if (items.Length == 0) return await GetAsync(cancellationToken).ConfigureAwait(false);
-        var index = Array.FindIndex(items, item => item.SourceId == currentSourceId);
-        index = previous ? (index <= 0 ? items.Length - 1 : index - 1) : (index + 1) % items.Length;
-        var sourceId = items[index].SourceId;
-        return await EnqueueAudioAsync("OPEN", "{}", async (database, state, command, token) =>
-        {
-            var source = await database.MediaSources.SingleAsync(item => item.Id == sourceId, token).ConfigureAwait(false);
-            state.CurrentSourceId = sourceId;
-            state.PlaybackState = PlaybackState.Loading;
-            state.ErrorMessage = string.Empty;
-            state.PositionMs = 0;
-            state.DurationMs = 0;
-            var generation = Interlocked.Increment(ref _sourceGeneration);
-            state.CommandArgsJson = JsonSerializer.Serialize(new { source_id = sourceId, uri = source.Uri, autoplay = true, volume = state.Volume, muted = state.IsMuted });
-            command.ArgsJson = state.CommandArgsJson;
-            command.SourceGeneration = generation;
-            command.SourceRevision = source.SourceRevision;
-        }, cancellationToken).ConfigureAwait(false);
-    }
+    public Task<BackgroundAudioDto> AdvanceAsync(
+        bool previous = false,
+        CancellationToken cancellationToken = default) =>
+        AdvanceAsyncCore(previous, finished: null, cancellationToken);
 
-    public long CurrentGeneration => Volatile.Read(ref _sourceGeneration);
+    private async Task<BackgroundAudioDto> AdvanceAsyncCore(
+        bool previous,
+        AudioFinishedEvent? finished,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await EnqueueAudioAsync("OPEN", "{}", async (database, state, command, token) =>
+            {
+                if (finished is not null)
+                {
+                    var duplicate = await database.CommandRecords.AnyAsync(
+                            item => item.TriggerEventId == finished.EventId,
+                            token)
+                        .ConfigureAwait(false);
+                    var currentGeneration = await CurrentSourceGenerationAsync(database, token).ConfigureAwait(false);
+                    if (duplicate || !AudioPlaybackPolicy.ShouldAdvance(state, finished, currentGeneration))
+                    {
+                        throw new FinishedEventIgnoredException();
+                    }
+                }
+
+                var items = await database.BackgroundAudioPlaylistItems
+                    .OrderBy(item => item.SortOrder)
+                    .ThenBy(item => item.Id)
+                    .ToArrayAsync(token)
+                    .ConfigureAwait(false);
+                if (items.Length == 0) throw new FinishedEventIgnoredException();
+
+                var index = Array.FindIndex(items, item => item.SourceId == state.CurrentSourceId);
+                index = previous ? (index <= 0 ? items.Length - 1 : index - 1) : (index + 1) % items.Length;
+                var sourceId = items[index].SourceId;
+                var source = await database.MediaSources.SingleAsync(item => item.Id == sourceId, token).ConfigureAwait(false);
+                state.CurrentSourceId = sourceId;
+                state.PlaybackState = PlaybackState.Loading;
+                state.ErrorMessage = string.Empty;
+                state.PositionMs = 0;
+                state.DurationMs = 0;
+                var generation = await NextSourceGenerationAsync(database, token).ConfigureAwait(false);
+                state.CommandArgsJson = JsonSerializer.Serialize(new { source_id = sourceId, uri = source.Uri, autoplay = true, volume = state.Volume, muted = state.IsMuted });
+                command.ArgsJson = state.CommandArgsJson;
+                command.SourceGeneration = generation;
+                command.SourceRevision = source.SourceRevision;
+            }, cancellationToken, finished?.EventId).ConfigureAwait(false);
+        }
+        catch (FinishedEventIgnoredException)
+        {
+            return await GetAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
 
     public Task<BackgroundAudioDto> ControlAsync(string action, CancellationToken cancellationToken = default) =>
         action.Trim().ToLowerInvariant() switch
@@ -242,10 +268,18 @@ public sealed class BackgroundAudioService(
         string commandName,
         string argsJson,
         Func<ControlDbContext, BackgroundAudioState, CommandRecord, CancellationToken, Task> mutation,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? triggerEventId = null)
     {
         await _commands.EnqueueAsync(
-            new EnqueueCommand(CommandTargetKind.Audio, 1, commandName, argsJson, 0, 0),
+            new EnqueueCommand(
+                CommandTargetKind.Audio,
+                1,
+                commandName,
+                argsJson,
+                0,
+                0,
+                TriggerEventId: triggerEventId),
             async (database, command, token) =>
             {
                 var state = await database.BackgroundAudioStates.SingleAsync(token).ConfigureAwait(false);
@@ -271,18 +305,20 @@ public sealed class BackgroundAudioService(
     }
 
     public async Task<BackgroundAudioDto> HandleFinishedAsync(AudioFinishedEvent finished, CancellationToken cancellationToken = default)
-    {
-        bool duplicate;
-        lock (_finishedGate)
-        {
-            duplicate = !AudioPlaybackPolicy.TryAcceptFinished(finished.EventId, _finishedEvents);
-        }
-        if (duplicate) return await GetAsync(cancellationToken).ConfigureAwait(false);
-        await using var database = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        var state = await database.BackgroundAudioStates.AsNoTracking().SingleAsync(cancellationToken).ConfigureAwait(false);
-        if (!AudioPlaybackPolicy.ShouldAdvance(state, finished, CurrentGeneration)) return await GetAsync(cancellationToken).ConfigureAwait(false);
-        return await AdvanceAsync(false, cancellationToken).ConfigureAwait(false);
-    }
+        => await AdvanceAsyncCore(false, finished, cancellationToken).ConfigureAwait(false);
+
+    private static async Task<long> CurrentSourceGenerationAsync(
+        ControlDbContext database,
+        CancellationToken cancellationToken) =>
+        await database.CommandRecords
+            .Where(item => item.TargetKind == CommandTargetKind.Audio && item.TargetId == 1)
+            .MaxAsync(item => (long?)item.SourceGeneration, cancellationToken)
+            .ConfigureAwait(false) ?? 0;
+
+    private static async Task<long> NextSourceGenerationAsync(
+        ControlDbContext database,
+        CancellationToken cancellationToken) =>
+        checked(await CurrentSourceGenerationAsync(database, cancellationToken).ConfigureAwait(false) + 1);
 
     private static async Task<BackgroundAudioDto> LoadAsync(
         ControlDbContext database,
@@ -354,6 +390,8 @@ public sealed class BackgroundAudioService(
         _ => string.Empty,
     };
 }
+
+file sealed class FinishedEventIgnoredException : Exception;
 
 public sealed class BackgroundAudioServiceException(string message, string code = "background_audio_error")
     : Exception(message)

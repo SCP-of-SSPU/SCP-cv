@@ -43,6 +43,36 @@ public sealed class RuntimeAuthorityRepositoryTests
     }
 
     [Fact]
+    public async Task FailedStartIsPersistedAndFencedByRequestAndGroupEpoch()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            var factory = await CreateInitializedFactoryAsync(root);
+            using var writes = new WriteCoordinator(factory);
+            var repository = new RuntimeAuthorityRepository(factory, writes);
+            var requestId = Guid.NewGuid();
+            var starting = await repository.BeginStartAsync(requestId);
+
+            var failed = await repository.FailStartAsync(requestId, starting.GroupEpoch, "worker_ready_timeout");
+            Assert.Equal(RuntimeGroupState.Faulted, failed.State);
+            Assert.Equal("worker_ready_timeout", failed.StopReason);
+            Assert.Equal(requestId, failed.ExplicitStartRequestId);
+
+            var duplicate = await repository.FailStartAsync(requestId, starting.GroupEpoch, "worker_ready_timeout");
+            Assert.Equal(RuntimeGroupState.Faulted, duplicate.State);
+            await Assert.ThrowsAsync<RuntimeAuthorityException>(() =>
+                repository.FailStartAsync(Guid.NewGuid(), starting.GroupEpoch, "stale_request"));
+            await Assert.ThrowsAsync<RuntimeAuthorityException>(() =>
+                repository.FailStartAsync(requestId, starting.GroupEpoch + 1, "stale_epoch"));
+        }
+        finally
+        {
+            DeleteTemporaryRoot(root);
+        }
+    }
+
+    [Fact]
     public async Task WorkerOwnershipOnlyTransfersAfterConfirmedExit()
     {
         var root = CreateTemporaryRoot();

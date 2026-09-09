@@ -66,6 +66,37 @@ public sealed class RuntimeAuthorityRepository(
             },
             cancellationToken);
 
+    public Task<RuntimeGroupControl> FailStartAsync(
+        Guid requestId,
+        long expectedGroupEpoch,
+        string reason,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+        return writes.ExecuteAsync(
+            async (context, token) =>
+            {
+                var group = await context.RuntimeGroupControls.SingleAsync(token).ConfigureAwait(false);
+                if (group.State == RuntimeGroupState.Faulted &&
+                    group.GroupEpoch == expectedGroupEpoch &&
+                    group.ExplicitStartRequestId == requestId)
+                {
+                    return group;
+                }
+                if (group.State != RuntimeGroupState.Starting ||
+                    group.GroupEpoch != expectedGroupEpoch ||
+                    group.ExplicitStartRequestId != requestId)
+                {
+                    throw new RuntimeAuthorityException("失败启动身份或 group epoch 已失效。");
+                }
+
+                group.State = RuntimeGroupState.Faulted;
+                group.StopReason = reason;
+                return group;
+            },
+            cancellationToken);
+    }
+
     public Task<RuntimeGroupControl> BeginDrainAsync(
         string reason,
         CancellationToken cancellationToken = default)

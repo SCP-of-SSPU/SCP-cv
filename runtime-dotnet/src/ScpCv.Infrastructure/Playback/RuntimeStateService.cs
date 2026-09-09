@@ -164,6 +164,7 @@ public sealed class RuntimeStateService(
                 session.CommandArgsJson = JsonSerializer.Serialize(new
                 {
                     source_id = source.Id,
+                    source_type = SourceTypeName(source.SourceType),
                     uri = source.Uri,
                     autoplay,
                     target_slide = targetSlide,
@@ -614,6 +615,15 @@ public sealed class RuntimeStateService(
         PlaybackMode.PowerPoint => "powerpoint",
         PlaybackMode.Pdf => "pdf",
         _ => string.Empty,
+    };
+
+    private static string SourceTypeName(MediaSourceType type) => type switch
+    {
+        MediaSourceType.Presentation => "ppt",
+        MediaSourceType.CustomStream => "custom_stream",
+        MediaSourceType.RtspStream => "rtsp",
+        MediaSourceType.SrtStream => "srt",
+        _ => type.ToString().ToLowerInvariant(),
     };
 
     private static string PlaybackStateLabel(PlaybackState state) => state switch

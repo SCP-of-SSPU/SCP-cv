@@ -17,6 +17,15 @@
         "resolved": "1.0.3537.50",
         "contentHash": "6RQRMIcc/xnhDCdBmyc+YoPxPlYHjmg/mfVpQb4iYWr+K/cs28dTxCyOYFZjUFtiwupXN9nCqxOSMumn2ZKAIg=="
       },
+      "Microsoft.WindowsAppSDK": {
+        "type": "Direct",
+        "requested": "[1.5.240627000, )",
+        "resolved": "1.5.240627000",
+        "contentHash": "qzzWG8rxZyzKzBuUdwr4ApezMINf+NT2b8EiEE5fchczNJJmDwlHImMWxX1pHK1W8Yby99alqLyC8DB0fIrhuA==",
+        "dependencies": {
+          "Microsoft.Windows.SDK.BuildTools": "10.0.22621.756"
+        }
+      },
       "VideoLAN.LibVLC.Windows": {
         "type": "Direct",
         "requested": "[3.0.23, )",
@@ -32,14 +41,6 @@
         "type": "Transitive",
         "resolved": "10.0.22621.756",
         "contentHash": "7ZL2sFSioYm1Ry067Kw1hg0SCcW5kuVezC2SwjGbcPE61Nn+gTbH86T73G3LcEOVj0S3IZzNuE/29gZvOLS7VA=="
-      },
-      "Microsoft.WindowsAppSDK": {
-        "type": "Transitive",
-        "resolved": "1.5.240627000",
-        "contentHash": "qzzWG8rxZyzKzBuUdwr4ApezMINf+NT2b8EiEE5fchczNJJmDwlHImMWxX1pHK1W8Yby99alqLyC8DB0fIrhuA==",
-        "dependencies": {
-          "Microsoft.Windows.SDK.BuildTools": "10.0.22621.756"
-        }
       },
       "NETStandard.Library": {
         "type": "Transitive",
@@ -101,7 +102,8 @@
         "contentHash": "6RQRMIcc/xnhDCdBmyc+YoPxPlYHjmg/mfVpQb4iYWr+K/cs28dTxCyOYFZjUFtiwupXN9nCqxOSMumn2ZKAIg=="
       },
       "Microsoft.WindowsAppSDK": {
-        "type": "Transitive",
+        "type": "Direct",
+        "requested": "[1.5.240627000, )",
         "resolved": "1.5.240627000",
         "contentHash": "qzzWG8rxZyzKzBuUdwr4ApezMINf+NT2b8EiEE5fchczNJJmDwlHImMWxX1pHK1W8Yby99alqLyC8DB0fIrhuA==",
         "dependencies": {

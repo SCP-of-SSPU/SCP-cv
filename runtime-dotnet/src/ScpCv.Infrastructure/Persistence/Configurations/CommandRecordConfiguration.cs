@@ -17,6 +17,7 @@ public sealed class CommandRecordConfiguration : IEntityTypeConfiguration<Comman
         builder.HasIndex(entity => new { entity.TargetKind, entity.TargetId, entity.TargetSequence }).IsUnique();
         builder.HasIndex(entity => new { entity.TargetKind, entity.TargetId, entity.Status, entity.TargetSequence });
         builder.HasIndex(entity => new { entity.Status, entity.LeaseExpiresAt });
+        builder.HasIndex(entity => entity.TriggerEventId).IsUnique();
         builder.HasIndex(entity => new { entity.TargetKind, entity.TargetId })
             .HasFilter("Status = 'Processing'")
             .IsUnique();

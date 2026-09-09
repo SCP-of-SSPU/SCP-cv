@@ -1,8 +1,7 @@
 ﻿<Application x:Class="ScpCv.PlayerWorker.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:ScpCv.PlayerWorker"
-             StartupUri="PlayerWindow.xaml">
+             xmlns:local="clr-namespace:ScpCv.PlayerWorker">
     <Application.Resources>
     </Application.Resources>
 </Application>

@@ -77,6 +77,7 @@ public sealed class CommandRepository(
                     SchemaVersion = request.SchemaVersion,
                     SourceGeneration = request.SourceGeneration,
                     SourceRevision = request.SourceRevision,
+                    TriggerEventId = request.TriggerEventId,
                     Deadline = request.Deadline,
                     CreatedAt = _timeProvider.GetUtcNow(),
                 };

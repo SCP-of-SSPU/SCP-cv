@@ -10,16 +10,70 @@ using ScpCv.Infrastructure.Runtime;
 namespace ScpCv.ControlHost.Ipc;
 
 /// <summary>ControlHost 托管的并发本机管道 broker；持久命令仍是真源，Wake 仅为提示。</summary>
+public interface IRuntimeReadinessGate
+{
+    Task<RuntimeReadinessResult> WaitForRuntimeReadyAsync(
+        long groupEpoch,
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default);
+}
+
 public sealed partial class RuntimePipeBroker(
     NamedPipeServer server,
     RegisteredProcessRegistry processRegistry,
     RuntimeMessageDispatcher dispatcher,
     RuntimeAuthorityRepository authority,
-    ILogger<RuntimePipeBroker> logger) : BackgroundService, ICommandWakeNotifier
+    ILogger<RuntimePipeBroker> logger) : BackgroundService, ICommandWakeNotifier, IRuntimeReadinessGate
 {
+    private static readonly string[] RequiredRuntimeRoles =
+        ["player-1", "player-2", "player-3", "player-4", "audio", "office"];
     private readonly ConcurrentDictionary<string, RuntimeConnection> _connections = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ReadyWorker> _readyWorkers = new(StringComparer.Ordinal);
+    private readonly object _readinessSync = new();
+    private TaskCompletionSource _readinessChanged = NewReadinessSignal();
 
     public string PipeName => server.PipeName;
+
+    public RuntimeReadinessResult GetRuntimeReadiness(long groupEpoch)
+    {
+        lock (_readinessSync)
+        {
+            var missing = MissingRoles(groupEpoch);
+            return new RuntimeReadinessResult(missing.Length == 0, missing);
+        }
+    }
+
+    public async Task<RuntimeReadinessResult> WaitForRuntimeReadyAsync(
+        long groupEpoch,
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeout, TimeSpan.Zero);
+        var started = Stopwatch.StartNew();
+        while (true)
+        {
+            Task changed;
+            string[] missing;
+            lock (_readinessSync)
+            {
+                missing = MissingRoles(groupEpoch);
+                if (missing.Length == 0) return new RuntimeReadinessResult(true, []);
+                changed = _readinessChanged.Task;
+            }
+
+            var remaining = timeout - started.Elapsed;
+            if (remaining <= TimeSpan.Zero) return new RuntimeReadinessResult(false, missing);
+            try
+            {
+                await changed.WaitAsync(remaining, cancellationToken).ConfigureAwait(false);
+            }
+            catch (TimeoutException)
+            {
+                lock (_readinessSync) missing = MissingRoles(groupEpoch);
+                return new RuntimeReadinessResult(false, missing);
+            }
+        }
+    }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -65,6 +119,7 @@ public sealed partial class RuntimePipeBroker(
         catch (Exception exception) when (exception is IOException or ObjectDisposedException)
         {
             _connections.TryRemove(new KeyValuePair<string, RuntimeConnection>(key, connection));
+            RemoveReady(connection.Identity.Role, connection.Identity.InstanceId);
         }
     }
 
@@ -101,9 +156,10 @@ public sealed partial class RuntimePipeBroker(
                 ownerEpoch = ownership.OwnerEpoch;
             }
 
-            connection = new RuntimeConnection(stream, identity, target, ownerEpoch);
+            connection = new RuntimeConnection(stream, identity, target, ownerEpoch, group.GroupEpoch);
             if (_connections.TryGetValue(identity.Role, out var old))
             {
+                RemoveReady(old.Identity.Role, old.Identity.InstanceId);
                 await old.DisposeAsync().ConfigureAwait(false);
             }
             _connections[identity.Role] = connection;
@@ -138,6 +194,7 @@ public sealed partial class RuntimePipeBroker(
             if (connection is not null)
             {
                 _connections.TryRemove(new KeyValuePair<string, RuntimeConnection>(connection.Identity.Role, connection));
+                RemoveReady(connection.Identity.Role, connection.Identity.InstanceId);
                 await connection.DisposeAsync().ConfigureAwait(false);
             }
             else
@@ -165,18 +222,39 @@ public sealed partial class RuntimePipeBroker(
 
         if (messageType is "health_report" or "worker_ready")
         {
-            if (connection.Target is null)
+            var workerReady = messageType == "worker_ready"
+                ? frame.Payload.Deserialize<WorkerReadyDto>()
+                : null;
+            var uiHealthy = workerReady?.UiReady ??
+                (frame.Payload.Deserialize<HealthReportDto>()?.UiHealthy ?? false);
+            bool accepted;
+            if (connection.Target is not null)
+            {
+                accepted = await authority.RecordHeartbeatAsync(
+                    connection.Target.Value.Kind,
+                    connection.Target.Value.Id,
+                    connection.Identity.InstanceId,
+                    connection.OwnerEpoch,
+                    uiHealthy,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            else if (string.Equals(connection.Identity.Role, "office", StringComparison.Ordinal))
+            {
+                var group = await authority.GetGroupAsync(cancellationToken).ConfigureAwait(false);
+                accepted = group.GroupEpoch == connection.GroupEpoch &&
+                    group.State is RuntimeGroupState.Starting or RuntimeGroupState.Armed;
+            }
+            else
+            {
                 return Response(frame, "error", new ErrorMessageDto { Code = "invalid_target", Stage = "heartbeat" });
-            var uiHealthy = messageType == "worker_ready"
-                ? (frame.Payload.Deserialize<WorkerReadyDto>()?.UiReady ?? false)
-                : (frame.Payload.Deserialize<HealthReportDto>()?.UiHealthy ?? false);
-            var accepted = await authority.RecordHeartbeatAsync(
-                connection.Target.Value.Kind,
-                connection.Target.Value.Id,
-                connection.Identity.InstanceId,
-                connection.OwnerEpoch,
-                uiHealthy,
-                cancellationToken).ConfigureAwait(false);
+            }
+
+            if (workerReady is not null)
+            {
+                var dependenciesReady = workerReady.Dependencies is { Count: > 0 } dependencies &&
+                    dependencies.Values.All(value => string.Equals(value, "ready", StringComparison.OrdinalIgnoreCase));
+                UpdateReady(connection, accepted && uiHealthy && dependenciesReady);
+            }
             return Response(frame, "health_accepted", new { accepted });
         }
 
@@ -237,6 +315,51 @@ public sealed partial class RuntimePipeBroker(
 
     private static bool IsKnownRole(string role) => role is "audio" or "office" or "supervisor" or "player-1" or "player-2" or "player-3" or "player-4";
 
+    private string[] MissingRoles(long groupEpoch) =>
+        RequiredRuntimeRoles
+            .Where(role => !_readyWorkers.TryGetValue(role, out var ready) || ready.GroupEpoch != groupEpoch)
+            .ToArray();
+
+    private void UpdateReady(RuntimeConnection connection, bool ready)
+    {
+        TaskCompletionSource changed;
+        lock (_readinessSync)
+        {
+            if (ready)
+            {
+                _readyWorkers[connection.Identity.Role] = new ReadyWorker(
+                    connection.Identity.InstanceId,
+                    connection.GroupEpoch);
+            }
+            else if (_readyWorkers.TryGetValue(connection.Identity.Role, out var existing) &&
+                     existing.InstanceId == connection.Identity.InstanceId)
+            {
+                _readyWorkers.Remove(connection.Identity.Role);
+            }
+            changed = _readinessChanged;
+            _readinessChanged = NewReadinessSignal();
+        }
+        changed.TrySetResult();
+    }
+
+    private void RemoveReady(string role, Guid instanceId)
+    {
+        TaskCompletionSource? changed = null;
+        lock (_readinessSync)
+        {
+            if (_readyWorkers.TryGetValue(role, out var existing) && existing.InstanceId == instanceId)
+            {
+                _readyWorkers.Remove(role);
+                changed = _readinessChanged;
+                _readinessChanged = NewReadinessSignal();
+            }
+        }
+        changed?.TrySetResult();
+    }
+
+    private static TaskCompletionSource NewReadinessSignal() =>
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+
     private static async Task<IpcFrameDto> ReadFrameAsync(Stream stream, TimeSpan timeout, CancellationToken cancellationToken)
     {
         var payload = await IpcFrameCodec.ReadPayloadAsync(stream, timeout, cancellationToken).ConfigureAwait(false);
@@ -264,12 +387,14 @@ public sealed partial class RuntimePipeBroker(
         NamedPipeServerStream stream,
         RegisteredProcessIdentity identity,
         (CommandTargetKind Kind, int Id)? target,
-        long ownerEpoch) : IAsyncDisposable
+        long ownerEpoch,
+        long groupEpoch) : IAsyncDisposable
     {
         private readonly SemaphoreSlim _sendGate = new(1, 1);
         public RegisteredProcessIdentity Identity { get; } = identity;
         public (CommandTargetKind Kind, int Id)? Target { get; } = target;
         public long OwnerEpoch { get; } = ownerEpoch;
+        public long GroupEpoch { get; } = groupEpoch;
 
         public async Task SendAsync(IpcFrameDto frame, CancellationToken cancellationToken)
         {
@@ -299,4 +424,8 @@ public sealed partial class RuntimePipeBroker(
 
     [LoggerMessage(EventId = 2203, Level = LogLevel.Warning, Message = "Runtime 管道客户端被拒绝或异常断开")]
     private static partial void LogClientRejected(ILogger logger, Exception exception);
+
+    private sealed record ReadyWorker(Guid InstanceId, long GroupEpoch);
 }
+
+public sealed record RuntimeReadinessResult(bool Ready, IReadOnlyList<string> MissingRoles);

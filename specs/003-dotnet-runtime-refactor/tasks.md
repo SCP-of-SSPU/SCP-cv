@@ -370,6 +370,6 @@ T102–T103 Development data boundary tests
 - [ ] T124 CRITICAL 为 AudioWorker 接入管道命令循环、LibVLC 执行、状态上报和带 event_id/source_generation 的自然结束通知 per FR-018 (missing)
 - [ ] T125 CRITICAL 将 PowerPointHost 从占位入口改为独立 STA/COM IPC 宿主，并把唯一槽位、HWND 附着、导航、媒体、导出与安全关闭接入 PlayerWorker/ControlHost 流程 per FR-011–014 (missing)
 - [ ] T126 将真实 Windows 显示拓扑和 Core Audio 接入非 simulation ControlHost，保留 simulation 的明确虚拟实现和 unavailable 诊断 per FR-004, FR-019–020 (partial)
-- [ ] T127 进行中：受认证本机 runtime start/stop/restart/status 控制通道已接入 bootstrap 和 `/api/system/start/`，仍待 Supervisor 回执驱动 Worker ready→armed 及完整失败处理 per FR-018, FR-020 (partial)
+- [X] T127 受认证本机 runtime start/stop/restart/status 控制通道已接入 bootstrap、`/api/system/restart/` 与 `/api/system/shutdown/`；Supervisor 回执驱动 Worker ready→armed，启动超时/早退/登记失败会清理自有进程并持久化 faulted per FR-018, FR-020
 - [ ] T128 修复并回归验证 Web 初始导航挂载竞态，完成 Web/Electron/Android 对 HTTPS simulation ControlHost 的认证、SSE 重连、路由、文件与客户端关闭矩阵 per FR-028–030 (partial)
 - [ ] T129 在可运行的真实 Worker 上执行普通命令 1000 样本、健康预热切换 100 样本及具备四屏/Office/VLC/MediaMTX/音频条件时的 60 分钟混合测试，并记录原始证据 per SC-006, SC-009 (partial)

@@ -44,34 +44,43 @@ static async Task<int> StartAsync(string runtimeRoot, string statePath, string? 
     }
 
     var registry = new ProcessRegistry();
-    var owned = new RuntimeLauncher(registry).Start(runtimeRoot, mediaMtxPath);
-    await using var control = string.IsNullOrWhiteSpace(controlPipe)
-        ? null
-        : await RegisterWithControlHostAsync(controlPipe, owned);
-    await WriteStateAsync(statePath, owned);
-    Console.WriteLine(JsonSerializer.Serialize(owned.Select(ToState), GetJsonOptions()));
-
-    using var stop = new CancellationTokenSource();
-    var failure = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-    foreach (var process in owned)
+    var owned = new RuntimeLauncher(registry).Start(runtimeRoot, mediaMtxPath, controlPipe);
+    try
     {
-        process.Process.EnableRaisingEvents = true;
-        process.Process.Exited += (_, _) =>
+        await using var control = string.IsNullOrWhiteSpace(controlPipe)
+            ? null
+            : await RegisterWithControlHostAsync(controlPipe, owned);
+        await WriteStateAsync(statePath, owned);
+        Console.WriteLine(JsonSerializer.Serialize(owned.Select(ToState), GetJsonOptions()));
+
+        using var stop = new CancellationTokenSource();
+        var failure = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        foreach (var process in owned)
         {
-            if (!stop.IsCancellationRequested) failure.TrySetResult(process.Role);
-        };
-    }
+            process.Process.EnableRaisingEvents = true;
+            process.Process.Exited += (_, _) =>
+            {
+                if (!stop.IsCancellationRequested) failure.TrySetResult(process.Role);
+            };
+        }
 
-    Console.CancelKeyPress += (_, eventArgs) => { eventArgs.Cancel = true; stop.Cancel(); };
-    var completed = await Task.WhenAny(failure.Task, Task.Delay(Timeout.InfiniteTimeSpan, stop.Token));
-    if (completed == failure.Task)
+        Console.CancelKeyPress += (_, eventArgs) => { eventArgs.Cancel = true; stop.Cancel(); };
+        var completed = await Task.WhenAny(failure.Task, Task.Delay(Timeout.InfiniteTimeSpan, stop.Token));
+        if (completed == failure.Task)
+        {
+            Console.Error.WriteLine($"受管进程 {failure.Task.Result} 退出，触发整组协作停止。");
+        }
+
+        await new ShutdownCoordinator(registry).StopAsync();
+        DeleteStateIfSafe(statePath);
+        return completed == failure.Task ? 1 : 0;
+    }
+    catch
     {
-        Console.Error.WriteLine($"受管进程 {failure.Task.Result} 退出，触发整组协作停止。");
+        await new ShutdownCoordinator(registry).StopAsync();
+        DeleteStateIfSafe(statePath);
+        throw;
     }
-
-    await new ShutdownCoordinator(registry).StopAsync();
-    DeleteStateIfSafe(statePath);
-    return completed == failure.Task ? 1 : 0;
 }
 
 static async Task<int> StopAsync(string statePath)
@@ -117,7 +126,7 @@ static async Task<RuntimePipeClient> RegisterWithControlHostAsync(
         if (!string.Equals(welcome.MessageType, "welcome", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("ControlHost 未接受 Supervisor 握手。");
 
-        foreach (var child in owned)
+        foreach (var child in owned.Where(child => child.InstanceId != Guid.Empty))
         {
             using var childProcess = Process.GetProcessById(child.ProcessId);
             var result = await client.ExchangeAsync(Frame("register_process", instanceId, null, new RegisterProcessDto
@@ -126,7 +135,7 @@ static async Task<RuntimePipeClient> RegisterWithControlHostAsync(
                 ProcessId = child.ProcessId,
                 ProcessStartTime = child.StartTime.ToString("O"),
                 LogonSessionId = child.SessionId,
-                InstanceId = Guid.NewGuid(),
+                InstanceId = child.InstanceId,
             }));
             var registration = result.Payload.Deserialize<RegistrationResultDto>();
             if (registration is not { Accepted: true })

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO.Pipes;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using ScpCv.Contracts.Ipc;
 using ScpCv.ControlHost.Events;
@@ -110,6 +111,146 @@ public sealed class RuntimePipeBrokerTests
     }
 
     [Fact]
+    public async Task AudioFinishedIsAcceptedAndDeduplicatedThroughBrokerAfterServiceRestart()
+    {
+        await using var fixture = await ControlHostFixture.CreateAsync();
+        var coordinator = new CommandCoordinator(fixture.Commands, new NullCommandWakeNotifier());
+        var setupAudio = new BackgroundAudioService(fixture.Database, fixture.Writes, coordinator, fixture.TimeProvider);
+        var (firstSourceId, secondSourceId) = await SeedAudioSourcesAsync(fixture);
+        await setupAudio.SetPlaylistAsync([firstSourceId, secondSourceId]);
+        await setupAudio.PlaySourceAsync(firstSourceId);
+        await fixture.Writes.ExecuteAsync(async (database, cancellationToken) =>
+        {
+            var state = await database.BackgroundAudioStates.SingleAsync(cancellationToken);
+            state.PlaybackState = PlaybackState.Playing;
+        });
+
+        var startRequest = Guid.NewGuid();
+        var starting = await fixture.RuntimeAuthority.BeginStartAsync(startRequest);
+        await fixture.RuntimeAuthority.ArmAsync(startRequest, starting.GroupEpoch);
+        using var process = Process.GetCurrentProcess();
+        var registry = new RegisteredProcessRegistry();
+        var server = new NamedPipeServer(Guid.NewGuid(), process.SessionId, registry);
+        using var broker = CreateBroker(fixture, registry, server);
+        await broker.StartAsync(CancellationToken.None);
+
+        var instanceId = Guid.NewGuid();
+        registry.Register(CurrentIdentity(process, "audio", instanceId));
+        await using var client = await ConnectAsync(server.PipeName);
+        await WriteHelloAsync(client, process, "audio", instanceId, new IpcTargetDto { Kind = "audio", Id = 1 });
+        var welcome = await ReadAsync(client);
+        await WriteAsync(client, Frame("worker_ready", instanceId, welcome.OwnerEpoch, new IpcTargetDto { Kind = "audio", Id = 1 }, new WorkerReadyDto
+        {
+            UiReady = true,
+            Dependencies = new Dictionary<string, string> { ["libvlc"] = "ready" },
+        }));
+        Assert.Equal("health_accepted", (await ReadAsync(client)).MessageType);
+
+        var eventId = Guid.NewGuid();
+        var finished = Frame("audio_finished", instanceId, welcome.OwnerEpoch, new IpcTargetDto { Kind = "audio", Id = 1 }, new AudioFinishedDto
+        {
+            EventId = eventId,
+            SourceId = firstSourceId,
+            SourceGeneration = 1,
+        });
+        await WriteAsync(client, finished);
+        Assert.Equal("event_accepted", (await ReadAsync(client)).MessageType);
+        await WriteAsync(client, finished with { MessageId = Guid.NewGuid() });
+        Assert.Equal("event_accepted", (await ReadAsync(client)).MessageType);
+
+        await using var check = fixture.Database.CreateDbContext();
+        Assert.Equal(secondSourceId, (await check.BackgroundAudioStates.SingleAsync()).CurrentSourceId);
+        Assert.Single(await check.CommandRecords.Where(item => item.TriggerEventId == eventId).ToArrayAsync());
+        await broker.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task RuntimeReadinessRequiresEveryWorkerRoleInTheCurrentStartingEpoch()
+    {
+        await using var fixture = await ControlHostFixture.CreateAsync();
+        var starting = await fixture.RuntimeAuthority.BeginStartAsync(Guid.NewGuid());
+        using var process = Process.GetCurrentProcess();
+        var registry = new RegisteredProcessRegistry();
+        var server = new NamedPipeServer(Guid.NewGuid(), process.SessionId, registry);
+        using var broker = CreateBroker(fixture, registry, server);
+        await broker.StartAsync(CancellationToken.None);
+
+        var before = await broker.WaitForRuntimeReadyAsync(starting.GroupEpoch, TimeSpan.FromMilliseconds(100));
+        Assert.False(before.Ready);
+        Assert.Equal(6, before.MissingRoles.Count);
+
+        var clients = new List<NamedPipeClientStream>();
+        NamedPipeClientStream? officeClient = null;
+        IpcFrameDto? officeWelcome = null;
+        Guid officeInstanceId = Guid.Empty;
+        try
+        {
+            foreach (var role in new[] { "player-1", "player-2", "player-3", "player-4", "audio", "office" })
+            {
+                var instanceId = Guid.NewGuid();
+                registry.Register(CurrentIdentity(process, role, instanceId));
+                var client = await ConnectAsync(server.PipeName);
+                clients.Add(client);
+                var target = role.StartsWith("player-", StringComparison.Ordinal)
+                    ? DisplayTarget(int.Parse(role[7..], System.Globalization.CultureInfo.InvariantCulture))
+                    : role == "audio" ? new IpcTargetDto { Kind = "audio", Id = 1 } : null;
+                await WriteHelloAsync(client, process, role, instanceId, target);
+                var welcome = await ReadAsync(client);
+                Assert.Equal("starting", welcome.Payload.Deserialize<WelcomeDto>()!.GroupState);
+                var initiallyReady = role != "office";
+                await WriteAsync(client, Frame("worker_ready", instanceId, welcome.OwnerEpoch, target, new WorkerReadyDto
+                {
+                    UiReady = initiallyReady,
+                    Dependencies = new Dictionary<string, string> { [role] = "ready" },
+                }));
+                var accepted = await ReadAsync(client);
+                Assert.True(accepted.Payload.GetProperty("accepted").GetBoolean());
+                if (role == "office")
+                {
+                    officeClient = client;
+                    officeWelcome = welcome;
+                    officeInstanceId = instanceId;
+                }
+            }
+
+            var missingOffice = await broker.WaitForRuntimeReadyAsync(starting.GroupEpoch, TimeSpan.FromMilliseconds(100));
+            Assert.False(missingOffice.Ready);
+            Assert.Equal(["office"], missingOffice.MissingRoles);
+
+            Assert.NotNull(officeClient);
+            Assert.NotNull(officeWelcome);
+            await WriteAsync(officeClient, Frame("worker_ready", officeInstanceId, officeWelcome.OwnerEpoch, null, new WorkerReadyDto
+            {
+                UiReady = true,
+                Dependencies = new Dictionary<string, string> { ["office"] = "ready" },
+            }));
+            Assert.True((await ReadAsync(officeClient)).Payload.GetProperty("accepted").GetBoolean());
+
+            var ready = await broker.WaitForRuntimeReadyAsync(starting.GroupEpoch, TimeSpan.FromSeconds(2));
+            Assert.True(ready.Ready);
+            Assert.Empty(ready.MissingRoles);
+
+            var staleEpoch = await broker.WaitForRuntimeReadyAsync(starting.GroupEpoch + 1, TimeSpan.FromMilliseconds(100));
+            Assert.False(staleEpoch.Ready);
+            Assert.Equal(6, staleEpoch.MissingRoles.Count);
+
+            await officeClient.DisposeAsync();
+            for (var attempt = 0; attempt < 50 && broker.GetRuntimeReadiness(starting.GroupEpoch).Ready; attempt++)
+            {
+                await Task.Delay(20);
+            }
+            var disconnected = broker.GetRuntimeReadiness(starting.GroupEpoch);
+            Assert.False(disconnected.Ready);
+            Assert.Contains("office", disconnected.MissingRoles);
+        }
+        finally
+        {
+            foreach (var client in clients) await client.DisposeAsync();
+            await broker.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
     public async Task SupervisorCanRegisterOnlyAnExistingMatchingChildProcess()
     {
         await using var fixture = await ControlHostFixture.CreateAsync();
@@ -194,7 +335,8 @@ public sealed class RuntimePipeBrokerTests
         var dispatcher = new RuntimeMessageDispatcher(
             leases,
             new CommandResultService(fixture.Commands),
-            projections);
+            projections,
+            new AudioFinishedEventProcessor(audio));
         return new RuntimePipeBroker(
             server,
             registry,
@@ -210,6 +352,30 @@ public sealed class RuntimePipeBrokerTests
         new(process.StartTime.ToUniversalTime(), TimeSpan.Zero);
 
     private static IpcTargetDto DisplayTarget(int id) => new() { Kind = "display", Id = id };
+
+    private static async Task<(long First, long Second)> SeedAudioSourcesAsync(ControlHostFixture fixture)
+    {
+        await using var database = fixture.Database.CreateDbContext();
+        var first = new MediaSource
+        {
+            SourceType = MediaSourceType.Audio,
+            Name = "broker-audio-1",
+            Uri = "broker-audio-1.mp3",
+            SourceRevision = 1,
+            CreatedAt = fixture.TimeProvider.GetUtcNow(),
+        };
+        var second = new MediaSource
+        {
+            SourceType = MediaSourceType.Audio,
+            Name = "broker-audio-2",
+            Uri = "broker-audio-2.mp3",
+            SourceRevision = 1,
+            CreatedAt = fixture.TimeProvider.GetUtcNow(),
+        };
+        database.MediaSources.AddRange(first, second);
+        await database.SaveChangesAsync();
+        return (first.Id, second.Id);
+    }
 
     private static IpcFrameDto Frame<T>(string type, Guid instanceId, long ownerEpoch, IpcTargetDto? target, T payload) => new()
     {

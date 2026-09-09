@@ -10,7 +10,8 @@ public sealed record EnqueueCommand(
     long SourceGeneration,
     long SourceRevision,
     DateTimeOffset? Deadline = null,
-    int SchemaVersion = 1);
+    int SchemaVersion = 1,
+    Guid? TriggerEventId = null);
 
 public sealed record ClaimCommand(
     CommandTargetKind TargetKind,

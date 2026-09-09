@@ -2,6 +2,7 @@ using ScpCv.Infrastructure.Devices;
 using ScpCv.Infrastructure.Playback;
 using ScpCv.Infrastructure.Runtime;
 using ScpCv.ControlHost.Runtime;
+using ScpCv.Domain.Model;
 
 namespace ScpCv.ControlHost.Endpoints;
 
@@ -63,8 +64,9 @@ public static class SystemEndpoints
     private static Task<IResult> ShutdownAsync(
         RuntimeAuthorityRepository authority,
         RuntimeStateService runtime,
+        RuntimeSupervisorControl supervisor,
         CancellationToken cancellationToken) =>
-        RequestRuntimeStopAsync("shutdown", "系统关闭请求已发送", authority, runtime, cancellationToken);
+        RequestRuntimeStopAsync("shutdown", "系统关闭请求已发送", authority, runtime, supervisor, cancellationToken);
 
     private static Task<IResult> RestartAsync(
         RuntimeAuthorityRepository authority,
@@ -78,10 +80,23 @@ public static class SystemEndpoints
         string detail,
         RuntimeAuthorityRepository authority,
         RuntimeStateService runtime,
+        RuntimeSupervisorControl supervisor,
         CancellationToken cancellationToken)
     {
-        await authority.BeginDrainAsync($"system_{action}", cancellationToken).ConfigureAwait(false);
+        var draining = await authority.BeginDrainAsync($"system_{action}", cancellationToken).ConfigureAwait(false);
         var sessions = await runtime.ResetAllAsync(cancellationToken).ConfigureAwait(false);
+        if (supervisor.IsConfigured)
+        {
+            var stopped = await supervisor.LaunchAsync("stop", cancellationToken).ConfigureAwait(false);
+            if (!stopped.Accepted)
+            {
+                return ApiEndpointSupport.Error(stopped.Detail, stopped.Code, StatusCodes.Status503ServiceUnavailable);
+            }
+        }
+        if (draining.State == RuntimeGroupState.Draining)
+        {
+            await authority.CompleteStopAsync(draining.GroupEpoch, cancellationToken).ConfigureAwait(false);
+        }
         return Results.Ok(new { success = true, sessions, detail });
     }
 
@@ -94,9 +109,32 @@ public static class SystemEndpoints
             return ApiEndpointSupport.Error("当前 ControlHost 未配置 Supervisor 控制通道", "supervisor_unavailable", StatusCodes.Status503ServiceUnavailable);
         var requestId = Guid.NewGuid();
         var starting = await authority.BeginStartAsync(requestId, cancellationToken).ConfigureAwait(false);
-        var launch = await supervisor.LaunchAsync("start", cancellationToken).ConfigureAwait(false);
+        SupervisorLaunchResult launch;
+        try
+        {
+            launch = await supervisor.LaunchAsync("start", starting.GroupEpoch, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            await FailAndCleanStartAsync(
+                supervisor,
+                authority,
+                requestId,
+                starting.GroupEpoch,
+                "runtime_start_cancelled").ConfigureAwait(false);
+            throw;
+        }
         if (!launch.Accepted)
-            return ApiEndpointSupport.Error(launch.Detail, launch.Code, StatusCodes.Status503ServiceUnavailable);
+        {
+            var detail = await FailAndCleanStartAsync(
+                supervisor,
+                authority,
+                requestId,
+                starting.GroupEpoch,
+                launch.Code,
+                launch.Detail).ConfigureAwait(false);
+            return ApiEndpointSupport.Error(detail, launch.Code, StatusCodes.Status503ServiceUnavailable);
+        }
         await authority.ArmAsync(requestId, starting.GroupEpoch, cancellationToken).ConfigureAwait(false);
         return Results.Accepted(value: new { success = true, group_epoch = starting.GroupEpoch, detail = launch.Detail });
     }
@@ -108,18 +146,59 @@ public static class SystemEndpoints
         CancellationToken cancellationToken)
     {
         if (!supervisor.IsConfigured)
-            return await RequestRuntimeStopAsync("restart", "系统重启请求已发送", authority, runtime, cancellationToken).ConfigureAwait(false);
+            return await RequestRuntimeStopAsync("restart", "系统重启请求已发送", authority, runtime, supervisor, cancellationToken).ConfigureAwait(false);
 
         var draining = await authority.BeginDrainAsync("system_restart", cancellationToken).ConfigureAwait(false);
         await runtime.ResetAllAsync(cancellationToken).ConfigureAwait(false);
         await authority.CompleteStopAsync(draining.GroupEpoch, cancellationToken).ConfigureAwait(false);
         var requestId = Guid.NewGuid();
         var starting = await authority.BeginStartAsync(requestId, cancellationToken).ConfigureAwait(false);
-        var launch = await supervisor.LaunchAsync("restart", cancellationToken).ConfigureAwait(false);
+        SupervisorLaunchResult launch;
+        try
+        {
+            launch = await supervisor.LaunchAsync("restart", starting.GroupEpoch, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            await FailAndCleanStartAsync(
+                supervisor,
+                authority,
+                requestId,
+                starting.GroupEpoch,
+                "runtime_restart_cancelled").ConfigureAwait(false);
+            throw;
+        }
         if (!launch.Accepted)
-            return ApiEndpointSupport.Error(launch.Detail, launch.Code, StatusCodes.Status503ServiceUnavailable);
+        {
+            var detail = await FailAndCleanStartAsync(
+                supervisor,
+                authority,
+                requestId,
+                starting.GroupEpoch,
+                launch.Code,
+                launch.Detail).ConfigureAwait(false);
+            return ApiEndpointSupport.Error(detail, launch.Code, StatusCodes.Status503ServiceUnavailable);
+        }
         await authority.ArmAsync(requestId, starting.GroupEpoch, cancellationToken).ConfigureAwait(false);
         return Results.Accepted(value: new { success = true, group_epoch = starting.GroupEpoch, detail = launch.Detail });
+    }
+
+    private static async Task<string> FailAndCleanStartAsync(
+        RuntimeSupervisorControl supervisor,
+        RuntimeAuthorityRepository authority,
+        Guid requestId,
+        long groupEpoch,
+        string reason,
+        string? detail = null)
+    {
+        var cleanup = await supervisor.LaunchAsync("stop", CancellationToken.None).ConfigureAwait(false);
+        await authority.FailStartAsync(requestId, groupEpoch, reason, CancellationToken.None).ConfigureAwait(false);
+        if (cleanup.Accepted)
+        {
+            return detail ?? reason;
+        }
+
+        return $"{detail ?? reason} 启动失败后的运行组清理也失败：{cleanup.Detail}";
     }
 
     private static IResult DeviceError(DeviceServiceException exception) =>

@@ -32,8 +32,10 @@ public sealed class RuntimePipeClient(string pipeName) : IAsyncDisposable
     private CancellationTokenSource? _readerCancellation;
     private Task? _readerTask;
     private int _stopped;
+    private long _connectionGeneration;
 
     public bool IsStopped => Volatile.Read(ref _stopped) != 0;
+    public long ConnectionGeneration => Volatile.Read(ref _connectionGeneration);
 
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
     {
@@ -68,6 +70,7 @@ public sealed class RuntimePipeClient(string pipeName) : IAsyncDisposable
                         _stream = stream;
                         _readerCancellation = readerCancellation;
                         _readerTask = ReadLoopAsync(stream, readerCancellation.Token);
+                        Interlocked.Increment(ref _connectionGeneration);
                     }
                     return;
                 }
@@ -149,6 +152,9 @@ public sealed class RuntimePipeClient(string pipeName) : IAsyncDisposable
         _resultCache.TryGetValue(commandId, out result);
 
     public bool AcknowledgeResult(Guid commandId) => _resultCache.TryRemove(commandId, out _);
+
+    public IReadOnlyList<KeyValuePair<Guid, IpcFrameDto>> GetCachedResults() =>
+        _resultCache.ToArray();
 
     public async ValueTask LatchStopAsync()
     {
