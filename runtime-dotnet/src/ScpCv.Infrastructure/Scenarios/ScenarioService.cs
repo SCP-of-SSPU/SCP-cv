@@ -4,15 +4,18 @@ using ScpCv.Contracts.Http;
 using ScpCv.Domain.Model;
 using ScpCv.Infrastructure.Persistence;
 using ScpCv.Infrastructure.Playback;
+using ScpCv.Infrastructure.Commands;
 
 namespace ScpCv.Infrastructure.Scenarios;
 
 public sealed class ScenarioService(
     IDbContextFactory<ControlDbContext> contextFactory,
     WriteCoordinator writes,
+    CommandCoordinator commands,
     TimeProvider? timeProvider = null)
 {
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
+    private readonly CommandCoordinator _commands = commands;
 
     public async Task<IReadOnlyList<ScenarioDto>> ListAsync(CancellationToken cancellationToken = default)
     {
@@ -161,92 +164,124 @@ public sealed class ScenarioService(
             },
             cancellationToken);
 
-    public Task<IReadOnlyList<PlaybackSessionDto>> ActivateAsync(
+    public async Task<IReadOnlyList<PlaybackSessionDto>> ActivateAsync(
         long scenarioId,
-        CancellationToken cancellationToken = default) =>
-        writes.ExecuteAsync(
-            async (database, token) =>
+        CancellationToken cancellationToken = default)
+    {
+        Scenario scenario;
+        await using (var database = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false))
+        {
+            scenario = await database.Scenarios.AsNoTracking().SingleOrDefaultAsync(item => item.Id == scenarioId, cancellationToken).ConfigureAwait(false)
+                ?? throw new ScenarioServiceException($"预案 id={scenarioId} 不存在", isNotFound: true);
+        }
+
+        await writes.ExecuteAsync(async (database, token) =>
+        {
+            var runtime = await database.RuntimeStates.SingleAsync(token).ConfigureAwait(false);
+            var sessions = await database.PlaybackSessions.ToListAsync(token).ConfigureAwait(false);
+            var runtimeChanged = false;
+            if (scenario.BigScreenModeState == ScenarioValueState.Set)
             {
-                var scenario = await database.Scenarios.SingleOrDefaultAsync(
-                        item => item.Id == scenarioId,
-                        token).ConfigureAwait(false)
-                    ?? throw new ScenarioServiceException($"预案 id={scenarioId} 不存在", isNotFound: true);
-                var runtime = await database.RuntimeStates.SingleAsync(token).ConfigureAwait(false);
-                var sessions = await database.PlaybackSessions
-                    .Include(item => item.MediaSource)
-                    .OrderBy(item => item.WindowId)
-                    .ToListAsync(token).ConfigureAwait(false);
-                var sessionsByWindow = sessions.ToDictionary(item => item.WindowId);
-                var runtimeChanged = false;
-                if (scenario.BigScreenModeState == ScenarioValueState.Set)
-                {
-                    runtime.BigScreenMode = scenario.BigScreenMode;
-                    var mutedWindows = scenario.BigScreenMode == BigScreenMode.Single
-                        ? new HashSet<int> { 2, 3, 4 }
-                        : new HashSet<int> { 3, 4 };
-                    foreach (var session in sessions)
-                    {
-                        session.IsMuted = mutedWindows.Contains(session.WindowId);
-                    }
-                    runtimeChanged = true;
-                }
-                if (scenario.VolumeState == ScenarioValueState.Set)
-                {
-                    runtime.VolumeLevel = scenario.VolumeLevel;
-                    runtimeChanged = true;
-                }
-                if (runtimeChanged) runtime.UpdatedAt = _timeProvider.GetUtcNow();
-                var targets = DeserializeTargets(scenario.TargetsJson);
-                foreach (var target in targets)
-                {
-                    if (target.WindowId is < 1 or > 4 || target.SourceState == "unset") continue;
-                    var session = sessionsByWindow[target.WindowId];
-                    if (target.SourceState == "empty")
-                    {
-                        session.MediaSourceId = null;
-                        session.PlaybackMode = PlaybackMode.None;
-                        session.PlaybackState = PlaybackState.Idle;
-                        session.ErrorMessage = string.Empty;
-                        session.PendingCommand = "CLOSE";
-                        session.CommandArgsJson = "{}";
-                    }
-                    else if (target.SourceState == "set" && target.SourceId is > 0)
-                    {
-                        if (!await database.MediaSources.AnyAsync(item => item.Id == target.SourceId.Value, token).ConfigureAwait(false))
-                            throw new ScenarioServiceException($"媒体源 id={target.SourceId.Value} 不存在");
-                        if (target.Resume &&
-                            session.MediaSourceId == target.SourceId &&
-                            session.PlaybackState is PlaybackState.Loading or PlaybackState.Playing or PlaybackState.Paused)
-                        {
-                            continue;
-                        }
-                        session.MediaSourceId = target.SourceId;
-                        session.PlaybackMode = PlaybackMode.None;
-                        session.PlaybackState = PlaybackState.Loading;
-                        session.ErrorMessage = string.Empty;
-                        session.CurrentSlide = 0;
-                        session.PendingCommand = "OPEN";
-                        session.CommandArgsJson = JsonSerializer.Serialize(new
-                        {
-                            autoplay = target.Autoplay,
-                            target_slide = 0,
-                        });
-                    }
-                    else
-                    {
-                        continue;
-                    }
+                runtime.BigScreenMode = scenario.BigScreenMode;
+                var mutedWindows = scenario.BigScreenMode == BigScreenMode.Single ? new HashSet<int> { 2, 3, 4 } : new HashSet<int> { 3, 4 };
+                foreach (var session in sessions) session.IsMuted = mutedWindows.Contains(session.WindowId);
+                runtimeChanged = true;
+            }
+            if (scenario.VolumeState == ScenarioValueState.Set)
+            {
+                runtime.VolumeLevel = scenario.VolumeLevel;
+                runtimeChanged = true;
+            }
+            if (runtimeChanged) runtime.UpdatedAt = _timeProvider.GetUtcNow();
+        }, cancellationToken).ConfigureAwait(false);
 
-                    session.DesiredGeneration = checked(session.DesiredGeneration + 1);
-                    session.LastUpdatedAt = NextTimestamp(session.LastUpdatedAt);
-                }
+        var targets = DeserializeTargets(scenario.TargetsJson);
+        await using var snapshotDb = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        var snapshot = await snapshotDb.PlaybackSessions.AsNoTracking().ToDictionaryAsync(item => item.WindowId, cancellationToken).ConfigureAwait(false);
+        foreach (var target in targets)
+        {
+            if (target.WindowId is < 1 or > 4 || target.SourceState == "unset" || !snapshot.TryGetValue(target.WindowId, out var session)) continue;
+            if (target.SourceState == "empty")
+            {
+                await EnqueueDisplayCommandAsync(target.WindowId, "CLOSE", "{}", async (database, current, command, token) =>
+                {
+                    var sourceId = current.MediaSourceId;
+                    var revision = sourceId is null ? 0 : await database.MediaSources.Where(source => source.Id == sourceId.Value).Select(source => source.SourceRevision).SingleOrDefaultAsync(token).ConfigureAwait(false);
+                    current.MediaSourceId = null;
+                    current.PlaybackMode = PlaybackMode.None;
+                    current.PlaybackState = PlaybackState.Idle;
+                    current.ErrorMessage = string.Empty;
+                    current.DesiredGeneration = checked(current.DesiredGeneration + 1);
+                    current.CommandArgsJson = JsonSerializer.Serialize(new { source_id = sourceId });
+                    command.ArgsJson = current.CommandArgsJson;
+                    command.SourceGeneration = current.DesiredGeneration;
+                    command.SourceRevision = revision;
+                }, cancellationToken).ConfigureAwait(false);
+            }
+            else if (target.SourceState == "set" && target.SourceId is > 0)
+            {
+                if (target.Resume && session.MediaSourceId == target.SourceId && session.PlaybackState is PlaybackState.Loading or PlaybackState.Playing or PlaybackState.Paused) continue;
+                var sourceId = target.SourceId.Value;
+                await EnqueueDisplayCommandAsync(target.WindowId, "OPEN", "{}", async (database, current, command, token) =>
+                {
+                    var source = await database.MediaSources.SingleOrDefaultAsync(item => item.Id == sourceId, token).ConfigureAwait(false)
+                        ?? throw new ScenarioServiceException($"媒体源 id={sourceId} 不存在");
+                    current.MediaSourceId = sourceId;
+                    current.PlaybackMode = PlaybackMode.None;
+                    current.PlaybackState = PlaybackState.Loading;
+                    current.ErrorMessage = string.Empty;
+                    current.CurrentSlide = 0;
+                    current.DesiredGeneration = checked(current.DesiredGeneration + 1);
+                    current.CommandArgsJson = JsonSerializer.Serialize(new { source_id = sourceId, uri = source.Uri, autoplay = target.Autoplay, target_slide = 0 });
+                    command.ArgsJson = current.CommandArgsJson;
+                    command.SourceGeneration = current.DesiredGeneration;
+                    command.SourceRevision = source.SourceRevision;
+                }, cancellationToken).ConfigureAwait(false);
+            }
+        }
 
-                await database.SaveChangesAsync(token).ConfigureAwait(false);
-                return (IReadOnlyList<PlaybackSessionDto>)sessions
-                    .Select(item => RuntimeStateService.ToSessionDto(item, _timeProvider.GetUtcNow()))
-                    .ToArray();
+        return await LoadSessionsAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task EnqueueDisplayCommandAsync(
+        int windowId,
+        string commandName,
+        string argsJson,
+        Func<ControlDbContext, PlaybackSession, CommandRecord, CancellationToken, Task> mutation,
+        CancellationToken cancellationToken)
+    {
+        await _commands.EnqueueAsync(
+            new EnqueueCommand(CommandTargetKind.Display, windowId, commandName, argsJson, 0, 0),
+            async (database, command, token) =>
+            {
+                var session = await database.PlaybackSessions.SingleAsync(item => item.WindowId == windowId, token).ConfigureAwait(false);
+                await mutation(database, session, command, token).ConfigureAwait(false);
+                var earlierPending = await database.CommandRecords
+                    .Where(item => item.TargetKind == CommandTargetKind.Display && item.TargetId == windowId && item.Status == CommandStatus.Pending)
+                    .OrderBy(item => item.TargetSequence)
+                    .FirstOrDefaultAsync(token).ConfigureAwait(false);
+                if (earlierPending is not null && earlierPending.TargetSequence < command.TargetSequence)
+                {
+                    session.PendingCommand = earlierPending.Command;
+                    session.CommandArgsJson = earlierPending.ArgsJson;
+                }
+                else
+                {
+                    session.PendingCommand = command.Command;
+                    session.CommandArgsJson = command.ArgsJson;
+                }
+                session.LastUpdatedAt = NextTimestamp(session.LastUpdatedAt);
             },
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<IReadOnlyList<PlaybackSessionDto>> LoadSessionsAsync(CancellationToken cancellationToken)
+    {
+        await using var database = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        var sessions = await database.PlaybackSessions.AsNoTracking().Include(session => session.MediaSource)
+            .OrderBy(session => session.WindowId).ToListAsync(cancellationToken).ConfigureAwait(false);
+        return sessions.Select(item => RuntimeStateService.ToSessionDto(item, _timeProvider.GetUtcNow())).ToArray();
+    }
 
     private static async Task<IReadOnlyList<ScenarioDto>> MapAsync(
         ControlDbContext database,

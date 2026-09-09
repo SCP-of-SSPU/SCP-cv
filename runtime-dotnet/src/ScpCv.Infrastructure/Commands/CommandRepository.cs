@@ -222,9 +222,51 @@ public sealed class CommandRepository(
                 command.ResultEvidenceJson = result.ResultEvidenceJson;
                 command.CompletedAt = _timeProvider.GetUtcNow();
                 command.LeaseExpiresAt = null;
+                await RefreshPendingProjectionAsync(context, command.TargetKind, command.TargetId, token)
+                    .ConfigureAwait(false);
                 return new CommandResultAcceptance(Accepted: true, Duplicate: false);
             },
             cancellationToken);
+    }
+
+    private async Task RefreshPendingProjectionAsync(
+        ControlDbContext context,
+        CommandTargetKind targetKind,
+        int targetId,
+        CancellationToken cancellationToken)
+    {
+        var next = await context.CommandRecords
+            .Where(candidate =>
+                candidate.TargetKind == targetKind &&
+                candidate.TargetId == targetId &&
+                candidate.Status == CommandStatus.Pending)
+            .OrderBy(candidate => candidate.TargetSequence)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (targetKind == CommandTargetKind.Display)
+        {
+            var session = await context.PlaybackSessions.SingleAsync(
+                    candidate => candidate.WindowId == targetId,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            session.PendingCommand = next?.Command ?? string.Empty;
+            session.CommandArgsJson = next?.ArgsJson ?? "{}";
+            session.LastUpdatedAt = NextTimestamp(session.LastUpdatedAt);
+            return;
+        }
+
+        var audio = await context.BackgroundAudioStates.SingleAsync(cancellationToken).ConfigureAwait(false);
+        audio.PendingCommand = next?.Command ?? string.Empty;
+        audio.CommandArgsJson = next?.ArgsJson ?? "{}";
+        audio.UpdatedAt = NextTimestamp(audio.UpdatedAt);
+    }
+
+    private DateTimeOffset NextTimestamp(DateTimeOffset previous)
+    {
+        var now = _timeProvider.GetUtcNow();
+        return now.ToUnixTimeMilliseconds() > previous.ToUnixTimeMilliseconds()
+            ? now
+            : previous.AddMilliseconds(1);
     }
 
     private static string NormalizeCommand(string command)

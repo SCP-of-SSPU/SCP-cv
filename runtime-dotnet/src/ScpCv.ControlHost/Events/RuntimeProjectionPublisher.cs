@@ -89,7 +89,8 @@ public sealed class RuntimeProjectionPublisher(
         session.TotalSlides = ReadInt32(state, "total_slides", session.TotalSlides);
         session.PositionMs = ReadInt64(state, "position_ms", session.PositionMs) ?? session.PositionMs;
         session.DurationMs = ReadInt64(state, "duration_ms", session.DurationMs) ?? session.DurationMs;
-        session.PendingCommand = string.Empty;
+        await ApplyPendingProjectionAsync(database, CommandTargetKind.Display, targetId, session, null, cancellationToken)
+            .ConfigureAwait(false);
         session.LastUpdatedAt = NextTimestamp(session.LastUpdatedAt);
         return new StateReportAcceptance(true, "accepted");
     }
@@ -104,9 +105,38 @@ public sealed class RuntimeProjectionPublisher(
         state.ErrorMessage = ReadString(report.State, "error_message", state.ErrorMessage);
         state.PositionMs = ReadInt64(report.State, "position_ms", state.PositionMs) ?? state.PositionMs;
         state.DurationMs = ReadInt64(report.State, "duration_ms", state.DurationMs) ?? state.DurationMs;
-        state.PendingCommand = string.Empty;
+        await ApplyPendingProjectionAsync(database, CommandTargetKind.Audio, 1, null, state, cancellationToken)
+            .ConfigureAwait(false);
         state.UpdatedAt = NextTimestamp(state.UpdatedAt);
         return new StateReportAcceptance(true, "accepted");
+    }
+
+    private static async Task ApplyPendingProjectionAsync(
+        ControlDbContext database,
+        CommandTargetKind targetKind,
+        int targetId,
+        PlaybackSession? session,
+        BackgroundAudioState? audio,
+        CancellationToken cancellationToken)
+    {
+        var next = await database.CommandRecords
+            .Where(candidate =>
+                candidate.TargetKind == targetKind &&
+                candidate.TargetId == targetId &&
+                candidate.Status == CommandStatus.Pending)
+            .OrderBy(candidate => candidate.TargetSequence)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (session is not null)
+        {
+            session.PendingCommand = next?.Command ?? string.Empty;
+            session.CommandArgsJson = next?.ArgsJson ?? "{}";
+        }
+        if (audio is not null)
+        {
+            audio.PendingCommand = next?.Command ?? string.Empty;
+            audio.CommandArgsJson = next?.ArgsJson ?? "{}";
+        }
     }
 
     private DateTimeOffset NextTimestamp(DateTimeOffset previous)
