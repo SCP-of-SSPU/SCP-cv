@@ -1,5 +1,7 @@
 using ScpCv.Domain.Model;
 using ScpCv.Domain.Rules;
+using ScpCv.Contracts.Ipc;
+using ScpCv.PowerPointHost.Interop;
 using ScpCv.PowerPointHost.Sta;
 
 namespace ScpCv.Integration.Tests;
@@ -59,5 +61,58 @@ public sealed class OfficeOperationTests
 
         Assert.Equal(1, calls);
         Assert.Equal(first, second);
+    }
+
+    [Fact]
+    public async Task OfficeHostCachesStableResultAndRejectsSameIdWithDifferentRequest()
+    {
+        using var dispatcher = new OfficeStaDispatcher();
+        using var adapter = new PowerPointComAdapter(dispatcher);
+        var executor = new PowerPointOfficeRequestExecutor(adapter, groupEpoch: 4, hostEpoch: 8);
+        var operationId = Guid.NewGuid();
+        var request = new OfficeRequestDto
+        {
+            OfficeOperationId = operationId,
+            GroupEpoch = 4,
+            HostEpoch = 8,
+            SlotEpoch = 12,
+            Deadline = DateTimeOffset.UtcNow.AddSeconds(5).ToString("O"),
+            Operation = "unsupported-test-operation",
+        };
+
+        var first = await executor.ExecuteAsync(request);
+        var duplicate = await executor.ExecuteAsync(request);
+        var conflict = await executor.ExecuteAsync(request with { Operation = "different-operation" });
+
+        Assert.Equal("unsupported_operation", first.ErrorCode);
+        Assert.Equal(first.ResultFingerprint, duplicate.ResultFingerprint);
+        Assert.Equal("office_operation_conflict", conflict.ErrorCode);
+    }
+
+    [Theory]
+    [InlineData(3, 8, 12, "group_epoch_stale")]
+    [InlineData(4, 7, 12, "host_epoch_stale")]
+    [InlineData(4, 8, 0, "slot_epoch_stale")]
+    public async Task OfficeHostRejectsStaleAuthorityBeforeSta(
+        long groupEpoch,
+        long hostEpoch,
+        long slotEpoch,
+        string expectedCode)
+    {
+        using var dispatcher = new OfficeStaDispatcher();
+        using var adapter = new PowerPointComAdapter(dispatcher);
+        var executor = new PowerPointOfficeRequestExecutor(adapter, groupEpoch: 4, hostEpoch: 8);
+
+        var result = await executor.ExecuteAsync(new OfficeRequestDto
+        {
+            OfficeOperationId = Guid.NewGuid(),
+            GroupEpoch = groupEpoch,
+            HostEpoch = hostEpoch,
+            SlotEpoch = slotEpoch,
+            Deadline = DateTimeOffset.UtcNow.AddSeconds(5).ToString("O"),
+            Operation = "open",
+        });
+
+        Assert.Equal(expectedCode, result.ErrorCode);
     }
 }

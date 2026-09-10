@@ -5,6 +5,7 @@ using System.Text.Json;
 using ScpCv.Contracts.Ipc;
 using ScpCv.Domain.Model;
 using ScpCv.Infrastructure.Commands;
+using ScpCv.Infrastructure.Presentations;
 using ScpCv.Infrastructure.Runtime;
 
 namespace ScpCv.ControlHost.Ipc;
@@ -23,14 +24,19 @@ public sealed partial class RuntimePipeBroker(
     RegisteredProcessRegistry processRegistry,
     RuntimeMessageDispatcher dispatcher,
     RuntimeAuthorityRepository authority,
-    ILogger<RuntimePipeBroker> logger) : BackgroundService, ICommandWakeNotifier, IRuntimeReadinessGate
+    ILogger<RuntimePipeBroker> logger,
+    PresentationCoordinator? presentations = null) : BackgroundService, ICommandWakeNotifier, IRuntimeReadinessGate
 {
     private static readonly string[] RequiredRuntimeRoles =
         ["player-1", "player-2", "player-3", "player-4", "audio", "office"];
     private readonly ConcurrentDictionary<string, RuntimeConnection> _connections = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<Guid, OfficePendingRequest> _officePending = new();
+    private readonly ConcurrentDictionary<Guid, OfficeCachedResult> _officeResults = new();
     private readonly Dictionary<string, ReadyWorker> _readyWorkers = new(StringComparer.Ordinal);
+    private readonly PresentationCoordinator _presentations = presentations ?? new PresentationCoordinator();
     private readonly object _readinessSync = new();
     private TaskCompletionSource _readinessChanged = NewReadinessSignal();
+    private long _officeHostEpoch;
 
     public string PipeName => server.PipeName;
 
@@ -155,6 +161,13 @@ public sealed partial class RuntimePipeBroker(
                     PreviousOwnerExitConfirmed: true), stoppingToken).ConfigureAwait(false);
                 ownerEpoch = ownership.OwnerEpoch;
             }
+            else if (string.Equals(identity.Role, "office", StringComparison.Ordinal) &&
+                     group.State is RuntimeGroupState.Starting or RuntimeGroupState.Armed)
+            {
+                // Office 没有 display target，仍须有独立 host epoch；旧 Host 的迟到结果因此会被 fencing。
+                ownerEpoch = Interlocked.Increment(ref _officeHostEpoch);
+                _presentations.FenceHost(ownerEpoch);
+            }
 
             connection = new RuntimeConnection(stream, identity, target, ownerEpoch, group.GroupEpoch);
             if (_connections.TryGetValue(identity.Role, out var old))
@@ -175,8 +188,9 @@ public sealed partial class RuntimePipeBroker(
             while (!stoppingToken.IsCancellationRequested && stream.IsConnected)
             {
                 var frame = await ReadFrameAsync(stream, IpcProtocol.FrameReadTimeout, stoppingToken).ConfigureAwait(false);
-                var response = await DispatchAuthenticatedAsync(connection, frame, stoppingToken).ConfigureAwait(false);
-                await connection.SendAsync(response, stoppingToken).ConfigureAwait(false);
+                // 同一 Worker 执行长 Office 子操作时仍须能发送 LeaseRenew。
+                // 单 reader 只拆帧；处理和响应可并发，实际写入由 RuntimeConnection 串行化。
+                _ = DispatchAndRespondAsync(connection, frame, stoppingToken);
             }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
@@ -200,6 +214,41 @@ public sealed partial class RuntimePipeBroker(
             else
             {
                 await stream.DisposeAsync().ConfigureAwait(false);
+            }
+        }
+    }
+
+    private async Task DispatchAndRespondAsync(
+        RuntimeConnection connection,
+        IpcFrameDto frame,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var response = await DispatchAuthenticatedAsync(connection, frame, cancellationToken).ConfigureAwait(false);
+            await connection.SendAsync(response, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        catch (Exception exception) when (exception is IOException or ObjectDisposedException)
+        {
+            LogDispatchResponseFailed(logger, frame.MessageId, exception);
+        }
+        catch (Exception exception)
+        {
+            LogDispatchFailed(logger, frame.MessageId, exception);
+            try
+            {
+                await connection.SendAsync(Response(frame, "error", new ErrorMessageDto
+                {
+                    Code = "dispatch_failed",
+                    Stage = "dispatch",
+                    Retryable = false,
+                    Detail = exception.Message,
+                }), cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception sendException) when (sendException is IOException or ObjectDisposedException)
+            {
+                LogDispatchResponseFailed(logger, frame.MessageId, sendException);
             }
         }
     }
@@ -258,10 +307,21 @@ public sealed partial class RuntimePipeBroker(
             return Response(frame, "health_accepted", new { accepted });
         }
 
+        if (messageType == "office_result" && string.Equals(connection.Identity.Role, "office", StringComparison.Ordinal))
+        {
+            return await CompleteOfficeResultAsync(connection, frame, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (messageType == "office_request" && connection.Target is not null)
+        {
+            return await ForwardOfficeRequestAsync(connection, frame, cancellationToken).ConfigureAwait(false);
+        }
+
         if (connection.Target is null)
             return Response(frame, "error", new ErrorMessageDto { Code = "invalid_target", Stage = "dispatch" });
         return await dispatcher.DispatchAsync(frame, cancellationToken).ConfigureAwait(false);
     }
+
 
     private IpcFrameDto RegisterChild(IpcFrameDto frame)
     {
@@ -424,6 +484,15 @@ public sealed partial class RuntimePipeBroker(
 
     [LoggerMessage(EventId = 2203, Level = LogLevel.Warning, Message = "Runtime 管道客户端被拒绝或异常断开")]
     private static partial void LogClientRejected(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 2204, Level = LogLevel.Warning, Message = "Office 操作 {operationId} 无法记录不确定结果")]
+    private static partial void LogOfficeCompletionFailed(ILogger logger, Guid operationId, Exception exception);
+
+    [LoggerMessage(EventId = 2205, Level = LogLevel.Warning, Message = "Runtime IPC 消息 {messageId} 的响应发送失败")]
+    private static partial void LogDispatchResponseFailed(ILogger logger, Guid messageId, Exception exception);
+
+    [LoggerMessage(EventId = 2206, Level = LogLevel.Warning, Message = "Runtime IPC 消息 {messageId} 的派发失败")]
+    private static partial void LogDispatchFailed(ILogger logger, Guid messageId, Exception exception);
 
     private sealed record ReadyWorker(Guid InstanceId, long GroupEpoch);
 }

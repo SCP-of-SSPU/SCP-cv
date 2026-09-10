@@ -129,6 +129,8 @@ public sealed class BackgroundAudioState
     public int Volume { get; set; } = 70;
     public bool IsMuted { get; set; }
     public bool LoopEnabled { get; set; } = true;
+    public long DesiredGeneration { get; set; }
+    public long ObservedGeneration { get; set; }
     public string PendingCommand { get; set; } = string.Empty;
     public string CommandArgsJson { get; set; } = "{}";
     public DateTimeOffset UpdatedAt { get; set; }

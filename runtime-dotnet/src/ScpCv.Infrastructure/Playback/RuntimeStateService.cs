@@ -161,13 +161,20 @@ public sealed class RuntimeStateService(
                 session.CurrentSlide = targetSlide;
                 session.PendingCommand = command.Command;
                 session.DesiredGeneration = checked(session.DesiredGeneration + 1);
+                var presentation = source.SourceType == MediaSourceType.Presentation
+                    ? PresentationArguments(source)
+                    : null;
                 session.CommandArgsJson = JsonSerializer.Serialize(new
                 {
                     source_id = source.Id,
                     source_type = SourceTypeName(source.SourceType),
                     uri = source.Uri,
+                    content_digest = source.ContentDigest,
                     autoplay,
                     target_slide = targetSlide,
+                    fallback_uri = presentation?.FallbackUri ?? string.Empty,
+                    fallback_digest = presentation?.FallbackDigest ?? string.Empty,
+                    fallback_fresh = presentation?.FallbackFresh ?? false,
                 });
                 command.ArgsJson = session.CommandArgsJson;
                 command.SourceGeneration = session.DesiredGeneration;
@@ -636,6 +643,38 @@ public sealed class RuntimeStateService(
         PlaybackState.Error => "错误",
         _ => string.Empty,
     };
+
+    private static PresentationCommandArguments PresentationArguments(MediaSource source)
+    {
+        if (Path.GetExtension(source.Uri).Equals(".pdf", StringComparison.OrdinalIgnoreCase))
+            return new PresentationCommandArguments(source.Uri, source.ContentDigest, true);
+        try
+        {
+            using var metadata = JsonDocument.Parse(source.MetadataJson);
+            if (!metadata.RootElement.TryGetProperty("slides_pdf", out var pdf) || pdf.ValueKind != JsonValueKind.Object)
+                return new PresentationCommandArguments(string.Empty, string.Empty, false);
+            var status = ReadJsonString(pdf, "status");
+            var path = ReadJsonString(pdf, "path");
+            if (string.IsNullOrWhiteSpace(path)) path = ReadJsonString(pdf, "relative_path");
+            var digest = ReadJsonString(pdf, "source_digest");
+            var fresh = status.Equals("ready", StringComparison.OrdinalIgnoreCase) &&
+                        !string.IsNullOrWhiteSpace(path) &&
+                        !string.IsNullOrWhiteSpace(digest) &&
+                        string.Equals(digest, source.ContentDigest, StringComparison.OrdinalIgnoreCase);
+            return new PresentationCommandArguments(path, digest, fresh);
+        }
+        catch (JsonException)
+        {
+            return new PresentationCommandArguments(string.Empty, string.Empty, false);
+        }
+    }
+
+    private static string ReadJsonString(JsonElement value, string property) =>
+        value.TryGetProperty(property, out var item) && item.ValueKind == JsonValueKind.String
+            ? item.GetString() ?? string.Empty
+            : string.Empty;
+
+    private sealed record PresentationCommandArguments(string FallbackUri, string FallbackDigest, bool FallbackFresh);
 
     private static string SourceTypeLabel(MediaSourceType type) => type switch
     {

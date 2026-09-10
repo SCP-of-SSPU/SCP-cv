@@ -23,7 +23,6 @@ public partial class App : System.Windows.Application, IDisposable
         var screen = screens[Math.Min(windowId - 1, screens.Length - 1)].Bounds;
         window.AssignBounds(screen.X, screen.Y, screen.Width, screen.Height);
         window.Show();
-        _runtime = new PlayerRuntimeHost(window, windowId);
         if (string.IsNullOrWhiteSpace(pipeName)) return;
 
         _stop = new CancellationTokenSource();
@@ -32,6 +31,7 @@ public partial class App : System.Windows.Application, IDisposable
             instanceId,
             new IpcTargetDto { Kind = "display", Id = windowId },
             ["wpf", "libvlc", "webview2", "windows.data.pdf", "image"]));
+        _runtime = new PlayerRuntimeHost(window, windowId, _session);
         _ = RunRuntimeAsync(_session, _runtime, _stop.Token);
     }
 

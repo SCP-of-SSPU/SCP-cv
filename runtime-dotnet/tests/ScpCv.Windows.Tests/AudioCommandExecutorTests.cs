@@ -59,6 +59,20 @@ public sealed class AudioCommandExecutorTests
             executor.ExecuteAsync(Lease("NEXT", 1, new { })));
     }
 
+    [Fact]
+    public void DuplicateNaturalEndCallbacksReuseEventIdUntilSourceChanges()
+    {
+        var tracker = new AudioFinishedEventTracker();
+        var first = tracker.GetOrCreate(42, 7);
+
+        Assert.NotEqual(Guid.Empty, first);
+        Assert.Equal(first, tracker.GetOrCreate(42, 7));
+        Assert.NotEqual(first, tracker.GetOrCreate(43, 8));
+
+        tracker.Reset();
+        Assert.NotEqual(first, tracker.GetOrCreate(42, 7));
+    }
+
     private static CommandLeaseDto Lease(string command, long generation, object args)
     {
         var json = JsonSerializer.SerializeToElement(args);

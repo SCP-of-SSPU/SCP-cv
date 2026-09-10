@@ -60,6 +60,20 @@ public sealed class PlaybackEndpointTests
         Assert.Equal(string.Empty, session.GetProperty("playback_mode").GetString());
         Assert.Equal("OPEN", session.GetProperty("pending_command").GetString());
 
+        var contextFactory = factory.Services.GetRequiredService<IDbContextFactory<ControlDbContext>>();
+        await using (var database = await contextFactory.CreateDbContextAsync())
+        {
+            var argsJson = await database.CommandRecords
+                .Where(item => item.Command == "OPEN")
+                .Select(item => item.ArgsJson)
+                .SingleAsync();
+            using var args = JsonDocument.Parse(argsJson);
+            Assert.Equal("sha256:presentation", args.RootElement.GetProperty("content_digest").GetString());
+            Assert.Equal("fallback.pdf", args.RootElement.GetProperty("fallback_uri").GetString());
+            Assert.Equal("sha256:presentation", args.RootElement.GetProperty("fallback_digest").GetString());
+            Assert.True(args.RootElement.GetProperty("fallback_fresh").GetBoolean());
+        }
+
         using var closeRequest = Request(HttpMethod.Post, "/api/playback/1/close/", csrf, new { });
         using var closeResponse = await client.SendAsync(closeRequest);
         using var closeBody = await Json(closeResponse);
@@ -111,7 +125,8 @@ public sealed class PlaybackEndpointTests
             Name = "演示",
             Uri = "presentation.pptx",
             IsAvailable = true,
-            MetadataJson = "{\"slides_playback_mode\":\"pdf\"}",
+            MetadataJson = "{\"slides_playback_mode\":\"pdf\",\"slides_pdf\":{\"status\":\"ready\",\"path\":\"fallback.pdf\",\"source_digest\":\"sha256:presentation\"}}",
+            ContentDigest = "sha256:presentation",
             CreatedAt = DateTimeOffset.UtcNow,
         };
         database.MediaSources.Add(source);

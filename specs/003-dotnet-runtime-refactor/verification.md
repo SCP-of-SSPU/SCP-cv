@@ -10,10 +10,10 @@
 | Q2 会话与 SSE | `AuthEndpointTests`、`SseEndpointTests`、`verify-packaged-session.test.mjs`、`client-connection.test.mjs` | 三端各 10 次恢复记录待补 | 自动化通过；实包恢复待验证 |
 | Q3 业务规则 | Domain/ControlHost 全套测试、`OpenApiCoverageTests` | 浏览器业务状态见 `docs/qa/003-browser-ui.md` | 自动化通过；浏览器复核待执行 |
 | Q4 可靠命令 | `CommandFencingTests`、`CommandRecoveryTests`、`ReliabilityAcceptanceTests`、`SecurityBoundaryTests` | 无 | 自动化通过 |
-| Q5 Office/PDF | `PresentationPolicyTests`、`OfficeOperationTests`、`MediaPreparationTests` | `docs/qa/003-office-interop.md` | 软件边界通过；实际 Office/HWND 条件待验证 |
+| Q5 Office/PDF | `PresentationPolicyTests`、`OfficeOperationTests`、`MediaPreparationTests`、`RuntimePipeBrokerTests` | `docs/qa/003-office-interop.md` | Office IPC、去重、授权与软件边界通过；实际 Office/HWND 条件待验证 |
 | Q6 网页预热 | `ResourceSwitchTests`、`WebViewPreheatTests` | `docs/qa/003-preheat-performance.md` | 状态机通过；真实 WebView2 性能待复核 |
 | Q7 媒体/性能 | `VlcAdapterTests`、流发现实现与测试 | `docs/qa/003-performance.md` | 能力边界通过；1000/100 样本基准待执行 |
-| Q8 启停/音频 | `BackgroundAudioTests`、`RuntimeLifecycleTests`、`ReliabilityAcceptanceTests` | `docs/qa/003-windows-runtime.md` | 自动化通过；完整实机循环待执行 |
+| Q8 启停/音频 | `BackgroundAudioTests`、`RuntimeLifecycleTests`、`ReliabilityAcceptanceTests`、`RuntimeProjectionTests` | `docs/qa/003-windows-runtime.md` | 音频 generation fencing 与自动化通过；完整实机循环待执行 |
 | Q9 开发数据/Git | `DatabaseInitializerTests`、`DevelopmentDataTests`、`DataBoundaryTests` | `runtime-dotnet/README.md` | 通过；新库与旧库边界明确 |
 | Q10 Windows 运行 | Windows/Integration 测试工程 | `docs/qa/003-windows-runtime.md` | 软件探针通过；四屏 60 分钟待实机 |
 | Q11 原生壳/UI 安全 | `electron-security.test.mjs`、`capacitor-platform.test.mjs`、`security-boundary.test.mjs` | `docs/qa/003-electron.md`、`003-android.md`、`003-browser-ui.md` | 静态、自动化及 Electron/Android 基础实包边界通过；交互式文件/外链场景待补 |
@@ -51,11 +51,11 @@
 
 ## 自动化执行记录
 
-执行日期：2026-09-09；环境：Windows x64，.NET SDK 10.0.400。
+执行日期：2026-09-10；环境：Windows x64，.NET SDK 10.0.400。
 
 - `dotnet restore runtime-dotnet/ScpCv.sln --force-evaluate`：通过。
 - `dotnet build runtime-dotnet/ScpCv.sln --no-restore`：通过，0 警告、0 错误。
-- `dotnet test runtime-dotnet/ScpCv.sln --no-restore`：通过，Domain 38、Contracts 18、Windows 10、Integration 37、Infrastructure 19、ControlHost 50，共 172 项。
+- `dotnet test runtime-dotnet/ScpCv.sln --no-restore`：通过，Domain 38、Contracts 18、Windows 11、Integration 44、Infrastructure 19、ControlHost 50，共 180 项。
 - `pnpm --dir frontend test`：通过，36/36。
 - `pnpm --dir frontend typecheck`：通过。
 - `pnpm --dir frontend build:web`、`build:app`、`build:electron-main`：通过；Vite 提示主入口压缩前约 1.07 MB，记录为后续代码分割优化项。
@@ -74,14 +74,16 @@
 
 因此当前不得执行 T118，也不得删除 Django/Python 运行时。
 
-## Convergence 实施记录（2026-09-09）
+## Convergence 实施记录（2026-09-10）
 
 - T120：显示、音频、场景激活及 PPT 控制写操作已接入 `CommandCoordinator`；大屏模式产生的窗口静音也持久入队。完成结果和后续状态上报均重新投影最早剩余 pending 命令，避免清空尚未执行的意图。`RuntimeIntentQueueTests` 与 `CommandPendingProjectionTests` 通过。
 - T121：Supervisor 的 `start/stop/restart/status` 入口、状态文件、四 Player/Audio/Office/MediaMTX 编排及成员退出整组停止已实现；一次开发构建故障退出证据见 `docs/qa/003-runtime-lifecycle.md`。
 - T122：physical ControlHost 托管并发 Named Pipe broker，验证 OS PID/start-time/session/role/instance，支持 Worker 注册、heartbeat、Claim/Renew/Result/State、Wake 和 Supervisor 子进程登记。`RuntimePipeBrokerTests` 3 项通过。
 - Worker 通用管道客户端已改为单 reader loop，按 `correlation_id` 分发最多 64 个在途响应，并将 Wake 等主动消息置于独立流；`RuntimeWorkerSessionTests` 2 项通过。`RuntimeSupervisorControlTests` 覆盖 Supervisor 早退即时失败。
 - T127 已完成软件闭环：`RuntimeSupervisorControl` 通过 broker readiness gate 等待 player-1..4、audio、office 的 `WorkerReady`，仅成功后 `ArmAsync`；缺失角色、错误 group epoch、Office 未 ready、连接断开、Supervisor 早退和启动超时均 fail closed。失败路径调用受控 stop、`FailStartAsync` 持久化 `faulted`，Supervisor 登记失败时清理本次已启动的自有子进程。`RuntimePipeBrokerTests` readiness 场景、`DeviceAndSystemEndpointTests` 8 项及 `RuntimeAuthorityRepositoryTests` 4 项通过。真实四屏/Office/VLC 启停仍保留在 T116/T129，未以 simulation 结果替代。
-- T123/T124/T125 收敛进展：PlayerWorker 已接入真实 WPF/WebView2/LibVLC/PDF/图片资源宿主，PDF 首页/总页数会在 OPEN 后同步，WebView2 ProcessFailed 会撤销健康资格；AudioWorker 已抽出可测试的命令执行器、LibVLC结束回调异步隔离和 AudioFinished 取消闩锁；PowerPointHost 已完成 `--pipe-name/--instance-id`、独立 STA、握手与 WorkerReady 长连接。上述软件构建/测试通过，但真实媒体、Office COM/HWND 和硬件播放仍不等同实机门禁。
+- T123：PlayerWorker 已接入启动参数、管道领取/续租/结果/状态循环及真实 WPF/WebView2/LibVLC/PDF/图片资源宿主；PDF 首页/总页数在 OPEN 后同步，WebView2 `ProcessFailed` 撤销健康资格，并通过 OfficeRequest 接入动态 PowerPoint 流程。
+- T124：AudioWorker 已接入 LibVLC 命令执行和自然结束通知；`BackgroundAudioState` 使用 desired/observed generation fencing 拒绝旧状态，OPEN/自动切歌保留音量、静音与 loop，重复结束回调复用稳定 event ID。`RuntimeProjectionTests` 与音频执行器测试通过。
+- T125：PlayerWorker → ControlHost broker → PowerPointHost → PlayerWorker 的 OfficeRequest/OfficeResult 闭环已实现；稳定 operation ID、参数指纹冲突拒绝、持久 operation、group/host/slot epoch 和 deadline 复验、单 STA/COM 串行执行、唯一动态槽、匹配摘要 PDF fallback、HWND PID/start-time/DPI/样式附着及自有 Office 安全关闭均已接线。超时 OPEN 持久化为 uncertain、拒绝迟到结果且不会释放未知副作用的动态槽。真实媒体、Office COM/HWND、混合 DPI 和硬件画面仍由 T116/T129 门禁验证。
 
 ## Spec Kit 一致性分析（T119）
 

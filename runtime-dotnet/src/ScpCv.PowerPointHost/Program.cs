@@ -1,8 +1,10 @@
 using System.Diagnostics;
+using System.IO;
 using System.Text.Json;
 using ScpCv.Contracts.Ipc;
 using ScpCv.Contracts.Runtime;
 using ScpCv.PowerPointHost.Interop;
+using ScpCv.PowerPointHost.Ownership;
 using ScpCv.PowerPointHost.Sta;
 
 if (!OperatingSystem.IsWindows())
@@ -50,6 +52,28 @@ try
     if (!string.Equals(welcome.MessageType, "welcome", StringComparison.OrdinalIgnoreCase))
         throw new InvalidOperationException($"ControlHost 拒绝 PowerPointHost 握手：{welcome.MessageType}");
 
+    using var ownership = new PowerPointOwnershipGuard(
+        "Global\\SCP-cv.PowerPointHost",
+        welcome.OwnerEpoch);
+    if (!ownership.TryAcquire(TimeSpan.Zero))
+        throw new InvalidOperationException("已有 PowerPointHost 持有唯一 Office 槽位。");
+    var welcomePayload = welcome.Payload.Deserialize<WelcomeDto>()
+        ?? throw new InvalidDataException("Welcome payload 无效。");
+    var executor = new PowerPointOfficeRequestExecutor(office, welcomePayload.GroupEpoch, welcome.OwnerEpoch, opened =>
+    {
+        if (opened.ProcessId <= 0) return;
+        try
+        {
+            using var process = Process.GetProcessById(opened.ProcessId);
+            ownership.RegisterOwnedProcess(process);
+        }
+        catch (Exception exception)
+        {
+            Console.Error.WriteLine($"无法登记 PowerPoint 进程证据：{exception.Message}");
+        }
+    });
+
+    var powerPointAvailable = PowerPointComAdapter.IsAvailable;
     var ready = hello with
     {
         MessageType = "worker_ready",
@@ -57,14 +81,14 @@ try
         OwnerEpoch = welcome.OwnerEpoch,
         Payload = JsonSerializer.SerializeToElement(new WorkerReadyDto
         {
-            UiReady = true,
+            UiReady = powerPointAvailable,
             Dependencies = new Dictionary<string, string>
             {
                 ["sta"] = "ready",
-                ["powerpoint.com"] = "ready",
+                ["powerpoint.com"] = powerPointAvailable ? "ready" : "unavailable",
                 ["hwnd"] = "ready",
             },
-            Detail = "office_sta_host_ready",
+            Detail = powerPointAvailable ? "office_sta_host_ready" : "powerpoint_com_unavailable",
         }),
     };
     var accepted = await client.ExchangeAsync(ready, stop.Token);
@@ -73,11 +97,26 @@ try
         !acceptedValue.GetBoolean())
         throw new InvalidOperationException("ControlHost 未接受 PowerPointHost ready 状态。");
 
-    // OfficeRequest 的派发/结果合同接线属于 T125；在此之前保持 STA 宿主和握手长连接，
-    // 不以启动进程存活冒充 COM 放映已成功。
     await foreach (var frame in client.ReadUnsolicitedAsync(stop.Token).ConfigureAwait(false))
     {
         if (string.Equals(frame.MessageType, "shutdown_request", StringComparison.OrdinalIgnoreCase)) break;
+        if (!string.Equals(frame.MessageType, "office_request", StringComparison.OrdinalIgnoreCase)) continue;
+
+        var request = frame.Payload.Deserialize<OfficeRequestDto>()
+            ?? throw new InvalidDataException("OfficeRequest payload 无效。");
+        var result = await executor.ExecuteAsync(request, stop.Token).ConfigureAwait(false);
+        var response = new IpcFrameDto
+        {
+            MessageType = "office_result",
+            MessageId = Guid.NewGuid(),
+            CorrelationId = frame.MessageId,
+            InstanceId = instanceId,
+            OwnerEpoch = welcome.OwnerEpoch,
+            Payload = JsonSerializer.SerializeToElement(result),
+        };
+        var acceptedResult = await client.ExchangeAsync(response, stop.Token).ConfigureAwait(false);
+        if (!string.Equals(acceptedResult.MessageType, "office_result_accepted", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"ControlHost 未接受 OfficeResult：{acceptedResult.MessageType}");
     }
 
     return 0;

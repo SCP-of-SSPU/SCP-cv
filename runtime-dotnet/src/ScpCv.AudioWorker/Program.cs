@@ -49,7 +49,7 @@ static async Task NotifyFinishedAsync(
     {
         await session.SendAudioFinishedAsync(new AudioFinishedDto
         {
-            EventId = Guid.NewGuid(),
+            EventId = finished.EventId,
             SourceId = finished.SourceId,
             SourceGeneration = finished.SourceGeneration,
         }, cancellationToken);
@@ -57,6 +57,10 @@ static async Task NotifyFinishedAsync(
     catch (Exception exception) when (exception is IOException or InvalidOperationException)
     {
         Console.Error.WriteLine($"AudioFinished 上报失败：{exception.Message}");
+    }
+    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+    {
+        // Worker 退出时取消尚未确认的自然结束事件，不让后台任务形成未观察异常。
     }
 }
 

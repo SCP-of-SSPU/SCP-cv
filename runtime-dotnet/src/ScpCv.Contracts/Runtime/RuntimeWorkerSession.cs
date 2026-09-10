@@ -158,6 +158,29 @@ public sealed class RuntimeWorkerSession(
         throw new OperationCanceledException("AudioFinished 上报因 Worker 停止而取消。", _shutdown.Token);
     }
 
+    /// <summary>
+    /// 通过 Worker 自己已经认证的管道连接请求一次独立的 Office 子操作。
+    /// Office 操作的 operation_id 由调用方绑定到父命令，重试时不得重新生成。
+    /// </summary>
+    public async Task<OfficeResultDto> SendOfficeRequestAsync(
+        OfficeRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _shutdown.Token);
+        await ConnectAndReadyAsync(linked.Token).ConfigureAwait(false);
+        var response = await _client.ExchangeAsync(
+            Frame("office_request", request),
+            linked.Token).ConfigureAwait(false);
+        if (!string.Equals(response.MessageType, "office_result", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"OfficeRequest 未被接受：{response.MessageType}");
+        }
+
+        return response.Payload.Deserialize<OfficeResultDto>()
+            ?? throw new InvalidDataException("OfficeResult payload 无效。");
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;

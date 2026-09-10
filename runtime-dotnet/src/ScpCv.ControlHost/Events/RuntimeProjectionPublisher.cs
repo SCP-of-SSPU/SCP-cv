@@ -101,6 +101,13 @@ public sealed class RuntimeProjectionPublisher(
         CancellationToken cancellationToken)
     {
         var state = await database.BackgroundAudioStates.SingleAsync(cancellationToken).ConfigureAwait(false);
+        if (report.SourceGeneration != state.DesiredGeneration ||
+            report.SourceGeneration < state.ObservedGeneration)
+        {
+            return new StateReportAcceptance(false, "stale_generation");
+        }
+
+        state.ObservedGeneration = report.SourceGeneration;
         state.PlaybackState = ReadPlaybackState(report.State, state.PlaybackState);
         state.ErrorMessage = ReadString(report.State, "error_message", state.ErrorMessage);
         state.PositionMs = ReadInt64(report.State, "position_ms", state.PositionMs) ?? state.PositionMs;

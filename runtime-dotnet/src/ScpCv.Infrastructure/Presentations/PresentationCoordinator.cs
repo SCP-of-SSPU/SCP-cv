@@ -8,6 +8,7 @@ public sealed record PresentationSlot(
     long SlotEpoch,
     int WindowId,
     long SourceId,
+    long SourceGeneration,
     string SourceDigest,
     PlaybackMode Mode,
     bool Resettable);
@@ -25,6 +26,7 @@ public sealed class PresentationCoordinator
     public PresentationDecision Open(
         int windowId,
         long sourceId,
+        long sourceGeneration,
         string sourceDigest,
         bool pdfAvailable,
         string? pdfDigest,
@@ -46,6 +48,7 @@ public sealed class PresentationCoordinator
                     (_slot?.SlotEpoch ?? 0) + 1,
                     windowId,
                     sourceId,
+                    sourceGeneration,
                     sourceDigest,
                     PlaybackMode.PowerPoint,
                     Resettable: true);
@@ -68,5 +71,18 @@ public sealed class PresentationCoordinator
     public bool ShouldResetCurrent()
     {
         lock (_gate) return _slot is not null && PresentationPolicy.ShouldReset(_slot.Mode);
+    }
+
+    /// <summary>
+    /// 新 OfficeHost 获得 host epoch 时使旧 Host 持有的槽位失效。
+    /// 这只清理控制面所有权；旧 COM/窗口是否退出仍由 Supervisor/Host 的进程证据决定。
+    /// </summary>
+    public void FenceHost(long hostEpoch)
+    {
+        lock (_gate)
+        {
+            if (_slot is not null && _slot.HostEpoch != hostEpoch)
+                _slot = null;
+        }
     }
 }

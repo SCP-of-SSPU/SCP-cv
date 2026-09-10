@@ -18,8 +18,14 @@ using WpfHorizontalAlignment = System.Windows.HorizontalAlignment;
 namespace ScpCv.PlayerWorker.Playback;
 
 /// <summary>单个输出进程内拥有真实 WPF/WebView2/LibVLC/PDF/图片资源，不跨进程传递原生对象。</summary>
-public sealed class PlayerRuntimeHost(PlayerWindow window, int windowId) : IAsyncDisposable
+public sealed partial class PlayerRuntimeHost(
+    PlayerWindow window,
+    int windowId,
+    RuntimeWorkerSession? officeSession = null) : IAsyncDisposable
 {
+    private readonly PlayerWindow _window = window;
+    private readonly int _windowId = windowId;
+    private readonly RuntimeWorkerSession? _officeSession = officeSession;
     private readonly Dictionary<string, SurfaceResource> _warmWebResources = new(StringComparer.Ordinal);
     private SurfaceResource? _current;
     private long _sourceId;
@@ -27,23 +33,26 @@ public sealed class PlayerRuntimeHost(PlayerWindow window, int windowId) : IAsyn
     private string _state = "idle";
     private int _currentSlide;
     private int _totalSlides;
+    private long _officePresentationIdentity;
+    private long _officeHostEpoch;
+    private long _officeSlotEpoch;
     private int _disposed;
 
     public Task<WorkerExecutionResult> ExecuteAsync(
         CommandLeaseDto lease,
         CancellationToken cancellationToken) =>
-        window.Dispatcher.InvokeAsync(() => ExecuteCoreAsync(lease, cancellationToken)).Task.Unwrap();
+        _window.Dispatcher.InvokeAsync(() => ExecuteCoreAsync(lease, cancellationToken)).Task.Unwrap();
 
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
-        if (window.Dispatcher.CheckAccess())
+        if (_window.Dispatcher.CheckAccess())
         {
             await DisposeCoreAsync();
         }
         else
         {
-            await window.Dispatcher.InvokeAsync(DisposeCoreAsync).Task.Unwrap();
+            await _window.Dispatcher.InvokeAsync(DisposeCoreAsync).Task.Unwrap();
         }
         GC.SuppressFinalize(this);
     }
@@ -65,19 +74,19 @@ public sealed class PlayerRuntimeHost(PlayerWindow window, int windowId) : IAsyn
         {
             case "OPEN": await OpenAsync(lease, cancellationToken); break;
             case "CLOSE":
-            case "RESET_PPT": await CloseAsync(cancellationToken); break;
-            case "PLAY": await CurrentControlAsync("play", cancellationToken); _state = "playing"; break;
-            case "PAUSE": await CurrentControlAsync("pause", cancellationToken); _state = "paused"; break;
-            case "STOP": await CurrentControlAsync("stop", cancellationToken); _state = "stopped"; break;
+            case "RESET_PPT": await CloseAsync(lease, cancellationToken); break;
+            case "PLAY": await CurrentControlAsync(lease, "play", cancellationToken); _state = "playing"; break;
+            case "PAUSE": await CurrentControlAsync(lease, "pause", cancellationToken); _state = "paused"; break;
+            case "STOP": await CurrentControlAsync(lease, "stop", cancellationToken); _state = "stopped"; break;
             case "SEEK": await SeekAsync(Long(lease.Args, "position_ms"), cancellationToken); break;
-            case "NEXT": await NavigateAsync(_currentSlide + 1, cancellationToken); break;
-            case "PREV": await NavigateAsync(Math.Max(1, _currentSlide - 1), cancellationToken); break;
-            case "GOTO": await NavigateAsync(Int(lease.Args, "target_index", 1), cancellationToken); break;
+            case "NEXT": await NavigateAsync(lease, _currentSlide + 1, cancellationToken); break;
+            case "PREV": await NavigateAsync(lease, Math.Max(1, _currentSlide - 1), cancellationToken); break;
+            case "GOTO": await NavigateAsync(lease, Int(lease.Args, "target_index", 1), cancellationToken); break;
             case "SET_VOLUME": SetVolume(Int(lease.Args, "volume", 100)); break;
             case "SET_MUTE": SetMute(Bool(lease.Args, "muted", false)); break;
             case "SET_LOOP": SetLoop(Bool(lease.Args, "enabled", false)); break;
             case "SHOW_ID": ShowWindowId(); break;
-            case "PPT_MEDIA": throw new InvalidOperationException("PPT_MEDIA 必须由 PowerPointHost 执行。");
+            case "PPT_MEDIA": await ControlPptMediaAsync(lease, cancellationToken); break;
             default: throw new InvalidOperationException($"PlayerWorker 不支持命令 {lease.Command}。");
         }
 
@@ -90,6 +99,10 @@ public sealed class PlayerRuntimeHost(PlayerWindow window, int windowId) : IAsyn
         var sourceId = Long(lease.Args, "source_id");
         var uri = String(lease.Args, "uri");
         var sourceType = String(lease.Args, "source_type", InferType(uri));
+        if (_current?.Kind == "powerpoint" && _officePresentationIdentity != 0)
+        {
+            await ClosePowerPointAsync(lease, "switch-close", cancellationToken).ConfigureAwait(false);
+        }
         SurfaceResource next;
         switch (sourceType)
         {
@@ -103,7 +116,7 @@ public sealed class PlayerRuntimeHost(PlayerWindow window, int windowId) : IAsyn
             case "ppt" when Path.GetExtension(LocalPath(uri)).Equals(".pdf", StringComparison.OrdinalIgnoreCase):
                 next = await OpenPdfAsync(uri, Int(lease.Args, "target_slide", 1), cancellationToken);
                 break;
-            case "ppt": throw new InvalidOperationException("动态 PowerPoint 需要 PowerPointHost 槽位或匹配 PDF 回退。");
+            case "ppt": next = await OpenPowerPointAsync(lease, uri, cancellationToken); break;
             default: throw new InvalidOperationException($"不支持媒体类型 {sourceType}。");
         }
 
@@ -117,7 +130,7 @@ public sealed class PlayerRuntimeHost(PlayerWindow window, int windowId) : IAsyn
             _totalSlides = pdf.PageCount;
         }
         _state = Bool(lease.Args, "autoplay", true) ? "playing" : "paused";
-        window.SetSurface(next.Surface);
+        _window.SetSurface(next.Surface);
         if (previous is not null && !ReferenceEquals(previous, next) && previous.Kind != "web")
             await previous.DisposeAsync();
     }
@@ -153,7 +166,7 @@ public sealed class PlayerRuntimeHost(PlayerWindow window, int windowId) : IAsyn
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "SCP-cv",
             "WebView2",
-            $"player-{windowId}");
+            $"player-{_windowId}");
         Directory.CreateDirectory(userData);
         var environment = await CoreWebView2Environment.CreateAsync(userDataFolder: userData);
         await control.EnsureCoreWebView2Async(environment);
@@ -226,9 +239,21 @@ public sealed class PlayerRuntimeHost(PlayerWindow window, int windowId) : IAsyn
         }, player));
     }
 
-    private async Task CurrentControlAsync(string action, CancellationToken cancellationToken)
+    private async Task CurrentControlAsync(
+        CommandLeaseDto lease,
+        string action,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (_current?.Kind == "powerpoint")
+        {
+            await SendOfficeAsync(lease, "playback", new Dictionary<string, JsonElement>
+            {
+                ["presentation_identity"] = JsonSerializer.SerializeToElement(_officePresentationIdentity),
+                ["action"] = JsonSerializer.SerializeToElement(action),
+            }, cancellationToken).ConfigureAwait(false);
+            return;
+        }
         if (_current?.Native is not VlcMediaPlayer player) return;
         switch (action)
         {
@@ -242,11 +267,23 @@ public sealed class PlayerRuntimeHost(PlayerWindow window, int windowId) : IAsyn
     private async Task SeekAsync(long positionMs, CancellationToken cancellationToken)
     {
         if (_current?.Native is VlcMediaPlayer player) player.Time = Math.Max(0, positionMs);
-        else if (_current?.Native is PdfPlaybackAdapter pdf) await NavigateAsync((int)positionMs, cancellationToken);
+        else if (_current?.Native is PdfPlaybackAdapter pdf) await NavigateAsync(null, (int)positionMs, cancellationToken);
     }
 
-    private async Task NavigateAsync(int page, CancellationToken cancellationToken)
+    private async Task NavigateAsync(CommandLeaseDto? lease, int page, CancellationToken cancellationToken)
     {
+        if (_current?.Kind == "powerpoint")
+        {
+            if (lease is null) throw new InvalidOperationException("PowerPoint 导航缺少命令租约。");
+            var result = await SendOfficeAsync(lease, "navigate", new Dictionary<string, JsonElement>
+            {
+                ["presentation_identity"] = JsonSerializer.SerializeToElement(_officePresentationIdentity),
+                ["action"] = JsonSerializer.SerializeToElement(lease.Command.Trim().ToLowerInvariant()),
+                ["target_slide"] = JsonSerializer.SerializeToElement(page),
+            }, cancellationToken).ConfigureAwait(false);
+            _currentSlide = Int(result.Result, "current_slide", page);
+            return;
+        }
         if (_current?.Native is not PdfPlaybackAdapter pdf) return;
         page = Math.Clamp(page, 1, pdf.PageCount);
         var bytes = await pdf.RenderPageAsync(page, cancellationToken);
@@ -271,23 +308,27 @@ public sealed class PlayerRuntimeHost(PlayerWindow window, int windowId) : IAsyn
             player.Media?.AddOption(enabled ? ":input-repeat=65535" : ":input-repeat=0");
     }
 
-    private async Task CloseAsync(CancellationToken cancellationToken)
+    private async Task CloseAsync(CommandLeaseDto lease, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (_current?.Kind == "powerpoint" && _officePresentationIdentity != 0)
+        {
+            await ClosePowerPointAsync(lease, "close", cancellationToken).ConfigureAwait(false);
+        }
         if (_current is not null && _current.Kind != "web") await _current.DisposeAsync();
         _current = null;
         _sourceId = 0;
         _state = "idle";
         _currentSlide = 0;
         _totalSlides = 0;
-        window.SetSurface(new Grid { Background = WpfBrushes.Black });
+        _window.SetSurface(new Grid { Background = WpfBrushes.Black });
     }
 
     private void ShowWindowId()
     {
-        window.SetSurface(new TextBlock
+        _window.SetSurface(new TextBlock
         {
-            Text = windowId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            Text = _windowId.ToString(System.Globalization.CultureInfo.InvariantCulture),
             Foreground = WpfBrushes.White,
             FontSize = 240,
             HorizontalAlignment = WpfHorizontalAlignment.Center,
@@ -304,7 +345,7 @@ public sealed class PlayerRuntimeHost(PlayerWindow window, int windowId) : IAsyn
             source_generation = _generation,
             source_id = _sourceId == 0 ? (long?)null : _sourceId,
             playback_state = _state,
-            playback_mode = _current?.Kind == "pdf" ? "pdf" : "",
+            playback_mode = _current?.Kind switch { "pdf" => "pdf", "powerpoint" => "powerpoint", _ => "" },
             adapter_kind = _current?.Kind ?? string.Empty,
             current_slide = _currentSlide,
             total_slides = _totalSlides,

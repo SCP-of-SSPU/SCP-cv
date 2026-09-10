@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Interop;
 
 namespace ScpCv.PlayerWorker;
 
@@ -25,6 +26,13 @@ public partial class PlayerWindow : Window
         SurfaceHost.Children.Clear();
         SurfaceHost.Children.Add(surface);
     }
+
+    public nint NativeHandle => new WindowInteropHelper(this).Handle;
+
+    public int NativeDpi => NativeHandle == 0 ? 0 : checked((int)GetDpiForWindow(NativeHandle));
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(nint hWnd);
 
     private static void ApplyPerMonitorDpiAwareness()
     {

@@ -64,6 +64,7 @@ public sealed class BackgroundAudioService(
                 state.DurationMs = 0;
                 state.PendingCommand = command.Command;
                 var generation = await NextSourceGenerationAsync(database, token).ConfigureAwait(false);
+                state.DesiredGeneration = generation;
                 state.CommandArgsJson = JsonSerializer.Serialize(new
                 {
                     source_id = sourceId,
@@ -71,6 +72,7 @@ public sealed class BackgroundAudioService(
                     autoplay = true,
                     volume = state.Volume,
                     muted = state.IsMuted,
+                    loop = state.LoopEnabled,
                 });
                 state.UpdatedAt = NextTimestamp(state.UpdatedAt);
                 command.ArgsJson = state.CommandArgsJson;
@@ -230,7 +232,16 @@ public sealed class BackgroundAudioService(
                 state.PositionMs = 0;
                 state.DurationMs = 0;
                 var generation = await NextSourceGenerationAsync(database, token).ConfigureAwait(false);
-                state.CommandArgsJson = JsonSerializer.Serialize(new { source_id = sourceId, uri = source.Uri, autoplay = true, volume = state.Volume, muted = state.IsMuted });
+                state.DesiredGeneration = generation;
+                state.CommandArgsJson = JsonSerializer.Serialize(new
+                {
+                    source_id = sourceId,
+                    uri = source.Uri,
+                    autoplay = true,
+                    volume = state.Volume,
+                    muted = state.IsMuted,
+                    loop = state.LoopEnabled,
+                });
                 command.ArgsJson = state.CommandArgsJson;
                 command.SourceGeneration = generation;
                 command.SourceRevision = source.SourceRevision;
@@ -284,6 +295,8 @@ public sealed class BackgroundAudioService(
             {
                 var state = await database.BackgroundAudioStates.SingleAsync(token).ConfigureAwait(false);
                 await mutation(database, state, command, token).ConfigureAwait(false);
+                if (command.SourceGeneration == 0)
+                    command.SourceGeneration = state.DesiredGeneration;
                 var earlierPending = await database.CommandRecords
                     .Where(item => item.TargetKind == CommandTargetKind.Audio && item.TargetId == 1 && item.Status == CommandStatus.Pending)
                     .OrderBy(item => item.TargetSequence)

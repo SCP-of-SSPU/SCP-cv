@@ -7,6 +7,7 @@ public sealed class VlcAudioAdapter : IAudioPlaybackAdapter, IAsyncDisposable
 {
     private readonly LibVLC _libVlc = new();
     private readonly MediaPlayer _player;
+    private readonly AudioFinishedEventTracker _finishedEvents = new();
     private Media? _media;
     private long _generation;
     private int _disposed;
@@ -45,6 +46,7 @@ public sealed class VlcAudioAdapter : IAudioPlaybackAdapter, IAsyncDisposable
             : new Media(_libVlc, uri, FromType.FromLocation);
         SourceId = sourceId;
         Interlocked.Exchange(ref _generation, generation);
+        _finishedEvents.Reset();
         return Task.CompletedTask;
     }
 
@@ -79,13 +81,47 @@ public sealed class VlcAudioAdapter : IAudioPlaybackAdapter, IAsyncDisposable
                 return;
             }
 
-            Finished?.Invoke(this, new AudioFinishedEventArgs(sourceId, generation));
+            var eventId = _finishedEvents.GetOrCreate(sourceId, generation);
+            Finished?.Invoke(this, new AudioFinishedEventArgs(eventId, sourceId, generation));
         });
     }
 }
 
-public sealed class AudioFinishedEventArgs(long sourceId, long sourceGeneration) : EventArgs
+public sealed class AudioFinishedEventArgs(Guid eventId, long sourceId, long sourceGeneration) : EventArgs
 {
+    public Guid EventId { get; } = eventId;
     public long SourceId { get; } = sourceId;
     public long SourceGeneration { get; } = sourceGeneration;
+}
+
+public sealed class AudioFinishedEventTracker
+{
+    private readonly object _sync = new();
+    private long _sourceId;
+    private long _generation = long.MinValue;
+    private Guid _eventId;
+
+    public Guid GetOrCreate(long sourceId, long generation)
+    {
+        lock (_sync)
+        {
+            if (_eventId == Guid.Empty || _sourceId != sourceId || _generation != generation)
+            {
+                _sourceId = sourceId;
+                _generation = generation;
+                _eventId = Guid.NewGuid();
+            }
+            return _eventId;
+        }
+    }
+
+    public void Reset()
+    {
+        lock (_sync)
+        {
+            _sourceId = 0;
+            _generation = long.MinValue;
+            _eventId = Guid.Empty;
+        }
+    }
 }

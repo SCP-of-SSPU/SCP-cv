@@ -251,6 +251,228 @@ public sealed class RuntimePipeBrokerTests
     }
 
     [Fact]
+    public async Task PlayerOfficeRequestIsFencedPersistedForwardedAndCompleted()
+    {
+        await using var fixture = await ControlHostFixture.CreateAsync();
+        var startRequest = Guid.NewGuid();
+        var starting = await fixture.RuntimeAuthority.BeginStartAsync(startRequest);
+        await fixture.RuntimeAuthority.ArmAsync(startRequest, starting.GroupEpoch);
+        using var process = Process.GetCurrentProcess();
+        var registry = new RegisteredProcessRegistry();
+        var server = new NamedPipeServer(Guid.NewGuid(), process.SessionId, registry);
+        using var broker = CreateBroker(fixture, registry, server);
+        await broker.StartAsync(CancellationToken.None);
+
+        var officeId = Guid.NewGuid();
+        registry.Register(CurrentIdentity(process, "office", officeId));
+        await using var office = await ConnectAsync(server.PipeName);
+        await WriteHelloAsync(office, process, "office", officeId, null);
+        var officeWelcome = await ReadAsync(office);
+        Assert.True(officeWelcome.OwnerEpoch > 0);
+        await WriteAsync(office, Frame("worker_ready", officeId, officeWelcome.OwnerEpoch, null, new WorkerReadyDto
+        {
+            UiReady = true,
+            Dependencies = new Dictionary<string, string> { ["powerpoint.com"] = "ready" },
+        }));
+        Assert.Equal("health_accepted", (await ReadAsync(office)).MessageType);
+
+        var playerId = Guid.NewGuid();
+        registry.Register(CurrentIdentity(process, "player-1", playerId));
+        await using var player = await ConnectAsync(server.PipeName);
+        await WriteHelloAsync(player, process, "player-1", playerId, DisplayTarget(1));
+        var playerWelcome = await ReadAsync(player);
+        var operationId = Guid.NewGuid();
+        var commandId = Guid.NewGuid();
+        await WriteAsync(player, Frame("office_request", playerId, playerWelcome.OwnerEpoch, DisplayTarget(1), new OfficeRequestDto
+        {
+            OfficeOperationId = operationId,
+            ParentCommandId = commandId,
+            ClaimToken = Guid.NewGuid(),
+            SourceGeneration = 7,
+            GroupEpoch = starting.GroupEpoch,
+            Deadline = DateTimeOffset.UtcNow.AddSeconds(5).ToString("O"),
+            Operation = "open",
+            Parameters = new Dictionary<string, JsonElement>
+            {
+                ["window_id"] = JsonSerializer.SerializeToElement(1),
+                ["source_id"] = JsonSerializer.SerializeToElement(42L),
+                ["source_digest"] = JsonSerializer.SerializeToElement("sha256:source"),
+            },
+        }));
+
+        var forwarded = await ReadAsync(office);
+        Assert.Equal("office_request", forwarded.MessageType);
+        var normalized = forwarded.Payload.Deserialize<OfficeRequestDto>();
+        Assert.NotNull(normalized);
+        Assert.Equal(operationId, normalized.OfficeOperationId);
+        Assert.Equal(starting.GroupEpoch, normalized.GroupEpoch);
+        Assert.Equal(officeWelcome.OwnerEpoch, normalized.HostEpoch);
+        Assert.True(normalized.SlotEpoch > 0);
+
+        // Office OPEN 仍在执行时，同一 Player 连接必须继续处理租约/健康消息。
+        await WriteAsync(player, Frame("worker_ready", playerId, playerWelcome.OwnerEpoch, DisplayTarget(1), new WorkerReadyDto
+        {
+            UiReady = true,
+            Dependencies = new Dictionary<string, string> { ["wpf"] = "ready" },
+        }));
+        Assert.Equal("health_accepted", (await ReadAsync(player)).MessageType);
+
+        var result = new OfficeResultDto
+        {
+            OfficeOperationId = operationId,
+            Status = "succeeded",
+            ResultFingerprint = "sha256:office-result",
+            Result = JsonSerializer.SerializeToElement(new
+            {
+                playback_mode = "powerpoint",
+                presentation_identity = 9L,
+                host_epoch = normalized.HostEpoch,
+                slot_epoch = normalized.SlotEpoch,
+            }),
+        };
+        await WriteAsync(office, Frame("office_result", officeId, officeWelcome.OwnerEpoch, null, result));
+        Assert.Equal("office_result_accepted", (await ReadAsync(office)).MessageType);
+        var playerResult = await ReadAsync(player);
+        Assert.Equal("office_result", playerResult.MessageType);
+        Assert.Equal("succeeded", playerResult.Payload.Deserialize<OfficeResultDto>()!.Status);
+
+        await using var check = fixture.Database.CreateDbContext();
+        var persisted = await check.OfficeOperations.SingleAsync(item => item.OperationId == operationId);
+        Assert.Equal(OperationStatus.Succeeded, persisted.Status);
+        Assert.Equal("sha256:office-result", persisted.ResultFingerprint);
+
+        var fallbackPath = Path.Combine(Path.GetTempPath(), $"scp-cv-{Guid.NewGuid():N}.pdf");
+        await File.WriteAllBytesAsync(fallbackPath, "%PDF-1.4"u8.ToArray());
+        try
+        {
+            var fallbackOperation = Guid.NewGuid();
+            await WriteAsync(player, Frame("office_request", playerId, playerWelcome.OwnerEpoch, DisplayTarget(1), new OfficeRequestDto
+            {
+                OfficeOperationId = fallbackOperation,
+                ParentCommandId = Guid.NewGuid(),
+                ClaimToken = Guid.NewGuid(),
+                SourceGeneration = 8,
+                GroupEpoch = starting.GroupEpoch,
+                Deadline = DateTimeOffset.UtcNow.AddSeconds(5).ToString("O"),
+                Operation = "open",
+                Parameters = new Dictionary<string, JsonElement>
+                {
+                    ["window_id"] = JsonSerializer.SerializeToElement(2),
+                    ["source_id"] = JsonSerializer.SerializeToElement(43L),
+                    ["source_digest"] = JsonSerializer.SerializeToElement("sha256:fallback"),
+                    ["fallback_uri"] = JsonSerializer.SerializeToElement(fallbackPath),
+                    ["fallback_digest"] = JsonSerializer.SerializeToElement("sha256:fallback"),
+                    ["fallback_fresh"] = JsonSerializer.SerializeToElement(true),
+                },
+            }));
+            var fallback = (await ReadAsync(player)).Payload.Deserialize<OfficeResultDto>();
+            Assert.NotNull(fallback);
+            Assert.Equal("fallback", fallback.Status);
+            Assert.Equal("pdf", fallback.Result.GetProperty("playback_mode").GetString());
+            Assert.Equal(fallbackPath, fallback.Result.GetProperty("uri").GetString());
+        }
+        finally
+        {
+            File.Delete(fallbackPath);
+        }
+        await broker.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task TimedOutOfficeOpenRemainsUncertainAndKeepsDynamicSlotFenced()
+    {
+        await using var fixture = await ControlHostFixture.CreateAsync();
+        var startRequest = Guid.NewGuid();
+        var starting = await fixture.RuntimeAuthority.BeginStartAsync(startRequest);
+        await fixture.RuntimeAuthority.ArmAsync(startRequest, starting.GroupEpoch);
+        using var process = Process.GetCurrentProcess();
+        var registry = new RegisteredProcessRegistry();
+        var server = new NamedPipeServer(Guid.NewGuid(), process.SessionId, registry);
+        using var broker = CreateBroker(fixture, registry, server);
+        await broker.StartAsync(CancellationToken.None);
+
+        var officeId = Guid.NewGuid();
+        registry.Register(CurrentIdentity(process, "office", officeId));
+        await using var office = await ConnectAsync(server.PipeName);
+        await WriteHelloAsync(office, process, "office", officeId, null);
+        var officeWelcome = await ReadAsync(office);
+        await WriteAsync(office, Frame("worker_ready", officeId, officeWelcome.OwnerEpoch, null, new WorkerReadyDto
+        {
+            UiReady = true,
+            Dependencies = new Dictionary<string, string> { ["powerpoint.com"] = "ready" },
+        }));
+        Assert.Equal("health_accepted", (await ReadAsync(office)).MessageType);
+
+        var playerId = Guid.NewGuid();
+        registry.Register(CurrentIdentity(process, "player-1", playerId));
+        await using var player = await ConnectAsync(server.PipeName);
+        await WriteHelloAsync(player, process, "player-1", playerId, DisplayTarget(1));
+        var playerWelcome = await ReadAsync(player);
+        var operationId = Guid.NewGuid();
+        await WriteAsync(player, Frame("office_request", playerId, playerWelcome.OwnerEpoch, DisplayTarget(1), new OfficeRequestDto
+        {
+            OfficeOperationId = operationId,
+            ParentCommandId = Guid.NewGuid(),
+            ClaimToken = Guid.NewGuid(),
+            SourceGeneration = 7,
+            GroupEpoch = starting.GroupEpoch,
+            Deadline = DateTimeOffset.UtcNow.AddMilliseconds(500).ToString("O"),
+            Operation = "open",
+            Parameters = new Dictionary<string, JsonElement>
+            {
+                ["window_id"] = JsonSerializer.SerializeToElement(1),
+                ["source_id"] = JsonSerializer.SerializeToElement(42L),
+                ["source_digest"] = JsonSerializer.SerializeToElement("sha256:source"),
+            },
+        }));
+
+        var forwarded = await ReadAsync(office);
+        var normalized = forwarded.Payload.Deserialize<OfficeRequestDto>();
+        Assert.NotNull(normalized);
+        var timedOut = (await ReadAsync(player)).Payload.Deserialize<OfficeResultDto>();
+        Assert.NotNull(timedOut);
+        Assert.Equal("uncertain", timedOut.Status);
+        Assert.Equal("office_timeout", timedOut.ErrorCode);
+
+        await WriteAsync(player, Frame("office_request", playerId, playerWelcome.OwnerEpoch, DisplayTarget(1), new OfficeRequestDto
+        {
+            OfficeOperationId = Guid.NewGuid(),
+            ParentCommandId = Guid.NewGuid(),
+            ClaimToken = Guid.NewGuid(),
+            SourceGeneration = 8,
+            GroupEpoch = starting.GroupEpoch,
+            Deadline = DateTimeOffset.UtcNow.AddSeconds(5).ToString("O"),
+            Operation = "open",
+            Parameters = new Dictionary<string, JsonElement>
+            {
+                ["window_id"] = JsonSerializer.SerializeToElement(2),
+                ["source_id"] = JsonSerializer.SerializeToElement(43L),
+                ["source_digest"] = JsonSerializer.SerializeToElement("sha256:second"),
+            },
+        }));
+        var second = (await ReadAsync(player)).Payload.Deserialize<OfficeResultDto>();
+        Assert.NotNull(second);
+        Assert.Equal("failed", second.Status);
+        Assert.Equal("matching_pdf_unavailable", second.ErrorCode);
+
+        await WriteAsync(office, Frame("office_result", officeId, officeWelcome.OwnerEpoch, null, new OfficeResultDto
+        {
+            OfficeOperationId = operationId,
+            Status = "succeeded",
+            ResultFingerprint = "sha256:late-office-result",
+            Result = JsonSerializer.SerializeToElement(new { playback_mode = "powerpoint" }),
+        }));
+        var lateAcceptance = await ReadAsync(office);
+        Assert.Equal("office_result_accepted", lateAcceptance.MessageType);
+        Assert.False(lateAcceptance.Payload.GetProperty("accepted").GetBoolean());
+
+        await using var check = fixture.Database.CreateDbContext();
+        var persisted = await check.OfficeOperations.SingleAsync(item => item.OperationId == operationId);
+        Assert.Equal(OperationStatus.Uncertain, persisted.Status);
+        await broker.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
     public async Task SupervisorCanRegisterOnlyAnExistingMatchingChildProcess()
     {
         await using var fixture = await ControlHostFixture.CreateAsync();
