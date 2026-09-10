@@ -21,6 +21,8 @@ import {
 import FIcon from '@/design-system/FIcon.vue';
 import { useToast } from '@/composables/useToast';
 import { useSourceStore } from '@/stores/sources';
+import { pickUploadFile } from '@/platform/files';
+import { getNativePlatformAdapter } from '@/platform/native';
 
 const props = defineProps<{ open: boolean; folderId?: number | null }>();
 const emit = defineEmits<{
@@ -33,6 +35,13 @@ const sourceStore = useSourceStore();
 const toast = useToast();
 
 type TabId = 'file' | 'web';
+
+const acceptedFileTypes = [
+  '.pdf', '.pptx', '.ppt', '.pps', '.ppsx', '.pptm', '.ppsm', '.pot', '.potx', '.potm', '.odp',
+  '.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v',
+  '.mp3', '.wav', '.flac', '.aac', '.ogg', '.wma', '.m4a',
+  '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.svg',
+] as const;
 
 const activeTab = ref<TabId>('file');
 
@@ -102,8 +111,20 @@ function onFileSelect(event: Event): void {
   fileToUpload.value = target.files?.[0] ?? null;
 }
 
-function triggerFilePicker(): void {
-  fileInputEl.value?.click();
+async function triggerFilePicker(): Promise<void> {
+  const adapter = getNativePlatformAdapter();
+  if (!adapter) {
+    fileInputEl.value?.click();
+    return;
+  }
+  try {
+    const selected = await pickUploadFile(adapter, acceptedFileTypes);
+    if (!selected) return;
+    fileToUpload.value = new File([selected.data], selected.name, { type: selected.mimeType });
+    errorMessage.value = '';
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : t('sources.add.pickFileFirst');
+  }
 }
 
 async function uploadFile(): Promise<void> {
@@ -168,14 +189,14 @@ async function addWebSource(): Promise<void> {
             <div class="add-source__file-row">
               <label class="add-source__file">
                 <input ref="fileInputEl" type="file" class="visually-hidden" :disabled="uploading"
-                  accept=".pdf,.pptx,.ppt,.pps,.ppsx,.pptm,.ppsm,.pot,.potx,.potm,.odp,.mp4,.mkv,.avi,.mov,.wmv,.flv,.webm,.m4v,.mp3,.wav,.flac,.aac,.ogg,.wma,.m4a,.png,.jpg,.jpeg,.gif,.bmp,.webp,.svg"
+                  :accept="acceptedFileTypes.join(',')"
                   @change="onFileSelect" />
                 <span class="add-source__file-info">
                   <FIcon name="arrow_upload_24_regular" />
                   <span>{{ fileLabel }}</span>
                   <span v-if="fileSize" class="add-source__file-size">{{ fileSize }}</span>
                 </span>
-                <n-button @click="triggerFilePicker">{{ t('sources.add.chooseFile') }}</n-button>
+                <n-button @click.stop="triggerFilePicker">{{ t('sources.add.chooseFile') }}</n-button>
               </label>
               <p class="add-source__pdf-hint">{{ t('sources.add.pdfSuggestion') }}</p>
             </div>

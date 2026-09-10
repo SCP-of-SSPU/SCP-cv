@@ -1,5 +1,15 @@
 import type { PlatformAdapter } from './index';
 
+let nativePlatformAdapter: PlatformAdapter | null = null;
+
+export function setNativePlatformAdapter(adapter: PlatformAdapter | null): void {
+  nativePlatformAdapter = adapter;
+}
+
+export function getNativePlatformAdapter(): PlatformAdapter | null {
+  return nativePlatformAdapter;
+}
+
 export async function resolveNativePlatformAdapter(): Promise<PlatformAdapter | null> {
   if (typeof window === 'undefined') return null;
   if (window.scpCvElectron) {

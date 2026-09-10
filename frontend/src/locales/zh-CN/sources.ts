@@ -54,6 +54,8 @@ export default {
     backgroundAudioFail: '背景音乐操作失败',
     window: '窗口 {id}',
     download: '下载',
+    downloadedOk: '已保存 {name}',
+    downloadFail: '下载保存失败',
     downloadDisabledHint: '该源为非文件源，无法下载',
     deleteSource: '删除源',
     loadFail: '媒体源列表加载失败',

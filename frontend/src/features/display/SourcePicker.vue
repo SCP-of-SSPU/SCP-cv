@@ -25,6 +25,8 @@ import { useBackgroundAudioStore } from '@/stores/backgroundAudio';
 import { useSessionStore } from '@/stores/sessions';
 import { useSourceStore, type SourceCategory } from '@/stores/sources';
 import type { MediaSourceItem } from '@/services/api';
+import { pickUploadFile } from '@/platform/files';
+import { getNativePlatformAdapter } from '@/platform/native';
 import SourceThumbnail from '../sources/SourceThumbnail.vue';
 import { sourceCategoryLabel } from '../sources/sourcePresentation';
 
@@ -48,6 +50,12 @@ const uploadPhase = ref<'uploading' | 'processing'>('uploading');
 const switchingSourceId = ref<number | null>(null);
 const uploadError = ref('');
 const fileInputRef = ref<HTMLInputElement | null>(null);
+const acceptedFileTypes = [
+  '.pdf', '.pptx', '.ppt', '.pps', '.ppsx', '.pptm', '.ppsm', '.pot', '.potx', '.potm', '.odp',
+  '.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v',
+  '.mp3', '.wav', '.flac', '.aac', '.ogg', '.wma', '.m4a',
+  '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.svg',
+] as const;
 
 const filteredSources = computed<MediaSourceItem[]>(() => {
   const keyword = searchKeyword.value.trim().toLowerCase();
@@ -98,6 +106,22 @@ function isCurrentSource(source: MediaSourceItem): boolean {
 function onFileSelect(event: Event): void {
   const target = event.target as HTMLInputElement;
   fileToUpload.value = target.files?.[0] ?? null;
+}
+
+async function triggerFilePicker(): Promise<void> {
+  const adapter = getNativePlatformAdapter();
+  if (!adapter) {
+    fileInputRef.value?.click();
+    return;
+  }
+  try {
+    const selected = await pickUploadFile(adapter, acceptedFileTypes);
+    if (!selected) return;
+    fileToUpload.value = new File([selected.data], selected.name, { type: selected.mimeType });
+    uploadError.value = '';
+  } catch (error) {
+    uploadError.value = error instanceof Error ? error.message : t('sourcePicker.pickFileFirst');
+  }
 }
 
 async function uploadAndOpen(): Promise<void> {
@@ -239,10 +263,10 @@ async function uploadOnly(): Promise<void> {
           <div class="source-picker__file-row">
             <label class="source-picker__file">
               <input ref="fileInputRef" type="file" class="visually-hidden" :disabled="uploading"
-                accept=".pdf,.pptx,.ppt,.pps,.ppsx,.pptm,.ppsm,.pot,.potx,.potm,.odp,.mp4,.mkv,.avi,.mov,.wmv,.flv,.webm,.m4v,.mp3,.wav,.flac,.aac,.ogg,.wma,.m4a,.png,.jpg,.jpeg,.gif,.bmp,.webp,.svg"
+                :accept="acceptedFileTypes.join(',')"
                 @change="onFileSelect" />
               <span>{{ fileToUpload ? fileToUpload.name : t('sourcePicker.noFile') }}</span>
-              <n-button @click="() => fileInputRef?.click()">
+              <n-button @click.stop="triggerFilePicker">
                 {{ t('sourcePicker.chooseFile') }}
               </n-button>
             </label>

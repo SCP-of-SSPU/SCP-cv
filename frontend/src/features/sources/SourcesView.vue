@@ -37,6 +37,8 @@ import { useSessionStore } from '@/stores/sessions';
 import { useSourceStore, type SourceCategory } from '@/stores/sources';
 import { api, type MediaFolderItem, type MediaSourceItem } from '@/services/api';
 import { formatBytes, formatRelativeTime } from '@/design-system/utils';
+import { saveResponseFile } from '@/platform/files';
+import { getNativePlatformAdapter } from '@/platform/native';
 
 const { t } = useI18n();
 const sourceStore = useSourceStore();
@@ -126,9 +128,30 @@ async function addToBackgroundAudio(source: MediaSourceItem): Promise<void> {
   }
 }
 
-function downloadSource(source: MediaSourceItem): void {
-  const url = api.downloadSourceUrl(source.id);
-  window.open(url, '_blank');
+async function downloadSource(source: MediaSourceItem): Promise<void> {
+  try {
+    const response = await fetch(api.downloadSourceUrl(source.id), { credentials: 'include' });
+    const suggestedName = source.original_filename || source.name;
+    const adapter = getNativePlatformAdapter();
+    if (adapter) {
+      const saved = await saveResponseFile(adapter, response, suggestedName);
+      if (!saved) return;
+    } else {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blobUrl = URL.createObjectURL(await response.blob());
+      const anchor = document.createElement('a');
+      anchor.href = blobUrl;
+      anchor.download = suggestedName;
+      anchor.hidden = true;
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 0);
+    }
+    toast.success(t('sources.downloadedOk', { name: source.name }));
+  } catch (error) {
+    toast.error(t('sources.downloadFail'), error instanceof Error ? error.message : t('common.retry'));
+  }
 }
 
 async function deleteSource(source: MediaSourceItem): Promise<void> {
