@@ -64,14 +64,6 @@
         "resolved": "10.0.22621.756",
         "contentHash": "7ZL2sFSioYm1Ry067Kw1hg0SCcW5kuVezC2SwjGbcPE61Nn+gTbH86T73G3LcEOVj0S3IZzNuE/29gZvOLS7VA=="
       },
-      "Microsoft.WindowsAppSDK": {
-        "type": "Transitive",
-        "resolved": "1.5.240627000",
-        "contentHash": "qzzWG8rxZyzKzBuUdwr4ApezMINf+NT2b8EiEE5fchczNJJmDwlHImMWxX1pHK1W8Yby99alqLyC8DB0fIrhuA==",
-        "dependencies": {
-          "Microsoft.Windows.SDK.BuildTools": "10.0.22621.756"
-        }
-      },
       "NETStandard.Library": {
         "type": "Transitive",
         "resolved": "1.6.1",
@@ -172,6 +164,7 @@
         "dependencies": {
           "LibVLCSharp.WPF": "[3.9.4, )",
           "Microsoft.Web.WebView2": "[1.0.3537.50, )",
+          "Microsoft.WindowsAppSDK": "[1.5.240627000, )",
           "ScpCv.Contracts": "[1.0.0, )",
           "ScpCv.Domain": "[1.0.0, )",
           "VideoLAN.LibVLC.Windows": "[3.0.23, )"
@@ -222,6 +215,15 @@
         "resolved": "1.0.3537.50",
         "contentHash": "6RQRMIcc/xnhDCdBmyc+YoPxPlYHjmg/mfVpQb4iYWr+K/cs28dTxCyOYFZjUFtiwupXN9nCqxOSMumn2ZKAIg=="
       },
+      "Microsoft.WindowsAppSDK": {
+        "type": "CentralTransitive",
+        "requested": "[1.5.240627000, )",
+        "resolved": "1.5.240627000",
+        "contentHash": "qzzWG8rxZyzKzBuUdwr4ApezMINf+NT2b8EiEE5fchczNJJmDwlHImMWxX1pHK1W8Yby99alqLyC8DB0fIrhuA==",
+        "dependencies": {
+          "Microsoft.Windows.SDK.BuildTools": "10.0.22621.756"
+        }
+      },
       "VideoLAN.LibVLC.Windows": {
         "type": "CentralTransitive",
         "requested": "[3.0.23, )",
@@ -230,19 +232,20 @@
       }
     },
     "net10.0-windows10.0.19041/win-x64": {
-      "Microsoft.WindowsAppSDK": {
-        "type": "Transitive",
-        "resolved": "1.5.240627000",
-        "contentHash": "qzzWG8rxZyzKzBuUdwr4ApezMINf+NT2b8EiEE5fchczNJJmDwlHImMWxX1pHK1W8Yby99alqLyC8DB0fIrhuA==",
-        "dependencies": {
-          "Microsoft.Windows.SDK.BuildTools": "10.0.22621.756"
-        }
-      },
       "Microsoft.Web.WebView2": {
         "type": "CentralTransitive",
         "requested": "[1.0.3537.50, )",
         "resolved": "1.0.3537.50",
         "contentHash": "6RQRMIcc/xnhDCdBmyc+YoPxPlYHjmg/mfVpQb4iYWr+K/cs28dTxCyOYFZjUFtiwupXN9nCqxOSMumn2ZKAIg=="
+      },
+      "Microsoft.WindowsAppSDK": {
+        "type": "CentralTransitive",
+        "requested": "[1.5.240627000, )",
+        "resolved": "1.5.240627000",
+        "contentHash": "qzzWG8rxZyzKzBuUdwr4ApezMINf+NT2b8EiEE5fchczNJJmDwlHImMWxX1pHK1W8Yby99alqLyC8DB0fIrhuA==",
+        "dependencies": {
+          "Microsoft.Windows.SDK.BuildTools": "10.0.22621.756"
+        }
       }
     }
   }

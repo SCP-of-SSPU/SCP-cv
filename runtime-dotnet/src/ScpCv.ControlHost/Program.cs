@@ -95,6 +95,16 @@ builder.Services.AddSingleton<CommandResultService>();
 builder.Services.AddSingleton<RuntimeAuthorityRepository>();
 builder.Services.AddSingleton<MediaSourceService>();
 builder.Services.AddSingleton<MediaPreparationService>();
+if (safetyMode.IsSimulation)
+{
+    builder.Services.AddSingleton<IDisplayTopologyProvider, SimulationDisplayTopologyProvider>();
+    builder.Services.AddSingleton<ISystemAudioController, SimulationSystemAudioController>();
+}
+else
+{
+    builder.Services.AddSingleton<IDisplayTopologyProvider, WindowsDisplayTopologyProvider>();
+    builder.Services.AddSingleton<ISystemAudioController, WindowsCoreAudioController>();
+}
 builder.Services.AddSingleton<RuntimeStateService>();
 builder.Services.AddSingleton<PresentationCoordinator>();
 builder.Services.AddSingleton<ScenarioService>();

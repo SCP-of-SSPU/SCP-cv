@@ -85,6 +85,7 @@ public sealed partial class PlayerRuntimeHost(
             case "SET_VOLUME": SetVolume(Int(lease.Args, "volume", 100)); break;
             case "SET_MUTE": SetMute(Bool(lease.Args, "muted", false)); break;
             case "SET_LOOP": SetLoop(Bool(lease.Args, "enabled", false)); break;
+            case "SELECT_DISPLAY": SelectDisplay(String(lease.Args, "target_label")); break;
             case "SHOW_ID": ShowWindowId(); break;
             case "PPT_MEDIA": await ControlPptMediaAsync(lease, cancellationToken); break;
             default: throw new InvalidOperationException($"PlayerWorker 不支持命令 {lease.Command}。");
@@ -306,6 +307,17 @@ public sealed partial class PlayerRuntimeHost(
     {
         if (_current?.Native is VlcMediaPlayer player)
             player.Media?.AddOption(enabled ? ":input-repeat=65535" : ":input-repeat=0");
+    }
+
+    private void SelectDisplay(string targetLabel)
+    {
+        var screen = System.Windows.Forms.Screen.AllScreens.SingleOrDefault(item =>
+            string.Equals(item.DeviceName, targetLabel, StringComparison.OrdinalIgnoreCase));
+        if (screen is null)
+            throw new InvalidOperationException($"显示器目标已失效：{targetLabel}");
+
+        var bounds = screen.Bounds;
+        _window.AssignBounds(bounds.X, bounds.Y, bounds.Width, bounds.Height);
     }
 
     private async Task CloseAsync(CommandLeaseDto lease, CancellationToken cancellationToken)

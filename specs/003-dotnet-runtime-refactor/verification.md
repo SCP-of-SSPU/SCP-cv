@@ -13,9 +13,9 @@
 | Q5 Office/PDF | `PresentationPolicyTests`、`OfficeOperationTests`、`MediaPreparationTests`、`RuntimePipeBrokerTests` | `docs/qa/003-office-interop.md` | Office IPC、去重、授权与软件边界通过；实际 Office/HWND 条件待验证 |
 | Q6 网页预热 | `ResourceSwitchTests`、`WebViewPreheatTests` | `docs/qa/003-preheat-performance.md` | 状态机通过；真实 WebView2 性能待复核 |
 | Q7 媒体/性能 | `VlcAdapterTests`、流发现实现与测试 | `docs/qa/003-performance.md` | 能力边界通过；1000/100 样本基准待执行 |
-| Q8 启停/音频 | `BackgroundAudioTests`、`RuntimeLifecycleTests`、`ReliabilityAcceptanceTests`、`RuntimeProjectionTests` | `docs/qa/003-windows-runtime.md` | 音频 generation fencing 与自动化通过；完整实机循环待执行 |
+| Q8 启停/音频 | `BackgroundAudioTests`、`RuntimeLifecycleTests`、`ReliabilityAcceptanceTests`、`RuntimeProjectionTests`、`HostHardwareIntegrationTests` | `docs/qa/003-windows-runtime.md` | 音频 generation fencing、Core Audio 接线与自动化通过；完整实机循环待执行 |
 | Q9 开发数据/Git | `DatabaseInitializerTests`、`DevelopmentDataTests`、`DataBoundaryTests` | `runtime-dotnet/README.md` | 通过；新库与旧库边界明确 |
-| Q10 Windows 运行 | Windows/Integration 测试工程 | `docs/qa/003-windows-runtime.md` | 软件探针通过；四屏 60 分钟待实机 |
+| Q10 Windows 运行 | Windows/Integration 测试工程、`HostHardwareIntegrationTests` | `docs/qa/003-windows-runtime.md` | 本机显示拓扑/Core Audio 只读探针通过；四屏 60 分钟待实机 |
 | Q11 原生壳/UI 安全 | `electron-security.test.mjs`、`capacitor-platform.test.mjs`、`security-boundary.test.mjs` | `docs/qa/003-electron.md`、`003-android.md`、`003-browser-ui.md` | 静态、自动化及 Electron/Android 基础实包边界通过；交互式文件/外链场景待补 |
 
 ## FR-001–FR-030 映射
@@ -55,7 +55,7 @@
 
 - `dotnet restore runtime-dotnet/ScpCv.sln --force-evaluate`：通过。
 - `dotnet build runtime-dotnet/ScpCv.sln --no-restore`：通过，0 警告、0 错误。
-- `dotnet test runtime-dotnet/ScpCv.sln --no-restore`：通过，Domain 38、Contracts 18、Windows 11、Integration 44、Infrastructure 19、ControlHost 50，共 180 项。
+- `dotnet test runtime-dotnet/ScpCv.sln --no-restore`：通过，Domain 38、Contracts 18、Windows 11、Integration 47、Infrastructure 19、ControlHost 50，共 183 项。
 - `pnpm --dir frontend test`：通过，36/36。
 - `pnpm --dir frontend typecheck`：通过。
 - `pnpm --dir frontend build:web`、`build:app`、`build:electron-main`：通过；Vite 提示主入口压缩前约 1.07 MB，记录为后续代码分割优化项。
@@ -84,6 +84,7 @@
 - T123：PlayerWorker 已接入启动参数、管道领取/续租/结果/状态循环及真实 WPF/WebView2/LibVLC/PDF/图片资源宿主；PDF 首页/总页数在 OPEN 后同步，WebView2 `ProcessFailed` 撤销健康资格，并通过 OfficeRequest 接入动态 PowerPoint 流程。
 - T124：AudioWorker 已接入 LibVLC 命令执行和自然结束通知；`BackgroundAudioState` 使用 desired/observed generation fencing 拒绝旧状态，OPEN/自动切歌保留音量、静音与 loop，重复结束回调复用稳定 event ID。`RuntimeProjectionTests` 与音频执行器测试通过。
 - T125：PlayerWorker → ControlHost broker → PowerPointHost → PlayerWorker 的 OfficeRequest/OfficeResult 闭环已实现；稳定 operation ID、参数指纹冲突拒绝、持久 operation、group/host/slot epoch 和 deadline 复验、单 STA/COM 串行执行、唯一动态槽、匹配摘要 PDF fallback、HWND PID/start-time/DPI/样式附着及自有 Office 安全关闭均已接线。超时 OPEN 持久化为 uncertain、拒绝迟到结果且不会释放未知副作用的动态槽。真实媒体、Office COM/HWND、混合 DPI 和硬件画面仍由 T116/T129 门禁验证。
+- T126：Hardware ControlHost 使用 Per-Monitor-V2 上下文枚举真实 Windows 显示器，并通过 NAudio/Core Audio 读取和设置默认渲染端点；simulation 保持虚拟显示器与数据库音量。不存在交互桌面、显示器或默认端点时返回稳定 unavailable 诊断，硬件写失败不覆盖持久意图；PlayerWorker 按已验证设备名处理 `SELECT_DISPLAY`。本机只读探针识别 1 台 `2560×1600` 主显示器和可用 Core Audio 端点，不据此宣称四屏/实际播放通过。
 
 ## Spec Kit 一致性分析（T119）
 

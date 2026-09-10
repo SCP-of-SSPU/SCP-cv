@@ -111,8 +111,20 @@ public static class PlaybackEndpoints
         }
     }
 
-    private static IResult ListDisplays() =>
-        Results.Ok(new { success = true, targets = RuntimeStateService.ListDisplays() });
+    private static IResult ListDisplays(RuntimeStateService runtime)
+    {
+        try
+        {
+            return Results.Ok(new { success = true, targets = runtime.ListDisplays() });
+        }
+        catch (PlaybackServiceException exception)
+        {
+            return ApiEndpointSupport.Error(
+                exception.Message,
+                exception.Code,
+                StatusCodes.Status503ServiceUnavailable);
+        }
+    }
 
     private static async Task<IResult> SelectDisplayAsync(
         HttpRequest request,
