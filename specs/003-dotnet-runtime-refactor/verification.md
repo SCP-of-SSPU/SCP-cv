@@ -6,8 +6,8 @@
 
 | 范围 | 自动化证据 | 人工/实机证据 | 当前结论 |
 | --- | --- | --- | --- |
-| Q1 三端共享功能 | `frontend/scripts/platform-adapters.test.mjs`、`client-connection.test.mjs`、ControlHost 合同测试 | `docs/qa/003-client-matrix.md` | Web 通过；Electron/Android 实包已完成基础启动与页面验证，主机联调待补 |
-| Q2 会话与 SSE | `AuthEndpointTests`、`SseEndpointTests`、`verify-packaged-session.test.mjs`、`client-connection.test.mjs` | 三端各 10 次恢复记录待补 | 自动化通过；实包恢复待验证 |
+| Q1 三端共享功能 | `frontend/scripts/platform-adapters.test.mjs`、`client-connection.test.mjs`、ControlHost 合同测试 | `docs/qa/003-client-matrix.md` | Web 通过；Electron 实包已完成 HTTPS 主机登录/SSE/路由联调；Android 主机联调待补 |
+| Q2 会话与 SSE | `AuthEndpointTests`、`SseEndpointTests`、`verify-packaged-session.test.mjs`、`client-connection.test.mjs` | `docs/qa/003-electron.md` 记录 Electron 10 次页面/SSE 重建；Web/Android 完整恢复矩阵待补 | 自动化与 Electron 实包通过；其余实包待验证 |
 | Q3 业务规则 | Domain/ControlHost 全套测试、`OpenApiCoverageTests` | 浏览器业务状态见 `docs/qa/003-browser-ui.md` | 自动化通过；浏览器复核待执行 |
 | Q4 可靠命令 | `CommandFencingTests`、`CommandRecoveryTests`、`ReliabilityAcceptanceTests`、`SecurityBoundaryTests` | 无 | 自动化通过 |
 | Q5 Office/PDF | `PresentationPolicyTests`、`OfficeOperationTests`、`MediaPreparationTests`、`RuntimePipeBrokerTests` | `docs/qa/003-office-interop.md` | Office IPC、去重、授权与软件边界通过；实际 Office/HWND 条件待验证 |
@@ -16,7 +16,7 @@
 | Q8 启停/音频 | `BackgroundAudioTests`、`RuntimeLifecycleTests`、`ReliabilityAcceptanceTests`、`RuntimeProjectionTests`、`HostHardwareIntegrationTests` | `docs/qa/003-windows-runtime.md` | 音频 generation fencing、Core Audio 接线与自动化通过；完整实机循环待执行 |
 | Q9 开发数据/Git | `DatabaseInitializerTests`、`DevelopmentDataTests`、`DataBoundaryTests` | `runtime-dotnet/README.md` | 通过；新库与旧库边界明确 |
 | Q10 Windows 运行 | Windows/Integration 测试工程、`HostHardwareIntegrationTests` | `docs/qa/003-windows-runtime.md` | 本机显示拓扑/Core Audio 只读探针通过；四屏 60 分钟待实机 |
-| Q11 原生壳/UI 安全 | `electron-security.test.mjs`、`capacitor-platform.test.mjs`、`security-boundary.test.mjs` | `docs/qa/003-electron.md`、`003-android.md`、`003-browser-ui.md` | 静态、自动化及 Electron/Android 基础实包边界通过；交互式文件/外链场景待补 |
+| Q11 原生壳/UI 安全 | `electron-security.test.mjs`、`capacitor-platform.test.mjs`、`security-boundary.test.mjs` | `docs/qa/003-electron.md`、`003-android.md`、`003-browser-ui.md` | 静态、自动化及 Electron HTTPS/路由实包边界通过；交互式文件与 Android 外链场景待补 |
 
 ## FR-001–FR-030 映射
 
@@ -61,12 +61,12 @@
 - `pnpm --dir frontend build:web`、`build:app`、`build:electron-main`：通过；Vite 提示主入口压缩前约 1.07 MB，记录为后续代码分割优化项。
 - Playwright + Chrome（Vite preview + simulation ControlHost，1440×900/768×1024/390×844）：通过；截图见 `docs/qa/003-browser-*.png`，console/pageerror 为 0。
 - `pnpm build:electron`：未完成；electron-builder 下载阶段遇到本机证书链错误（`unable to verify the first certificate`），未修改安全配置绕过。
-- Electron unpacked 包实测：修复持久化 partition 协议注册和 sandbox preload 后，`app://scp-cv/#/connect` 正常渲染，CDP 页面标题和 `window.scpCvElectron` API 均可检查；完整 ControlHost 认证/SSE、文件对话框仍待联调。
+- Electron unpacked 包实测：`app://scp-cv` 对 HTTPS simulation ControlHost 的 csrf/login/me/SSE 已通过；`#/sources` 连续 10 次 reload 均保持登录并恢复控制链路，console/pageerror 为 0；文件对话框仍待联调。
 - Android AVD 实测：Pixel_9_Pro / API 37 / WebView 145.0.7632.218 安装并启动 debug APK，连接页可见，HOME/重启生命周期可恢复；认证/SSE、文件和外链场景仍待联调。
 
 ## 尚未验证
 
-- 打包 Electron 的真实认证、SSE、文件选择/保存和关闭行为。
+- 打包 Electron 的文件选择/保存对话框。
 - Android WebView>=111 设备上的 APK、前后台、返回键、文件与外链限制。
 - 真实浏览器桌面/平板/手机视觉检查与控制台日志。
 - 普通命令 1000 样本、健康热切换 100 样本的 p95。
