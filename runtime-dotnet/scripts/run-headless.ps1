@@ -96,26 +96,33 @@ if ($Stop) {
 # 计划任务实例不属于该进程树，因此 SSH 可以立刻返回而 ControlHost 继续运行。
 # 任务保留用于后续手动运行；-Stop 会连同任务一起清理。
 if ($Detach) {
+    # schtasks /tr 接受的是单条命令行，内层引号会被 PowerShell 的参数传递破坏；
+    # 因此仅在参数含空白时才加引号。
+    $quote = {
+        param([string]$Value)
+        if ($Value -match '\s') { return '"' + $Value + '"' }
+        return $Value
+    }
     $parts = @(
-        '-ExecutionPolicy', 'Bypass', '-File', ('"' + $PSCommandPath + '"'),
-        '-RuntimeRoot', ('"' + $RuntimeRoot + '"'),
-        '-DataRoot', ('"' + $dataPath + '"'),
-        '-ListenUrls', ('"' + $ListenUrls + '"'),
-        '-AllowedOrigins', ('"' + $AllowedOrigins + '"'),
-        '-DevelopmentUsername', ('"' + $DevelopmentUsername + '"'),
-        '-DevelopmentPassword', ('"' + $DevelopmentPassword + '"')
+        '-ExecutionPolicy', 'Bypass', '-File', (& $quote $PSCommandPath),
+        '-RuntimeRoot', (& $quote $RuntimeRoot),
+        '-DataRoot', (& $quote $dataPath),
+        '-ListenUrls', (& $quote $ListenUrls),
+        '-AllowedOrigins', (& $quote $AllowedOrigins),
+        '-DevelopmentUsername', (& $quote $DevelopmentUsername),
+        '-DevelopmentPassword', (& $quote $DevelopmentPassword)
     )
-    if (-not [string]::IsNullOrWhiteSpace($ControlHostPath)) { $parts += @('-ControlHostPath', ('"' + $ControlHostPath + '"')) }
-    if (-not [string]::IsNullOrWhiteSpace($SupervisorExecutable)) { $parts += @('-SupervisorExecutable', ('"' + $SupervisorExecutable + '"')) }
-    if (-not [string]::IsNullOrWhiteSpace($MediaMtxPath)) { $parts += @('-MediaMtxPath', ('"' + $MediaMtxPath + '"')) }
+    if (-not [string]::IsNullOrWhiteSpace($ControlHostPath)) { $parts += @('-ControlHostPath', (& $quote $ControlHostPath)) }
+    if (-not [string]::IsNullOrWhiteSpace($SupervisorExecutable)) { $parts += @('-SupervisorExecutable', (& $quote $SupervisorExecutable)) }
+    if (-not [string]::IsNullOrWhiteSpace($MediaMtxPath)) { $parts += @('-MediaMtxPath', (& $quote $MediaMtxPath)) }
     if ($StartWorkers) { $parts += '-StartWorkers' }
     $parts += @('-ReadyTimeoutSeconds', $ReadyTimeoutSeconds)
-    $action = 'powershell.exe -NoProfile ' + ($parts -join ' ')
+    $action = $env:SystemRoot + '\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile ' + ($parts -join ' ')
     $taskName = Get-HeadlessTaskName
-    schtasks /create /tn $taskName /tr $action /sc once /st 23:59 /f | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "创建计划任务 $taskName 失败。" }
-    schtasks /run /tn $taskName | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "运行计划任务 $taskName 失败。" }
+    $created = schtasks /create /tn $taskName /tr $action /sc once /st 23:59 /f 2>&1 | Out-String
+    if ($LASTEXITCODE -ne 0) { Write-Log $created.Trim(); throw "创建计划任务 $taskName 失败。" }
+    $ran = schtasks /run /tn $taskName 2>&1 | Out-String
+    if ($LASTEXITCODE -ne 0) { Write-Log $ran.Trim(); throw "运行计划任务 $taskName 失败。" }
     Write-Log "已通过计划任务分离启动：$taskName，日志：$scriptLog"
     return
 }
