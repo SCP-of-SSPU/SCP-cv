@@ -9,6 +9,7 @@ if (!OperatingSystem.IsWindows())
 }
 
 var pipeName = Option(args, "pipe-name");
+var startGate = Option(args, "start-gate");
 var instanceId = Guid.TryParse(Option(args, "instance-id"), out var parsedInstance)
     ? parsedInstance
     : Guid.NewGuid();
@@ -32,6 +33,7 @@ await using var session = new RuntimeWorkerSession(pipeName, new RuntimeWorkerId
 audio.Finished += (_, finished) => _ = NotifyFinishedAsync(session, finished, stop.Token);
 try
 {
+    await RuntimeStartGate.WaitAsync(startGate, cancellationToken: stop.Token);
     await session.RunAsync(executor.ExecuteAsync, stop.Token);
     return 0;
 }

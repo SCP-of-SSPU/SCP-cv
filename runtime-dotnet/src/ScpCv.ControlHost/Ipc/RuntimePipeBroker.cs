@@ -19,6 +19,16 @@ public interface IRuntimeReadinessGate
         CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// 延迟解析管道 broker，避免 Hardware 启动时形成
+/// broker → 音频完成处理 → 命令协调器 → wake notifier → broker 的单例构造环。
+/// </summary>
+public sealed class RuntimeCommandWakeNotifier(IServiceProvider services) : ICommandWakeNotifier
+{
+    public ValueTask WakeAsync(CommandWakeSignal signal, CancellationToken cancellationToken = default) =>
+        services.GetRequiredService<RuntimePipeBroker>().WakeAsync(signal, cancellationToken);
+}
+
 public sealed partial class RuntimePipeBroker(
     NamedPipeServer server,
     RegisteredProcessRegistry processRegistry,

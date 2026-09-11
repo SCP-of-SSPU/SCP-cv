@@ -44,12 +44,15 @@ static async Task<int> StartAsync(string runtimeRoot, string statePath, string? 
     }
 
     var registry = new ProcessRegistry();
-    var owned = new RuntimeLauncher(registry).Start(runtimeRoot, mediaMtxPath, controlPipe);
+    using var startGate = RuntimeStartGateHandle.Create(controlPipe);
+    var owned = new RuntimeLauncher(registry).Start(runtimeRoot, mediaMtxPath, controlPipe, startGate?.Name);
     try
     {
         await using var control = string.IsNullOrWhiteSpace(controlPipe)
             ? null
             : await RegisterWithControlHostAsync(controlPipe, owned);
+        // 身份登记完成后才放行子进程连接，避免 ControlHost 拒绝尚未登记的身份。
+        startGate?.Open();
         await WriteStateAsync(statePath, owned);
         Console.WriteLine(JsonSerializer.Serialize(owned.Select(ToState), GetJsonOptions()));
 
@@ -77,6 +80,7 @@ static async Task<int> StartAsync(string runtimeRoot, string statePath, string? 
     }
     catch
     {
+        startGate?.Open();
         await new ShutdownCoordinator(registry).StopAsync();
         DeleteStateIfSafe(statePath);
         throw;

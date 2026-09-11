@@ -14,6 +14,7 @@ if (!OperatingSystem.IsWindows())
 }
 
 var pipeName = Option(args, "pipe-name");
+var startGate = Option(args, "start-gate");
 var instanceId = Guid.TryParse(Option(args, "instance-id"), out var parsed)
     ? parsed
     : Guid.NewGuid();
@@ -32,6 +33,7 @@ using var sta = new OfficeStaDispatcher();
 using var office = new PowerPointComAdapter(sta);
 try
 {
+    await RuntimeStartGate.WaitAsync(startGate, cancellationToken: stop.Token);
     await client.ConnectAsync(stop.Token);
     using var process = Process.GetCurrentProcess();
     var hello = new IpcFrameDto

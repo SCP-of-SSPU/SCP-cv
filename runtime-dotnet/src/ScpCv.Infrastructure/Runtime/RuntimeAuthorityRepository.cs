@@ -126,6 +126,10 @@ public sealed class RuntimeAuthorityRepository(
             async (context, token) =>
             {
                 var group = await context.RuntimeGroupControls.SingleAsync(token).ConfigureAwait(false);
+                if (group.State == RuntimeGroupState.Stopped && group.GroupEpoch == expectedGroupEpoch)
+                {
+                    return group;
+                }
                 if (group.State != RuntimeGroupState.Draining || group.GroupEpoch != expectedGroupEpoch)
                 {
                     throw new RuntimeAuthorityException("停止确认的 group epoch 已失效。");

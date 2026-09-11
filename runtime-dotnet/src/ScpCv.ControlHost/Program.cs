@@ -79,7 +79,8 @@ else
         logonSessionId,
         services.GetRequiredService<IRegisteredProcessRegistry>()));
     builder.Services.AddSingleton<RuntimePipeBroker>();
-    builder.Services.AddSingleton<ICommandWakeNotifier>(services => services.GetRequiredService<RuntimePipeBroker>());
+    builder.Services.AddSingleton<RuntimeCommandWakeNotifier>();
+    builder.Services.AddSingleton<ICommandWakeNotifier>(services => services.GetRequiredService<RuntimeCommandWakeNotifier>());
     builder.Services.AddHostedService(services => services.GetRequiredService<RuntimePipeBroker>());
 }
 builder.Services.AddSingleton<RuntimeSupervisorControl>(services =>

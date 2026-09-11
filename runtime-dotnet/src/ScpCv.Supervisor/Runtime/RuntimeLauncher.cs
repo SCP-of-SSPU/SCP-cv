@@ -5,7 +5,11 @@ namespace ScpCv.Supervisor.Runtime;
 
 public sealed class RuntimeLauncher(ProcessRegistry registry)
 {
-    public IReadOnlyList<OwnedProcess> Start(string runtimeRoot, string? mediaMtxPath = null, string? controlPipe = null)
+    public IReadOnlyList<OwnedProcess> Start(
+        string runtimeRoot,
+        string? mediaMtxPath = null,
+        string? controlPipe = null,
+        string? startGate = null)
     {
         var root = Path.GetFullPath(runtimeRoot);
         var started = new List<OwnedProcess>();
@@ -17,20 +21,20 @@ public sealed class RuntimeLauncher(ProcessRegistry registry)
                 started.Add(StartProcess(
                     $"player-{windowId}",
                     ResolveBinary(root, "ScpCv.PlayerWorker.exe"),
-                    RuntimeArguments(controlPipe, instanceId, $"--window-id {windowId}"),
+                    RuntimeArguments(controlPipe, instanceId, startGate, $"--window-id {windowId}"),
                     instanceId));
             }
             var audioInstanceId = Guid.NewGuid();
             started.Add(StartProcess(
                 "audio",
                 ResolveBinary(root, "ScpCv.AudioWorker.exe"),
-                RuntimeArguments(controlPipe, audioInstanceId),
+                RuntimeArguments(controlPipe, audioInstanceId, startGate),
                 audioInstanceId));
             var officeInstanceId = Guid.NewGuid();
             started.Add(StartProcess(
                 "office",
                 ResolveBinary(root, "ScpCv.PowerPointHost.exe"),
-                RuntimeArguments(controlPipe, officeInstanceId),
+                RuntimeArguments(controlPipe, officeInstanceId, startGate),
                 officeInstanceId));
             if (!string.IsNullOrWhiteSpace(mediaMtxPath)) started.Add(StartProcess("mediamtx", Path.GetFullPath(mediaMtxPath), string.Empty));
             return started;
@@ -63,11 +67,12 @@ public sealed class RuntimeLauncher(ProcessRegistry registry)
         return registry.Register(role, process, instanceId);
     }
 
-    private static string RuntimeArguments(string? controlPipe, Guid instanceId, string prefix = "")
+    private static string RuntimeArguments(string? controlPipe, Guid instanceId, string? startGate, string prefix = "")
     {
         if (string.IsNullOrWhiteSpace(controlPipe)) return prefix;
         var separator = string.IsNullOrWhiteSpace(prefix) ? string.Empty : " ";
-        return $"{prefix}{separator}--pipe-name \"{controlPipe}\" --instance-id {instanceId:D}";
+        var gate = string.IsNullOrWhiteSpace(startGate) ? string.Empty : $" --start-gate \"{startGate}\"";
+        return $"{prefix}{separator}--pipe-name \"{controlPipe}\" --instance-id {instanceId:D}{gate}";
     }
 
     private static string ResolveBinary(string root, string fileName)

@@ -9,6 +9,18 @@ namespace ScpCv.Integration.Tests;
 public sealed class RuntimeLifecycleTests
 {
     [Fact]
+    public async Task CompleteStopIsIdempotentForTheCurrentStoppedEpoch()
+    {
+        await using var fixture = await ControlHostFixture.CreateAsync();
+        var stopped = await fixture.RuntimeAuthority.GetGroupAsync();
+
+        var confirmed = await fixture.RuntimeAuthority.CompleteStopAsync(stopped.GroupEpoch);
+
+        Assert.Equal(RuntimeGroupState.Stopped, confirmed.State);
+        Assert.Equal(stopped.GroupEpoch, confirmed.GroupEpoch);
+    }
+
+    [Fact]
     public async Task StopLatchRejectsNewWorkerAuthorityUntilExplicitStart()
     {
         await using var fixture = await ControlHostFixture.CreateAsync();

@@ -17,6 +17,7 @@ public partial class App : System.Windows.Application, IDisposable
         base.OnStartup(e);
         var windowId = int.TryParse(Option(e.Args, "window-id"), out var parsed) && parsed is >= 1 and <= 4 ? parsed : 1;
         var pipeName = Option(e.Args, "pipe-name");
+        var startGate = Option(e.Args, "start-gate");
         var instanceId = Guid.TryParse(Option(e.Args, "instance-id"), out var id) ? id : Guid.NewGuid();
         var window = new PlayerWindow();
         var screens = System.Windows.Forms.Screen.AllScreens;
@@ -32,7 +33,7 @@ public partial class App : System.Windows.Application, IDisposable
             new IpcTargetDto { Kind = "display", Id = windowId },
             ["wpf", "libvlc", "webview2", "windows.data.pdf", "image"]));
         _runtime = new PlayerRuntimeHost(window, windowId, _session);
-        _ = RunRuntimeAsync(_session, _runtime, _stop.Token);
+        _ = RunRuntimeAsync(_session, _runtime, startGate, _stop.Token);
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -54,10 +55,12 @@ public partial class App : System.Windows.Application, IDisposable
     private async Task RunRuntimeAsync(
         RuntimeWorkerSession session,
         PlayerRuntimeHost runtime,
+        string? startGate,
         CancellationToken cancellationToken)
     {
         try
         {
+            await RuntimeStartGate.WaitAsync(startGate, cancellationToken: cancellationToken);
             await session.RunAsync(runtime.ExecuteAsync, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
