@@ -6,16 +6,16 @@
 
 | 范围 | 自动化证据 | 人工/实机证据 | 当前结论 |
 | --- | --- | --- | --- |
-| Q1 三端共享功能 | `frontend/scripts/platform-adapters.test.mjs`、`client-connection.test.mjs`、ControlHost 合同测试 | `docs/qa/003-client-matrix.md` | Web 通过；Electron 已完成 HTTPS 登录/SSE/路由联调；Android 实包完整通过；Electron 文件/关闭待补 |
+| Q1 三端共享功能 | `frontend/scripts/platform-adapters.test.mjs`、`client-connection.test.mjs`、ControlHost 合同测试 | `docs/qa/003-client-matrix.md` | Web 通过；Electron 实包通过（含上传、原生保存落盘哈希一致、关闭后主机存活）；Android 实包完整通过 |
 | Q2 会话与 SSE | `AuthEndpointTests`、`SseEndpointTests`、`verify-packaged-session.test.mjs`、`client-connection.test.mjs` | Electron 10 次页面重载及 Android 10 次 HOME/恢复记录见客户端矩阵 | 自动化、Electron 与 Android 实包均通过 |
 | Q3 业务规则 | Domain/ControlHost 全套测试、`OpenApiCoverageTests` | 浏览器业务状态见 `docs/qa/003-browser-ui.md` | 自动化通过；浏览器复核待执行 |
 | Q4 可靠命令 | `CommandFencingTests`、`CommandRecoveryTests`、`ReliabilityAcceptanceTests`、`SecurityBoundaryTests` | 无 | 自动化通过 |
 | Q5 Office/PDF | `PresentationPolicyTests`、`OfficeOperationTests`、`MediaPreparationTests`、`RuntimePipeBrokerTests` | `docs/qa/003-office-interop.md` | Office IPC、去重、授权与软件边界通过；实际 Office/HWND 条件待验证 |
 | Q6 网页预热 | `ResourceSwitchTests`、`WebViewPreheatTests` | `docs/qa/003-preheat-performance.md` | 状态机通过；真实 WebView2 性能待复核 |
-| Q7 媒体/性能 | `VlcAdapterTests`、流发现实现与测试 | `docs/qa/003-performance.md` | 能力边界通过；1000/100 样本基准待执行 |
+| Q7 媒体/性能 | `VlcAdapterTests`、流发现实现与测试、`scripts/benchmark-commands.ps1` | `docs/qa/003-performance.md` | 能力边界通过；基准脚本就绪；1000/100 样本待工作站执行 |
 | Q8 启停/音频 | `BackgroundAudioTests`、`RuntimeLifecycleTests`、`ReliabilityAcceptanceTests`、`RuntimeProjectionTests`、`HostHardwareIntegrationTests` | `docs/qa/003-windows-runtime.md` | 音频 generation fencing、Core Audio 接线与自动化通过；完整实机循环待执行 |
 | Q9 开发数据/Git | `DatabaseInitializerTests`、`DevelopmentDataTests`、`DataBoundaryTests` | `runtime-dotnet/README.md` | 通过；新库与旧库边界明确 |
-| Q10 Windows 运行 | Windows/Integration 测试工程、`HostHardwareIntegrationTests` | `docs/qa/003-windows-runtime.md` | 本机显示拓扑/Core Audio 只读探针通过；四屏 60 分钟待实机 |
+| Q10 Windows 运行 | Windows/Integration 测试工程、`HostHardwareIntegrationTests`、`HardwareControlHostStartupTests` | `docs/qa/003-windows-runtime.md` | 只读探针通过；Hardware 运行时 7 进程一次拉起并全部就绪；四屏 60 分钟待工作站 |
 | Q11 原生壳/UI 安全 | `electron-security.test.mjs`、`capacitor-platform.test.mjs`、`security-boundary.test.mjs` | `docs/qa/003-electron.md`、`003-android.md`、`003-browser-ui.md` | Android 文件/外链/返回键实包通过；Electron 交互式文件与关闭场景待补 |
 
 ## FR-001–FR-030 映射
@@ -61,16 +61,16 @@
 - `pnpm --dir frontend build:web`、`build:app`、`build:electron-main`：通过；Vite 提示主入口压缩前约 1.07 MB，记录为后续代码分割优化项。
 - Playwright + Chrome（Vite preview + simulation ControlHost，1440×900/768×1024/390×844）：通过；截图见 `docs/qa/003-browser-*.png`，console/pageerror 为 0。
 - `pnpm --dir frontend run build:electron`：通过；electron-builder 26.15.3 下载 Electron 44.2.0 并生成 `frontend/release-electron/win-unpacked`。构建仅提示未设置应用图标和入口 chunk 体积较大，未修改安全配置绕过证书校验。
-- Electron unpacked 包实测：`app://scp-cv` 对 HTTPS simulation ControlHost 的 csrf/login/me/SSE 已通过；`#/sources` 连续 10 次 reload 均保持登录并恢复控制链路，console/pageerror 为 0；文件对话框仍待联调。
+- Electron unpacked 包实测：`app://scp-cv` 对 HTTPS simulation ControlHost 的 csrf/login/me/SSE 已通过；`#/sources` 连续 10 次 reload 均保持登录并恢复控制链路，console/pageerror 为 0；上传（修复 Electron 安全 Cookie 导致的 CSRF 缺失）与原生“另存为”下载落盘 SHA-256 一致；关闭进程组后主机仍返回 200。
 - Android AVD 实测（2026-09-11）：Medium_Tablet / Android 16 API 36 / WebView 134.0.6998.135 的 debug APK 已通过 HTTPS 登录、REST、SSE、10 次 HOME/恢复、原生文件选择/上传、受保护保存、外链转系统 Chrome及返回键完整序列；退出后 ControlHost 仍返回 HTTP 200。TLS 使用 debug 构建内的用户 CA trust anchor，未关闭证书校验或改用明文。
 - Android 返回键回归：原生 AppPlugin 配置测试、显式浮层关闭测试、typecheck、`cap:sync`、Gradle `assembleDebug` 与真实 APK 三段 Back 序列通过。
 
 ## 尚未验证
 
-- 打包 Electron 的文件选择/保存对话框。
-- 真实浏览器桌面/平板/手机视觉检查与控制台日志。
 - 普通命令 1000 样本、健康热切换 100 样本的 p95。
 - 四屏、Office、VLC、MediaMTX、音频的 60 分钟混合运行。
+
+工作站执行步骤见 `docs/qa/003-workstation-runbook.md`。
 
 因此当前不得执行 T118，也不得删除 Django/Python 运行时。
 
@@ -86,6 +86,22 @@
 - T125：PlayerWorker → ControlHost broker → PowerPointHost → PlayerWorker 的 OfficeRequest/OfficeResult 闭环已实现；稳定 operation ID、参数指纹冲突拒绝、持久 operation、group/host/slot epoch 和 deadline 复验、单 STA/COM 串行执行、唯一动态槽、匹配摘要 PDF fallback、HWND PID/start-time/DPI/样式附着及自有 Office 安全关闭均已接线。超时 OPEN 持久化为 uncertain、拒绝迟到结果且不会释放未知副作用的动态槽。真实媒体、Office COM/HWND、混合 DPI 和硬件画面仍由 T116/T129 门禁验证。
 - T126：Hardware ControlHost 使用 Per-Monitor-V2 上下文枚举真实 Windows 显示器，并通过 NAudio/Core Audio 读取和设置默认渲染端点；simulation 保持虚拟显示器与数据库音量。不存在交互桌面、显示器或默认端点时返回稳定 unavailable 诊断，硬件写失败不覆盖持久意图；PlayerWorker 按已验证设备名处理 `SELECT_DISPLAY`。本机只读探针识别 1 台 `2560×1600` 主显示器和可用 Core Audio 端点，不据此宣称四屏/实际播放通过。
 
+## 运行时启动缺陷修复（2026-09-11）
+
+首次在 `SafetyMode=Hardware` 上执行 `POST /api/system/restart/` 时，ControlHost 完成数据库初始化后不再监听 HTTP。按系统化调试在依赖图与管道握手中定位到三个真实缺陷，全部先加失败回归再修根因：
+
+- **单例构造环**：`RuntimePipeBroker → AudioFinishedEventProcessor → BackgroundAudioService → CommandCoordinator → ICommandWakeNotifier → RuntimePipeBroker`。新增 `RuntimeCommandWakeNotifier` 延迟解析 broker 切断环；`HardwareControlHostStartupTests` 修复前 10 秒超时、修复后约 1 秒 `/health/ready` 200。
+- **停止确认不幂等**：初始 `Stopped` 状态下 `CompleteStopAsync` 只接受 `Draining`，使首次启动 500。现同 `group_epoch` 的 `Stopped` 幂等返回；回归 `RuntimeLifecycleTests.CompleteStopIsIdempotentForTheCurrentStoppedEpoch`。
+- **子进程先连接、Supervisor 后登记**：PowerPointHost 被 ControlHost 以“未登记身份”拒绝后退出并触发整组停止。新增启动门 `RuntimeStartGate`/`RuntimeStartGateHandle`，Supervisor 登记完成后才放行子进程连接；回归 `RuntimeStartGateTests`。
+
+修复后真实实测：`POST /api/system/restart/` 返回 `{"success":true,"group_epoch":3,"detail":"Supervisor restart 的全部 Worker 已就绪。"}`，
+4 个 PlayerWorker、AudioWorker、PowerPointHost、MediaMTX 全部在线。细节见 `docs/qa/003-runtime-lifecycle.md`。
+
+同批次还修复了 Electron 上传的 CSRF 缺陷（multipart 只读 `document.cookie`，无法读取 Electron 安全 Cookie），
+统一走 `resolveCsrfToken`；修复后真实包上传与原生保存下载均通过，下载文件 SHA-256 与源文件一致。
+
+**这些只证明“真实运行时能被一次拉起”与“客户端文件链路可用”，不证明四屏画面、Office COM、VLC 解码或音频输出效果。**
+
 ## Spec Kit 一致性分析（T119）
 
 2026-09-08 对 `spec.md`、`plan.md`、`tasks.md`、项目宪章和实现路径进行只读交叉检查：
@@ -94,5 +110,5 @@
 - `git diff --check`：通过；仅报告现有 CRLF/LF 转换提示，无空白错误。
 - FR-001–FR-030：均有计划和任务映射；SC-001–SC-010：均有自动或人工证据条目。
 - 任务依赖顺序与快速迭代边界一致；T118 仍被明确阻塞于 T107–T116，且旧 Django/Python 未删除。
-- 发现并保留的未完成项：T050、T113–T116 为真实封装客户端/硬件/性能门禁；它们已在 QA 文档标为待实机，不冒充通过。
+- 发现并保留的未完成项：T115/T116/T129 为硬件、媒体与性能门禁，已标为待工作站执行（见 `docs/qa/003-workstation-runbook.md`），不冒充通过；T050/T113/T128 已于 2026-09-11 完成并记录证据。
 - 无宪章 MUST 冲突、无未映射核心需求、无新增迁移/回滚工程。

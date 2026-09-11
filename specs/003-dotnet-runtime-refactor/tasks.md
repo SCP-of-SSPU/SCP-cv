@@ -99,7 +99,7 @@
 - [X] T047 [US1] 实现 contextIsolation preload 的受限文件选择/保存与主机配置 API 到 `frontend/electron/preload.ts` 和 `frontend/src/platform/electron.ts`
 - [X] T048 [US1] 配置 Capacitor 本地资源、受限 HTTPS origin 和必要插件到 `frontend/capacitor.config.ts`、`frontend/src/platform/capacitor.ts` 和 `frontend/android/app/src/main/AndroidManifest.xml`
 - [X] T049 [US1] 实现 Android 前后台/SSE 重建、返回键、安全区域和文件上传下载到 `frontend/src/platform/capacitor.ts` 和 `frontend/src/platform/lifecycle.ts`
-- [ ] T050 [US1] 在真实 Web、打包 Electron 与 Android 测试设备记录共享用例和会话/SSE 结果到 `docs/qa/003-client-matrix.md`
+- [X] T050 [US1] 在真实 Web、打包 Electron 与 Android 测试设备记录共享用例和会话/SSE 结果到 `docs/qa/003-client-matrix.md`
 
 **Checkpoint**: US1 可在 simulation 主机独立演示；关闭任一客户端不停止主机，三端均不复制业务页面。
 
@@ -251,7 +251,7 @@
 - [X] T110 运行并修复全部非实机 .NET 测试，记录命令和结果到 `specs/003-dotnet-runtime-refactor/verification.md`
 - [X] T111 运行并修复共享前端测试、typecheck、web/app/Electron 构建，记录结果到 `specs/003-dotnet-runtime-refactor/verification.md`
 - [X] T112 在真实浏览器检查桌面/平板/手机布局、活动/错误/媒体状态和控制台日志，记录到 `docs/qa/003-browser-ui.md`
-- [ ] T113 在实际打包 Electron 中验证安全协议、认证/SSE、路由、文件和关闭行为，记录到 `docs/qa/003-electron.md`
+- [X] T113 在实际打包 Electron 中验证安全协议、认证/SSE、路由、文件和关闭行为，记录到 `docs/qa/003-electron.md`
 - [X] T114 在实际 Android APK 与 WebView>=111 设备验证认证/SSE、前后台、返回键、文件和外链限制，记录到 `docs/qa/003-android.md`
 - [ ] T115 执行普通命令 1000 样本与健康热切换 100 样本基准，记录 p95 和测试条件到 `docs/qa/003-performance.md`
 - [ ] T116 执行开发 Windows 四屏/Office/VLC/MediaMTX/音频 60 分钟混合测试，记录硬件条件和未通过项到 `docs/qa/003-windows-runtime.md`
@@ -371,5 +371,5 @@ T102–T103 Development data boundary tests
 - [X] T125 CRITICAL 将 PowerPointHost 接入独立 STA/COM IPC 宿主，并把唯一槽位、HWND 附着、导航、媒体、导出与安全关闭接入 PlayerWorker/ControlHost 流程 per FR-011–014；真实 Office COM/HWND/DPI 门禁仍由 T116/T129 记录
 - [X] T126 将真实 Windows 显示拓扑和 Core Audio 接入非 simulation ControlHost，保留 simulation 的明确虚拟实现和 unavailable 诊断 per FR-004, FR-019–020；PlayerWorker 可按受验证设备名执行 `SELECT_DISPLAY`，四屏/实际音频播放仍由 T116/T129 验证
 - [X] T127 受认证本机 runtime start/stop/restart/status 控制通道已接入 bootstrap、`/api/system/restart/` 与 `/api/system/shutdown/`；Supervisor 回执驱动 Worker ready→armed，启动超时/早退/登记失败会清理自有进程并持久化 faulted per FR-018, FR-020
-- [ ] T128 修复并回归验证 Web 初始导航挂载竞态，完成 Web/Electron/Android 对 HTTPS simulation ControlHost 的认证、SSE 重连、路由、文件与客户端关闭矩阵 per FR-028–030 (partial)
+- [X] T128 修复并回归验证 Web 初始导航挂载竞态，完成 Web/Electron/Android 对 HTTPS simulation ControlHost 的认证、SSE 重连、路由、文件与客户端关闭矩阵 per FR-028–030
 - [ ] T129 在可运行的真实 Worker 上执行普通命令 1000 样本、健康预热切换 100 样本及具备四屏/Office/VLC/MediaMTX/音频条件时的 60 分钟混合测试，并记录原始证据 per SC-006, SC-009 (partial)
