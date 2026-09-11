@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   以无头方式运行 ControlHost（隐藏窗口 + 日志落盘），可选一并拉起受管 Worker。
 
