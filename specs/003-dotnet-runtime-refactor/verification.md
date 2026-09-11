@@ -62,12 +62,12 @@
 - Playwright + Chrome（Vite preview + simulation ControlHost，1440×900/768×1024/390×844）：通过；截图见 `docs/qa/003-browser-*.png`，console/pageerror 为 0。
 - `pnpm build:electron`：未完成；electron-builder 下载阶段遇到本机证书链错误（`unable to verify the first certificate`），未修改安全配置绕过。
 - Electron unpacked 包实测：`app://scp-cv` 对 HTTPS simulation ControlHost 的 csrf/login/me/SSE 已通过；`#/sources` 连续 10 次 reload 均保持登录并恢复控制链路，console/pageerror 为 0；文件对话框仍待联调。
-- Android AVD 实测：Pixel_9_Pro / API 37 / WebView 145.0.7632.218 安装并启动 debug APK，连接页可见，HOME/重启生命周期可恢复；认证/SSE、文件和外链场景仍待联调。
+- Android AVD 实测：Medium_Tablet / Android 16 API 36 / WebView 134.0.6998.135 安装并启动 debug APK，`https://localhost` 页面、HOME/重启生命周期和 WebView CDP 可用。隔离测试 CA 已在 AVD 用户凭据中显示，ControlHost 证书链由该 CA 校验通过；APK WebView 对 `https://localhost:18443` 仍报告 `CERT_AUTHORITY_INVALID (-202)`，因此认证/SSE、文件和外链场景未宣称通过，未关闭 TLS 校验或改用明文。
 
 ## 尚未验证
 
 - 打包 Electron 的文件选择/保存对话框。
-- Android WebView>=111 设备上的 APK、前后台、返回键、文件与外链限制。
+- Android WebView>=111 设备上的 APK 认证/SSE、文件与外链限制；当前剩余阻塞为 AVD WebView 的用户 CA 信任链（见 `docs/qa/003-android.md`）。
 - 真实浏览器桌面/平板/手机视觉检查与控制台日志。
 - 普通命令 1000 样本、健康热切换 100 样本的 p95。
 - 四屏、Office、VLC、MediaMTX、音频的 60 分钟混合运行。
