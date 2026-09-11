@@ -99,20 +99,23 @@ if ($Detach) {
     # schtasks /tr 上限 261 字符，且内层引号会被参数传递破坏；
     # 因此先落一个启动器脚本，任务只指向它。
     $launcher = Join-Path $dataPath 'headless-launch.ps1'
+    # 用 splat 生成启动器：多行调用需要续行符，splat 更不易写坏。
     $lines = @(
-        ('& ' + "'" + $PSCommandPath + "'"),
-        ("    -RuntimeRoot '" + $RuntimeRoot + "'"),
-        ("    -DataRoot '" + $dataPath + "'"),
-        ("    -ListenUrls '" + $ListenUrls + "'"),
-        ("    -AllowedOrigins '" + $AllowedOrigins + "'"),
-        ("    -DevelopmentUsername '" + $DevelopmentUsername + "'"),
-        ("    -DevelopmentPassword '" + $DevelopmentPassword + "'")
+        '$params = @{'
+        ("    RuntimeRoot = '" + $RuntimeRoot + "'")
+        ("    DataRoot = '" + $dataPath + "'")
+        ("    ListenUrls = '" + $ListenUrls + "'")
+        ("    AllowedOrigins = '" + $AllowedOrigins + "'")
+        ("    DevelopmentUsername = '" + $DevelopmentUsername + "'")
+        ("    DevelopmentPassword = '" + $DevelopmentPassword + "'")
     )
-    if (-not [string]::IsNullOrWhiteSpace($ControlHostPath)) { $lines += "    -ControlHostPath '" + $ControlHostPath + "'" }
-    if (-not [string]::IsNullOrWhiteSpace($SupervisorExecutable)) { $lines += "    -SupervisorExecutable '" + $SupervisorExecutable + "'" }
-    if (-not [string]::IsNullOrWhiteSpace($MediaMtxPath)) { $lines += "    -MediaMtxPath '" + $MediaMtxPath + "'" }
-    if ($StartWorkers) { $lines += '    -StartWorkers' }
-    $lines += "    -ReadyTimeoutSeconds $ReadyTimeoutSeconds"
+    if (-not [string]::IsNullOrWhiteSpace($ControlHostPath)) { $lines += "    ControlHostPath = '" + $ControlHostPath + "'" }
+    if (-not [string]::IsNullOrWhiteSpace($SupervisorExecutable)) { $lines += "    SupervisorExecutable = '" + $SupervisorExecutable + "'" }
+    if (-not [string]::IsNullOrWhiteSpace($MediaMtxPath)) { $lines += "    MediaMtxPath = '" + $MediaMtxPath + "'" }
+    if ($StartWorkers) { $lines += '    StartWorkers = $true' }
+    $lines += "    ReadyTimeoutSeconds = $ReadyTimeoutSeconds"
+    $lines += '}'
+    $lines += '& ' + "'" + $PSCommandPath + "'" + ' @params'
     [System.IO.File]::WriteAllText(
         $launcher,
         ($lines -join [Environment]::NewLine) + [Environment]::NewLine,
