@@ -14,6 +14,7 @@ param(
     [string]$DataRoot = '',
     [string]$ListenUrls = 'https://localhost:18443',
     [string]$AllowedOrigins = 'https://localhost',
+    [ValidateSet('Simulation', 'Hardware')][string]$SafetyMode = 'Simulation',
     [string]$ControlHostPath = '',
     [string]$MediaMtxPath = '',
     [string]$SupervisorExecutable = '',
@@ -106,6 +107,7 @@ if ($Detach) {
         ("    DataRoot = '" + $dataPath + "'")
         ("    ListenUrls = '" + $ListenUrls + "'")
         ("    AllowedOrigins = '" + $AllowedOrigins + "'")
+        ("    SafetyMode = '" + $SafetyMode + "'")
         ("    DevelopmentUsername = '" + $DevelopmentUsername + "'")
         ("    DevelopmentPassword = '" + $DevelopmentPassword + "'")
     )
@@ -168,6 +170,7 @@ $errLog = Join-Path $dataPath 'control-host.err.log'
 
 $arguments = @(
     '--urls=' + $ListenUrls
+    '--SafetyMode=' + $SafetyMode
     '--DataRoot=' + $dataPath
     '--Authentication:AllowedOrigins:0=' + $AllowedOrigins
     '--Authentication:CrossSiteCookies=true'
