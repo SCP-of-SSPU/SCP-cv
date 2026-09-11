@@ -12,6 +12,22 @@
 
 ## 1. 启动 Hardware ControlHost
 
+推荐用无头脚本启动（隐藏控制台窗口、日志落盘、可选一并编排 Worker）：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File runtime-dotnet\scripts\run-headless.ps1 `
+  -DataRoot 'D:\SCP-cv\.validation\t129-workstation' `
+  -ListenUrls 'https://localhost:18443' `
+  -SupervisorExecutable 'D:\SCP-cv\runtime-dotnet\src\ScpCv.Supervisor\bin\Debug\net10.0-windows10.0.19041.0\ScpCv.Supervisor.exe' `
+  -MediaMtxPath 'D:\SCP-cv\tools\third_party\mediamtx\mediamtx.exe' `
+  -DevelopmentPassword '<开发账号口令>' `
+  -StartWorkers
+```
+
+停止：同参数加 `-Stop`。脚本不隐藏 PlayerWorker 的播放窗口——那四块画面本身就是播放输出。
+
+等价的手动方式：
+
 ```powershell
 $root = 'E:\Projects\SSPU\SCP-cv'
 $data = "$root\.validation\t129-workstation-$(Get-Date -Format yyyyMMdd-HHmm)"
