@@ -96,34 +96,37 @@ if ($Stop) {
 # 计划任务实例不属于该进程树，因此 SSH 可以立刻返回而 ControlHost 继续运行。
 # 任务保留用于后续手动运行；-Stop 会连同任务一起清理。
 if ($Detach) {
-    # schtasks /tr 接受的是单条命令行，内层引号会被 PowerShell 的参数传递破坏；
-    # 因此仅在参数含空白时才加引号。
-    $quote = {
-        param([string]$Value)
-        if ($Value -match '\s') { return '"' + $Value + '"' }
-        return $Value
-    }
-    $parts = @(
-        '-ExecutionPolicy', 'Bypass', '-File', (& $quote $PSCommandPath),
-        '-RuntimeRoot', (& $quote $RuntimeRoot),
-        '-DataRoot', (& $quote $dataPath),
-        '-ListenUrls', (& $quote $ListenUrls),
-        '-AllowedOrigins', (& $quote $AllowedOrigins),
-        '-DevelopmentUsername', (& $quote $DevelopmentUsername),
-        '-DevelopmentPassword', (& $quote $DevelopmentPassword)
+    # schtasks /tr 上限 261 字符，且内层引号会被参数传递破坏；
+    # 因此先落一个启动器脚本，任务只指向它。
+    $launcher = Join-Path $dataPath 'headless-launch.ps1'
+    $lines = @(
+        ('& ' + "'" + $PSCommandPath + "'"),
+        ("    -RuntimeRoot '" + $RuntimeRoot + "'"),
+        ("    -DataRoot '" + $dataPath + "'"),
+        ("    -ListenUrls '" + $ListenUrls + "'"),
+        ("    -AllowedOrigins '" + $AllowedOrigins + "'"),
+        ("    -DevelopmentUsername '" + $DevelopmentUsername + "'"),
+        ("    -DevelopmentPassword '" + $DevelopmentPassword + "'")
     )
-    if (-not [string]::IsNullOrWhiteSpace($ControlHostPath)) { $parts += @('-ControlHostPath', (& $quote $ControlHostPath)) }
-    if (-not [string]::IsNullOrWhiteSpace($SupervisorExecutable)) { $parts += @('-SupervisorExecutable', (& $quote $SupervisorExecutable)) }
-    if (-not [string]::IsNullOrWhiteSpace($MediaMtxPath)) { $parts += @('-MediaMtxPath', (& $quote $MediaMtxPath)) }
-    if ($StartWorkers) { $parts += '-StartWorkers' }
-    $parts += @('-ReadyTimeoutSeconds', $ReadyTimeoutSeconds)
-    $action = $env:SystemRoot + '\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile ' + ($parts -join ' ')
+    if (-not [string]::IsNullOrWhiteSpace($ControlHostPath)) { $lines += "    -ControlHostPath '" + $ControlHostPath + "'" }
+    if (-not [string]::IsNullOrWhiteSpace($SupervisorExecutable)) { $lines += "    -SupervisorExecutable '" + $SupervisorExecutable + "'" }
+    if (-not [string]::IsNullOrWhiteSpace($MediaMtxPath)) { $lines += "    -MediaMtxPath '" + $MediaMtxPath + "'" }
+    if ($StartWorkers) { $lines += '    -StartWorkers' }
+    $lines += "    -ReadyTimeoutSeconds $ReadyTimeoutSeconds"
+    [System.IO.File]::WriteAllText(
+        $launcher,
+        ($lines -join [Environment]::NewLine) + [Environment]::NewLine,
+        (New-Object System.Text.UTF8Encoding($true)))
+
+    $action = (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe') +
+        ' -NoProfile -ExecutionPolicy Bypass -File ' + $launcher
+    if ($action.Length -gt 261) { throw "计划任务动作超过 261 字符：$action" }
     $taskName = Get-HeadlessTaskName
     $created = schtasks /create /tn $taskName /tr $action /sc once /st 23:59 /f 2>&1 | Out-String
     if ($LASTEXITCODE -ne 0) { Write-Log $created.Trim(); throw "创建计划任务 $taskName 失败。" }
     $ran = schtasks /run /tn $taskName 2>&1 | Out-String
     if ($LASTEXITCODE -ne 0) { Write-Log $ran.Trim(); throw "运行计划任务 $taskName 失败。" }
-    Write-Log "已通过计划任务分离启动：$taskName，日志：$scriptLog"
+    Write-Log "已通过计划任务分离启动：$taskName（启动器 $launcher），日志：$scriptLog"
     return
 }
 
