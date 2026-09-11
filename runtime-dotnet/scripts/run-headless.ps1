@@ -14,6 +14,7 @@ param(
     [string]$DataRoot = '',
     [string]$ListenUrls = 'https://localhost:18443',
     [string]$AllowedOrigins = 'https://localhost',
+    [string]$ControlHostPath = '',
     [string]$MediaMtxPath = '',
     [string]$SupervisorExecutable = '',
     [string]$DevelopmentUsername = 'qa-admin',
@@ -50,10 +51,25 @@ if ($Stop) {
     return
 }
 
-$exe = Join-Path $RuntimeRoot 'ScpCv.ControlHost\bin\Debug\net10.0\ScpCv.ControlHost.exe'
-if (-not (Test-Path -LiteralPath $exe)) {
-    throw "未找到 ControlHost：$exe（先运行 dotnet build runtime-dotnet\ScpCv.sln）"
+if ([string]::IsNullOrWhiteSpace($ControlHostPath)) {
+    $candidates = @(
+        (Join-Path $RuntimeRoot 'ScpCv.ControlHost\bin\Debug\net10.0\ScpCv.ControlHost.exe')
+        (Join-Path $RuntimeRoot 'ScpCv.ControlHost\bin\Release\net10.0\ScpCv.ControlHost.exe')
+    )
+    $exe = $candidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    if (-not $exe) {
+        # 兼容自包含发布布局：任意深度的 ScpCv.ControlHost 目录下的可执行文件。
+        $exe = Get-ChildItem -LiteralPath $RuntimeRoot -Filter 'ScpCv.ControlHost.exe' -Recurse -File -ErrorAction SilentlyContinue |
+            Select-Object -First 1 -ExpandProperty FullName
+    }
 }
+else {
+    $exe = [System.IO.Path]::GetFullPath($ControlHostPath)
+}
+if ([string]::IsNullOrWhiteSpace($exe) -or -not (Test-Path -LiteralPath $exe)) {
+    throw "未找到 ControlHost（RuntimeRoot=$RuntimeRoot）。先 dotnet build/publish，或用 -ControlHostPath 指定。"
+}
+$exe = [System.IO.Path]::GetFullPath($exe)
 if ([string]::IsNullOrWhiteSpace($DevelopmentPassword)) {
     throw '必须传入 -DevelopmentPassword（或先在本机配置正式账号）。'
 }
