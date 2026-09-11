@@ -21,6 +21,11 @@ test('Capacitor 正式配置固定安全本地 origin、WebView 111 和必要插
   assert.doesNotMatch(config, /server:\s*\{[\s\S]*?url:/);
 });
 
+test('Android 原生返回键必须交给已注册的 JS backButton 监听器', () => {
+  const config = readFileSync(join(frontendRoot, 'capacitor.config.ts'), 'utf8');
+  assert.doesNotMatch(config, /disableBackButtonHandler:\s*true/);
+});
+
 test('Android Manifest 拒绝明文并仅允许应用私有 FileProvider 范围', () => {
   const manifest = readFileSync(join(frontendRoot, 'android/app/src/main/AndroidManifest.xml'), 'utf8');
   const paths = readFileSync(join(frontendRoot, 'android/app/src/main/res/xml/file_paths.xml'), 'utf8');

@@ -6,6 +6,7 @@ import {
   resolveInitialRoute,
   resolveBackAction,
 } from '../src/platform/index.ts';
+import { dismissTopLayer } from '../src/platform/lifecycleBack.ts';
 import {
   pickUploadFile,
   saveResponseFile,
@@ -30,6 +31,20 @@ test('返回键先关闭浮层，再回退路由，根页面才请求退出客�
   assert.equal(resolveBackAction({ hasDismissibleLayer: true, canGoBack: true }), 'dismiss-layer');
   assert.equal(resolveBackAction({ hasDismissibleLayer: false, canGoBack: true }), 'router-back');
   assert.equal(resolveBackAction({ hasDismissibleLayer: false, canGoBack: false }), 'exit-client');
+});
+
+test('原生返回键通过浮层的关闭控件结束最上层交互', () => {
+  let closeCount = 0;
+  const closeControl = { click: () => { closeCount += 1; } };
+  const layer = {
+    querySelector: (selector) => selector === 'button[aria-label="close"]' ? closeControl : null,
+  };
+  const root = {
+    querySelectorAll: () => [layer],
+  };
+
+  assert.equal(dismissTopLayer(root), true);
+  assert.equal(closeCount, 1);
 });
 
 test('上传只消费平台选择器返回的 Blob，不把客户端路径注册成主机路径', async () => {

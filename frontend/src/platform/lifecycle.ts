@@ -1,18 +1,11 @@
 import type { Router } from 'vue-router';
 
 import type { PlatformAdapter } from './index';
+import { dismissTopLayer } from './lifecycleBack';
 import { resumeClientConnection } from './lifecycleState';
 import { useAuthStore } from '@/stores/auth';
 import { refreshStores } from '@/stores';
 import { useRuntimeStore } from '@/stores/runtime';
-
-function dismissTopLayer(): boolean {
-  const layer = document.querySelector<HTMLElement>('[role="dialog"], .n-drawer--show, .n-modal');
-  if (!layer) return false;
-  layer.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-  return true;
-}
 
 function isRootRoute(path: string): boolean {
   return ['/dashboard', '/login', '/connect'].includes(path);

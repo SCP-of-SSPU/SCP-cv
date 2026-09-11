@@ -6,8 +6,8 @@
 
 | 范围 | 自动化证据 | 人工/实机证据 | 当前结论 |
 | --- | --- | --- | --- |
-| Q1 三端共享功能 | `frontend/scripts/platform-adapters.test.mjs`、`client-connection.test.mjs`、ControlHost 合同测试 | `docs/qa/003-client-matrix.md` | Web 通过；Electron 实包已完成 HTTPS 主机登录/SSE/路由联调；Android 主机联调待补 |
-| Q2 会话与 SSE | `AuthEndpointTests`、`SseEndpointTests`、`verify-packaged-session.test.mjs`、`client-connection.test.mjs` | `docs/qa/003-electron.md` 记录 Electron 10 次页面/SSE 重建；Web/Android 完整恢复矩阵待补 | 自动化与 Electron 实包通过；其余实包待验证 |
+| Q1 三端共享功能 | `frontend/scripts/platform-adapters.test.mjs`、`client-connection.test.mjs`、ControlHost 合同测试 | `docs/qa/003-client-matrix.md` | Web 通过；Electron 已完成 HTTPS 登录/SSE/路由联调；Android 实包完整通过；Electron 文件/关闭待补 |
+| Q2 会话与 SSE | `AuthEndpointTests`、`SseEndpointTests`、`verify-packaged-session.test.mjs`、`client-connection.test.mjs` | Electron 10 次页面重载及 Android 10 次 HOME/恢复记录见客户端矩阵 | 自动化、Electron 与 Android 实包均通过 |
 | Q3 业务规则 | Domain/ControlHost 全套测试、`OpenApiCoverageTests` | 浏览器业务状态见 `docs/qa/003-browser-ui.md` | 自动化通过；浏览器复核待执行 |
 | Q4 可靠命令 | `CommandFencingTests`、`CommandRecoveryTests`、`ReliabilityAcceptanceTests`、`SecurityBoundaryTests` | 无 | 自动化通过 |
 | Q5 Office/PDF | `PresentationPolicyTests`、`OfficeOperationTests`、`MediaPreparationTests`、`RuntimePipeBrokerTests` | `docs/qa/003-office-interop.md` | Office IPC、去重、授权与软件边界通过；实际 Office/HWND 条件待验证 |
@@ -16,29 +16,29 @@
 | Q8 启停/音频 | `BackgroundAudioTests`、`RuntimeLifecycleTests`、`ReliabilityAcceptanceTests`、`RuntimeProjectionTests`、`HostHardwareIntegrationTests` | `docs/qa/003-windows-runtime.md` | 音频 generation fencing、Core Audio 接线与自动化通过；完整实机循环待执行 |
 | Q9 开发数据/Git | `DatabaseInitializerTests`、`DevelopmentDataTests`、`DataBoundaryTests` | `runtime-dotnet/README.md` | 通过；新库与旧库边界明确 |
 | Q10 Windows 运行 | Windows/Integration 测试工程、`HostHardwareIntegrationTests` | `docs/qa/003-windows-runtime.md` | 本机显示拓扑/Core Audio 只读探针通过；四屏 60 分钟待实机 |
-| Q11 原生壳/UI 安全 | `electron-security.test.mjs`、`capacitor-platform.test.mjs`、`security-boundary.test.mjs` | `docs/qa/003-electron.md`、`003-android.md`、`003-browser-ui.md` | 静态、自动化及 Electron HTTPS/路由实包边界通过；交互式文件与 Android 外链场景待补 |
+| Q11 原生壳/UI 安全 | `electron-security.test.mjs`、`capacitor-platform.test.mjs`、`security-boundary.test.mjs` | `docs/qa/003-electron.md`、`003-android.md`、`003-browser-ui.md` | Android 文件/外链/返回键实包通过；Electron 交互式文件与关闭场景待补 |
 
 ## FR-001–FR-030 映射
 
 | 需求 | 主要证据 | 状态 |
 | --- | --- | --- |
-| FR-001–003 | 前端共享构建测试、HTTP 合同测试、`DatabaseInitializerTests` | 自动化通过；三端实包待验证 |
+| FR-001–003 | 前端共享构建测试、HTTP 合同测试、`DatabaseInitializerTests` | 自动化与 Android 实包通过；Electron 文件场景待补 |
 | FR-004–006 | `PlaybackRulesTests`、ControlHost 兼容测试、`BackgroundAudioTests` | 通过 |
 | FR-007–010 | 命令仓储、围栏、恢复、投影和前端 actual-state 测试 | 通过 |
 | FR-011–014 | `PresentationPolicyTests`、`OfficeOperationTests`、`MediaPreparationTests` | 软件通过；Office 实机待验证 |
 | FR-015–017 | `ResourceSwitchTests`、`WebViewPreheatTests`、`VlcAdapterTests`、流发现实现 | 软件通过；长时间预热待验证 |
 | FR-018–021 | `RuntimeLifecycleTests`、Supervisor/Worker 测试与 QA 模板 | 软件通过；Windows 运行待验证 |
 | FR-022–023 | 独立 DataRoot 测试、开发脚本、Git 范围说明 | 通过 |
-| FR-024 | 平台适配测试、主机/客户端进程边界 | 软件通过；实包关闭行为待验证 |
+| FR-024 | 平台适配测试、主机/客户端进程边界 | Android 实包关闭后主机存活；Electron 关闭行为待验证 |
 | FR-025 | `LogRedaction` 与 `SecurityBoundaryTests` | 通过 |
 | FR-026–027 | 本文件、Spec Kit 产物、锁文件和验证命令 | 进行中 |
-| FR-028–030 | 响应式/平台/安全边界测试 | 自动化通过；浏览器、Electron、Android 实测待验证 |
+| FR-028–030 | 响应式/平台/安全边界测试 | 浏览器与 Android 实测通过；Electron 文件/关闭待验证 |
 
 ## SC-001–SC-010 映射
 
 | 成功标准 | 证据 | 当前结论 |
 | --- | --- | --- |
-| SC-001 | Q1、三端矩阵 | 待 Electron/Android 实包 |
+| SC-001 | Q1、三端矩阵 | Android 实包通过；Electron 文件/关闭待补 |
 | SC-002 | `ReliabilityAcceptanceTests`、`CommandRecoveryTests` | 通过 |
 | SC-003 | `CommandRecoveryTests`、`OfficeOperationTests` | 通过 |
 | SC-004 | `PresentationPolicyTests`、Office QA | 软件通过，实机待验证 |
@@ -47,7 +47,7 @@
 | SC-007 | `RuntimeLifecycleTests`、Windows 运行 QA | 软件通过，完整次数待实机 |
 | SC-008 | `DevelopmentDataTests`、`DataBoundaryTests` | 通过 |
 | SC-009 | Windows 60 分钟 QA | 待实机 |
-| SC-010 | 本矩阵、三端恢复和 Android QA | 映射完成，实包项待执行 |
+| SC-010 | 本矩阵、三端恢复和 Android QA | Android 实包完成；Electron 文件/关闭待补 |
 
 ## 自动化执行记录
 
@@ -62,12 +62,12 @@
 - Playwright + Chrome（Vite preview + simulation ControlHost，1440×900/768×1024/390×844）：通过；截图见 `docs/qa/003-browser-*.png`，console/pageerror 为 0。
 - `pnpm --dir frontend run build:electron`：通过；electron-builder 26.15.3 下载 Electron 44.2.0 并生成 `frontend/release-electron/win-unpacked`。构建仅提示未设置应用图标和入口 chunk 体积较大，未修改安全配置绕过证书校验。
 - Electron unpacked 包实测：`app://scp-cv` 对 HTTPS simulation ControlHost 的 csrf/login/me/SSE 已通过；`#/sources` 连续 10 次 reload 均保持登录并恢复控制链路，console/pageerror 为 0；文件对话框仍待联调。
-- Android AVD 实测：Medium_Tablet / Android 16 API 36 / WebView 134.0.6998.135 安装并启动 debug APK，`https://localhost` 页面、HOME/重启生命周期和 WebView CDP 可用。隔离测试 CA 已在 AVD 用户凭据中显示，ControlHost 证书链由该 CA 校验通过；APK WebView 对 `https://localhost:18443` 仍报告 `CERT_AUTHORITY_INVALID (-202)`，因此认证/SSE、文件和外链场景未宣称通过，未关闭 TLS 校验或改用明文。
+- Android AVD 实测（2026-09-11）：Medium_Tablet / Android 16 API 36 / WebView 134.0.6998.135 的 debug APK 已通过 HTTPS 登录、REST、SSE、10 次 HOME/恢复、原生文件选择/上传、受保护保存、外链转系统 Chrome及返回键完整序列；退出后 ControlHost 仍返回 HTTP 200。TLS 使用 debug 构建内的用户 CA trust anchor，未关闭证书校验或改用明文。
+- Android 返回键回归：原生 AppPlugin 配置测试、显式浮层关闭测试、typecheck、`cap:sync`、Gradle `assembleDebug` 与真实 APK 三段 Back 序列通过。
 
 ## 尚未验证
 
 - 打包 Electron 的文件选择/保存对话框。
-- Android WebView>=111 设备上的 APK 认证/SSE、文件与外链限制；当前剩余阻塞为 AVD WebView 的用户 CA 信任链（见 `docs/qa/003-android.md`）。
 - 真实浏览器桌面/平板/手机视觉检查与控制台日志。
 - 普通命令 1000 样本、健康热切换 100 样本的 p95。
 - 四屏、Office、VLC、MediaMTX、音频的 60 分钟混合运行。

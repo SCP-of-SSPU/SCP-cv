@@ -252,7 +252,7 @@
 - [X] T111 运行并修复共享前端测试、typecheck、web/app/Electron 构建，记录结果到 `specs/003-dotnet-runtime-refactor/verification.md`
 - [X] T112 在真实浏览器检查桌面/平板/手机布局、活动/错误/媒体状态和控制台日志，记录到 `docs/qa/003-browser-ui.md`
 - [ ] T113 在实际打包 Electron 中验证安全协议、认证/SSE、路由、文件和关闭行为，记录到 `docs/qa/003-electron.md`
-- [ ] T114 在实际 Android APK 与 WebView>=111 设备验证认证/SSE、前后台、返回键、文件和外链限制，记录到 `docs/qa/003-android.md`
+- [X] T114 在实际 Android APK 与 WebView>=111 设备验证认证/SSE、前后台、返回键、文件和外链限制，记录到 `docs/qa/003-android.md`
 - [ ] T115 执行普通命令 1000 样本与健康热切换 100 样本基准，记录 p95 和测试条件到 `docs/qa/003-performance.md`
 - [ ] T116 执行开发 Windows 四屏/Office/VLC/MediaMTX/音频 60 分钟混合测试，记录硬件条件和未通过项到 `docs/qa/003-windows-runtime.md`
 - [X] T117 更新目标架构、开发运行、客户端连接和故障诊断文档到 `README.md`、`docs/使用文档.md`、`docs/维护文档.md` 和 `docs/CHANGELOG.md`

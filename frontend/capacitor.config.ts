@@ -25,7 +25,7 @@ const config: CapacitorConfig = {
   },
   plugins: {
     App: {
-      disableBackButtonHandler: true,
+      disableBackButtonHandler: false,
     },
     CapacitorHttp: {
       enabled: false,
