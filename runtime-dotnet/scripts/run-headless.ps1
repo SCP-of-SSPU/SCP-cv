@@ -15,6 +15,7 @@ param(
     [string]$ListenUrls = 'https://localhost:18443',
     [string]$AllowedOrigins = 'https://localhost',
     [ValidateSet('Simulation', 'Hardware')][string]$SafetyMode = 'Simulation',
+    [Nullable[bool]]$CrossSiteCookies = $null,
     [string]$ControlHostPath = '',
     [string]$MediaMtxPath = '',
     [string]$SupervisorExecutable = '',
@@ -34,6 +35,9 @@ $supportsSkip = (Get-Command Invoke-WebRequest).Parameters.ContainsKey('SkipCert
 if ($isHttps -and -not $supportsSkip) {
     [System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
 }
+# CrossSiteCookies=true 会让会话 Cookie 带 Secure 标记，HTTP 下客户端不会回传；
+# 未显式指定时按监听协议决定。
+if ($null -eq $CrossSiteCookies) { $CrossSiteCookies = $isHttps }
 
 function Invoke-ScpCvWeb {
     param([string]$Uri, [string]$Method = 'GET', $WebSession = $null, [hashtable]$Headers = $null, [string]$ContentType = '', [string]$Body = '')
@@ -113,6 +117,7 @@ if ($Detach) {
         ("    ListenUrls = '" + $ListenUrls + "'")
         ("    AllowedOrigins = '" + $AllowedOrigins + "'")
         ("    SafetyMode = '" + $SafetyMode + "'")
+        ("    CrossSiteCookies = $" + $CrossSiteCookies.ToString().ToLowerInvariant())
         ("    DevelopmentUsername = '" + $DevelopmentUsername + "'")
         ("    DevelopmentPassword = '" + $DevelopmentPassword + "'")
     )
@@ -178,7 +183,7 @@ $arguments = @(
     '--SafetyMode=' + $SafetyMode
     '--DataRoot=' + $dataPath
     '--Authentication:AllowedOrigins:0=' + $AllowedOrigins
-    '--Authentication:CrossSiteCookies=true'
+    '--Authentication:CrossSiteCookies=' + $CrossSiteCookies.ToString().ToLowerInvariant()
     '--Authentication:DevelopmentAccount:Username=' + $DevelopmentUsername
     '--Authentication:DevelopmentAccount:Password=' + $DevelopmentPassword
     '--Authentication:DevelopmentAccount:IsStaff=true'
