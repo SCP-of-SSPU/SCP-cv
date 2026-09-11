@@ -60,7 +60,7 @@
 - `pnpm --dir frontend typecheck`：通过。
 - `pnpm --dir frontend build:web`、`build:app`、`build:electron-main`：通过；Vite 提示主入口压缩前约 1.07 MB，记录为后续代码分割优化项。
 - Playwright + Chrome（Vite preview + simulation ControlHost，1440×900/768×1024/390×844）：通过；截图见 `docs/qa/003-browser-*.png`，console/pageerror 为 0。
-- `pnpm build:electron`：未完成；electron-builder 下载阶段遇到本机证书链错误（`unable to verify the first certificate`），未修改安全配置绕过。
+- `pnpm --dir frontend run build:electron`：通过；electron-builder 26.15.3 下载 Electron 44.2.0 并生成 `frontend/release-electron/win-unpacked`。构建仅提示未设置应用图标和入口 chunk 体积较大，未修改安全配置绕过证书校验。
 - Electron unpacked 包实测：`app://scp-cv` 对 HTTPS simulation ControlHost 的 csrf/login/me/SSE 已通过；`#/sources` 连续 10 次 reload 均保持登录并恢复控制链路，console/pageerror 为 0；文件对话框仍待联调。
 - Android AVD 实测：Medium_Tablet / Android 16 API 36 / WebView 134.0.6998.135 安装并启动 debug APK，`https://localhost` 页面、HOME/重启生命周期和 WebView CDP 可用。隔离测试 CA 已在 AVD 用户凭据中显示，ControlHost 证书链由该 CA 校验通过；APK WebView 对 `https://localhost:18443` 仍报告 `CERT_AUTHORITY_INVALID (-202)`，因此认证/SSE、文件和外链场景未宣称通过，未关闭 TLS 校验或改用明文。
 
