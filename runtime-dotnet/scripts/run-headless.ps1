@@ -65,8 +65,13 @@ function Write-Log {
 }
 
 function Get-HeadlessControlHost {
+    # 注意：Windows PowerShell 5.1 基于 .NET Framework，没有
+    # String.Contains(string, StringComparison) 重载，必须用 IndexOf。
     Get-CimInstance Win32_Process -Filter "Name='ScpCv.ControlHost.exe'" -ErrorAction SilentlyContinue |
-        Where-Object { $_.CommandLine -and $_.CommandLine.Contains($dataPath, [StringComparison]::OrdinalIgnoreCase) }
+        Where-Object {
+            $_.CommandLine -and
+            ($_.CommandLine.IndexOf($dataPath, [StringComparison]::OrdinalIgnoreCase) -ge 0)
+        }
 }
 
 function Get-HeadlessTaskName {
