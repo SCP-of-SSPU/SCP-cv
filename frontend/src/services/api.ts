@@ -4,6 +4,7 @@ import {
   StaleConnectionResponseError,
   type ServerProfile,
 } from '@/platform/connection';
+import { resolveCsrfToken } from '@/platform/csrf';
 
 export interface MediaFolderItem {
   id: number;
@@ -388,7 +389,7 @@ async function requestJson<T>(url: string, init: RequestInit = {}, timeoutMs = R
   const method = (init.method || 'GET').toUpperCase();
   const csrfHeader: Record<string, string> = {};
   if (UNSAFE_METHODS.has(method)) {
-    const token = csrfRequestToken || readCookie('csrftoken');
+    const token = resolveCsrfToken(csrfRequestToken, readCookie('csrftoken'));
     if (token) csrfHeader['X-CSRFToken'] = token;
   }
   const response = await fetchWithTimeout(absoluteUrl, {
@@ -423,7 +424,7 @@ function uploadFormData<T>(url: string, formData: FormData, options: UploadOptio
     request.open('POST', buildBackendUrl(url));
     // 文件上传走 multipart：必须同样携带 session cookie + CSRF token，否则被拦截。
     request.withCredentials = true;
-    const csrfToken = readCookie('csrftoken');
+    const csrfToken = resolveCsrfToken(csrfRequestToken, readCookie('csrftoken'));
     if (csrfToken) request.setRequestHeader('X-CSRFToken', csrfToken);
     request.upload.onprogress = (event: ProgressEvent) => {
       if (!event.lengthComputable) return;

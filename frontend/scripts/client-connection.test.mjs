@@ -7,6 +7,13 @@ import {
   loadStoredServerProfile,
   normalizeServerProfile,
 } from '../src/platform/connection.ts';
+import { resolveCsrfToken } from '../src/platform/csrf.ts';
+
+test('multipart 上传优先使用登录流程缓存的 CSRF token', () => {
+  assert.equal(resolveCsrfToken('cached-token', 'cookie-token'), 'cached-token');
+  assert.equal(resolveCsrfToken('', 'cookie-token'), 'cookie-token');
+  assert.equal(resolveCsrfToken('', ''), '');
+});
 
 test('服务器配置只接受 HTTPS origin 或显式本机 HTTP 开发地址', () => {
   assert.equal(normalizeServerProfile({ origin: 'https://host.test/', displayName: '' }).origin, 'https://host.test');
