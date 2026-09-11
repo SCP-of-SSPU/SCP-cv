@@ -2,6 +2,33 @@
 
 用途：在具备四屏、Office、VLC 素材、MediaMTX 与真实音频的工作站上，一次性收口 T050/T115/T116/T128/T129。
 
+## 0.1 实际部署方式（2026-09-11，工作站 `d2` / 192.168.5.192）
+
+工作站上**没有安装 .NET SDK 或运行时**（`HKLM:\SOFTWARE\dotnet\Setup\InstalledVersions` 缺失、`Program Files\dotnet` 不存在、PATH 无 `dotnet`），
+因此不采用“在工作站构建”，而是从开发机做**自包含发布**再拷贝过去：
+
+```powershell
+# 开发机
+dotnet publish runtime-dotnet/src/ScpCv.ControlHost/ScpCv.ControlHost.csproj  -c Release -r win-x64 --self-contained true -o .validation\ws-publish\ScpCv.ControlHost
+# Supervisor / PlayerWorker / AudioWorker / PowerPointHost 同理
+tar.exe -cf .validation\ws-publish.tar -C .validation\ws-publish .
+scp .validation\ws-publish.tar d2:D:/SCP-cv/.validation/runtime-portable.tar
+# 工作站
+tar.exe -xf D:\SCP-cv\.validation\runtime-portable.tar -C D:\SCP-cv\.validation\runtime-portable
+```
+
+产物约 1.1 GB / 3469 文件，局域网传输约 12 秒。运行目录 `.validation/runtime-portable` 不在版本控制内。
+
+若后续要直接在工作站构建，需要先安装 .NET 10 SDK；当前 `D:\SCP-cv` 只做了用户级发布产物部署。
+
+## 0.2 工作站环境要点
+
+- **PowerShell 5.1 + ANSI 代码页 936**：`*.ps1` 必须带 UTF-8 BOM，否则中文注释被按 GBK 解析、字符串未闭合导致 `ParserError`。仓库内 `runtime.ps1`、`run-headless.ps1`、`benchmark-commands.ps1` 已加 BOM。
+- PowerShell 5.1 的 .NET Framework 没有 `String.Contains(string, StringComparison)` 重载，脚本内统一用 `IndexOf(..., StringComparison)`。
+- `schtasks /tr` 上限 261 字符，所以无头启动先用 `-Detach` 生成 `headless-launch.ps1`，任务只指向该启动器。
+- `CrossSiteCookies=true` 会下发 `Secure` 会话 Cookie，HTTP 下不会被回传；`run-headless.ps1` 现在按监听协议自动选择（https→true，http→false）。
+- SSH 会话关闭会回收会话内的进程树，因此无头启动经一次性计划任务（`ScpCvHeadless-<hash>`）分离；重复触发由幂等守卫拦截。
+
 ## 0. 前置条件
 
 - Windows x64 交互桌面，四个显示输出已接线并被系统识别；显示器名可在 `/api/displays/` 查看。
@@ -16,15 +43,38 @@
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File runtime-dotnet\scripts\run-headless.ps1 `
+  -Detach `
+  -SafetyMode Hardware `
   -DataRoot 'D:\SCP-cv\.validation\t129-workstation' `
   -ListenUrls 'https://localhost:18443' `
+  -RuntimeRoot 'D:\SCP-cv\.validation\runtime-portable' `
   -SupervisorExecutable 'D:\SCP-cv\runtime-dotnet\src\ScpCv.Supervisor\bin\Debug\net10.0-windows10.0.19041.0\ScpCv.Supervisor.exe' `
   -MediaMtxPath 'D:\SCP-cv\tools\third_party\mediamtx\mediamtx.exe' `
   -DevelopmentPassword '<开发账号口令>' `
   -StartWorkers
 ```
 
-停止：同参数加 `-Stop`。脚本不隐藏 PlayerWorker 的播放窗口——那四块画面本身就是播放输出。
+说明：
+
+- `-Detach` 经一次性计划任务启动，SSH 关闭后 `ControlHost` 继续运行；不加 `-Detach` 则前台运行。
+- 停止（不需要口令）：`run-headless.ps1 -Stop -DataRoot 'D:\SCP-cv\.validation\t129-workstation'`，会结束 ControlHost 并清理计划任务。
+- `-StartWorkers` 会通过 `/api/system/restart/` 拉起 4 个 PlayerWorker / AudioWorker / PowerPointHost / MediaMTX。
+  4 个播放窗口是无边框全屏窗口，**会覆盖四块屏幕**，请在真正开始实验时再加。
+- HTTPS 监听需要 Kestrel 证书；工作站上没有 .NET 开发证书，首次请先用 `-ListenUrls http://localhost:18443` 做冒烟，再配置正式证书。
+
+## 1.1 2026-09-11 工作站实测结果
+
+`d2` 上以 `-Detach -SafetyMode Hardware -ListenUrls http://localhost:18443` 启动后：
+
+- `/health/ready` → 200；服务根返回 `{"service":"SCP-cv ControlHost","status":"ready","safety_mode":"hardware","database":"control.db"}`。
+- `/api/displays/` → 4 块真实显示器，全部 `3840×2160`，坐标 `x=0 / 3840 / 7680 / 11520`，`DISPLAY1` 为主屏。
+- `/api/volume/` → `level=51, muted=false, system_synced=true, backend=windows_core_audio`。
+- `/api/runtime/` → `big_screen_mode=single, volume_level=100, muted_windows=[2,3,4]`。
+
+注意：从 SSH 会话里用 `[System.Windows.Forms.Screen]::AllScreens` 只会看到 1 块 `WinDisc 1024x768`——SSH 会话在 session 0，
+看不到交互桌面的真实显示拓扑。硬件探针必须在交互会话内运行的 ControlHost 上取（计划任务方式天然满足）。
+
+本次只验证了 Hardware ControlHost 与硬件探针；四屏播放、Office、VLC、MediaMTX、音频的 60 分钟混合测试仍未执行。
 
 等价的手动方式：
 
